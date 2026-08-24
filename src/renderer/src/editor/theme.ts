@@ -66,34 +66,55 @@ const editorChrome = EditorView.theme({
  */
 // Balanced comfortable heading typography scale
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em' },
-  { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em' },
-  { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em' },
-  { tag: tags.heading4, fontSize: '1.04em', fontWeight: '600' },
+  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em', color: 'var(--zy-fg)' },
+  { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em', color: 'var(--zy-fg)' },
+  { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em', color: 'var(--zy-fg)' },
+  { tag: tags.heading4, fontSize: '1.04em', fontWeight: '600', color: 'var(--zy-fg)' },
   { tag: tags.heading5, fontSize: '0.94em', fontWeight: '600', letterSpacing: '0.03em', color: 'var(--zy-fg-muted)' },
   { tag: tags.heading6, fontSize: '0.88em', fontWeight: '600', letterSpacing: '0.04em', color: 'var(--zy-fg-faint)' },
-  { tag: tags.strong, fontWeight: '700' },
-  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strong, fontWeight: '700', color: 'var(--zy-fg)' },
+  { tag: tags.emphasis, fontStyle: 'italic', color: 'var(--zy-fg)' },
   { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--zy-fg-muted)' },
   { tag: tags.link, color: 'var(--zy-accent)' },
   { tag: tags.url, color: 'var(--zy-fg-faint)' },
-  { tag: tags.monospace, fontFamily: 'var(--zy-mono-font)', fontSize: '0.9em' },
+  { tag: tags.labelName, color: 'var(--zy-accent)' },
+  { tag: tags.monospace, fontFamily: 'var(--zy-mono-font)', fontSize: '0.88em' },
   { tag: tags.quote, color: 'var(--zy-fg-muted)' },
   { tag: tags.list, color: 'var(--zy-fg)' },
   { tag: tags.meta, color: 'var(--zy-fg-faint)' },
   { tag: tags.processingInstruction, color: 'var(--zy-fg-faint)' },
-  { tag: tags.contentSeparator, color: 'var(--zy-fg-faint)' },
+  { tag: tags.contentSeparator, color: 'var(--zy-border)' },
+  { tag: tags.escape, color: 'var(--zy-fg-faint)' },
+  { tag: tags.regexp, color: 'var(--zy-code-string)' },
+  { tag: tags.tagName, color: 'var(--zy-code-keyword)' },
+  { tag: tags.attributeName, color: 'var(--zy-code-type)' },
+  { tag: tags.attributeValue, color: 'var(--zy-code-string)' },
+  { tag: tags.bracket, color: 'var(--zy-fg-faint)' },
+  { tag: tags.punctuation, color: 'var(--zy-fg-muted)' },
+  { tag: tags.atom, color: 'var(--zy-code-number)' },
+  { tag: tags.bool, color: 'var(--zy-code-number)' },
+  { tag: tags.null, color: 'var(--zy-code-number)' },
+  { tag: tags.inserted, color: 'var(--zy-code-property)' },
+  { tag: tags.deleted, color: 'var(--zy-code-keyword)', textDecoration: 'line-through' },
+  { tag: tags.changed, color: 'var(--zy-code-type)' },
   // Code-block token colors (via language-data nested parsers).
   { tag: tags.keyword, color: 'var(--zy-code-keyword)' },
   { tag: tags.string, color: 'var(--zy-code-string)' },
   { tag: tags.comment, color: 'var(--zy-code-comment)', fontStyle: 'italic' },
   { tag: tags.number, color: 'var(--zy-code-number)' },
   {
-    tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
+    tag: [
+      tags.function(tags.variableName),
+      tags.function(tags.propertyName),
+      tags.definition(tags.variableName)
+    ],
     color: 'var(--zy-code-function)'
   },
-  { tag: tags.typeName, color: 'var(--zy-code-type)' },
-  { tag: tags.propertyName, color: 'var(--zy-code-property)' },
+  { tag: [tags.typeName, tags.className, tags.constant(tags.variableName)], color: 'var(--zy-code-type)' },
+  {
+    tag: [tags.propertyName, tags.definition(tags.propertyName), tags.variableName],
+    color: 'var(--zy-code-property)'
+  },
   { tag: tags.operator, color: 'var(--zy-fg-muted)' }
 ])
 

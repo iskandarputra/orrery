@@ -80,11 +80,12 @@
   user-select: none;
 }
 
-/* Inline code pills. */
+/* Inline code pills with syntax tint */
 .cm-zy-inline-code {
   background: var(--zy-inline-code-bg);
+  color: var(--zy-code-keyword);
   border-radius: var(--zy-radius-xs);
-  padding: 0.15em 0.35em;
+  padding: 0.15em 0.38em;
   font-family: var(--zy-mono-font);
   font-size: 0.88em;
   border: 1px solid color-mix(in srgb, var(--zy-border) 60%, transparent);
@@ -102,18 +103,60 @@
   text-decoration: underline;
 }
 
+/* Wikilinks [[Note]] */
+.cm-zy-wikilink {
+  color: var(--zy-accent);
+  background: var(--zy-accent-soft);
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-decoration: none;
+  border-bottom: 1px dashed var(--zy-accent);
+  cursor: pointer;
+  transition: background var(--zy-transition-fast);
+}
+
+.cm-zy-wikilink:hover {
+  background: color-mix(in srgb, var(--zy-accent-soft) 180%, transparent);
+}
+
 .cm-zy-image-alt::before {
   content: '🖼 ';
   font-size: 0.85em;
 }
 
-/* Blockquotes — Sleek callout-like accent rule with subtle background tint. */
+/* Blockquotes & Themed Callouts */
 .cm-zy-blockquote {
   border-left: 3.5px solid var(--zy-accent);
   padding-left: 1.1em;
   color: var(--zy-fg-muted);
-  background: color-mix(in srgb, var(--zy-accent-soft) 40%, transparent);
+  background: color-mix(in srgb, var(--zy-accent-soft) 35%, transparent);
   border-radius: 0 var(--zy-radius-xs) var(--zy-radius-xs) 0;
+  margin: 0.1em 0;
+}
+
+.cm-zy-callout--note {
+  border-left-color: var(--zy-accent);
+  background: color-mix(in srgb, var(--zy-accent-soft) 40%, transparent);
+}
+
+.cm-zy-callout--tip {
+  border-left-color: var(--zy-code-property);
+  background: color-mix(in srgb, var(--zy-code-property) 12%, transparent);
+}
+
+.cm-zy-callout--warning {
+  border-left-color: var(--zy-code-type);
+  background: color-mix(in srgb, var(--zy-code-type) 12%, transparent);
+}
+
+.cm-zy-callout--caution {
+  border-left-color: var(--zy-code-keyword);
+  background: color-mix(in srgb, var(--zy-code-keyword) 12%, transparent);
+}
+
+.cm-zy-callout--important {
+  border-left-color: var(--zy-code-function);
+  background: color-mix(in srgb, var(--zy-code-function) 12%, transparent);
 }
 
 /* Bullets and task checkboxes. */
