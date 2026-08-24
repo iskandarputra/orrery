@@ -1,0 +1,41 @@
+appId: co.zymd.app
+productName: zymd
+copyright: Copyright © zymd contributors
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - '!**/*.map'
+asar: true
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icon.png
+  category: Office
+  synopsis: A fast, friendly markdown editor and knowledge base
+  description: >-
+    zymd is a high-performance markdown editor with live preview, wikilinks,
+    backlinks, a graph view, math and diagrams, and an optional AI assistant.
+  maintainer: zymd contributors <noreply@zymd.co>
+  desktop:
+    entry:
+      Name: zymd
+      Comment: Markdown editor and knowledge base
+      Categories: Office;TextEditor;Utility;
+      Keywords: markdown;notes;editor;knowledge;
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+mac:
+  icon: build/icon.png
+  category: public.app-category.productivity
+win:
+  icon: build/icon.png
+  target: nsis

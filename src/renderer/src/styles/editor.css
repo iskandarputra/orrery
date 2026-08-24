@@ -1,0 +1,278 @@
+/* Live-preview visual classes added by the CM6 feature modules. */
+
+.editor-pane .cm-editor {
+  user-select: text;
+}
+
+/* Headings — GitHub rhythm: tight line-height, space above, rule under h1/h2. */
+.cm-zy-heading {
+  line-height: 1.3;
+  padding-top: 0.7em;
+  padding-bottom: 0.2em;
+}
+
+.cm-zy-h1,
+.cm-zy-h2 {
+  border-bottom: 1px solid var(--zy-border);
+  padding-bottom: 0.3em;
+  margin-bottom: 0.3em;
+}
+
+.cm-zy-h1 {
+  padding-top: 0.9em;
+}
+
+/* Inline code pills. */
+.cm-zy-inline-code {
+  background: var(--zy-inline-code-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.15em;
+  font-family: var(--zy-mono-font);
+  font-size: 0.9em;
+}
+
+/* Rendered links. */
+.cm-zy-link-text {
+  color: var(--zy-accent);
+  cursor: pointer;
+}
+
+.cm-zy-link-text:hover {
+  text-decoration: underline;
+}
+
+.cm-zy-image-alt::before {
+  content: '🖼 ';
+  font-size: 0.85em;
+}
+
+/* Blockquotes — GitHub style: quiet left rule, muted text, no background. */
+.cm-zy-blockquote {
+  border-left: 3px solid var(--zy-border);
+  padding-left: 1em;
+  color: var(--zy-fg-muted);
+}
+
+/* Bullets and task checkboxes. */
+.cm-zy-bullet {
+  color: var(--zy-accent);
+  font-weight: 700;
+  display: inline-block;
+  width: 1ch;
+}
+
+.cm-zy-task-checkbox {
+  accent-color: var(--zy-accent);
+  width: 0.95em;
+  height: 0.95em;
+  vertical-align: middle;
+  margin: 0 0.35em 0.2em 0;
+  cursor: pointer;
+}
+
+/* Horizontal rule. */
+.cm-zy-hr {
+  display: inline-block;
+  width: 100%;
+  height: 2px;
+  background: var(--zy-border);
+  border-radius: 1px;
+  vertical-align: middle;
+}
+
+/* Fenced code blocks as cards. */
+.cm-zy-code-line {
+  background: var(--zy-code-bg);
+  font-family: var(--zy-mono-font);
+  font-size: 0.875em;
+  line-height: 1.55;
+}
+
+.cm-zy-code-first {
+  border-radius: 8px 8px 0 0;
+  padding-top: 0.5em;
+}
+
+.cm-zy-code-last {
+  border-radius: 0 0 8px 8px;
+  padding-bottom: 0.5em;
+}
+
+/* Tables — rendered widget (GitHub style)… */
+.cm-zy-table {
+  padding: 0.35em 2rem;
+  overflow-x: auto;
+}
+
+.cm-zy-table table {
+  border-collapse: collapse;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.cm-zy-table th,
+.cm-zy-table td {
+  border: 1px solid var(--zy-border);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.cm-zy-table th {
+  font-weight: 600;
+  background: var(--zy-panel-bg);
+}
+
+.cm-zy-table tbody tr:nth-child(2n) {
+  background: color-mix(in srgb, var(--zy-panel-bg) 45%, transparent);
+}
+
+.cm-zy-table code {
+  font-family: var(--zy-mono-font);
+  font-size: 0.9em;
+  background: var(--zy-inline-code-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+
+.cm-zy-table:hover {
+  outline: 1px dashed var(--zy-border);
+  outline-offset: 3px;
+  cursor: text;
+}
+
+/* …and source mode while the cursor is inside. */
+.cm-zy-table-src {
+  font-family: var(--zy-mono-font);
+  font-size: 0.85em;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--zy-panel-bg) 40%, transparent);
+}
+
+/* ==Marker-pen highlight== — theme-tinted, soft edges, clones across wraps. */
+.cm-zy-mark {
+  background: var(--zy-hl-bg);
+  border-radius: 3px;
+  padding: 0.06em 0.1em;
+  margin: -0.06em -0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Wikilinks ([[note]]). */
+.cm-zy-wikilink {
+  color: var(--zy-accent);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+}
+
+.cm-zy-wikilink:hover {
+  border-bottom-color: var(--zy-accent);
+}
+
+.cm-zy-wikilink--missing {
+  color: var(--zy-fg-faint);
+  border-bottom: 1px dashed var(--zy-fg-faint);
+}
+
+.cm-zy-wikilink--missing:hover {
+  color: var(--zy-accent);
+  border-bottom-color: var(--zy-accent);
+}
+
+/* Autocomplete dropdown (wikilink completion). */
+.cm-tooltip.cm-tooltip-autocomplete {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.cm-tooltip-autocomplete ul li {
+  padding: 4px 10px !important;
+  font-family: var(--zy-ui-font) !important;
+  font-size: 12.5px;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] {
+  background: var(--zy-accent-soft) !important;
+  color: var(--zy-accent) !important;
+}
+
+.cm-completionDetail {
+  color: var(--zy-fg-faint);
+  font-style: normal;
+  margin-left: 10px;
+}
+
+/* Math and mermaid widgets. */
+.cm-zy-math {
+  cursor: text;
+}
+
+.cm-zy-math--block {
+  padding: 0.6em 2rem;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.cm-zy-mermaid {
+  padding: 0.6em 2rem;
+  display: flex;
+  justify-content: center;
+  cursor: text;
+  color: var(--zy-fg-faint);
+  font-size: 12px;
+}
+
+.cm-zy-mermaid svg {
+  max-width: 100%;
+}
+
+.cm-zy-mermaid--error {
+  color: #e5534b;
+  font-family: var(--zy-mono-font);
+}
+
+/* Inline images. */
+.cm-zy-image {
+  display: inline-block;
+  cursor: pointer;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.cm-zy-image img {
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 6px;
+  display: block;
+}
+
+.cm-zy-image--broken {
+  color: var(--zy-fg-faint);
+  font-family: var(--zy-mono-font);
+  font-size: 0.85em;
+  border: 1px dashed var(--zy-border);
+  border-radius: 6px;
+  padding: 0.2em 0.5em;
+}
+
+/* Focus mode: dim non-active lines. */
+.cm-zy-dim {
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+}
+
+/* Reflowed soft line break — a real, breakable inter-line space. */
+.cm-zy-softbreak {
+  white-space: pre;
+}
+
+/* Comfortable list rhythm — a gentle gap between items. */
+.cm-zy-li {
+  padding-top: 0.32em;
+}
+
+.cm-zy-li--first {
+  padding-top: 0.12em;
+}

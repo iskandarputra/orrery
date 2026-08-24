@@ -1,0 +1,16 @@
+/* Font tokens. Color tokens are generated per-theme from themes/themes.ts
+   and injected as [data-theme='<id>'] blocks at startup.
+   Inter / JetBrains Mono / Newsreader are bundled (see main.tsx) so typography
+   is identical on every machine regardless of installed system fonts. */
+:root {
+  --zy-prose-font:
+    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
+  --zy-serif-font: 'Newsreader Variable', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --zy-mono-font:
+    'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --zy-ui-font: var(--zy-prose-font);
+
+  --zy-editor-font-size: 16px;
+  --zy-editor-line-height: 1.7;
+  --zy-editor-font-family: var(--zy-prose-font);
+}

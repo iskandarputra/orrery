@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+coverage/
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+*.tsbuildinfo
+test-results/
+playwright-report/
+blob-report/
