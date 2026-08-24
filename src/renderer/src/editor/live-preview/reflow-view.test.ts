@@ -1,8 +1,9 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
-import { buildReflowDecorations } from './reflow-view'
+import { buildReflowDecorations, reflowParagraphs } from './reflow-view'
 
 function decos(doc: string): { from: number; to: number }[] {
   const state = EditorState.create({
@@ -43,5 +44,21 @@ describe('reflowParagraphs decorations', () => {
   it('leaves non-paragraph blocks (lists, code) alone', () => {
     expect(decos('- item one\n- item two')).toHaveLength(0)
     expect(decos('```\na\nb\n```')).toHaveLength(0)
+  })
+
+  it('renders paragraph as a single merged line in EditorView', () => {
+    const doc = 'one two\nthree four\nfive'
+    const state = EditorState.create({
+      doc,
+      extensions: [
+        markdown({ base: markdownLanguage }),
+        reflowParagraphs()
+      ]
+    })
+    const view = new EditorView({ state })
+    const lines = view.dom.querySelectorAll('.cm-line')
+    expect(lines.length).toBe(1)
+    expect(lines[0]?.textContent).toContain('one two')
+    expect(lines[0]?.textContent).toContain('three four')
   })
 })

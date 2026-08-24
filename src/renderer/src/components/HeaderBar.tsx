@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { basename, dirname, stem } from '@core/paths'
 import { getActiveView } from '@/editor/active-view'
+import { formatAndUnwrapNote } from '@/editor/format-helpers'
 import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
 import { useStore } from '@/state/store'
@@ -153,6 +154,15 @@ export function HeaderBar(): React.JSX.Element | null {
           onClick={handleFind}
         >
           <Icon name="search" size={14} />
+        </button>
+
+        {/* Beautify / Unwrap Paragraphs */}
+        <button
+          className="icon-btn header-btn"
+          title="Beautify & Unwrap Paragraphs (Ctrl+Shift+P > Unwrap)"
+          onClick={formatAndUnwrapNote}
+        >
+          <Icon name="sparkle" size={14} />
         </button>
 
         {/* Formatting bar toggle */}
