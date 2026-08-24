@@ -23,4 +23,10 @@ describe('unwrapParagraphs', () => {
   it('respects two-space hard breaks', () => {
     expect(unwrapParagraphs('line one  \nline two')).toBe('line one  \nline two')
   })
+
+  it('unwraps paragraphs containing inline code spans and parentheses', () => {
+    const input = '`log_filters.is_case_sensitive` exists as a column\n(`app/models.py`), has a default\n(`logs.py:31`).'
+    const expected = '`log_filters.is_case_sensitive` exists as a column (`app/models.py`), has a default (`logs.py:31`).'
+    expect(unwrapParagraphs(input)).toBe(expected)
+  })
 })

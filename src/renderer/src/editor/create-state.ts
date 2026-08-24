@@ -38,7 +38,8 @@ export function settingsExtensions(settings: Settings): Extension {
   // remain navigable, Obsidian-style.
   const showLivePreview = settings.markdown.livePreview && rendered
   // Reflow only makes sense with live preview; it also requires line wrapping.
-  const reflow = showLivePreview && settings.markdown.reflowParagraphs
+  // In Reading mode (pure preview), paragraphs always reflow like VS Code/CommonMark preview.
+  const reflow = showLivePreview && (reading || settings.markdown.reflowParagraphs)
   return [
     e.wordWrap || reflow ? EditorView.lineWrapping : [],
     e.lineNumbers && !reading ? lineNumbers() : [],
