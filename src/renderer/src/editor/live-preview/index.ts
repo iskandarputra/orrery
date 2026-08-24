@@ -10,6 +10,7 @@ import { hr } from './features/hr'
 import { inlineCode } from './features/inline-code'
 import { links } from './features/links'
 import { lists } from './features/lists'
+import { frontmatterRendering } from './frontmatter'
 import { imageRendering } from './images'
 import { livePreviewPlugin } from './plugin'
 import { mathRendering } from './math'
@@ -72,6 +73,7 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
       ],
       reveal
     ),
+    frontmatterRendering(reveal),
     tableRendering(reveal),
     mathRendering(reveal),
     mermaidRendering(reveal),

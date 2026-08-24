@@ -370,3 +370,102 @@
 .cm-zy-li--first {
   padding-top: 0.12em;
 }
+
+/* ==========================================================================
+   YAML Frontmatter Properties Card / Box (Obsidian / Notion style)
+   ========================================================================== */
+.cm-zy-properties-card {
+  margin: 0.2em 2rem 1.4em;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
+  border: 1px solid var(--zy-border);
+  border-radius: var(--zy-radius-md);
+  cursor: text;
+  box-shadow: var(--zy-shadow-sm);
+  transition:
+    border-color var(--zy-transition-fast),
+    background var(--zy-transition-fast);
+}
+
+.cm-zy-properties-card:hover {
+  border-color: var(--zy-fg-faint);
+  background: var(--zy-panel-bg);
+}
+
+.cm-zy-properties-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 60%, transparent);
+}
+
+.cm-zy-properties-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cm-zy-properties-icon {
+  color: var(--zy-fg-faint);
+  display: flex;
+  align-items: center;
+}
+
+.cm-zy-properties-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--zy-fg-faint);
+}
+
+.cm-zy-properties-count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: var(--zy-radius-full);
+  background: var(--zy-accent-soft);
+  color: var(--zy-accent);
+}
+
+.cm-zy-properties-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cm-zy-property-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cm-zy-property-key {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--zy-fg-faint);
+  min-width: 80px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.cm-zy-property-val {
+  color: var(--zy-fg);
+  word-break: break-word;
+}
+
+.cm-zy-property-val--pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--zy-accent-soft);
+  color: var(--zy-accent);
+  border: 1px solid color-mix(in srgb, var(--zy-accent) 25%, transparent);
+}
