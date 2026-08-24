@@ -64,14 +64,14 @@ const editorChrome = EditorView.theme({
  * construct, most of the "live" look (bold is bold, headings are big) comes
  * from styling — the live-preview plugin only conceals syntax markers.
  */
-// GitHub's heading scale: 2 / 1.5 / 1.25 / 1 / .875 / .85em, weight 600.
+// Balanced comfortable heading typography scale
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: '2em', fontWeight: '600', letterSpacing: '-0.02em' },
-  { tag: tags.heading2, fontSize: '1.5em', fontWeight: '600', letterSpacing: '-0.01em' },
-  { tag: tags.heading3, fontSize: '1.25em', fontWeight: '600' },
-  { tag: tags.heading4, fontSize: '1em', fontWeight: '600' },
-  { tag: tags.heading5, fontSize: '0.875em', fontWeight: '600' },
-  { tag: tags.heading6, fontSize: '0.85em', fontWeight: '600', color: 'var(--zy-fg-muted)' },
+  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em' },
+  { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em' },
+  { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em' },
+  { tag: tags.heading4, fontSize: '1.04em', fontWeight: '600' },
+  { tag: tags.heading5, fontSize: '0.94em', fontWeight: '600', letterSpacing: '0.03em', color: 'var(--zy-fg-muted)' },
+  { tag: tags.heading6, fontSize: '0.88em', fontWeight: '600', letterSpacing: '0.04em', color: 'var(--zy-fg-faint)' },
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--zy-fg-muted)' },

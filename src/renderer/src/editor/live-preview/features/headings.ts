@@ -22,6 +22,8 @@ function headingLine(level: number): Decoration {
   return deco
 }
 
+const headingMarkDeco = Decoration.mark({ class: 'cm-zy-heading-mark' })
+
 /** `# Heading` — size the line, conceal the `#` marks unless the line is active. */
 export const headings: Feature = {
   nodes: Object.keys(LEVEL_BY_NODE),
@@ -31,12 +33,15 @@ export const headings: Feature = {
     const line = ctx.state.doc.lineAt(node.from)
     ctx.add(headingLine(level).range(line.from))
 
-    if (ctx.lineRevealed(node.from, node.to)) return
     const mark = node.node.getChild('HeaderMark')
     if (mark) {
-      // Conceal the marks plus the following space.
-      const end = ctx.state.doc.sliceString(mark.to, mark.to + 1) === ' ' ? mark.to + 1 : mark.to
-      ctx.conceal(mark.from, end)
+      if (ctx.lineRevealed(node.from, node.to)) {
+        ctx.add(headingMarkDeco.range(mark.from, mark.to))
+      } else {
+        // Conceal the marks plus the following space.
+        const end = ctx.state.doc.sliceString(mark.to, mark.to + 1) === ' ' ? mark.to + 1 : mark.to
+        ctx.conceal(mark.from, end)
+      }
     }
   }
 }

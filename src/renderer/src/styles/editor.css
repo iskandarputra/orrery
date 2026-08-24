@@ -8,45 +8,76 @@
   outline: none;
 }
 
-/* Headings — GitHub / Obsidian rhythm: proportional scale, line-height, subtle spacing */
+/* Headings — Refined, comfortable typography rhythm */
 .cm-zy-heading {
-  line-height: 1.35;
-  padding-top: 0.75em;
-  padding-bottom: 0.25em;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  line-height: 1.36;
+  font-weight: 600;
 }
 
 .cm-zy-h1 {
-  font-size: 1.85em;
-  border-bottom: 1px solid var(--zy-border);
-  padding-bottom: 0.35em;
-  margin-bottom: 0.35em;
-  padding-top: 1em;
+  font-size: 1.45em;
+  font-weight: 650;
+  letter-spacing: -0.018em;
+  padding-top: 0.85em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 45%, transparent);
+  margin-bottom: 0.2em;
 }
 
 .cm-zy-h2 {
-  font-size: 1.5em;
-  border-bottom: 1px solid var(--zy-border);
-  padding-bottom: 0.3em;
-  margin-bottom: 0.3em;
+  font-size: 1.28em;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  padding-top: 0.75em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 30%, transparent);
+  margin-bottom: 0.15em;
 }
 
 .cm-zy-h3 {
-  font-size: 1.28em;
+  font-size: 1.14em;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  padding-top: 0.6em;
+  padding-bottom: 0.15em;
 }
 
 .cm-zy-h4 {
-  font-size: 1.12em;
+  font-size: 1.04em;
+  font-weight: 600;
+  padding-top: 0.45em;
+  padding-bottom: 0.1em;
 }
 
 .cm-zy-h5 {
-  font-size: 1.02em;
+  font-size: 0.94em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--zy-fg-muted);
+  padding-top: 0.4em;
+  padding-bottom: 0.1em;
 }
 
 .cm-zy-h6 {
-  font-size: 0.95em;
-  color: var(--zy-fg-muted);
+  font-size: 0.88em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--zy-fg-faint);
+  padding-top: 0.35em;
+  padding-bottom: 0.1em;
+}
+
+/* Elegant `#` syntax marker when active/revealed */
+.cm-zy-heading-mark {
+  color: var(--zy-fg-faint);
+  font-weight: 400;
+  font-family: var(--zy-mono-font);
+  font-size: 0.82em;
+  opacity: 0.55;
+  margin-right: 0.2em;
+  user-select: none;
 }
 
 /* Inline code pills. */
