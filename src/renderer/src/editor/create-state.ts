@@ -34,12 +34,9 @@ export function settingsExtensions(settings: Settings): Extension {
   const e = settings.editor
   const rendered = e.viewMode !== 'source' // 'live' and 'reading' both render
   const reading = e.viewMode === 'reading' // fully rendered, read-only
-  // Plugin extensions (e.g. wikilinks) stay active even in source mode so links
-  // remain navigable, Obsidian-style.
-  const showLivePreview = settings.markdown.livePreview && rendered
-  // Reflow only makes sense with live preview; it also requires line wrapping.
-  // In Reading mode (pure preview), paragraphs always reflow like VS Code/CommonMark preview.
-  const reflow = showLivePreview && (reading || settings.markdown.reflowParagraphs)
+  // In Reading mode (pure preview), always render markdown and reflow paragraphs like VS Code.
+  const showLivePreview = reading || (settings.markdown.livePreview && rendered)
+  const reflow = reading || (showLivePreview && settings.markdown.reflowParagraphs)
   return [
     e.wordWrap || reflow ? EditorView.lineWrapping : [],
     e.lineNumbers && !reading ? lineNumbers() : [],

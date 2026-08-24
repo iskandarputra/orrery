@@ -1,4 +1,4 @@
-import { syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 
@@ -27,7 +27,8 @@ function isHardBreak(lineText: string): boolean {
 
 function build(state: EditorState): DecorationSet {
   const decos: Range<Decoration>[] = []
-  syntaxTree(state).iterate({
+  const tree = ensureSyntaxTree(state, state.doc.length, 50) ?? syntaxTree(state)
+  tree.iterate({
     enter: (node) => {
       if (node.name !== 'Paragraph') return
       const first = state.doc.lineAt(node.from)
