@@ -1064,6 +1064,14 @@ textarea {
   color: var(--zy-fg);
 }
 
+.status-bar__item {
+  display: inline-flex;
+  align-items: center;
+  color: var(--zy-fg-faint);
+  font-size: 11px;
+  user-select: none;
+}
+
 .status-bar__sep {
   opacity: 0.4;
 }
