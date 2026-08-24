@@ -1,16 +1,20 @@
 import { useEffect } from 'react'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
+import { ContextMenu } from '@/components/context-menu/ContextMenu'
+import { DocStatsModal } from '@/components/DocStatsModal'
 import { EditorPane } from '@/components/EditorPane'
+import { GraphView } from '@/components/GraphView'
+import { HeaderBar } from '@/components/HeaderBar'
+import { Palette } from '@/components/Palette'
+import { RightPanel } from '@/components/RightPanel'
+import { SettingsModal } from '@/components/settings/SettingsModal'
 import { Sidebar } from '@/components/Sidebar'
 import { StatusBar } from '@/components/StatusBar'
 import { TabBar } from '@/components/TabBar'
+import { Toast } from '@/components/Toast'
+import { Toolbar } from '@/components/Toolbar'
 import { WelcomeView } from '@/components/WelcomeView'
-import { GraphView } from '@/components/GraphView'
-import { Palette } from '@/components/Palette'
-import { RightPanel } from '@/components/RightPanel'
-import { ContextMenu } from '@/components/context-menu/ContextMenu'
-import { SettingsModal } from '@/components/settings/SettingsModal'
 
 function useThemeSync(): void {
   const mode = useStore((s) => s.settings.theme)
@@ -38,14 +42,29 @@ function useWindowTitleSync(): void {
 
 export function App(): React.JSX.Element {
   const hasTabs = useStore((s) => s.tabOrder.length > 0)
+  const zenMode = useStore((s) => s.zenMode)
+  const toggleZenMode = useStore((s) => s.toggleZenMode)
+
   useThemeSync()
   useWindowTitleSync()
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && zenMode) {
+        toggleZenMode()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [zenMode, toggleZenMode])
+
   return (
-    <div className="app">
-      <Sidebar />
+    <div className={`app${zenMode ? ' app--zen' : ''}`}>
+      {!zenMode && <Sidebar />}
       <main className="main">
         <TabBar />
+        <HeaderBar />
+        <Toolbar />
         {/* The editor pane must stay mounted across tab switches; Welcome overlays when empty. */}
         <div className="main__content">
           <div className="editor-host" style={{ display: hasTabs ? 'block' : 'none' }}>
@@ -53,13 +72,15 @@ export function App(): React.JSX.Element {
           </div>
           {!hasTabs && <WelcomeView />}
         </div>
-        <StatusBar />
+        {!zenMode && <StatusBar />}
       </main>
-      <RightPanel />
+      {!zenMode && <RightPanel />}
       <GraphView />
       <Palette />
       <SettingsModal />
+      <DocStatsModal />
       <ContextMenu />
+      <Toast />
     </div>
   )
 }

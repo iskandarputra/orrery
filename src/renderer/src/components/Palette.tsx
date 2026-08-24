@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { fuzzyFilter } from '@core/fuzzy'
 import { getRegistry } from '@/bootstrap'
 import { useStore } from '@/state/store'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 
 interface Entry {
   id: string
   label: string
   detail: string
+  icon: IconName
+  badge?: string
   run(): void
 }
 
@@ -15,39 +17,54 @@ interface Entry {
 export function Palette(): React.JSX.Element | null {
   const mode = useStore((s) => s.paletteMode)
   if (!mode) return null
-  // Keyed remount gives fresh query/selection state per open — no reset effects.
-  return <PaletteInner key={mode} mode={mode} />
+  return <PaletteInner key={mode} initialMode={mode} />
 }
 
-function PaletteInner({ mode }: { mode: 'files' | 'commands' }): React.JSX.Element {
+function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): React.JSX.Element {
   const close = useStore((s) => s.closePalette)
   const noteIndex = useStore((s) => s.noteIndex)
   const openPaths = useStore((s) => s.openPaths)
+  const settings = useStore((s) => s.settings)
+  const [activeTab, setActiveTab] = useState<'all' | 'files' | 'commands'>(
+    initialMode === 'files' ? 'files' : 'commands'
+  )
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   const entries = useMemo<Entry[]>(() => {
-    if (mode === 'files') {
-      return noteIndex.map((n) => ({
-        id: n.path,
-        label: n.stem,
-        detail: n.path,
-        run: () => void openPaths([n.path])
-      }))
+    const list: Entry[] = []
+
+    if (activeTab === 'all' || activeTab === 'files') {
+      noteIndex.forEach((n) => {
+        list.push({
+          id: `file:${n.path}`,
+          label: n.stem,
+          detail: n.path,
+          icon: 'file-text',
+          run: () => void openPaths([n.path])
+        })
+      })
     }
-    if (mode === 'commands') {
+
+    if (activeTab === 'all' || activeTab === 'commands') {
       const registry = getRegistry()
-      return (registry?.getAll() ?? []).map((c) => ({
-        id: c.id,
-        label: c.title,
-        detail: c.id,
-        run: () => registry?.execute(c.id)
-      }))
+      const kb = settings.keybindings
+      ;(registry?.getAll() ?? []).forEach((c) => {
+        list.push({
+          id: `cmd:${c.id}`,
+          label: c.title,
+          detail: c.id,
+          icon: 'keyboard',
+          badge: kb[c.id],
+          run: () => registry?.execute(c.id)
+        })
+      })
     }
-    return []
-  }, [mode, noteIndex, openPaths])
+
+    return list
+  }, [activeTab, noteIndex, openPaths, settings.keybindings])
 
   const results = useMemo(() => fuzzyFilter(query, entries, (e) => e.label), [query, entries])
 
@@ -70,17 +87,23 @@ function PaletteInner({ mode }: { mode: 'files' | 'commands' }): React.JSX.Eleme
       className="modal-backdrop modal-backdrop--top"
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
-      <div className="palette" role="dialog" aria-label="Palette">
+      <div className="palette" role="dialog" aria-label="Quick Switcher & Command Palette">
         <div className="palette__bar">
           <Icon
-            name={mode === 'files' ? 'search' : 'keyboard'}
-            size={15}
+            name={activeTab === 'commands' ? 'keyboard' : 'search'}
+            size={16}
             className="palette__icon"
           />
           <input
             ref={inputRef}
             className="palette__input"
-            placeholder={mode === 'files' ? 'Open note by name…' : 'Run a command…'}
+            placeholder={
+              activeTab === 'files'
+                ? 'Open note by name…'
+                : activeTab === 'commands'
+                  ? 'Run a command…'
+                  : 'Search notes and commands…'
+            }
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -90,20 +113,57 @@ function PaletteInner({ mode }: { mode: 'files' | 'commands' }): React.JSX.Eleme
               if (e.key === 'Escape') close()
               else if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setSelected((s) => Math.min(s + 1, results.length - 1))
+                setSelected((s) => Math.min(s + 1, Math.max(0, results.length - 1)))
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault()
                 setSelected((s) => Math.max(s - 1, 0))
               } else if (e.key === 'Enter') {
                 pick(results[selected])
+              } else if (e.key === 'Tab') {
+                e.preventDefault()
+                setActiveTab((t) => (t === 'files' ? 'commands' : t === 'commands' ? 'all' : 'files'))
+                setSelected(0)
               }
             }}
           />
-          <kbd>esc</kbd>
+          <div className="palette__tabs">
+            <button
+              className={`palette__tab${activeTab === 'files' ? ' palette__tab--active' : ''}`}
+              onClick={() => {
+                setActiveTab('files')
+                setSelected(0)
+              }}
+            >
+              Notes
+            </button>
+            <button
+              className={`palette__tab${activeTab === 'commands' ? ' palette__tab--active' : ''}`}
+              onClick={() => {
+                setActiveTab('commands')
+                setSelected(0)
+              }}
+            >
+              Commands
+            </button>
+            <button
+              className={`palette__tab${activeTab === 'all' ? ' palette__tab--active' : ''}`}
+              onClick={() => {
+                setActiveTab('all')
+                setSelected(0)
+              }}
+            >
+              All
+            </button>
+          </div>
+          <kbd className="palette__esc">esc</kbd>
         </div>
+
         <div className="palette__list" ref={listRef}>
           {results.length === 0 ? (
-            <p className="rpanel-empty">No matches.</p>
+            <div className="palette__empty">
+              <Icon name="search" size={24} className="palette__empty-icon" />
+              <p>No matching notes or commands found.</p>
+            </div>
           ) : (
             results.map((entry, i) => (
               <button
@@ -112,11 +172,28 @@ function PaletteInner({ mode }: { mode: 'files' | 'commands' }): React.JSX.Eleme
                 onMouseEnter={() => setSelected(i)}
                 onClick={() => pick(entry)}
               >
+                <Icon name={entry.icon} size={15} className="palette__item-icon" />
                 <span className="palette__label">{entry.label}</span>
                 <span className="palette__detail">{entry.detail}</span>
+                {entry.badge && <kbd className="palette__badge">{entry.badge}</kbd>}
               </button>
             ))
           )}
+        </div>
+
+        <div className="palette__footer">
+          <span className="palette__hint">
+            <kbd>↑</kbd> <kbd>↓</kbd> navigate
+          </span>
+          <span className="palette__hint">
+            <kbd>↵</kbd> select
+          </span>
+          <span className="palette__hint">
+            <kbd>Tab</kbd> switch tab
+          </span>
+          <span className="palette__hint">
+            <kbd>Esc</kbd> close
+          </span>
         </div>
       </div>
     </div>

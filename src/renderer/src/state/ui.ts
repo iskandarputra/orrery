@@ -14,14 +14,20 @@ export interface TreeEdit {
   initialValue?: string
 }
 
+export interface ToastMessage {
+  id: string
+  message: string
+  type: 'info' | 'success' | 'warning' | 'error'
+}
+
 export interface UiSlice {
   /** Mirror of main-process settings; defaults until loadSettings resolves. */
   settings: Settings
   settingsLoaded: boolean
   /** Settings dialog visibility (transient, not persisted). */
   settingsOpen: boolean
-  /** Right side panel: outline (TOC), backlinks, or global search. */
-  sidePanel: 'outline' | 'backlinks' | 'search' | 'ai' | null
+  /** Right side panel: outline (TOC), backlinks, global search, AI, or stats. */
+  sidePanel: 'outline' | 'backlinks' | 'search' | 'ai' | 'stats' | null
   /** Full-screen vault graph overlay. */
   graphOpen: boolean
   /** Quick switcher ('files') or command palette ('commands'). */
@@ -29,13 +35,25 @@ export interface UiSlice {
   /** Expanded directories in the file tree (transient, session-scoped). */
   expandedDirs: Record<string, true>
   treeEdit: TreeEdit | null
+  /** Formatting toolbar visibility. */
+  showFormattingToolbar: boolean
+  /** Active toast notification. */
+  toast: ToastMessage | null
+  /** File tree live search filter query. */
+  fileTreeFilter: string
+  /** File tree sort mode. */
+  fileTreeSort: 'name' | 'modified'
+  /** Zen / Focus distraction-free full mode. */
+  zenMode: boolean
+  /** Document statistics drawer/modal. */
+  docStatsOpen: boolean
 
   loadSettings(): Promise<void>
   /** Optimistic local update, persisted through main. */
   updateSettings(patch: Partial<Settings>): void
   openSettings(): void
   closeSettings(): void
-  toggleSidePanel(panel: 'outline' | 'backlinks' | 'search' | 'ai'): void
+  toggleSidePanel(panel: 'outline' | 'backlinks' | 'search' | 'ai' | 'stats'): void
   toggleGraph(): void
   openPalette(mode: 'files' | 'commands'): void
   closePalette(): void
@@ -48,7 +66,16 @@ export interface UiSlice {
   selectTheme(themeId: string): void
   toggleDir(path: string): void
   collapseAllDirs(): void
+  toggleFormattingToolbar(): void
+  showToast(message: string, type?: 'info' | 'success' | 'warning' | 'error', duration?: number): void
+  clearToast(): void
+  setFileTreeFilter(filter: string): void
+  setFileTreeSort(sort: 'name' | 'modified'): void
+  toggleZenMode(): void
+  setDocStatsOpen(open: boolean): void
 }
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null
 
 export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get) => ({
   settings: defaultSettings,
@@ -59,6 +86,12 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   paletteMode: null,
   expandedDirs: {},
   treeEdit: null,
+  showFormattingToolbar: false,
+  toast: null,
+  fileTreeFilter: '',
+  fileTreeSort: 'name',
+  zenMode: false,
+  docStatsOpen: false,
 
   async loadSettings() {
     const settings = await invoke('settings:get', undefined)
@@ -142,5 +175,39 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   collapseAllDirs() {
     set({ expandedDirs: {} })
+  },
+
+  toggleFormattingToolbar() {
+    set((s) => ({ showFormattingToolbar: !s.showFormattingToolbar }))
+  },
+
+  showToast(message, type = 'info', duration = 3000) {
+    if (toastTimer) clearTimeout(toastTimer)
+    const id = String(Date.now())
+    set({ toast: { id, message, type } })
+    toastTimer = setTimeout(() => {
+      set((s) => (s.toast?.id === id ? { toast: null } : {}))
+    }, duration)
+  },
+
+  clearToast() {
+    if (toastTimer) clearTimeout(toastTimer)
+    set({ toast: null })
+  },
+
+  setFileTreeFilter(filter) {
+    set({ fileTreeFilter: filter })
+  },
+
+  setFileTreeSort(sort) {
+    set({ fileTreeSort: sort })
+  },
+
+  toggleZenMode() {
+    set((s) => ({ zenMode: !s.zenMode }))
+  },
+
+  setDocStatsOpen(open) {
+    set({ docStatsOpen: open })
   }
 })

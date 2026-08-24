@@ -32,10 +32,19 @@ function collectHeadings(): HeadingItem[] {
 }
 
 function OutlineBody(): React.JSX.Element {
-  const stats = useEditorStats() // re-render as the doc/caret changes
+  const stats = useEditorStats()
   const activeId = useStore((s) => s.activeId)
+  const [filter, setFilter] = useState('')
+  // Re-collect headings when activeId or stats change as document edits occur
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const headings = useMemo(() => (activeId ? collectHeadings() : []), [activeId, stats])
   const minLevel = headings.length ? Math.min(...headings.map((h) => h.level)) : 1
+
+  const filtered = useMemo(() => {
+    if (!filter.trim()) return headings
+    const q = filter.trim().toLowerCase()
+    return headings.filter((h) => h.text.toLowerCase().includes(q))
+  }, [headings, filter])
 
   const jump = (line: number): void => {
     const view = getActiveView()
@@ -48,30 +57,52 @@ function OutlineBody(): React.JSX.Element {
   if (!activeId) return <EmptyState icon="list">Open a note to see its outline.</EmptyState>
   if (headings.length === 0)
     return (
-      <EmptyState icon="list">No headings yet. Add a # heading to build an outline.</EmptyState>
+      <EmptyState icon="list">No headings found. Add # Headings to create a table of contents.</EmptyState>
     )
 
-  // Which heading holds the caret? (last heading at or before the cursor line)
   let activeLine = -1
   const caretLine = stats.line
   for (const h of headings) if (h.line <= caretLine) activeLine = h.line
 
   return (
-    <div className="outline">
-      {headings.map((h) => (
-        <button
-          key={h.line}
-          className={`outline__item outline__item--l${h.level - minLevel}${
-            h.line === activeLine ? ' outline__item--active' : ''
-          }`}
-          style={{ paddingLeft: 12 + (h.level - minLevel) * 14 }}
-          onClick={() => jump(h.line)}
-          title={`Line ${h.line}`}
-        >
-          <span className="outline__dot" />
-          <span className="outline__label">{h.text}</span>
-        </button>
-      ))}
+    <div className="outline-container">
+      <div className="outline-filter">
+        <Icon name="search" size={12} className="outline-filter__icon" />
+        <input
+          type="text"
+          className="outline-filter__input"
+          placeholder="Filter headings…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
+        />
+        {filter && (
+          <button className="outline-filter__clear" onClick={() => setFilter('')}>
+            <Icon name="x" size={11} />
+          </button>
+        )}
+      </div>
+
+      <div className="outline-count-bar">
+        <span>{filtered.length} of {headings.length} headings</span>
+      </div>
+
+      <div className="outline">
+        {filtered.map((h) => (
+          <button
+            key={h.line}
+            className={`outline__item outline__item--l${h.level - minLevel}${
+              h.line === activeLine ? ' outline__item--active' : ''
+            }`}
+            style={{ paddingLeft: 8 + (h.level - minLevel) * 12 }}
+            onClick={() => jump(h.line)}
+            title={`Line ${h.line}`}
+          >
+            <span className="outline__level-badge">H{h.level}</span>
+            <span className="outline__label">{h.text}</span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -111,14 +142,14 @@ function SearchBody(): React.JSX.Element {
         />
         <button
           className={`gsearch__opt${caseSensitive ? ' gsearch__opt--on' : ''}`}
-          title="Match case"
+          title="Match case (Alt+C)"
           onClick={() => setCaseSensitive((v) => !v)}
         >
           Aa
         </button>
         <button
           className={`gsearch__opt${regex ? ' gsearch__opt--on' : ''}`}
-          title="Regular expression"
+          title="Regular expression (Alt+R)"
           onClick={() => setRegex((v) => !v)}
         >
           .*
@@ -126,15 +157,14 @@ function SearchBody(): React.JSX.Element {
       </div>
       {hits === null ? (
         <EmptyState icon="search">
-          Press Enter to search. Supports regex and case toggle.
+          Press Enter to search entire workspace notes.
         </EmptyState>
       ) : hits.length === 0 ? (
-        <EmptyState icon="search">No matches for “{searched}”.</EmptyState>
+        <EmptyState icon="search">No matches found for “{searched}”.</EmptyState>
       ) : (
         <>
           <div className="rpanel-count">
-            {hits.length} match{hits.length === 1 ? '' : 'es'} in {fileCount} file
-            {fileCount === 1 ? '' : 's'}
+            <span className="rpanel-count__badge">{hits.length}</span> matches in {fileCount} note{fileCount === 1 ? '' : 's'}
           </div>
           <ResultGroups hits={hits} onOpen={(path) => void openPaths([path])} />
         </>
@@ -143,11 +173,58 @@ function SearchBody(): React.JSX.Element {
   )
 }
 
-const TABS: { id: 'outline' | 'backlinks' | 'search' | 'ai'; label: string; icon: IconName }[] = [
+function DocStatsBody(): React.JSX.Element {
+  const activeId = useStore((s) => s.activeId)
+  const buffer = useStore((s) => (s.activeId ? s.buffers[s.activeId] : null))
+  const stats = useEditorStats()
+
+  if (!activeId || !buffer) {
+    return <EmptyState icon="info">Open a note to see its metrics and statistics.</EmptyState>
+  }
+
+  const readingTimeMin = Math.max(1, Math.ceil(stats.words / 200))
+  const speakingTimeMin = Math.max(1, Math.ceil(stats.words / 130))
+
+  return (
+    <div className="rpanel-stats">
+      <div className="rpanel-stats__hero">
+        <Icon name="file-text" size={24} className="rpanel-stats__hero-icon" />
+        <h4 className="rpanel-stats__filename">{buffer.fileName}</h4>
+        <span className="rpanel-stats__status">{buffer.isDirty ? '● Unsaved changes' : '✓ Saved'}</span>
+      </div>
+
+      <div className="rpanel-stats__grid">
+        <div className="rpanel-stat-box">
+          <span className="rpanel-stat-box__val">{stats.words.toLocaleString()}</span>
+          <span className="rpanel-stat-box__lbl">Words</span>
+        </div>
+        <div className="rpanel-stat-box">
+          <span className="rpanel-stat-box__val">{stats.characters.toLocaleString()}</span>
+          <span className="rpanel-stat-box__lbl">Characters</span>
+        </div>
+        <div className="rpanel-stat-box">
+          <span className="rpanel-stat-box__val">{stats.line}</span>
+          <span className="rpanel-stat-box__lbl">Lines</span>
+        </div>
+        <div className="rpanel-stat-box">
+          <span className="rpanel-stat-box__val">~{readingTimeMin} min</span>
+          <span className="rpanel-stat-box__lbl">Reading Time</span>
+        </div>
+        <div className="rpanel-stat-box">
+          <span className="rpanel-stat-box__val">~{speakingTimeMin} min</span>
+          <span className="rpanel-stat-box__lbl">Speaking Time</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const TABS: { id: 'outline' | 'backlinks' | 'search' | 'ai' | 'stats'; label: string; icon: IconName }[] = [
   { id: 'outline', label: 'Outline', icon: 'list' },
   { id: 'backlinks', label: 'Links', icon: 'link' },
   { id: 'search', label: 'Search', icon: 'search' },
-  { id: 'ai', label: 'AI', icon: 'sparkle' }
+  { id: 'ai', label: 'AI', icon: 'sparkle' },
+  { id: 'stats', label: 'Stats', icon: 'info' }
 ]
 
 export function RightPanel(): React.JSX.Element | null {
@@ -163,7 +240,6 @@ export function RightPanel(): React.JSX.Element | null {
       dragging.current = true
       document.body.classList.add('is-resizing')
       const onMove = (e: MouseEvent): void => {
-        // Panel is docked right — dragging its left edge left widens it.
         if (dragging.current) setWidth(Math.min(720, Math.max(220, window.innerWidth - e.clientX)))
       }
       const onUp = (): void => {
@@ -194,13 +270,13 @@ export function RightPanel(): React.JSX.Element | null {
             className={`rpanel__tab${panel === t.id ? ' rpanel__tab--active' : ''}`}
             onClick={() => useStore.setState({ sidePanel: t.id })}
           >
-            <Icon name={t.icon} size={15} />
+            <Icon name={t.icon} size={14} />
             <span className="rpanel__tab-label">{t.label}</span>
           </button>
         ))}
         <span className="rpanel__tabs-spacer" />
-        <button className="icon-btn" title="Close panel" onClick={() => toggle(panel)}>
-          <Icon name="x" size={14} />
+        <button className="icon-btn rpanel__close-btn" title="Close panel" onClick={() => toggle(panel)}>
+          <Icon name="x" size={13} />
         </button>
       </div>
       <div className="rpanel__title-row">
@@ -212,6 +288,7 @@ export function RightPanel(): React.JSX.Element | null {
         {panel === 'backlinks' && <BacklinksBody />}
         {panel === 'search' && <SearchBody />}
         {panel === 'ai' && <AiChatBody />}
+        {panel === 'stats' && <DocStatsBody />}
       </div>
     </aside>
   )

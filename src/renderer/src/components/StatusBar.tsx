@@ -23,11 +23,11 @@ function ViewModeSwitch(): React.JSX.Element {
           key={m.id}
           role="radio"
           aria-checked={viewMode === m.id}
-          title={`${m.label} mode`}
+          title={`${m.label} mode (${m.id === 'source' ? 'Source' : m.id === 'live' ? 'Live Preview' : 'Reading'})`}
           className={`viewmode__btn${viewMode === m.id ? ' viewmode__btn--active' : ''}`}
           onClick={() => update({ editor: { ...editor, viewMode: m.id } })}
         >
-          <Icon name={m.icon} size={13} />
+          <Icon name={m.icon} size={12} />
           <span className="viewmode__label">{m.label}</span>
         </button>
       ))}
@@ -42,41 +42,67 @@ export function StatusBar(): React.JSX.Element {
   const setThemeMode = useStore((s) => s.setThemeMode)
   const sidePanel = useStore((s) => s.sidePanel)
   const toggleSidePanel = useStore((s) => s.toggleSidePanel)
+  const setDocStatsOpen = useStore((s) => s.setDocStatsOpen)
+
+  const readingTimeMin = Math.max(1, Math.ceil(stats.words / 200))
 
   return (
     <footer className="status-bar">
-      <span className="status-bar__path" title={active?.filePath ?? ''}>
-        {active ? (active.filePath ?? 'Unsaved') + (active.isDirty ? ' — modified' : '') : ''}
-      </span>
+      <div className="status-bar__left">
+        <span className="status-bar__path" title={active?.filePath ?? ''}>
+          {active ? (
+            <>
+              <Icon name="file-text" size={12} className="status-bar__file-icon" />
+              <span>{active.fileName}</span>
+              {active.isDirty && <span className="status-bar__dirty-badge">● Modified</span>}
+            </>
+          ) : (
+            <span className="status-bar__ready">zymd ready</span>
+          )}
+        </span>
+      </div>
+
       <span className="status-bar__spacer" />
-      {active && <ViewModeSwitch />}
-      {active && (
-        <>
-          <span>
-            Ln {stats.line}, Col {stats.column}
-          </span>
-          <span>{stats.words} words</span>
-          <span>{stats.characters} chars</span>
-        </>
-      )}
-      <button
-        className={`status-bar__theme${sidePanel ? ' status-bar__btn--on' : ''}`}
-        title="Toggle side panel — outline, backlinks, search (Ctrl+Shift+B)"
-        onClick={() => toggleSidePanel(sidePanel ?? 'outline')}
-      >
-        <Icon name="link" size={13} />
-        panel
-      </button>
-      <button
-        className="status-bar__theme"
-        title={`Appearance: ${mode} — click to cycle`}
-        onClick={() =>
-          setThemeMode(mode === 'dark' ? 'light' : mode === 'light' ? 'system' : 'dark')
-        }
-      >
-        <Icon name={MODE_ICON[mode] ?? 'monitor'} size={13} />
-        {mode}
-      </button>
+
+      <div className="status-bar__right">
+        {active && <ViewModeSwitch />}
+
+        {active && (
+          <button
+            className="status-bar__stats-btn"
+            title="Click to view detailed metrics"
+            onClick={() => setDocStatsOpen(true)}
+          >
+            <span>Ln {stats.line}, Col {stats.column}</span>
+            <span className="status-bar__sep">·</span>
+            <span>{stats.words.toLocaleString()} words</span>
+            <span className="status-bar__sep">·</span>
+            <span>{stats.characters.toLocaleString()} chars</span>
+            <span className="status-bar__sep">·</span>
+            <span>~{readingTimeMin}m</span>
+          </button>
+        )}
+
+        <button
+          className={`status-bar__btn${sidePanel ? ' status-bar__btn--on' : ''}`}
+          title="Toggle side panel — outline, backlinks, search, AI (Ctrl+Shift+B)"
+          onClick={() => toggleSidePanel(sidePanel ?? 'outline')}
+        >
+          <Icon name="columns" size={12} />
+          <span>Panel</span>
+        </button>
+
+        <button
+          className="status-bar__btn"
+          title={`Appearance: ${mode} — click to cycle`}
+          onClick={() =>
+            setThemeMode(mode === 'dark' ? 'light' : mode === 'light' ? 'system' : 'dark')
+          }
+        >
+          <Icon name={MODE_ICON[mode] ?? 'monitor'} size={12} />
+          <span className="status-bar__theme-label">{mode}</span>
+        </button>
+      </div>
     </footer>
   )
 }

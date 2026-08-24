@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
 import { resolveTheme, THEMES, type ThemeSpec } from '@/themes/themes'
@@ -62,10 +62,10 @@ export function EditorSection(): React.JSX.Element {
           onChange={(fontSize) => update({ editor: { ...e, fontSize } })}
         />
       </SettingRow>
-      <SettingRow label="Font family" description="Leave empty for the default prose font">
+      <SettingRow label="Font family" description="Leave empty for the default prose font (Inter)">
         <TextField
           value={e.fontFamily}
-          placeholder="Inter, system-ui…"
+          placeholder="Inter, Newsreader, JetBrains Mono…"
           onChange={(fontFamily) => update({ editor: { ...e, fontFamily } })}
         />
       </SettingRow>
@@ -78,6 +78,25 @@ export function EditorSection(): React.JSX.Element {
           onChange={(lineHeight) => update({ editor: { ...e, lineHeight } })}
         />
       </SettingRow>
+
+      {/* Typography Live Preview Sandbox */}
+      <div className="typography-preview">
+        <span className="typography-preview__label">Live Typography Preview</span>
+        <div
+          className="typography-preview__box"
+          style={{
+            fontSize: `${e.fontSize}px`,
+            lineHeight: e.lineHeight,
+            fontFamily: e.fontFamily || 'var(--zy-prose-font)'
+          }}
+        >
+          <h4 style={{ margin: '0 0 0.3em 0', fontSize: '1.25em' }}>The quick brown fox jumps</h4>
+          <p style={{ margin: '0 0 0.3em 0' }}>
+            Markdown note with <strong>bold</strong>, <em>italic</em> and <code>inline code</code> formatting.
+          </p>
+        </div>
+      </div>
+
       <h3 className="set-group">Layout</h3>
       <SettingRow
         label="Canvas width"
@@ -136,7 +155,7 @@ export function EditorSection(): React.JSX.Element {
       </SettingRow>
       <h3 className="set-group">Modes</h3>
       <SettingRow
-        label="View mode"
+        label="Default view mode"
         description="Edit (source) · Hybrid (live preview) · Reading (view only)"
       >
         <SegmentedControl
@@ -376,8 +395,17 @@ function ThemeCard({ spec }: { spec: ThemeSpec }): React.JSX.Element {
 export function AppearanceSection(): React.JSX.Element {
   const mode = useStore((s) => s.settings.theme)
   const setThemeMode = useStore((s) => s.setThemeMode)
-  const dark = THEMES.filter((t) => t.appearance === 'dark')
-  const light = THEMES.filter((t) => t.appearance === 'light')
+  const [themeFilter, setThemeFilter] = useState('')
+
+  const dark = useMemo(() => {
+    const q = themeFilter.trim().toLowerCase()
+    return THEMES.filter((t) => t.appearance === 'dark' && (!q || t.name.toLowerCase().includes(q)))
+  }, [themeFilter])
+
+  const light = useMemo(() => {
+    const q = themeFilter.trim().toLowerCase()
+    return THEMES.filter((t) => t.appearance === 'light' && (!q || t.name.toLowerCase().includes(q)))
+  }, [themeFilter])
 
   return (
     <>
@@ -396,13 +424,28 @@ export function AppearanceSection(): React.JSX.Element {
           ]}
         />
       </SettingRow>
-      <h3 className="set-group">Dark themes ({dark.length})</h3>
+
+      <div className="theme-filter-row">
+        <h3 className="set-group" style={{ margin: 0 }}>Palettes ({THEMES.length})</h3>
+        <div className="theme-filter-input-wrap">
+          <Icon name="search" size={12} />
+          <input
+            type="text"
+            placeholder="Search themes…"
+            value={themeFilter}
+            onChange={(e) => setThemeFilter(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <h4 className="theme-group-title">Dark themes ({dark.length})</h4>
       <div className="theme-grid">
         {dark.map((t) => (
           <ThemeCard key={t.id} spec={t} />
         ))}
       </div>
-      <h3 className="set-group">Light themes ({light.length})</h3>
+
+      <h4 className="theme-group-title">Light themes ({light.length})</h4>
       <div className="theme-grid">
         {light.map((t) => (
           <ThemeCard key={t.id} spec={t} />
@@ -414,7 +457,7 @@ export function AppearanceSection(): React.JSX.Element {
 
 const BINDABLE: { id: string; label: string; dflt: string }[] = [
   { id: 'file.new', label: 'New file', dflt: 'CmdOrCtrl+N' },
-  { id: 'app.quickOpen', label: 'Quick open', dflt: 'CmdOrCtrl+P' },
+  { id: 'app.quickOpen', label: 'Quick open note', dflt: 'CmdOrCtrl+P' },
   { id: 'app.commandPalette', label: 'Command palette', dflt: 'CmdOrCtrl+Shift+P' },
   { id: 'file.open', label: 'Open file', dflt: 'CmdOrCtrl+O' },
   { id: 'workspace.openFolder', label: 'Open folder', dflt: 'CmdOrCtrl+Shift+O' },
@@ -438,6 +481,7 @@ export function KeybindingsSection(): React.JSX.Element {
   const settings = useStore((s) => s.settings)
   const update = useStore((s) => s.updateSettings)
   const kb = settings.keybindings
+  const [filter, setFilter] = useState('')
 
   const setBinding = (id: string, dflt: string, value: string): void => {
     const next = { ...kb }
@@ -446,15 +490,32 @@ export function KeybindingsSection(): React.JSX.Element {
     update({ keybindings: next })
   }
 
+  const filtered = useMemo(() => {
+    if (!filter.trim()) return BINDABLE
+    const q = filter.trim().toLowerCase()
+    return BINDABLE.filter((b) => b.label.toLowerCase().includes(q) || b.id.toLowerCase().includes(q))
+  }, [filter])
+
   return (
     <>
-      <h3 className="set-group">Shortcuts</h3>
+      <div className="kb-header-row">
+        <h3 className="set-group" style={{ margin: 0 }}>Shortcuts</h3>
+        <div className="theme-filter-input-wrap">
+          <Icon name="search" size={12} />
+          <input
+            type="text"
+            placeholder="Filter shortcuts…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+      </div>
       <p className="set-note">
         Electron accelerator format (e.g. <code>CmdOrCtrl+Shift+X</code>). Clear a field to restore
         the default. Applied immediately.
       </p>
       <div className="kb-table">
-        {BINDABLE.map((b) => (
+        {filtered.map((b) => (
           <div className="kb-row" key={b.id}>
             <span className="kb-action">{b.label}</span>
             <input
@@ -475,11 +536,19 @@ export function AboutSection(): React.JSX.Element {
   return (
     <>
       <h3 className="set-group">zymd</h3>
-      <p className="set-note">
-        Version 0.1.0 — a fast, friendly markdown editor with live preview.
-        <br />
-        Built with Electron, React and CodeMirror 6. MIT licensed.
-      </p>
+      <div className="about-hero">
+        <div className="about-hero__badge">v0.1.0</div>
+        <p className="set-note" style={{ margin: 0 }}>
+          High-performance, feature-rich markdown editor and knowledge base with interactive live preview.
+          <br />
+          Crafted with Electron, React, and CodeMirror 6.
+        </p>
+      </div>
+      <div className="about-links">
+        <span className="about-links__tag">MIT License</span>
+        <span className="about-links__tag">Offline First</span>
+        <span className="about-links__tag">Local Storage</span>
+      </div>
     </>
   )
 }

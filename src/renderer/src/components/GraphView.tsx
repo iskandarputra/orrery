@@ -54,16 +54,6 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-/**
- * Force-directed vault graph on a canvas: spring edges, pairwise repulsion,
- * centering gravity. Hand-rolled (no deps) — personal vaults are hundreds of
- * notes, well within O(n²) per frame.
- *
- * Controls live in React state; the simulation reads them through refs so the
- * physics loop is never torn down when a slider moves. Node membership
- * (orphans / ghosts / local view) is recomputed by `rebuild()`, which reuses
- * the persistent SimNode objects so positions survive filter changes.
- */
 export function GraphView(): React.JSX.Element | null {
   const open = useStore((s) => s.graphOpen)
   const close = (): void => useStore.setState({ graphOpen: false })
@@ -73,6 +63,7 @@ export function GraphView(): React.JSX.Element | null {
   const [status, setStatus] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [ctl, setCtl] = useState<Controls>(DEFAULTS)
+  const [hoverNode, setHoverNode] = useState<{ node: SimNode; x: number; y: number } | null>(null)
 
   // Live view of the controls for the animation loop (no re-subscribe on change).
   const ctlRef = useRef(ctl)
@@ -87,6 +78,7 @@ export function GraphView(): React.JSX.Element | null {
   const workEdgesRef = useRef<GraphEdge[]>([])
   const workByIdRef = useRef<Map<string, SimNode>>(new Map())
   const readyRef = useRef(false)
+  const zoomControlsRef = useRef<{ zoomIn(): void; zoomOut(): void; resetZoom(): void; fit(): void } | null>(null)
 
   // Derive the visible sub-graph from the current controls, preserving positions.
   const rebuild = useCallback(() => {
@@ -167,14 +159,11 @@ export function GraphView(): React.JSX.Element | null {
     setStatus(`${nodes.length} notes · ${edges.length} links`)
   }, [activePath])
 
-  // Stable handle so the long-lived sim effect can call the latest rebuild()
-  // without re-running (and refetching) when the active note changes.
   const rebuildRef = useRef(rebuild)
   useEffect(() => {
     rebuildRef.current = rebuild
   })
 
-  // Recompute membership when a filter/local control (or the active note) changes.
   useEffect(() => {
     if (open && readyRef.current) rebuild()
   }, [open, rebuild, ctl.orphans, ctl.ghosts, ctl.local, ctl.depth])
@@ -192,6 +181,36 @@ export function GraphView(): React.JSX.Element | null {
     let panY = 0
     let panning = false
     readyRef.current = false
+
+    zoomControlsRef.current = {
+      zoomIn: () => {
+        zoom = Math.min(3, zoom * 1.25)
+      },
+      zoomOut: () => {
+        zoom = Math.max(0.2, zoom * 0.8)
+      },
+      resetZoom: () => {
+        zoom = 1
+        panX = 0
+        panY = 0
+      },
+      fit: () => {
+        const nodes = workNodesRef.current
+        if (nodes.length === 0) return
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+        for (const n of nodes) {
+          if (n.x < minX) minX = n.x
+          if (n.x > maxX) maxX = n.x
+          if (n.y < minY) minY = n.y
+          if (n.y > maxY) maxY = n.y
+        }
+        const w = maxX - minX + 100
+        const h = maxY - minY + 100
+        zoom = Math.min(2, Math.max(0.3, Math.min(canvas.clientWidth / w, canvas.clientHeight / h)))
+        panX = -(minX + maxX) / 2 * zoom
+        panY = -(minY + maxY) / 2 * zoom
+      }
+    }
 
     const colors = {
       edge: cssVar('--zy-border'),
@@ -225,7 +244,7 @@ export function GraphView(): React.JSX.Element | null {
       let bestD = Infinity
       for (const n of workNodesRef.current) {
         const d = Math.hypot(n.x - wx, n.y - wy)
-        if (d < radius(n) + 6 / zoom && d < bestD) {
+        if (d < radius(n) + 8 / zoom && d < bestD) {
           best = n
           bestD = d
         }
@@ -239,7 +258,7 @@ export function GraphView(): React.JSX.Element | null {
       const edges = workEdgesRef.current
       const byId = workByIdRef.current
 
-      // Physics.
+      // Physics
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i]!
         for (let j = i + 1; j < nodes.length; j++) {
@@ -281,7 +300,7 @@ export function GraphView(): React.JSX.Element | null {
         n.y += n.vy
       }
 
-      // Draw.
+      // Draw
       const ctx = canvas.getContext('2d')!
       const dpr = window.devicePixelRatio || 1
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -316,7 +335,6 @@ export function GraphView(): React.JSX.Element | null {
         ctx.lineTo(b.x, b.y)
         ctx.stroke()
 
-        // Directional arrowhead just outside the target node.
         if (c.arrows) {
           const len = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y))
           const ux = (b.x - a.x) / len
@@ -335,13 +353,23 @@ export function GraphView(): React.JSX.Element | null {
       }
       for (const n of nodes) {
         const dimmed = (hover != null && !neighbors.has(n.id)) || !matches(n)
+        const isActiveNode = n.id === activePath
         ctx.globalAlpha = dimmed ? 0.2 : 1
-        ctx.fillStyle = n.exists ? colors.node : colors.ghost
+        ctx.fillStyle = n.exists ? (isActiveNode ? colors.node : colors.node) : colors.ghost
         ctx.beginPath()
         ctx.arc(n.x, n.y, radius(n), 0, Math.PI * 2)
         ctx.fill()
-        if (c.labels && !dimmed && (zoom > 0.7 || n === hover || n.degree >= 3)) {
-          ctx.fillStyle = n === hover ? colors.labelHover : colors.label
+
+        if (isActiveNode) {
+          ctx.strokeStyle = colors.node
+          ctx.lineWidth = 2 / zoom
+          ctx.beginPath()
+          ctx.arc(n.x, n.y, radius(n) + 3 / zoom, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+
+        if (c.labels && !dimmed && (zoom > 0.6 || n === hover || n.degree >= 2 || isActiveNode)) {
+          ctx.fillStyle = n === hover || isActiveNode ? colors.labelHover : colors.label
           ctx.font = `${11 / zoom}px sans-serif`
           ctx.textAlign = 'center'
           ctx.fillText(n.label, n.x, n.y + radius(n) + 12 / zoom)
@@ -384,6 +412,11 @@ export function GraphView(): React.JSX.Element | null {
       } else {
         hover = pick(e.clientX, e.clientY)
         canvas.style.cursor = hover ? 'pointer' : 'grab'
+        if (hover) {
+          setHoverNode({ node: hover, x: e.clientX, y: e.clientY })
+        } else {
+          setHoverNode(null)
+        }
       }
     }
     const onDown = (e: MouseEvent): void => {
@@ -403,7 +436,7 @@ export function GraphView(): React.JSX.Element | null {
     }
     const onWheel = (e: WheelEvent): void => {
       e.preventDefault()
-      zoom = Math.min(3, Math.max(0.25, zoom * (e.deltaY > 0 ? 0.9 : 1.1)))
+      zoom = Math.min(3, Math.max(0.2, zoom * (e.deltaY > 0 ? 0.9 : 1.1)))
     }
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') close()
@@ -417,6 +450,7 @@ export function GraphView(): React.JSX.Element | null {
     return () => {
       disposed = true
       readyRef.current = false
+      zoomControlsRef.current = null
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       canvas.removeEventListener('mousemove', onMove)
@@ -425,7 +459,7 @@ export function GraphView(): React.JSX.Element | null {
       window.removeEventListener('keydown', onKey)
       canvas.removeEventListener('wheel', onWheel)
     }
-  }, [open, rootPath])
+  }, [open, rootPath, activePath])
 
   if (!open) return null
 
@@ -433,44 +467,115 @@ export function GraphView(): React.JSX.Element | null {
 
   return (
     <div className="modal-backdrop">
-      <div className="graph" role="dialog" aria-label="Graph view">
+      <div className="graph" role="dialog" aria-label="Knowledge Graph View">
         <div className="graph__header">
-          <span className="graph__title">Graph</span>
-          <span className="graph__status">{status}</span>
-          <button
-            className={`icon-btn${panelOpen ? ' graph__gear--on' : ''}`}
-            aria-label="Graph settings"
-            aria-pressed={panelOpen}
-            onClick={() => setPanelOpen((o) => !o)}
-          >
-            <Icon name="sliders" size={15} />
-          </button>
-          <button className="icon-btn" aria-label="Close graph" onClick={close}>
-            <Icon name="x" size={15} />
-          </button>
+          <div className="graph__title-group">
+            <Icon name="diagram" size={16} />
+            <span className="graph__title">Knowledge Graph</span>
+            <span className="graph__status-pill">{status}</span>
+          </div>
+
+          <div className="graph__header-controls">
+            {/* Quick search input */}
+            <div className="graph__header-search">
+              <Icon name="search" size={13} />
+              <input
+                placeholder="Filter graph notes…"
+                value={ctl.query}
+                onChange={(e) => up({ query: e.target.value })}
+              />
+              {ctl.query && (
+                <button className="graph__search-clear" onClick={() => up({ query: '' })}>
+                  <Icon name="x" size={11} />
+                </button>
+              )}
+            </div>
+
+            {/* Local graph toggle */}
+            <button
+              className={`graph__header-btn${ctl.local ? ' graph__header-btn--active' : ''}`}
+              title="Toggle Local Graph (around active note)"
+              onClick={() => up({ local: !ctl.local })}
+            >
+              <span>Local</span>
+            </button>
+
+            {/* Zoom controls */}
+            <div className="graph__zoom-group">
+              <button
+                className="icon-btn"
+                title="Zoom In"
+                onClick={() => zoomControlsRef.current?.zoomIn()}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+              <button
+                className="icon-btn"
+                title="Zoom Out"
+                onClick={() => zoomControlsRef.current?.zoomOut()}
+              >
+                <span style={{ fontWeight: 700 }}>−</span>
+              </button>
+              <button
+                className="icon-btn"
+                title="Fit to Screen"
+                onClick={() => zoomControlsRef.current?.fit()}
+              >
+                <Icon name="maximize" size={13} />
+              </button>
+            </div>
+
+            {/* Settings drawer toggle */}
+            <button
+              className={`icon-btn${panelOpen ? ' graph__gear--on' : ''}`}
+              aria-label="Graph Physics &amp; Display Settings"
+              aria-pressed={panelOpen}
+              title="Graph Settings"
+              onClick={() => setPanelOpen((o) => !o)}
+            >
+              <Icon name="sliders" size={15} />
+            </button>
+
+            <button className="icon-btn" aria-label="Close graph" onClick={close}>
+              <Icon name="x" size={15} />
+            </button>
+          </div>
         </div>
+
         {rootPath ? (
           <div className="graph__body">
             <canvas ref={canvasRef} className="graph__canvas" />
+
+            {/* Hover Tooltip Card */}
+            {hoverNode && (
+              <div
+                className="graph__hover-card"
+                style={{
+                  left: hoverNode.x + 12,
+                  top: hoverNode.y + 12
+                }}
+              >
+                <div className="graph__hover-header">
+                  <Icon name={hoverNode.node.exists ? 'file-text' : 'link'} size={13} />
+                  <span className="graph__hover-title">{hoverNode.node.label}</span>
+                </div>
+                <div className="graph__hover-meta">
+                  <span>{hoverNode.node.degree} connection{hoverNode.node.degree === 1 ? '' : 's'}</span>
+                  {!hoverNode.node.exists && <span className="graph__hover-ghost">(Uncreated note)</span>}
+                </div>
+              </div>
+            )}
+
             {panelOpen && (
               <div className="graph__panel">
                 <section className="graph__section">
                   <h4 className="graph__section-title">Filters</h4>
-                  <div className="graph__search">
-                    <Icon name="search" size={13} />
-                    <input
-                      className="graph__search-input"
-                      placeholder="Filter notes…"
-                      value={ctl.query}
-                      onChange={(e) => up({ query: e.target.value })}
-                    />
-                  </div>
-                  <Check label="Orphans" on={ctl.orphans} set={(v) => up({ orphans: v })} />
-                  <Check label="Ghost nodes" on={ctl.ghosts} set={(v) => up({ ghosts: v })} />
-                  <Check label="Local graph" on={ctl.local} set={(v) => up({ local: v })} />
+                  <Check label="Orphan notes" on={ctl.orphans} set={(v) => up({ orphans: v })} />
+                  <Check label="Ghost (uncreated) notes" on={ctl.ghosts} set={(v) => up({ ghosts: v })} />
+                  <Check label="Local graph mode" on={ctl.local} set={(v) => up({ local: v })} />
                   {ctl.local && (
                     <Range
-                      label={`Depth · ${ctl.depth}`}
+                      label={`Depth · ${ctl.depth} hops`}
                       value={ctl.depth}
                       min={1}
                       max={3}
@@ -481,16 +586,16 @@ export function GraphView(): React.JSX.Element | null {
                 </section>
                 <section className="graph__section">
                   <h4 className="graph__section-title">Forces</h4>
-                  <Range label="Center" value={ctl.center} min={0} max={2} step={0.05} set={(v) => up({ center: v })} />
-                  <Range label="Repel" value={ctl.repel} min={0} max={2} step={0.05} set={(v) => up({ repel: v })} />
-                  <Range label="Link force" value={ctl.linkForce} min={0} max={2} step={0.05} set={(v) => up({ linkForce: v })} />
-                  <Range label="Link distance" value={ctl.linkDistance} min={0.2} max={2.5} step={0.05} set={(v) => up({ linkDistance: v })} />
+                  <Range label="Gravity (Center)" value={ctl.center} min={0} max={2} step={0.05} set={(v) => up({ center: v })} />
+                  <Range label="Node Repulsion" value={ctl.repel} min={0} max={2} step={0.05} set={(v) => up({ repel: v })} />
+                  <Range label="Link Elasticity" value={ctl.linkForce} min={0} max={2} step={0.05} set={(v) => up({ linkForce: v })} />
+                  <Range label="Link Distance" value={ctl.linkDistance} min={0.2} max={2.5} step={0.05} set={(v) => up({ linkDistance: v })} />
                 </section>
                 <section className="graph__section">
                   <h4 className="graph__section-title">Display</h4>
-                  <Check label="Arrows" on={ctl.arrows} set={(v) => up({ arrows: v })} />
-                  <Check label="Labels" on={ctl.labels} set={(v) => up({ labels: v })} />
-                  <Check label="Size by links" on={ctl.scale} set={(v) => up({ scale: v })} />
+                  <Check label="Link direction arrows" on={ctl.arrows} set={(v) => up({ arrows: v })} />
+                  <Check label="Always show note labels" on={ctl.labels} set={(v) => up({ labels: v })} />
+                  <Check label="Scale node size by links" on={ctl.scale} set={(v) => up({ scale: v })} />
                 </section>
                 <button className="graph__reset" onClick={() => setCtl({ ...DEFAULTS })}>
                   Reset to defaults
@@ -499,7 +604,7 @@ export function GraphView(): React.JSX.Element | null {
             )}
           </div>
         ) : (
-          <p className="rpanel-empty">Open a folder to see its graph.</p>
+          <p className="rpanel-empty">Open a folder to see its knowledge graph.</p>
         )}
       </div>
     </div>

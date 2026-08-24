@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
+import { marked } from 'marked'
 import { basename, stem } from '@core/paths'
 import { getActiveView } from '@/editor/active-view'
 import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
+import { Icon } from './Icon'
 
 interface Turn {
   role: 'user' | 'assistant'
@@ -68,16 +70,24 @@ Answer from the provided vault context when possible and cite sources as [file:l
 When the context is insufficient, say so briefly before answering from general knowledge.
 Be concise. Use markdown.`
 
+const SUGGESTIONS = [
+  'Summarize this note',
+  'Extract action items',
+  'Find related notes in vault',
+  'Improve writing clarity'
+]
+
 export function AiChatBody(): React.JSX.Element {
   const provider = useStore((s) => s.settings.ai.provider)
   const openSettings = useStore((s) => s.openSettings)
+  const showToast = useStore((s) => s.showToast)
   const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const send = (): void => {
-    const question = input.trim()
+  const send = (overrideText?: string): void => {
+    const question = (overrideText ?? input).trim()
     if (!question || busy) return
     setInput('')
     setBusy(true)
@@ -100,12 +110,22 @@ export function AiChatBody(): React.JSX.Element {
     })()
   }
 
+  const handleCopyTurn = async (content: string): Promise<void> => {
+    await navigator.clipboard.writeText(content)
+    showToast('Copied to clipboard', 'success')
+  }
+
   if (provider === 'none') {
     return (
       <div className="rpanel-empty">
+        <div className="rpanel-empty__icon-wrap">
+          <Icon name="sparkle" size={28} className="rpanel-empty__icon" />
+        </div>
+        <h3>AI Vault Assistant</h3>
         <p>Chat with your vault — answers grounded in your notes with cited sources.</p>
         <button className="btn btn--primary" onClick={openSettings}>
-          Configure AI provider
+          <Icon name="gear" size={14} />
+          Configure AI Provider
         </button>
       </div>
     )
@@ -113,25 +133,88 @@ export function AiChatBody(): React.JSX.Element {
 
   return (
     <div className="aichat">
+      <div className="aichat__header-info">
+        <span className="aichat__provider-badge">
+          <Icon name="sparkle" size={12} />
+          <span>{provider === 'claude' ? 'Claude' : 'Ollama'}</span>
+        </span>
+        {turns.length > 0 && (
+          <button
+            className="aichat__clear-btn"
+            title="Clear conversation"
+            onClick={() => setTurns([])}
+          >
+            <Icon name="trash" size={13} />
+            <span>Clear</span>
+          </button>
+        )}
+      </div>
+
       <div className="aichat__scroll" ref={scrollRef}>
         {turns.length === 0 && (
-          <p className="rpanel-empty">
-            Ask about your notes — the active note and matching vault snippets are provided as
-            context.
-          </p>
+          <div className="aichat__welcome">
+            <p className="aichat__intro">
+              Ask questions about your notes. The active document and relevant vault snippets are provided automatically.
+            </p>
+            <div className="aichat__suggestions">
+              <span className="aichat__suggestions-label">Try asking:</span>
+              <div className="aichat__chips">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    className="aichat__chip"
+                    onClick={() => send(s)}
+                  >
+                    <span>{s}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
+
         {turns.map((t, i) => (
           <div key={i} className={`aichat__turn aichat__turn--${t.role}`}>
-            {t.content}
+            <div className="aichat__turn-header">
+              <span className="aichat__turn-role">
+                {t.role === 'user' ? 'You' : 'Assistant'}
+              </span>
+              <button
+                className="aichat__turn-copy"
+                title="Copy message"
+                onClick={() => void handleCopyTurn(t.content)}
+              >
+                <Icon name="copy" size={12} />
+              </button>
+            </div>
+            {t.role === 'assistant' ? (
+              <div
+                className="aichat__turn-content aichat__prose"
+                dangerouslySetInnerHTML={{ __html: marked.parse(t.content) as string }}
+              />
+            ) : (
+              <div className="aichat__turn-content">{t.content}</div>
+            )}
           </div>
         ))}
-        {busy && <div className="aichat__turn aichat__turn--assistant">Thinking…</div>}
+
+        {busy && (
+          <div className="aichat__turn aichat__turn--assistant aichat__turn--busy">
+            <div className="aichat__typing">
+              <span className="aichat__typing-dot" />
+              <span className="aichat__typing-dot" />
+              <span className="aichat__typing-dot" />
+            </div>
+            <span className="aichat__busy-text">Thinking with vault context…</span>
+          </div>
+        )}
       </div>
+
       <div className="aichat__bar">
         <textarea
           className="aichat__input"
           rows={2}
-          placeholder="Ask your vault… (Enter to send)"
+          placeholder="Ask your vault… (Enter to send, Shift+Enter for newline)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -141,6 +224,14 @@ export function AiChatBody(): React.JSX.Element {
             }
           }}
         />
+        <button
+          className={`aichat__send-btn${input.trim() && !busy ? ' aichat__send-btn--active' : ''}`}
+          disabled={!input.trim() || busy}
+          onClick={() => send()}
+          title="Send message"
+        >
+          <Icon name="arrow-up" size={14} />
+        </button>
       </div>
     </div>
   )

@@ -4,37 +4,67 @@
   user-select: text;
 }
 
-/* Headings — GitHub rhythm: tight line-height, space above, rule under h1/h2. */
-.cm-zy-heading {
-  line-height: 1.3;
-  padding-top: 0.7em;
-  padding-bottom: 0.2em;
+.cm-editor.cm-focused {
+  outline: none;
 }
 
-.cm-zy-h1,
+/* Headings — GitHub / Obsidian rhythm: proportional scale, line-height, subtle spacing */
+.cm-zy-heading {
+  line-height: 1.35;
+  padding-top: 0.75em;
+  padding-bottom: 0.25em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cm-zy-h1 {
+  font-size: 1.85em;
+  border-bottom: 1px solid var(--zy-border);
+  padding-bottom: 0.35em;
+  margin-bottom: 0.35em;
+  padding-top: 1em;
+}
+
 .cm-zy-h2 {
+  font-size: 1.5em;
   border-bottom: 1px solid var(--zy-border);
   padding-bottom: 0.3em;
   margin-bottom: 0.3em;
 }
 
-.cm-zy-h1 {
-  padding-top: 0.9em;
+.cm-zy-h3 {
+  font-size: 1.28em;
+}
+
+.cm-zy-h4 {
+  font-size: 1.12em;
+}
+
+.cm-zy-h5 {
+  font-size: 1.02em;
+}
+
+.cm-zy-h6 {
+  font-size: 0.95em;
+  color: var(--zy-fg-muted);
 }
 
 /* Inline code pills. */
 .cm-zy-inline-code {
   background: var(--zy-inline-code-bg);
-  border-radius: 4px;
-  padding: 0.1em 0.15em;
+  border-radius: var(--zy-radius-xs);
+  padding: 0.15em 0.35em;
   font-family: var(--zy-mono-font);
-  font-size: 0.9em;
+  font-size: 0.88em;
+  border: 1px solid color-mix(in srgb, var(--zy-border) 60%, transparent);
 }
 
 /* Rendered links. */
 .cm-zy-link-text {
   color: var(--zy-accent);
   cursor: pointer;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .cm-zy-link-text:hover {
@@ -46,28 +76,31 @@
   font-size: 0.85em;
 }
 
-/* Blockquotes — GitHub style: quiet left rule, muted text, no background. */
+/* Blockquotes — Sleek callout-like accent rule with subtle background tint. */
 .cm-zy-blockquote {
-  border-left: 3px solid var(--zy-border);
-  padding-left: 1em;
+  border-left: 3.5px solid var(--zy-accent);
+  padding-left: 1.1em;
   color: var(--zy-fg-muted);
+  background: color-mix(in srgb, var(--zy-accent-soft) 40%, transparent);
+  border-radius: 0 var(--zy-radius-xs) var(--zy-radius-xs) 0;
 }
 
 /* Bullets and task checkboxes. */
 .cm-zy-bullet {
   color: var(--zy-accent);
-  font-weight: 700;
+  font-weight: 800;
   display: inline-block;
-  width: 1ch;
+  width: 1.2ch;
 }
 
 .cm-zy-task-checkbox {
   accent-color: var(--zy-accent);
-  width: 0.95em;
-  height: 0.95em;
+  width: 1em;
+  height: 1em;
   vertical-align: middle;
-  margin: 0 0.35em 0.2em 0;
+  margin: 0 0.4em 0.2em 0;
   cursor: pointer;
+  border-radius: 3px;
 }
 
 /* Horizontal rule. */
@@ -75,9 +108,10 @@
   display: inline-block;
   width: 100%;
   height: 2px;
-  background: var(--zy-border);
+  background: linear-gradient(to right, transparent, var(--zy-border) 15%, var(--zy-border) 85%, transparent);
   border-radius: 1px;
   vertical-align: middle;
+  margin: 0.8em 0;
 }
 
 /* Fenced code blocks as cards. */
@@ -85,22 +119,28 @@
   background: var(--zy-code-bg);
   font-family: var(--zy-mono-font);
   font-size: 0.875em;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .cm-zy-code-first {
-  border-radius: 8px 8px 0 0;
-  padding-top: 0.5em;
+  border-radius: var(--zy-radius-md) var(--zy-radius-md) 0 0;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--zy-border);
+  border-left: 1px solid var(--zy-border);
+  border-right: 1px solid var(--zy-border);
 }
 
 .cm-zy-code-last {
-  border-radius: 0 0 8px 8px;
-  padding-bottom: 0.5em;
+  border-radius: 0 0 var(--zy-radius-md) var(--zy-radius-md);
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--zy-border);
+  border-left: 1px solid var(--zy-border);
+  border-right: 1px solid var(--zy-border);
 }
 
-/* Tables — rendered widget (GitHub style)… */
+/* Tables — rendered widget (GitHub / Notion style) */
 .cm-zy-table {
-  padding: 0.35em 2rem;
+  padding: 0.5em 2rem;
   overflow-x: auto;
 }
 
@@ -108,12 +148,15 @@
   border-collapse: collapse;
   font-size: 0.9em;
   line-height: 1.5;
+  border-radius: var(--zy-radius-sm);
+  overflow: hidden;
+  box-shadow: var(--zy-shadow-sm);
 }
 
 .cm-zy-table th,
 .cm-zy-table td {
   border: 1px solid var(--zy-border);
-  padding: 6px 13px;
+  padding: 8px 14px;
   text-align: left;
   vertical-align: top;
 }
@@ -121,10 +164,15 @@
 .cm-zy-table th {
   font-weight: 600;
   background: var(--zy-panel-bg);
+  color: var(--zy-fg);
 }
 
 .cm-zy-table tbody tr:nth-child(2n) {
-  background: color-mix(in srgb, var(--zy-panel-bg) 45%, transparent);
+  background: color-mix(in srgb, var(--zy-panel-bg) 50%, transparent);
+}
+
+.cm-zy-table tbody tr:hover {
+  background: var(--zy-hover-bg);
 }
 
 .cm-zy-table code {
@@ -136,12 +184,12 @@
 }
 
 .cm-zy-table:hover {
-  outline: 1px dashed var(--zy-border);
+  outline: 1px dashed var(--zy-accent);
   outline-offset: 3px;
   cursor: text;
 }
 
-/* …and source mode while the cursor is inside. */
+/* …and source mode while cursor is inside. */
 .cm-zy-table-src {
   font-family: var(--zy-mono-font);
   font-size: 0.85em;
@@ -153,8 +201,8 @@
 .cm-zy-mark {
   background: var(--zy-hl-bg);
   border-radius: 3px;
-  padding: 0.06em 0.1em;
-  margin: -0.06em -0.1em;
+  padding: 0.08em 0.16em;
+  margin: -0.08em -0.16em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -163,7 +211,9 @@
 .cm-zy-wikilink {
   color: var(--zy-accent);
   cursor: pointer;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1.5px solid transparent;
+  font-weight: 500;
+  transition: border-bottom-color var(--zy-transition-fast);
 }
 
 .cm-zy-wikilink:hover {
@@ -172,7 +222,7 @@
 
 .cm-zy-wikilink--missing {
   color: var(--zy-fg-faint);
-  border-bottom: 1px dashed var(--zy-fg-faint);
+  border-bottom: 1.5px dashed var(--zy-fg-faint);
 }
 
 .cm-zy-wikilink--missing:hover {
@@ -182,13 +232,15 @@
 
 /* Autocomplete dropdown (wikilink completion). */
 .cm-tooltip.cm-tooltip-autocomplete {
-  border-radius: 8px;
+  border-radius: var(--zy-radius-md);
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--zy-border);
+  box-shadow: var(--zy-shadow-lg);
+  background: var(--zy-editor-bg);
 }
 
 .cm-tooltip-autocomplete ul li {
-  padding: 4px 10px !important;
+  padding: 5px 12px !important;
   font-family: var(--zy-ui-font) !important;
   font-size: 12.5px;
 }
@@ -196,6 +248,7 @@
 .cm-tooltip-autocomplete ul li[aria-selected] {
   background: var(--zy-accent-soft) !important;
   color: var(--zy-accent) !important;
+  font-weight: 500;
 }
 
 .cm-completionDetail {
@@ -210,18 +263,26 @@
 }
 
 .cm-zy-math--block {
-  padding: 0.6em 2rem;
+  padding: 0.8em 2rem;
   text-align: center;
   overflow-x: auto;
+  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
+  border-radius: var(--zy-radius-md);
+  margin: 0.4em 0;
+  border: 1px solid var(--zy-border);
 }
 
 .cm-zy-mermaid {
-  padding: 0.6em 2rem;
+  padding: 1em 2rem;
   display: flex;
   justify-content: center;
   cursor: text;
   color: var(--zy-fg-faint);
   font-size: 12px;
+  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
+  border-radius: var(--zy-radius-md);
+  margin: 0.4em 0;
+  border: 1px solid var(--zy-border);
 }
 
 .cm-zy-mermaid svg {
@@ -229,7 +290,7 @@
 }
 
 .cm-zy-mermaid--error {
-  color: #e5534b;
+  color: #ef4444;
   font-family: var(--zy-mono-font);
 }
 
@@ -239,13 +300,20 @@
   cursor: pointer;
   max-width: 100%;
   vertical-align: top;
+  margin: 0.4em 0;
 }
 
 .cm-zy-image img {
   max-width: 100%;
   max-height: 60vh;
-  border-radius: 6px;
+  border-radius: var(--zy-radius-md);
   display: block;
+  box-shadow: var(--zy-shadow-md);
+  transition: transform var(--zy-transition-fast);
+}
+
+.cm-zy-image img:hover {
+  transform: scale(1.01);
 }
 
 .cm-zy-image--broken {
@@ -253,13 +321,13 @@
   font-family: var(--zy-mono-font);
   font-size: 0.85em;
   border: 1px dashed var(--zy-border);
-  border-radius: 6px;
-  padding: 0.2em 0.5em;
+  border-radius: var(--zy-radius-sm);
+  padding: 0.3em 0.6em;
 }
 
 /* Focus mode: dim non-active lines. */
 .cm-zy-dim {
-  opacity: 0.35;
+  opacity: 0.32;
   transition: opacity 0.15s ease;
 }
 
@@ -270,7 +338,7 @@
 
 /* Comfortable list rhythm — a gentle gap between items. */
 .cm-zy-li {
-  padding-top: 0.32em;
+  padding-top: 0.34em;
 }
 
 .cm-zy-li--first {
