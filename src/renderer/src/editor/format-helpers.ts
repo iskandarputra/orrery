@@ -1,6 +1,29 @@
 import { EditorSelection, type ChangeSpec, type EditorState } from '@codemirror/state'
+import { unwrapParagraphs } from '@core/reflow'
+import { useStore } from '@/state/store'
 import { getActiveView } from './active-view'
 import { toggleInlineMarkSpec } from './inline-format'
+
+/** Beautify and unwrap hard-wrapped lines inside paragraphs across whole doc or selection. */
+export function formatAndUnwrapNote(): void {
+  const view = getActiveView()
+  if (!view) return
+  const { from, to } = view.state.selection.main
+  const [start, end] = from === to ? [0, view.state.doc.length] : [from, to]
+  const original = view.state.sliceDoc(start, end)
+  const reflowed = unwrapParagraphs(original)
+  if (reflowed !== original) {
+    view.dispatch({
+      changes: { from: start, to: end, insert: reflowed },
+      scrollIntoView: true,
+      userEvent: 'input'
+    })
+    view.focus()
+    useStore.getState().showToast('Paragraphs formatted and unwrapped', 'success')
+  } else {
+    useStore.getState().showToast('Paragraphs are already formatted', 'info')
+  }
+}
 
 /** Toggle inline formatting (e.g. **, *, ~~, ==, `) */
 export function applyInlineFormat(marker: string): void {

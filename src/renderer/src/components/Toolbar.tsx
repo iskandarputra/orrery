@@ -4,6 +4,7 @@ import { getActiveView } from '@/editor/active-view'
 import {
   applyInlineFormat,
   applyLinePrefix,
+  formatAndUnwrapNote,
   insertCallout,
   insertCodeBlock,
   insertMathBlock,
@@ -298,6 +299,19 @@ export function Toolbar(): React.JSX.Element | null {
           onClick={() => insertSnippet('\n---\n')}
         >
           <span className="toolbar__btn-hr">—</span>
+        </button>
+      </div>
+
+      <span className="toolbar__sep" />
+
+      {/* Format & Beautify */}
+      <div className="toolbar__group">
+        <button
+          className="toolbar__btn"
+          title="Beautify & Unwrap Paragraphs (Ctrl+Shift+P > Unwrap)"
+          onClick={formatAndUnwrapNote}
+        >
+          <Icon name="sparkle" size={14} />
         </button>
       </div>
     </div>

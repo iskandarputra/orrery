@@ -359,7 +359,7 @@
 
 /* Reflowed soft line break — a real, breakable inter-line space. */
 .cm-zy-softbreak {
-  white-space: pre;
+  white-space: normal;
 }
 
 /* Comfortable list rhythm — a gentle gap between items. */

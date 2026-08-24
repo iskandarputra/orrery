@@ -45,27 +45,33 @@ function build(state: EditorState): DecorationSet {
 }
 
 /**
+ * Static StateField for paragraph reflow so compartment reconfigurations
+ * preserve the field definition identity cleanly.
+ */
+const reflowField = StateField.define<DecorationSet>({
+  create: build,
+  update(value, tr) {
+    // Rebuild on edits and as parsing advances (Paragraph nodes may be absent
+    // until the fresh document finishes parsing).
+    if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
+      return build(tr.state)
+    }
+    return value.map(tr.changes)
+  },
+  provide: (f) => [
+    EditorView.decorations.from(f),
+    EditorView.atomicRanges.of((view) => view.state.field(f))
+  ]
+})
+
+/**
  * Reflow soft-wrapped paragraphs (single newlines → spaces) so text fills the
  * canvas like a markdown preview. Concealed newlines are atomic, so the cursor
  * treats each joined paragraph as one flowing line. Needs line wrapping on to
  * actually reflow — create-state enables it whenever this is active.
  */
 export function reflowParagraphs(): Extension {
-  const field = StateField.define<DecorationSet>({
-    create: build,
-    update(value, tr) {
-      // Rebuild on edits and as parsing advances (Paragraph nodes may be absent
-      // until the fresh document finishes parsing).
-      if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state))
-        return build(tr.state)
-      return value.map(tr.changes)
-    },
-    provide: (f) => [
-      EditorView.decorations.from(f),
-      EditorView.atomicRanges.of((view) => view.state.field(f))
-    ]
-  })
-  return field
+  return reflowField
 }
 
 export { build as buildReflowDecorations }
