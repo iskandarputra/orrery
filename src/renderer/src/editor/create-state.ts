@@ -16,7 +16,7 @@ import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
 import { focusMode, typewriterMode } from './modes'
-import { reflowParagraphs } from './live-preview/reflow-view'
+import { reflowField, reflowParagraphs } from './live-preview/reflow-view'
 import { pluginEditorExtensions } from '@/plugins/registry'
 import { scheduleStatsUpdate } from '@/state/editor-stats'
 import { bufferRegistry } from './buffer-registry'
@@ -54,7 +54,7 @@ export function settingsExtensions(settings: Settings): Extension {
           reveal: !reading
         })
       : [],
-    reflow ? reflowParagraphs() : [],
+    reflowParagraphs(reflow),
     // Reading mode: no cursor, no edits — a clean rendered document.
     reading ? [EditorView.editable.of(false), EditorState.readOnly.of(true)] : [],
     pluginEditorExtensions(settings)
@@ -88,6 +88,7 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
         extensions: [HighlightExtension]
       }),
       zymdEditorTheme(),
+      reflowField,
       search({ top: true }),
       keymap.of([
         { key: 'Mod-Shift-h', run: toggleHighlight },

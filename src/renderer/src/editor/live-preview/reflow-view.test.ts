@@ -3,12 +3,12 @@ import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
-import { buildReflowDecorations, reflowParagraphs } from './reflow-view'
+import { buildReflowDecorations, reflowField, reflowParagraphs } from './reflow-view'
 
 function decos(doc: string): { from: number; to: number }[] {
   const state = EditorState.create({
     doc,
-    extensions: [markdown({ base: markdownLanguage })]
+    extensions: [markdown({ base: markdownLanguage }), reflowField, reflowParagraphs(true)]
   })
   ensureSyntaxTree(state, state.doc.length, 5000)
   const set = buildReflowDecorations(state)
@@ -52,7 +52,8 @@ describe('reflowParagraphs decorations', () => {
       doc,
       extensions: [
         markdown({ base: markdownLanguage }),
-        reflowParagraphs()
+        reflowField,
+        reflowParagraphs(true)
       ]
     })
     const view = new EditorView({ state })

@@ -1,5 +1,5 @@
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
+import { Facet, StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 
 /** Renders in place of a soft line break so two source lines flow as one. */
@@ -25,9 +25,17 @@ function isHardBreak(lineText: string): boolean {
   return /( {2,}|\\)$/.test(lineText)
 }
 
+/** Facet controlling whether paragraph reflow is enabled. */
+export const reflowEnabledFacet = Facet.define<boolean, boolean>({
+  combine: (values) => (values.length ? Boolean(values[values.length - 1]) : false)
+})
+
 function build(state: EditorState): DecorationSet {
+  const enabled = state.facet(reflowEnabledFacet)
+  if (!enabled) return Decoration.none
+
   const decos: Range<Decoration>[] = []
-  const tree = ensureSyntaxTree(state, state.doc.length, 50) ?? syntaxTree(state)
+  const tree = ensureSyntaxTree(state, state.doc.length, 100) ?? syntaxTree(state)
   tree.iterate({
     enter: (node) => {
       if (node.name !== 'Paragraph') return
@@ -46,15 +54,15 @@ function build(state: EditorState): DecorationSet {
 }
 
 /**
- * Static StateField for paragraph reflow so compartment reconfigurations
- * preserve the field definition identity cleanly.
+ * StateField for paragraph reflow: required by CodeMirror 6 for decorations
+ * that replace line breaks. Controlled dynamically via reflowEnabledFacet.
  */
-const reflowField = StateField.define<DecorationSet>({
+export const reflowField = StateField.define<DecorationSet>({
   create: build,
   update(value, tr) {
-    // Rebuild on edits and as parsing advances (Paragraph nodes may be absent
-    // until the fresh document finishes parsing).
-    if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
+    const prev = tr.startState.facet(reflowEnabledFacet)
+    const next = tr.state.facet(reflowEnabledFacet)
+    if (prev !== next || tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
       return build(tr.state)
     }
     return value.map(tr.changes)
@@ -65,14 +73,9 @@ const reflowField = StateField.define<DecorationSet>({
   ]
 })
 
-/**
- * Reflow soft-wrapped paragraphs (single newlines → spaces) so text fills the
- * canvas like a markdown preview. Concealed newlines are atomic, so the cursor
- * treats each joined paragraph as one flowing line. Needs line wrapping on to
- * actually reflow — create-state enables it whenever this is active.
- */
-export function reflowParagraphs(): Extension {
-  return reflowField
+/** Returns facet extension to dynamically toggle paragraph reflow */
+export function reflowParagraphs(enabled = true): Extension {
+  return reflowEnabledFacet.of(enabled)
 }
 
 export { build as buildReflowDecorations }
