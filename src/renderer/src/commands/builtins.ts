@@ -3,6 +3,7 @@ import { unwrapParagraphs } from '@core/reflow'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
 import { invoke } from '@/services/client'
+import { THEMES } from '@/themes/themes'
 import type { Command } from './registry'
 
 /** Built-in commands referenced by menu items (src/main/menu.ts) by id. */
@@ -66,6 +67,13 @@ export const builtinCommands: Command[] = [
     title: 'Appearance: System',
     run: ({ store }) => store().setThemeMode('system')
   },
+  ...THEMES.map(
+    (t): Command => ({
+      id: `theme.select.${t.id}`,
+      title: `Theme: ${t.name} (${t.appearance})`,
+      run: ({ store }) => store().selectTheme(t.id)
+    })
+  ),
   {
     id: 'app.openSettings',
     title: 'Preferences…',

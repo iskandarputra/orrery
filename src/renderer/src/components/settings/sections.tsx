@@ -365,7 +365,14 @@ function ThemeCard({ spec }: { spec: ThemeSpec }): React.JSX.Element {
   const selectTheme = useStore((s) => s.selectTheme)
   const resolved = resolveTheme(spec)
   const active =
-    spec.appearance === 'dark' ? settings.darkTheme === spec.id : settings.lightTheme === spec.id
+    settings.theme === 'system'
+      ? spec.appearance === 'dark'
+        ? settings.darkTheme === spec.id
+        : settings.lightTheme === spec.id
+      : settings.theme === spec.appearance &&
+        (spec.appearance === 'dark'
+          ? settings.darkTheme === spec.id
+          : settings.lightTheme === spec.id)
 
   return (
     <button
