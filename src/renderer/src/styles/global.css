@@ -2866,23 +2866,30 @@ kbd {
   position: fixed;
   z-index: 50;
   pointer-events: none;
-  padding: 8px 12px;
+  max-width: 320px;
+  padding: 9px 13px;
   border-radius: var(--zy-radius-md);
   background: var(--zy-editor-bg);
   border: 1px solid var(--zy-border);
-  box-shadow: var(--zy-shadow-md);
+  box-shadow: var(--zy-shadow-lg);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   animation: pop-in 0.1s var(--zy-ease-out);
 }
 
 .graph__hover-header {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 7px;
   font-size: 12.5px;
   font-weight: 600;
+  color: var(--zy-fg);
+}
+
+.graph__hover-title {
+  word-break: break-word;
+  line-height: 1.35;
   color: var(--zy-fg);
 }
 

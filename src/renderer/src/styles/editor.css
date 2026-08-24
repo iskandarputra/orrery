@@ -114,28 +114,54 @@
   margin: 0.8em 0;
 }
 
-/* Fenced code blocks as cards. */
+/* Fenced code blocks as modern cards. */
 .cm-zy-code-line {
   background: var(--zy-code-bg);
   font-family: var(--zy-mono-font);
   font-size: 0.875em;
-  line-height: 1.6;
+  line-height: 1.65;
+  padding-left: 1.2em;
+  padding-right: 1.2em;
+  border-left: 1px solid var(--zy-border);
+  border-right: 1px solid var(--zy-border);
 }
 
 .cm-zy-code-first {
   border-radius: var(--zy-radius-md) var(--zy-radius-md) 0 0;
   padding-top: 0.6em;
+  padding-bottom: 0.25em;
   border-top: 1px solid var(--zy-border);
-  border-left: 1px solid var(--zy-border);
-  border-right: 1px solid var(--zy-border);
+  background: color-mix(in srgb, var(--zy-panel-bg) 65%, var(--zy-code-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 40%, transparent);
 }
 
 .cm-zy-code-last {
   border-radius: 0 0 var(--zy-radius-md) var(--zy-radius-md);
   padding-bottom: 0.6em;
   border-bottom: 1px solid var(--zy-border);
-  border-left: 1px solid var(--zy-border);
-  border-right: 1px solid var(--zy-border);
+}
+
+/* Fenced code backticks: subtle and unobtrusive */
+.cm-zy-code-mark {
+  color: var(--zy-fg-faint);
+  opacity: 0.55;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+/* Language info tag: sleek badge pill */
+.cm-zy-code-info {
+  font-family: var(--zy-mono-font);
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--zy-accent);
+  background: var(--zy-accent-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  border: 1px solid color-mix(in srgb, var(--zy-accent) 25%, transparent);
 }
 
 /* Tables — rendered widget (GitHub / Notion style) */

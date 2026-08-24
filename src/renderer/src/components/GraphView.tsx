@@ -369,10 +369,20 @@ export function GraphView(): React.JSX.Element | null {
         }
 
         if (c.labels && !dimmed && (zoom > 0.6 || n === hover || n.degree >= 2 || isActiveNode)) {
-          ctx.fillStyle = n === hover || isActiveNode ? colors.labelHover : colors.label
-          ctx.font = `${11 / zoom}px sans-serif`
+          const isSpecial = n === hover || isActiveNode
+          const maxChars = isSpecial ? 28 : Math.max(12, Math.floor(18 * zoom))
+          const displayLabel = n.label.length > maxChars ? `${n.label.slice(0, maxChars - 1)}…` : n.label
+
+          ctx.fillStyle = isSpecial ? colors.labelHover : colors.label
+          ctx.font = `${isSpecial ? '600 ' : '400 '}${11 / zoom}px sans-serif`
           ctx.textAlign = 'center'
-          ctx.fillText(n.label, n.x, n.y + radius(n) + 12 / zoom)
+
+          // Render subtle halo for crisp legibility over crossing link edges
+          ctx.save()
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+          ctx.shadowBlur = 4 / zoom
+          ctx.fillText(displayLabel, n.x, n.y + radius(n) + 12 / zoom)
+          ctx.restore()
         }
       }
       ctx.globalAlpha = 1
