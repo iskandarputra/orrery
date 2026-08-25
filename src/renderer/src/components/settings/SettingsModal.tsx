@@ -8,17 +8,27 @@ import {
   EditorSection,
   GeneralSection,
   KeybindingsSection,
-  MarkdownSection
+  MarkdownSection,
+  NotesSection
 } from './sections'
 
-type SectionId = 'general' | 'editor' | 'markdown' | 'appearance' | 'ai' | 'keybindings' | 'about'
+type SectionId =
+  | 'general'
+  | 'editor'
+  | 'markdown'
+  | 'notes'
+  | 'appearance'
+  | 'ai'
+  | 'keybindings'
+  | 'about'
 
 const SECTIONS: { id: SectionId; label: string; icon: IconName; desc: string }[] = [
   { id: 'general', label: 'General', icon: 'sliders', desc: 'Autosave, startup behavior' },
   { id: 'editor', label: 'Editor', icon: 'type', desc: 'Typography, line numbers, word wrap' },
   { id: 'markdown', label: 'Markdown', icon: 'markdown', desc: 'Live preview, tasklists, images' },
+  { id: 'notes', label: 'Notes', icon: 'clock', desc: 'Daily notes and templates' },
   { id: 'appearance', label: 'Appearance', icon: 'palette', desc: 'Themes, dark mode, accent colors' },
-  { id: 'ai', label: 'AI Assistant', icon: 'sparkle', desc: 'Claude, Ollama, semantic search' },
+  { id: 'ai', label: 'AI Assistant', icon: 'sparkle', desc: 'Claude, Ollama, DeepSeek & compatible APIs' },
   { id: 'keybindings', label: 'Keybindings', icon: 'keyboard', desc: 'Keyboard shortcuts customization' },
   { id: 'about', label: 'About', icon: 'info', desc: 'Version and system information' }
 ]
@@ -27,6 +37,7 @@ const CONTENT: Record<SectionId, () => React.JSX.Element> = {
   general: GeneralSection,
   editor: EditorSection,
   markdown: MarkdownSection,
+  notes: NotesSection,
   appearance: AppearanceSection,
   ai: AiSection,
   keybindings: KeybindingsSection,

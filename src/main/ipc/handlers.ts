@@ -103,6 +103,11 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     z.object({ dirPath: z.string().min(1), name: z.string().min(1) }),
     (_e, req) => fs.createFile(req.dirPath, req.name)
   )
+  handle(
+    'fs:ensureFile',
+    z.object({ path: z.string().min(1), content: z.string() }),
+    (_e, req) => fs.ensureFile(req.path, req.content)
+  )
 
   handle(
     'fs:createDirectory',
@@ -165,6 +170,15 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     'embeddings:search',
     z.object({ rootPath: z.string().min(1), query: z.string().min(1), k: z.number().int() }),
     (_e, req) => embeddings.search(req.rootPath, req.query, req.k)
+  )
+  handle(
+    'embeddings:suggestLinks',
+    z.object({
+      rootPath: z.string().min(1),
+      path: z.string().min(1),
+      limit: z.number().int().min(1).max(20)
+    }),
+    (_e, req) => embeddings.suggestLinks(req.rootPath, req.path, req.limit)
   )
 
   const exportReq = z.object({ title: z.string(), markdown: z.string() })

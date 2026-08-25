@@ -237,6 +237,61 @@ export function MarkdownSection(): React.JSX.Element {
   )
 }
 
+/** Daily notes and templates — where dated notes land and what seeds them. */
+export function NotesSection(): React.JSX.Element {
+  const settings = useStore((s) => s.settings)
+  const update = useStore((s) => s.updateSettings)
+  const daily = settings.dailyNotes
+  const templates = settings.templates
+
+  return (
+    <>
+      <h3 className="set-group">Daily notes</h3>
+      <SettingRow
+        label="Folder"
+        description="Where dated notes are created; blank puts them in the vault root"
+      >
+        <TextField
+          value={daily.folder}
+          placeholder="Daily"
+          onChange={(folder) => update({ dailyNotes: { ...daily, folder } })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Filename format"
+        description="YYYY MM DD HH mm · also MMMM and dddd for names"
+      >
+        <TextField
+          value={daily.format}
+          placeholder="YYYY-MM-DD"
+          onChange={(format) => update({ dailyNotes: { ...daily, format } })}
+        />
+      </SettingRow>
+      <SettingRow label="Template" description="Vault-relative note used for new daily notes">
+        <TextField
+          value={daily.template}
+          placeholder="Templates/Daily.md"
+          onChange={(template) => update({ dailyNotes: { ...daily, template } })}
+        />
+      </SettingRow>
+
+      <h3 className="set-group">Templates</h3>
+      <SettingRow label="Folder" description="Notes here appear in the template picker">
+        <TextField
+          value={templates.folder}
+          placeholder="Templates"
+          onChange={(folder) => update({ templates: { ...templates, folder } })}
+        />
+      </SettingRow>
+      <p className="set-note">
+        Placeholders: <code>{'{{title}}'}</code> <code>{'{{date}}'}</code> <code>{'{{time}}'}</code>{' '}
+        <code>{'{{date:dddd}}'}</code> <code>{'{{date+1d}}'}</code> and <code>{'{{cursor}}'}</code>{' '}
+        for where the caret lands.
+      </p>
+    </>
+  )
+}
+
 export function AiSection(): React.JSX.Element {
   const settings = useStore((s) => s.settings)
   const update = useStore((s) => s.updateSettings)
@@ -255,7 +310,8 @@ export function AiSection(): React.JSX.Element {
           options={[
             { value: 'none', label: 'Off' },
             { value: 'claude', label: 'Claude' },
-            { value: 'ollama', label: 'Ollama' }
+            { value: 'ollama', label: 'Ollama' },
+            { value: 'openai-compatible', label: 'Custom' }
           ]}
         />
       </SettingRow>
@@ -295,12 +351,40 @@ export function AiSection(): React.JSX.Element {
           </SettingRow>
         </>
       )}
+      {a.provider === 'openai-compatible' && (
+        <>
+          <SettingRow
+            label="Base URL"
+            description="Any OpenAI-compatible API — DeepSeek, Groq, OpenRouter, LM Studio"
+          >
+            <TextField
+              value={a.compatUrl}
+              placeholder="https://api.deepseek.com"
+              onChange={(compatUrl) => update({ ai: { ...a, compatUrl } })}
+            />
+          </SettingRow>
+          <SettingRow label="API key" description="Stored locally, never leaves this machine">
+            <TextField
+              value={a.compatKey}
+              placeholder="sk-…"
+              onChange={(compatKey) => update({ ai: { ...a, compatKey } })}
+            />
+          </SettingRow>
+          <SettingRow label="Model">
+            <TextField
+              value={a.compatModel}
+              placeholder="deepseek-chat"
+              onChange={(compatModel) => update({ ai: { ...a, compatModel } })}
+            />
+          </SettingRow>
+        </>
+      )}
       {a.provider !== 'none' && (
         <>
           <h3 className="set-group">Retrieval</h3>
           <SettingRow
             label="Semantic search"
-            description="Retrieve context by meaning (embeddings) instead of keywords"
+            description="Retrieve by meaning (embeddings), widened along [[wikilinks]] from the best matches"
           >
             <Toggle
               checked={a.semanticSearch}
@@ -344,7 +428,13 @@ function ReindexRow(): React.JSX.Element {
     setBusy(true)
     setStatus('Indexing…')
     void invoke('embeddings:reindex', { rootPath })
-      .then((r) => setStatus(`Indexed ${r.chunks} chunks from ${r.files} notes.`))
+      .then((r) =>
+        setStatus(
+          r.embedded === 0
+            ? `Up to date — ${r.chunks} chunks from ${r.files} notes.`
+            : `Embedded ${r.embedded} changed note${r.embedded === 1 ? '' : 's'}, reused ${r.reused}.`
+        )
+      )
       .catch((err) => setStatus(parseIpcError(err).message))
       .finally(() => setBusy(false))
   }

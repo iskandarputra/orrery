@@ -59,14 +59,39 @@ export const settingsSchema = z.object({
       reflowParagraphs: z.boolean().default(true)
     })
     .prefault({}),
+  /** Daily notes: one dated note per day, optionally from a template. */
+  dailyNotes: z
+    .object({
+      /** Folder inside the vault; empty means the vault root. */
+      folder: z.string().default('Daily'),
+      /** Filename date format — the same tokens templates use. */
+      format: z.string().default('YYYY-MM-DD'),
+      /** Vault-relative path of the template to seed new daily notes with. */
+      template: z.string().default('')
+    })
+    .prefault({}),
+  templates: z
+    .object({
+      /** Folder inside the vault holding template notes. */
+      folder: z.string().default('Templates')
+    })
+    .prefault({}),
   ai: z
     .object({
-      provider: z.enum(['none', 'claude', 'ollama']).default('none'),
+      provider: z.enum(['none', 'claude', 'ollama', 'openai-compatible']).default('none'),
       /** Claude API key (stored locally in settings.json). */
       apiKey: z.string().default(''),
       model: z.string().default('claude-sonnet-5'),
       ollamaUrl: z.string().default('http://localhost:11434'),
       ollamaModel: z.string().default('llama3.1'),
+      /**
+       * Any OpenAI-compatible chat endpoint — DeepSeek, Groq, OpenRouter,
+       * Together, LM Studio, vLLM. Base URL only; the service appends the
+       * `/chat/completions` path.
+       */
+      compatUrl: z.string().default('https://api.deepseek.com'),
+      compatKey: z.string().default(''),
+      compatModel: z.string().default('deepseek-chat'),
       /** Use vault embeddings for retrieval instead of keyword search. */
       semanticSearch: z.boolean().default(false),
       /** Ollama embedding model used by reindex/semantic search. */
