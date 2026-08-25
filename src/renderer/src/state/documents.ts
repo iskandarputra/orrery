@@ -7,6 +7,14 @@ import { invoke, parseIpcError } from '@/services/client'
 import type { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
 
+/** Which editor surface a buffer belongs in. */
+export type DocumentKind = 'markdown' | 'canvas'
+
+/** `.canvas` files are JSON boards, everything else is markdown text. */
+export function documentKind(fileName: string): DocumentKind {
+  return /\.canvas$/i.test(fileName) ? 'canvas' : 'markdown'
+}
+
 export interface DocumentBuffer {
   /** Stable tab identity — NOT the path (untitled docs have no path). */
   id: string
@@ -15,6 +23,7 @@ export interface DocumentBuffer {
   /** mtime the renderer last saw; guards against clobbering external edits. */
   savedMtimeMs: number | null
   isDirty: boolean
+  kind: DocumentKind
 }
 
 export interface DocumentsSlice {
@@ -95,7 +104,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
               filePath: path,
               fileName: basename(path),
               savedMtimeMs: file.mtimeMs,
-              isDirty: false
+              isDirty: false,
+              kind: documentKind(path)
             }
           },
           tabOrder: [...s.tabOrder, id],
@@ -131,7 +141,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           filePath: null,
           fileName: untitledCounter === 1 ? 'Untitled' : `Untitled ${untitledCounter}`,
           savedMtimeMs: null,
-          isDirty: false
+          isDirty: false,
+          kind: 'markdown' as const
         }
       },
       tabOrder: [...s.tabOrder, id],

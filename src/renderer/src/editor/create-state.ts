@@ -18,6 +18,7 @@ import { HighlightExtension } from './markdown/highlight-extension'
 import { focusMode, typewriterMode } from './modes'
 import { reflowField, reflowParagraphs } from './live-preview/reflow-view'
 import { pluginEditorExtensions } from '@/plugins/registry'
+import { bumpDocVersion } from '@/state/doc-version'
 import { scheduleStatsUpdate } from '@/state/editor-stats'
 import { bufferRegistry } from './buffer-registry'
 import { livePreview } from './live-preview'
@@ -102,6 +103,8 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           onDirtyChange(bufferRegistry.isDirty(id, update.state.doc))
+          // Views rendered from the document (the canvas) re-read on this.
+          bumpDocVersion(id)
         }
         if (update.docChanged || update.selectionSet) {
           scheduleStatsUpdate(update.state)

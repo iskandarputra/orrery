@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { EditorView } from '@codemirror/view'
 import { setActiveView } from '@/editor/active-view'
+import { bumpDocVersion } from '@/state/doc-version'
+import { refreshStatsNow } from '@/state/editor-stats'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { settingsCompartment, settingsExtensions } from '@/editor/create-state'
 import { lineWidthCss } from '@/editor/line-width'
 import { useStore } from '@/state/store'
+import { CanvasEditor } from './CanvasEditor'
 
 /**
  * Thin React wrapper around a single EditorView. React manages lifecycle and
@@ -18,6 +21,9 @@ export function EditorPane(): React.JSX.Element {
   const shownIdRef = useRef<string | null>(null)
   const activeId = useStore((s) => s.activeId)
   const settings = useStore((s) => s.settings)
+  // A `.canvas` buffer keeps its CodeMirror state (that's what saving reads)
+  // but is shown as a board instead of text.
+  const isCanvas = useStore((s) => (s.activeId ? s.buffers[s.activeId]?.kind === 'canvas' : false))
 
   // Create the view once.
   useEffect(() => {
@@ -49,6 +55,10 @@ export function EditorPane(): React.JSX.Element {
         effects: settingsCompartment.reconfigure(settingsExtensions(useStore.getState().settings))
       })
       shownIdRef.current = activeId
+      // A tab swap fires no editor update, so anything rendered *from* the
+      // document — the counters, a canvas board — has to be told to re-read.
+      refreshStatsNow(view.state)
+      bumpDocVersion(activeId)
       view.focus()
     }
   }, [activeId])
@@ -70,17 +80,27 @@ export function EditorPane(): React.JSX.Element {
     return () => clearInterval(interval)
   }, [])
 
+  // Coming back from a board, the editor was display:none and measured as
+  // zero-sized; CodeMirror needs telling to look again.
+  useEffect(() => {
+    if (!isCanvas) viewRef.current?.requestMeasure()
+  }, [isCanvas])
+
   return (
-    <div
-      ref={containerRef}
-      className="editor-pane"
-      style={{
-        fontSize: `${settings.editor.fontSize}px`,
-        ['--zy-editor-font-size' as string]: `${settings.editor.fontSize}px`,
-        ['--zy-editor-line-height' as string]: String(settings.editor.lineHeight),
-        ['--zy-editor-font-family' as string]: settings.editor.fontFamily || 'var(--zy-prose-font)',
-        ['--zy-editor-max-width' as string]: lineWidthCss(settings.editor)
-      }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="editor-pane"
+        hidden={isCanvas}
+        style={{
+          fontSize: `${settings.editor.fontSize}px`,
+          ['--zy-editor-font-size' as string]: `${settings.editor.fontSize}px`,
+          ['--zy-editor-line-height' as string]: String(settings.editor.lineHeight),
+          ['--zy-editor-font-family' as string]: settings.editor.fontFamily || 'var(--zy-prose-font)',
+          ['--zy-editor-max-width' as string]: lineWidthCss(settings.editor)
+        }}
+      />
+      {isCanvas && activeId && <CanvasEditor key={activeId} bufferId={activeId} />}
+    </>
   )
 }
