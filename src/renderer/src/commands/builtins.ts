@@ -1,6 +1,6 @@
 import { openSearchPanel, replaceNext } from '@codemirror/search'
 import { unwrapParagraphs } from '@core/reflow'
-import { canvasFromCluster, newCanvas } from '@/notes/canvas-commands'
+import { canvasFromCluster, clusterMoc, newCanvas } from '@/notes/canvas-commands'
 import { openDailyNote } from '@/notes/daily'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
@@ -205,6 +205,11 @@ export const builtinCommands: Command[] = [
     id: 'canvas.fromCluster',
     title: "Canvas from This Note's Cluster",
     run: () => void canvasFromCluster()
+  },
+  {
+    id: 'note.clusterMoc',
+    title: "Map of Content for This Note's Cluster",
+    run: () => void clusterMoc()
   },
   {
     id: 'note.insertTemplate',

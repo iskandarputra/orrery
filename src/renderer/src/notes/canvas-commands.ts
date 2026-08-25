@@ -1,4 +1,5 @@
 import { seedCanvasFromNotes, serializeCanvas } from '@core/canvas'
+import { buildMocSkeleton, mocPrompt } from '@core/moc'
 import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
 
@@ -7,15 +8,19 @@ function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Canvas'
 }
 
-/** First free `<base>.canvas`, `<base> 2.canvas`, … in the vault root. */
-async function createCanvas(base: string, content: string): Promise<string | null> {
+/** First free `<base>.<ext>`, `<base> 2.<ext>`, … in the vault root. */
+async function createCanvasLike(
+  base: string,
+  ext: string,
+  content: string
+): Promise<string | null> {
   const { rootPath, showToast } = useStore.getState()
   if (!rootPath) {
     showToast('Open a folder first', 'warning')
     return null
   }
   for (let attempt = 1; attempt <= 20; attempt++) {
-    const name = attempt === 1 ? `${base}.canvas` : `${base} ${attempt}.canvas`
+    const name = attempt === 1 ? `${base}.${ext}` : `${base} ${attempt}.${ext}`
     const path = `${rootPath}/${name}`
     try {
       const { created } = await invoke('fs:ensureFile', { path, content })
@@ -25,13 +30,13 @@ async function createCanvas(base: string, content: string): Promise<string | nul
       return null
     }
   }
-  showToast('Could not find a free canvas name', 'error')
+  showToast('Could not find a free file name', 'error')
   return null
 }
 
 /** A blank board. */
 export async function newCanvas(): Promise<void> {
-  const path = await createCanvas('Canvas', serializeCanvas({ nodes: [], edges: [] }))
+  const path = await createCanvasLike('Canvas', 'canvas', serializeCanvas({ nodes: [], edges: [] }))
   if (!path) return
   const store = useStore.getState()
   void store.refreshTree()
@@ -71,9 +76,69 @@ export async function canvasFromCluster(): Promise<void> {
     rootPath
   )
   const lead = [...cluster].sort((a, b) => b.pagerank - a.pagerank)[0]
-  const path = await createCanvas(safeName(`${lead?.label ?? 'Cluster'} map`), serializeCanvas(canvas))
+  const path = await createCanvasLike(
+    safeName(`${lead?.label ?? 'Cluster'} map`),
+    'canvas',
+    serializeCanvas(canvas)
+  )
   if (!path) return
   void store.refreshTree()
   await store.openPaths([path])
   showToast(`Laid out ${canvas.nodes.length} notes`, 'success')
+}
+
+
+/**
+ * Write a Map of Content for the open note's cluster.
+ *
+ * The structure comes from the link analysis, so this works with no AI
+ * configured at all; when a provider is set up, the model adds a framing
+ * paragraph on top. A failed or missing model degrades to the skeleton rather
+ * than to nothing.
+ */
+export async function clusterMoc(): Promise<void> {
+  const store = useStore.getState()
+  const { rootPath, activeId, buffers, settings, showToast } = store
+  const activePath = activeId ? (buffers[activeId]?.filePath ?? null) : null
+  if (!rootPath || !activePath) {
+    showToast('Open a note first', 'warning')
+    return
+  }
+
+  const analysis = await store.loadGraph()
+  const note = analysis?.nodes.find((n) => n.id === activePath)
+  if (!analysis || !note) {
+    showToast('That note is not in the link graph yet — save it, then retry', 'warning')
+    return
+  }
+
+  const cluster = analysis.nodes.filter((n) => n.exists && n.community === note.community)
+  if (cluster.length < 2) {
+    showToast('This note has no cluster yet — link it to a few others', 'info')
+    return
+  }
+
+  const skeleton = buildMocSkeleton(cluster)
+  let intro = ''
+  if (settings.ai.provider !== 'none') {
+    try {
+      intro = (
+        await invoke('ai:chat', {
+          system: 'You write concise, concrete notes. No preamble, no filler.',
+          messages: [{ role: 'user', content: mocPrompt(skeleton, cluster) }]
+        })
+      ).trim()
+    } catch {
+      showToast('Model unavailable — wrote the map without its summary', 'warning')
+    }
+  }
+
+  const body = intro
+    ? skeleton.markdown.replace(/\n\n/, `\n\n${intro}\n\n`)
+    : skeleton.markdown
+  const path = await createCanvasLike(safeName(`${skeleton.title} MOC`), 'md', body)
+  if (!path) return
+  void store.refreshTree()
+  await store.openPaths([path])
+  showToast(`Mapped ${cluster.length} notes`, 'success')
 }
