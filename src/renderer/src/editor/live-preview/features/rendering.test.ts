@@ -171,3 +171,21 @@ describe('fence marks', () => {
     expect(lineClasses(state, result, 5)).toContain('cm-zy-code-fence-hidden')
   })
 })
+
+describe('loose lists', () => {
+  it('treats only the real first item as first, across blank lines', () => {
+    const doc = 'intro\n\n- one\n\n- two\n\n- three\n'
+    const { state, result } = build(doc, 0)
+    expect(lineClasses(state, result, 3)).toContain('cm-zy-li--first')
+    // Items 2 and 3 are separated by blank lines but are not new lists.
+    expect(lineClasses(state, result, 5)).not.toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 7)).not.toContain('cm-zy-li--first')
+  })
+
+  it('still marks the first item of a list that follows a paragraph', () => {
+    const doc = 'a paragraph\n- one\n- two\n'
+    const { state, result } = build(doc, 0)
+    expect(lineClasses(state, result, 2)).toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-li--first')
+  })
+})

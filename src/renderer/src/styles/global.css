@@ -942,6 +942,54 @@ textarea {
   background: linear-gradient(to right, transparent, var(--zy-accent-soft));
 }
 
+/* Recent folders, offered when no vault is open. */
+.sidebar__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.sidebar__recent-title {
+  padding: 0 8px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--zy-fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sidebar__recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--zy-radius-sm);
+  background: transparent;
+  color: var(--zy-fg-muted);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--zy-transition-fast),
+    color var(--zy-transition-fast);
+}
+
+.sidebar__recent-item:hover {
+  background: var(--zy-hover-bg);
+  color: var(--zy-fg);
+}
+
+/* Long vault names truncate rather than widening the sidebar. */
+.sidebar__recent-item .tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ==========================================================================
    File Tree
    ========================================================================== */

@@ -47,8 +47,17 @@ export const blockSpacing: Feature = {
   nodes: ['ListItem'],
   enter(node, ctx) {
     const line = ctx.state.doc.lineAt(node.from)
-    const prev = line.number > 1 ? ctx.state.doc.line(line.number - 1) : null
-    const firstItem = !prev || !LIST_PREFIX_RE.test(prev.text)
+    // A loose list separates items with blank lines, so "is the line above a
+    // list item?" would call every item the first one. Look past one blank.
+    const previousItemLine = (from: number): string | null => {
+      for (let n = from; n >= Math.max(1, from - 1); n--) {
+        const text = ctx.state.doc.line(n).text
+        if (text.trim() !== '') return text
+      }
+      return null
+    }
+    const prev = line.number > 1 ? previousItemLine(line.number - 1) : null
+    const firstItem = !prev || !LIST_PREFIX_RE.test(prev)
     const indent = prefixWidthCh(line.text.match(LIST_PREFIX_RE)?.[1] ?? '')
     ctx.add(getLineDeco(firstItem, indent).range(line.from))
   }
