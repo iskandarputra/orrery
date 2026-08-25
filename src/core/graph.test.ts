@@ -21,3 +21,27 @@ describe('buildGraph', () => {
     expect(g.nodes.find((n) => n.label === 'S')?.degree).toBe(1)
   })
 })
+
+describe('per-note facts', () => {
+  it('counts words and records the folder relative to the vault root', () => {
+    const g = buildGraph(
+      [
+        { path: '/v/notes/A.md', stem: 'A', content: 'three little words', mtimeMs: 42 },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    const a = g.nodes.find((n) => n.label === 'A')!
+    expect(a).toMatchObject({ words: 3, folder: 'notes', mtimeMs: 42 })
+    expect(g.nodes.find((n) => n.label === 'B')).toMatchObject({ folder: '', words: 0, mtimeMs: 0 })
+  })
+
+  it('leaves ghosts without note facts', () => {
+    const g = buildGraph([{ path: '/v/A.md', stem: 'A', content: 'see [[Nowhere]]' }], '/v')
+    expect(g.nodes.find((n) => n.label === 'Nowhere')).toMatchObject({
+      exists: false,
+      words: 0,
+      mtimeMs: 0
+    })
+  })
+})

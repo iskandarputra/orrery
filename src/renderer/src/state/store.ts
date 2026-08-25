@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { createDocumentsSlice, type DocumentsSlice } from './documents'
+import { createGraphSlice, type GraphSlice } from './graph'
 import { createUiSlice, type UiSlice } from './ui'
 import { createWorkspaceSlice, type WorkspaceSlice } from './workspace'
 
-export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice
+export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice & GraphSlice
 
 /**
  * Single store, three slices. Store logic is plain functions over the typed
@@ -13,5 +14,6 @@ export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice
 export const useStore = create<AppState>()((...args) => ({
   ...createDocumentsSlice(...args),
   ...createWorkspaceSlice(...args),
-  ...createUiSlice(...args)
+  ...createUiSlice(...args),
+  ...createGraphSlice(...args)
 }))

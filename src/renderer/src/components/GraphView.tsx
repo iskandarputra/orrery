@@ -1,18 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GraphData, GraphEdge } from '@shared/types'
-import { invoke } from '@/services/client'
+import type { AnalyzedGraphNode, GraphEdge } from '@shared/types'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 
-interface SimNode {
-  id: string
-  label: string
-  exists: boolean
-  degree: number
+interface SimNode extends AnalyzedGraphNode {
   x: number
   y: number
   vx: number
   vy: number
+}
+
+/** What node size means. Links is raw count; the others come from the analysis. */
+type SizeBy = 'links' | 'influence' | 'bridge'
+/** What node colour means. */
+type ColorBy = 'none' | 'cluster' | 'folder'
+
+/**
+ * Groups are ranked by size and the eight biggest take the theme's validated
+ * categorical slots; the tail folds into one muted colour rather than cycling
+ * hues, which would give two clusters on screen the same colour.
+ */
+const VIZ_SLOTS = 8
+
+function rankBySize(values: (string | number)[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const value of values) counts.set(String(value), (counts.get(String(value)) ?? 0) + 1)
+  return new Map(
+    [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([key], i) => [key, i])
+  )
 }
 
 /** Tunable graph controls — mirrors Obsidian's Filters / Forces / Display panel. */
@@ -26,6 +43,9 @@ interface Controls {
   arrows: boolean
   labels: boolean
   scale: boolean
+  /** Analysis encodings. */
+  sizeBy: SizeBy
+  colorBy: ColorBy
   /** Membership toggles. */
   orphans: boolean
   ghosts: boolean
@@ -43,6 +63,8 @@ const DEFAULTS: Controls = {
   arrows: false,
   labels: true,
   scale: true,
+  sizeBy: 'links',
+  colorBy: 'none',
   orphans: true,
   ghosts: true,
   query: '',
@@ -58,6 +80,7 @@ export function GraphView(): React.JSX.Element | null {
   const open = useStore((s) => s.graphOpen)
   const close = (): void => useStore.setState({ graphOpen: false })
   const rootPath = useStore((s) => s.rootPath)
+  const loadGraph = useStore((s) => s.loadGraph)
   const activePath = useStore((s) => (s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null))
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [status, setStatus] = useState('')
@@ -78,6 +101,11 @@ export function GraphView(): React.JSX.Element | null {
   const workEdgesRef = useRef<GraphEdge[]>([])
   const workByIdRef = useRef<Map<string, SimNode>>(new Map())
   const readyRef = useRef(false)
+  /** Largest metric values on screen — the scale that sizing is relative to. */
+  const peakRef = useRef({ pagerank: 0, betweenness: 0 })
+  /** Cluster / folder → palette slot, biggest first. */
+  const clusterRankRef = useRef<Map<string, number>>(new Map())
+  const folderRankRef = useRef<Map<string, number>>(new Map())
   const zoomControlsRef = useRef<{ zoomIn(): void; zoomOut(): void; resetZoom(): void; fit(): void } | null>(null)
 
   // Derive the visible sub-graph from the current controls, preserving positions.
@@ -217,7 +245,8 @@ export function GraphView(): React.JSX.Element | null {
       node: cssVar('--zy-accent'),
       ghost: cssVar('--zy-fg-faint'),
       label: cssVar('--zy-fg-muted'),
-      labelHover: cssVar('--zy-fg')
+      labelHover: cssVar('--zy-fg'),
+      viz: Array.from({ length: VIZ_SLOTS }, (_, i) => cssVar(`--zy-viz-${i + 1}`))
     }
 
     const resize = (): void => {
@@ -235,8 +264,27 @@ export function GraphView(): React.JSX.Element | null {
         (cy - rect.top - rect.height / 2 - panY) / zoom
       ]
     }
-    const radius = (n: SimNode): number =>
-      ctlRef.current.scale ? 4 + Math.min(10, Math.sqrt(n.degree) * 2) : 5
+    // Size by raw links, by influence (PageRank) or by bridge score
+    // (betweenness). The latter two are tiny fractions, so they are scaled
+    // against the largest value on screen rather than used raw.
+    const radius = (n: SimNode): number => {
+      const c = ctlRef.current
+      if (!c.scale) return 5
+      if (c.sizeBy === 'links') return 4 + Math.min(10, Math.sqrt(n.degree) * 2)
+      const peak = c.sizeBy === 'influence' ? peakRef.current.pagerank : peakRef.current.betweenness
+      const value = c.sizeBy === 'influence' ? n.pagerank : n.betweenness
+      return 4 + 10 * Math.sqrt(peak > 0 ? value / peak : 0)
+    }
+
+    const slotColor = (rank: number | undefined): string =>
+      rank !== undefined && rank < VIZ_SLOTS ? colors.viz[rank]! : colors.ghost
+
+    const nodeColor = (n: SimNode): string => {
+      const c = ctlRef.current
+      if (c.colorBy === 'cluster') return slotColor(clusterRankRef.current.get(String(n.community)))
+      if (c.colorBy === 'folder') return slotColor(folderRankRef.current.get(n.folder))
+      return colors.node
+    }
 
     const pick = (cx: number, cy: number): SimNode | null => {
       const [wx, wy] = toWorld(cx, cy)
@@ -355,7 +403,7 @@ export function GraphView(): React.JSX.Element | null {
         const dimmed = (hover != null && !neighbors.has(n.id)) || !matches(n)
         const isActiveNode = n.id === activePath
         ctx.globalAlpha = dimmed ? 0.2 : 1
-        ctx.fillStyle = n.exists ? (isActiveNode ? colors.node : colors.node) : colors.ghost
+        ctx.fillStyle = n.exists ? nodeColor(n) : colors.ghost
         ctx.beginPath()
         ctx.arc(n.x, n.y, radius(n), 0, Math.PI * 2)
         ctx.fill()
@@ -390,8 +438,8 @@ export function GraphView(): React.JSX.Element | null {
     }
 
     setStatus('Building graph…')
-    void invoke('workspace:graph', { rootPath }).then((data: GraphData) => {
-      if (disposed) return
+    void loadGraph().then((data) => {
+      if (disposed || !data) return
       const all = new Map<string, SimNode>()
       data.nodes.forEach((n, i) => {
         all.set(n.id, {
@@ -404,6 +452,12 @@ export function GraphView(): React.JSX.Element | null {
       })
       allByIdRef.current = all
       allEdgesRef.current = data.edges
+      peakRef.current = {
+        pagerank: Math.max(0, ...data.nodes.map((n) => n.pagerank)),
+        betweenness: Math.max(0, ...data.nodes.map((n) => n.betweenness))
+      }
+      clusterRankRef.current = rankBySize(data.nodes.map((n) => n.community))
+      folderRankRef.current = rankBySize(data.nodes.map((n) => n.folder))
       readyRef.current = true
       rebuildRef.current()
       raf = requestAnimationFrame(tick)
@@ -469,7 +523,7 @@ export function GraphView(): React.JSX.Element | null {
       window.removeEventListener('keydown', onKey)
       canvas.removeEventListener('wheel', onWheel)
     }
-  }, [open, rootPath, activePath])
+  }, [open, rootPath, activePath, loadGraph])
 
   if (!open) return null
 
@@ -570,7 +624,15 @@ export function GraphView(): React.JSX.Element | null {
                   <span className="graph__hover-title">{hoverNode.node.label}</span>
                 </div>
                 <div className="graph__hover-meta">
-                  <span>{hoverNode.node.degree} connection{hoverNode.node.degree === 1 ? '' : 's'}</span>
+                  <span>
+                    {hoverNode.node.inDegree} in · {hoverNode.node.outDegree} out
+                  </span>
+                  {hoverNode.node.exists && (
+                    <span>
+                      {hoverNode.node.words.toLocaleString()} words · cluster{' '}
+                      {hoverNode.node.community + 1}
+                    </span>
+                  )}
                   {!hoverNode.node.exists && <span className="graph__hover-ghost">(Uncreated note)</span>}
                 </div>
               </div>
@@ -602,10 +664,33 @@ export function GraphView(): React.JSX.Element | null {
                   <Range label="Link Distance" value={ctl.linkDistance} min={0.2} max={2.5} step={0.05} set={(v) => up({ linkDistance: v })} />
                 </section>
                 <section className="graph__section">
+                  <h4 className="graph__section-title">Analysis</h4>
+                  <Select
+                    label="Size by"
+                    value={ctl.sizeBy}
+                    options={[
+                      ['links', 'Link count'],
+                      ['influence', 'Influence (PageRank)'],
+                      ['bridge', 'Bridge score']
+                    ]}
+                    set={(v) => up({ sizeBy: v as SizeBy, scale: true })}
+                  />
+                  <Select
+                    label="Colour by"
+                    value={ctl.colorBy}
+                    options={[
+                      ['none', 'Nothing'],
+                      ['cluster', 'Topic cluster'],
+                      ['folder', 'Folder']
+                    ]}
+                    set={(v) => up({ colorBy: v as ColorBy })}
+                  />
+                </section>
+                <section className="graph__section">
                   <h4 className="graph__section-title">Display</h4>
                   <Check label="Link direction arrows" on={ctl.arrows} set={(v) => up({ arrows: v })} />
                   <Check label="Always show note labels" on={ctl.labels} set={(v) => up({ labels: v })} />
-                  <Check label="Scale node size by links" on={ctl.scale} set={(v) => up({ scale: v })} />
+                  <Check label="Scale node size" on={ctl.scale} set={(v) => up({ scale: v })} />
                 </section>
                 <button className="graph__reset" onClick={() => setCtl({ ...DEFAULTS })}>
                   Reset to defaults
@@ -664,6 +749,31 @@ function Range({
         value={value}
         onChange={(e) => set(parseFloat(e.target.value))}
       />
+    </label>
+  )
+}
+
+function Select({
+  label,
+  value,
+  options,
+  set
+}: {
+  label: string
+  value: string
+  options: [string, string][]
+  set: (v: string) => void
+}): React.JSX.Element {
+  return (
+    <label className="graph__range">
+      <span className="graph__range-label">{label}</span>
+      <select className="graph__select" value={value} onChange={(e) => set(e.target.value)}>
+        {options.map(([id, text]) => (
+          <option key={id} value={id}>
+            {text}
+          </option>
+        ))}
+      </select>
     </label>
   )
 }

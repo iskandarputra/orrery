@@ -20,18 +20,26 @@ export interface ToastMessage {
   type: 'info' | 'success' | 'warning' | 'error'
 }
 
+/** What the palette is listing. */
+export type PaletteMode = 'files' | 'commands' | 'templates'
+
+/** Tabs of the right side panel. */
+export type SidePanel = 'outline' | 'backlinks' | 'search' | 'ai' | 'stats' | 'analysis'
+
 export interface UiSlice {
   /** Mirror of main-process settings; defaults until loadSettings resolves. */
   settings: Settings
   settingsLoaded: boolean
   /** Settings dialog visibility (transient, not persisted). */
   settingsOpen: boolean
-  /** Right side panel: outline (TOC), backlinks, global search, AI, or stats. */
-  sidePanel: 'outline' | 'backlinks' | 'search' | 'ai' | 'stats' | null
+  /** Right side panel: outline (TOC), backlinks, search, AI, stats or analysis. */
+  sidePanel: SidePanel | null
   /** Full-screen vault graph overlay. */
   graphOpen: boolean
-  /** Quick switcher ('files') or command palette ('commands'). */
-  paletteMode: 'files' | 'commands' | null
+  /** Full-screen vault analytics overlay. */
+  analyticsOpen: boolean
+  /** Quick switcher, command palette, or the template picker. */
+  paletteMode: PaletteMode | null
   /** Expanded directories in the file tree (transient, session-scoped). */
   expandedDirs: Record<string, true>
   treeEdit: TreeEdit | null
@@ -53,9 +61,10 @@ export interface UiSlice {
   updateSettings(patch: Partial<Settings>): void
   openSettings(): void
   closeSettings(): void
-  toggleSidePanel(panel: 'outline' | 'backlinks' | 'search' | 'ai' | 'stats'): void
+  toggleSidePanel(panel: SidePanel): void
   toggleGraph(): void
-  openPalette(mode: 'files' | 'commands'): void
+  toggleAnalytics(): void
+  openPalette(mode: PaletteMode): void
   closePalette(): void
   setTreeEdit(edit: TreeEdit | null): void
   toggleSidebar(): void
@@ -83,6 +92,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   settingsOpen: false,
   sidePanel: null,
   graphOpen: false,
+  analyticsOpen: false,
   paletteMode: null,
   expandedDirs: {},
   treeEdit: null,
@@ -117,6 +127,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   toggleGraph() {
     set((s) => ({ graphOpen: !s.graphOpen }))
+  },
+
+  toggleAnalytics() {
+    set((s) => ({ analyticsOpen: !s.analyticsOpen }))
   },
 
   openPalette(mode) {

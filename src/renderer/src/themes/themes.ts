@@ -54,6 +54,24 @@ export type TokenName =
   | 'code-function'
   | 'code-type'
   | 'code-property'
+  | 'viz-1'
+  | 'viz-2'
+  | 'viz-3'
+  | 'viz-4'
+  | 'viz-5'
+  | 'viz-6'
+  | 'viz-7'
+  | 'viz-8'
+
+/**
+ * Categorical palette for analysis colour — graph clusters, chart series.
+ * A fixed, validated order (blue, orange, aqua, yellow, magenta, green, violet,
+ * red), stepped separately for light and dark surfaces rather than flipped.
+ * Deliberately independent of the theme accent: these encode identity, and
+ * shuffling them per theme would make the same cluster change colour.
+ */
+const VIZ_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
+const VIZ_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
 
 const d = (spec: Omit<ThemeSpec, 'appearance'>): ThemeSpec => ({ ...spec, appearance: 'dark' })
 const l = (spec: Omit<ThemeSpec, 'appearance'>): ThemeSpec => ({ ...spec, appearance: 'light' })
@@ -155,6 +173,14 @@ export function resolveTheme(spec: ThemeSpec): ResolvedTheme {
     'code-function': spec.code.function,
     'code-type': spec.code.type,
     'code-property': spec.code.property,
+    'viz-1': (dark ? VIZ_DARK : VIZ_LIGHT)[0]!,
+    'viz-2': (dark ? VIZ_DARK : VIZ_LIGHT)[1]!,
+    'viz-3': (dark ? VIZ_DARK : VIZ_LIGHT)[2]!,
+    'viz-4': (dark ? VIZ_DARK : VIZ_LIGHT)[3]!,
+    'viz-5': (dark ? VIZ_DARK : VIZ_LIGHT)[4]!,
+    'viz-6': (dark ? VIZ_DARK : VIZ_LIGHT)[5]!,
+    'viz-7': (dark ? VIZ_DARK : VIZ_LIGHT)[6]!,
+    'viz-8': (dark ? VIZ_DARK : VIZ_LIGHT)[7]!,
     ...spec.overrides
   }
   return { ...tokens, appearance: spec.appearance }

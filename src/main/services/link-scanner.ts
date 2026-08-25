@@ -1,8 +1,9 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { buildGraph } from '@core/graph'
+import { buildGraph, type GraphFile } from '@core/graph'
+import { analyzeGraph } from '@core/metrics'
 import { findLinkLines } from '@core/wikilinks'
-import type { BacklinkHit, GraphData } from '@shared/types'
+import type { BacklinkHit, GraphAnalysis } from '@shared/types'
 
 const IGNORED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg'])
 const MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -21,9 +22,9 @@ export class LinkScanner {
     return hits
   }
 
-  /** Read every note and build the vault's wikilink graph. */
-  async graph(rootPath: string): Promise<GraphData> {
-    const files: { path: string; stem: string; content: string }[] = []
+  /** Read every note, build the vault's wikilink graph, and analyse it. */
+  async graph(rootPath: string): Promise<GraphAnalysis> {
+    const files: GraphFile[] = []
     const visit = async (dir: string): Promise<void> => {
       let entries
       try {
@@ -43,7 +44,8 @@ export class LinkScanner {
             files.push({
               path: full,
               stem: entry.name.replace(/\.[^.]+$/, ''),
-              content: await fs.readFile(full, 'utf-8')
+              content: await fs.readFile(full, 'utf-8'),
+              mtimeMs: stat.mtimeMs
             })
           } catch {
             // skip unreadable
@@ -52,7 +54,9 @@ export class LinkScanner {
       }
     }
     await visit(rootPath)
-    return buildGraph(files)
+    // One pass over the vault feeds both the graph and its analysis, so every
+    // surface (graph, analytics view, note panel) reads the same numbers.
+    return analyzeGraph(buildGraph(files, rootPath), { now: Date.now() })
   }
 
   /** Full-text search; plain queries are matched literally, or as a regex. */

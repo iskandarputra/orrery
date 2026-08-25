@@ -5,7 +5,8 @@ import type {
   FileReadResult,
   FileWriteResult,
   FsChangedPayload,
-  GraphData
+  GraphAnalysis,
+  LinkSuggestion
 } from './types'
 import type { Settings } from './settings'
 
@@ -27,6 +28,14 @@ export interface IpcInvokeContract {
   }
   'fs:readTree': { req: { path: string }; res: FileNode }
   'fs:createFile': { req: { dirPath: string; name: string }; res: FileNode }
+  /**
+   * Create a note (and any missing parent folders) only if it isn't there yet.
+   * Idempotent, so "open today's note" is one call whether or not it exists.
+   */
+  'fs:ensureFile': {
+    req: { path: string; content: string }
+    res: { path: string; created: boolean }
+  }
   'fs:createDirectory': { req: { dirPath: string; name: string }; res: FileNode }
   'fs:rename': { req: { path: string; newName: string }; res: string }
   'fs:trash': { req: { path: string }; res: void }
@@ -41,17 +50,26 @@ export interface IpcInvokeContract {
     req: { rootPath: string; query: string; regex: boolean; caseSensitive: boolean }
     res: BacklinkHit[]
   }
-  /** Wikilink graph of the whole vault. */
-  'workspace:graph': { req: { rootPath: string }; res: GraphData }
+  /** Wikilink graph of the whole vault, with its structural analysis. */
+  'workspace:graph': { req: { rootPath: string }; res: GraphAnalysis }
 
   /** User plugin sources from <userData>/plugins/*.js. */
   'plugins:list': { req: void; res: { name: string; source: string }[] }
 
   /** Rebuild the vault embedding index for semantic AI retrieval. */
-  'embeddings:reindex': { req: { rootPath: string }; res: { files: number; chunks: number } }
+  'embeddings:reindex': {
+    req: { rootPath: string }
+    /** `embedded` / `reused` report what the incremental pass actually did. */
+    res: { files: number; chunks: number; embedded: number; reused: number }
+  }
   'embeddings:search': {
     req: { rootPath: string; query: string; k: number }
     res: BacklinkHit[]
+  }
+  /** Notes semantically close to this one that it doesn't link to yet. */
+  'embeddings:suggestLinks': {
+    req: { rootPath: string; path: string; limit: number }
+    res: LinkSuggestion[]
   }
 
   /** Chat completion via the configured AI provider (key stays in main). */
