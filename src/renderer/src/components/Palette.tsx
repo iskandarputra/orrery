@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fuzzyFilter } from '@core/fuzzy'
+import { buildNoteIndex } from '@core/notes'
+import { insertTemplate } from '@/notes/daily'
+import { invoke } from '@/services/client'
 import { getRegistry } from '@/bootstrap'
 import { useStore } from '@/state/store'
+import type { PaletteMode } from '@/state/ui'
 import { Icon, type IconName } from './Icon'
 
 interface Entry {
@@ -20,14 +24,16 @@ export function Palette(): React.JSX.Element | null {
   return <PaletteInner key={mode} initialMode={mode} />
 }
 
-function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): React.JSX.Element {
+function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.Element {
   const close = useStore((s) => s.closePalette)
   const noteIndex = useStore((s) => s.noteIndex)
   const openPaths = useStore((s) => s.openPaths)
   const settings = useStore((s) => s.settings)
+  const picking = initialMode === 'templates'
   const [activeTab, setActiveTab] = useState<'all' | 'files' | 'commands'>(
     initialMode === 'files' ? 'files' : 'commands'
   )
+  const templates = useTemplateFiles(picking)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -35,6 +41,19 @@ function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): R
 
   const entries = useMemo<Entry[]>(() => {
     const list: Entry[] = []
+
+    if (picking) {
+      templates.forEach((t) => {
+        list.push({
+          id: `tpl:${t.path}`,
+          label: t.stem,
+          detail: t.path,
+          icon: 'copy',
+          run: () => void insertTemplate(t.path)
+        })
+      })
+      return list
+    }
 
     if (activeTab === 'all' || activeTab === 'files') {
       noteIndex.forEach((n) => {
@@ -64,7 +83,7 @@ function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): R
     }
 
     return list
-  }, [activeTab, noteIndex, openPaths, settings.keybindings])
+  }, [picking, templates, activeTab, noteIndex, openPaths, settings.keybindings])
 
   const results = useMemo(() => fuzzyFilter(query, entries, (e) => e.label), [query, entries])
 
@@ -98,7 +117,9 @@ function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): R
             ref={inputRef}
             className="palette__input"
             placeholder={
-              activeTab === 'files'
+              picking
+                ? 'Insert a template…'
+                : activeTab === 'files'
                 ? 'Open note by name…'
                 : activeTab === 'commands'
                   ? 'Run a command…'
@@ -119,14 +140,14 @@ function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): R
                 setSelected((s) => Math.max(s - 1, 0))
               } else if (e.key === 'Enter') {
                 pick(results[selected])
-              } else if (e.key === 'Tab') {
+              } else if (e.key === 'Tab' && !picking) {
                 e.preventDefault()
                 setActiveTab((t) => (t === 'files' ? 'commands' : t === 'commands' ? 'all' : 'files'))
                 setSelected(0)
               }
             }}
           />
-          <div className="palette__tabs">
+          <div className="palette__tabs" hidden={picking}>
             <button
               className={`palette__tab${activeTab === 'files' ? ' palette__tab--active' : ''}`}
               onClick={() => {
@@ -198,4 +219,25 @@ function PaletteInner({ initialMode }: { initialMode: 'files' | 'commands' }): R
       </div>
     </div>
   )
+}
+
+/** Template notes from the configured folder, loaded when the picker opens. */
+function useTemplateFiles(active: boolean): { path: string; stem: string }[] {
+  const rootPath = useStore((s) => s.rootPath)
+  const folder = useStore((s) => s.settings.templates.folder)
+  const [files, setFiles] = useState<{ path: string; stem: string }[]>([])
+
+  useEffect(() => {
+    if (!active || !rootPath) return
+    let stale = false
+    const dir = [rootPath, folder].filter((part) => part.trim() !== '').join('/')
+    void invoke('fs:readTree', { path: dir })
+      .then((tree) => !stale && setFiles(buildNoteIndex(tree)))
+      .catch(() => !stale && setFiles([]))
+    return () => {
+      stale = true
+    }
+  }, [active, rootPath, folder])
+
+  return files
 }

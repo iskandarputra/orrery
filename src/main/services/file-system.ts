@@ -94,6 +94,31 @@ export class FileSystemService {
     }
   }
 
+  /**
+   * Create the note if it's missing, along with any parent folders, and report
+   * whether it had to. Existing files are never touched — a daily note you
+   * already wrote in must survive being "opened" again.
+   */
+  async ensureFile(target: string, content: string): Promise<{ path: string; created: boolean }> {
+    try {
+      await fs.access(target)
+      return { path: target, created: false }
+    } catch {
+      // not there yet — fall through and create it
+    }
+    try {
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      await fs.writeFile(target, content, { flag: 'wx' })
+      return { path: target, created: true }
+    } catch (err) {
+      // A racing writer got there first: treat as existing rather than failing.
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+        return { path: target, created: false }
+      }
+      throw toIpcError(err)
+    }
+  }
+
   async createDirectory(dirPath: string, name: string): Promise<FileNode> {
     try {
       const full = path.join(dirPath, name)
