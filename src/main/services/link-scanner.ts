@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { fingerprintVault, type FileStamp } from '@core/fingerprint'
 import { buildGraph, type GraphFile } from '@core/graph'
 import { analyzeGraph } from '@core/metrics'
 import { findLinkLines } from '@core/wikilinks'
@@ -16,15 +17,22 @@ const MAX_HITS = 200
  * knowledge layer grows (the IPC contract stays the same).
  */
 export class LinkScanner {
+  /**
+   * Last analysis per vault, keyed by a fingerprint of the files' stats. Held
+   * in memory only: it is rebuilt in well under a second, and a stale cache on
+   * disk is a worse problem than a cold start.
+   */
+  private cache = new Map<string, { fingerprint: string; analysis: GraphAnalysis }>()
+
   async scan(rootPath: string, targetStem: string): Promise<BacklinkHit[]> {
     const hits: BacklinkHit[] = []
     await this.walk(rootPath, targetStem, hits)
     return hits
   }
 
-  /** Read every note, build the vault's wikilink graph, and analyse it. */
-  async graph(rootPath: string): Promise<GraphAnalysis> {
-    const files: GraphFile[] = []
+  /** Every markdown file's stats, without reading any of them. */
+  private async stamps(rootPath: string): Promise<FileStamp[]> {
+    const found: FileStamp[] = []
     const visit = async (dir: string): Promise<void> => {
       let entries
       try {
@@ -37,26 +45,53 @@ export class LinkScanner {
         const full = path.join(dir, entry.name)
         if (entry.isDirectory()) {
           await visit(full)
-        } else if (entry.isFile() && /\.(md|markdown|mdown|mkd)$/i.test(entry.name)) {
-          try {
-            const stat = await fs.stat(full)
-            if (stat.size > MAX_FILE_BYTES) continue
-            files.push({
-              path: full,
-              stem: entry.name.replace(/\.[^.]+$/, ''),
-              content: await fs.readFile(full, 'utf-8'),
-              mtimeMs: stat.mtimeMs
-            })
-          } catch {
-            // skip unreadable
-          }
+          continue
+        }
+        if (!entry.isFile() || !/\.(md|markdown|mdown|mkd)$/i.test(entry.name)) continue
+        try {
+          const stat = await fs.stat(full)
+          if (stat.size > MAX_FILE_BYTES) continue
+          found.push({ path: full, mtimeMs: stat.mtimeMs, size: stat.size })
+        } catch {
+          // skip unreadable
         }
       }
     }
     await visit(rootPath)
+    return found
+  }
+
+  /**
+   * Read every note, build the vault's wikilink graph, and analyse it — unless
+   * nothing has changed since the last time, in which case the cached analysis
+   * is returned and not a single note is read. The `stat` walk that decides
+   * this is cheap; reading the files is what costs.
+   */
+  async graph(rootPath: string): Promise<GraphAnalysis> {
+    const stamps = await this.stamps(rootPath)
+    const fingerprint = fingerprintVault(stamps)
+    const cached = this.cache.get(rootPath)
+    if (cached?.fingerprint === fingerprint) return cached.analysis
+
+    const files: GraphFile[] = []
+    for (const stamp of stamps) {
+      try {
+        files.push({
+          path: stamp.path,
+          stem: path.basename(stamp.path).replace(/\.[^.]+$/, ''),
+          content: await fs.readFile(stamp.path, 'utf-8'),
+          mtimeMs: stamp.mtimeMs
+        })
+      } catch {
+        // vanished between the walk and the read
+      }
+    }
+
     // One pass over the vault feeds both the graph and its analysis, so every
     // surface (graph, analytics view, note panel) reads the same numbers.
-    return analyzeGraph(buildGraph(files, rootPath), { now: Date.now() })
+    const analysis = analyzeGraph(buildGraph(files, rootPath), { now: Date.now() })
+    this.cache.set(rootPath, { fingerprint, analysis })
+    return analysis
   }
 
   /** Full-text search; plain queries are matched literally, or as a regex. */
