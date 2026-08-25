@@ -7,7 +7,11 @@ import { Icon, type IconName } from './Icon'
 import { buildTreeMenu } from './menus'
 import { TreeEditInput } from './TreeEditInput'
 
+/** One indent step per level, applied by the nested `.tree-children` box. */
 const INDENT_PX = 14
+/** Row padding inside its level's box: directories lead with a chevron, files don't. */
+const DIR_PAD_PX = 8
+const FILE_PAD_PX = 22
 
 function getFileIcon(fileName: string): IconName {
   const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
@@ -42,13 +46,7 @@ function filterNode(node: FileNode, filter: string): FileNode | null {
   return null
 }
 
-const TreeNode = memo(function TreeNode({
-  node,
-  depth
-}: {
-  node: FileNode
-  depth: number
-}): React.JSX.Element {
+const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX.Element {
   const expandedDirs = useStore((s) => s.expandedDirs)
   const isExpanded = !!expandedDirs[node.path]
   const toggleDir = useStore((s) => s.toggleDir)
@@ -72,7 +70,12 @@ const TreeNode = memo(function TreeNode({
 
   // Renaming this node replaces its row with an input.
   if (treeEdit?.type === 'rename' && treeEdit.path === node.path) {
-    return <TreeEditInput edit={treeEdit} indentPx={depth * INDENT_PX} />
+    return (
+      <TreeEditInput
+        edit={treeEdit}
+        indentPx={node.kind === 'directory' ? DIR_PAD_PX : FILE_PAD_PX}
+      />
+    )
   }
 
   if (node.kind === 'directory') {
@@ -81,7 +84,7 @@ const TreeNode = memo(function TreeNode({
       <div className="tree-dir-group">
         <div
           className={`tree-row tree-row--dir${creatingHere ? ' tree-row--creating' : ''}`}
-          style={{ paddingLeft: depth * INDENT_PX + 8 }}
+          style={{ paddingLeft: DIR_PAD_PX }}
           onClick={() => toggleDir(node.path)}
           onContextMenu={onMenu}
           aria-expanded={expanded}
@@ -114,10 +117,10 @@ const TreeNode = memo(function TreeNode({
           </div>
         </div>
         {expanded && (
-          <div className="tree-children" style={{ marginLeft: depth * INDENT_PX + 14 }}>
+          <div className="tree-children" style={{ marginLeft: INDENT_PX }}>
             {creatingHere && <TreeEditInput edit={treeEdit} indentPx={4} />}
             {node.children?.map((child) => (
-              <TreeNode key={child.path} node={child} depth={depth + 1} />
+              <TreeNode key={child.path} node={child} />
             ))}
           </div>
         )}
@@ -133,7 +136,7 @@ const TreeNode = memo(function TreeNode({
       className={`tree-row tree-row--file${isActive ? ' tree-row--active' : ''}${
         isMd ? '' : ' tree-row--other'
       }`}
-      style={{ paddingLeft: depth * INDENT_PX + 22 }}
+      style={{ paddingLeft: FILE_PAD_PX }}
       title={node.path}
       onClick={() => void openPaths([node.path])}
       onContextMenu={onMenu}
@@ -181,7 +184,7 @@ export function FileTree(): React.JSX.Element | null {
     <div className="file-tree" role="tree">
       {creatingAtRoot && <TreeEditInput edit={treeEdit} indentPx={8} />}
       {filteredTree.children?.map((child) => (
-        <TreeNode key={child.path} node={child} depth={0} />
+        <TreeNode key={child.path} node={child} />
       ))}
     </div>
   )

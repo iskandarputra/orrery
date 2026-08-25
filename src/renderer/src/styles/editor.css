@@ -159,6 +159,33 @@
   background: color-mix(in srgb, var(--zy-code-function) 12%, transparent);
 }
 
+/* Callout title — the text after the concealed [!TYPE] marker. */
+.cm-zy-callout-title {
+  font-weight: 650;
+  color: var(--zy-fg);
+  letter-spacing: -0.005em;
+}
+
+.cm-zy-callout--note .cm-zy-callout-title {
+  color: var(--zy-accent);
+}
+
+.cm-zy-callout--tip .cm-zy-callout-title {
+  color: var(--zy-code-property);
+}
+
+.cm-zy-callout--warning .cm-zy-callout-title {
+  color: var(--zy-code-type);
+}
+
+.cm-zy-callout--caution .cm-zy-callout-title {
+  color: var(--zy-code-keyword);
+}
+
+.cm-zy-callout--important .cm-zy-callout-title {
+  color: var(--zy-code-function);
+}
+
 /* Bullets and task checkboxes. */
 .cm-zy-bullet {
   color: var(--zy-accent);
@@ -198,6 +225,19 @@
   padding-right: 1.2em;
   border-left: 1px solid var(--zy-border);
   border-right: 1px solid var(--zy-border);
+  /* Code is column-sensitive: never wrap it, scroll instead, so ASCII trees
+     and aligned comments survive a narrow window. */
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* One font, one size for every token — the markdown `monospace` highlight
+   shrinks spans to 0.88em, which would stagger glyph widths mid-line and
+   break box-drawing alignment. The language badge keeps its own scale. */
+.cm-zy-code-line span:not(.cm-zy-code-info):not(.cm-zy-code-info span) {
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .cm-zy-code-first {
@@ -215,7 +255,13 @@
   border-bottom: 1px solid var(--zy-border);
 }
 
-/* Fenced code backticks: subtle and unobtrusive */
+/* A fence line with its ``` concealed collapses into the card's edge — the
+   backticks come back (full height) when the cursor lands on that line. */
+.cm-zy-code-fence-hidden {
+  line-height: 0.4;
+}
+
+/* Fenced code backticks: subtle and unobtrusive (shown on the active line) */
 .cm-zy-code-mark {
   color: var(--zy-fg-faint);
   opacity: 0.55;
@@ -542,4 +588,19 @@
   background: var(--zy-accent-soft);
   color: var(--zy-accent);
   border: 1px solid color-mix(in srgb, var(--zy-accent) 25%, transparent);
+}
+
+/* HTML Comments (<!-- ... -->): Muted Author Notes */
+.cm-zy-comment-line {
+  color: var(--zy-code-comment);
+  font-style: italic;
+  font-family: var(--zy-mono-font);
+  font-size: 0.88em;
+  line-height: 1.6;
+  opacity: 0.72;
+  transition: opacity var(--zy-transition-fast);
+}
+
+.cm-zy-comment-line:hover {
+  opacity: 1;
 }

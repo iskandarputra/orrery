@@ -1,21 +1,55 @@
 import { Decoration } from '@codemirror/view'
 import type { Feature } from '../context'
 
-const itemLine = Decoration.line({ class: 'cm-zy-li' })
-const firstItemLine = Decoration.line({ class: 'cm-zy-li cm-zy-li--first' })
+/** `  - `, `1. `, `10) ` — the marker plus its indent and trailing space. */
+const LIST_PREFIX_RE = /^(\s*(?:[-*+]|\d+[.)])[ \t]+)/
+
+/**
+ * Width of the item prefix in `ch`. The editor font is proportional, so a space
+ * is roughly half a `0` while marker glyphs are about one — counting every
+ * character as 1ch would push the hanging indent further right at every level.
+ */
+const SPACE_CH = 0.5
+function prefixWidthCh(prefix: string): number {
+  let width = 0
+  for (const char of prefix) width += char === ' ' || char === '\t' ? SPACE_CH : 1
+  return Math.round(width * 100) / 100
+}
+
+const lineDecos = new Map<string, Decoration>()
+
+/**
+ * List item lines are decorated per (first-item, text column): the class sets
+ * the rhythm, the inline style hangs wrapped text under the item's text instead
+ * of letting it fall back to the left margin and flatten the outline.
+ */
+function getLineDeco(firstItem: boolean, indent: number): Decoration {
+  const key = `${firstItem ? 'f' : 'i'}:${indent}`
+  let deco = lineDecos.get(key)
+  if (!deco) {
+    deco = Decoration.line({
+      class: firstItem ? 'cm-zy-li cm-zy-li--first' : 'cm-zy-li',
+      attributes: { style: `padding-left: ${indent}ch; text-indent: -${indent}ch` }
+    })
+    lineDecos.set(key, deco)
+  }
+  return deco
+}
 
 /**
  * Comfortable list rhythm: a small gap above each list item so bullets, numbers
  * and task items breathe instead of stacking tightly. Applied to the item's
  * first line only (a ViewPlugin-safe line decoration). The first item of a
  * list gets a smaller gap so the list doesn't float away from its intro line.
+ * The same decoration carries the hanging indent for wrapped item text.
  */
 export const blockSpacing: Feature = {
   nodes: ['ListItem'],
   enter(node, ctx) {
     const line = ctx.state.doc.lineAt(node.from)
     const prev = line.number > 1 ? ctx.state.doc.line(line.number - 1) : null
-    const firstItem = !prev || !/^\s*([-*+]|\d+[.)])\s/.test(prev.text)
-    ctx.add((firstItem ? firstItemLine : itemLine).range(line.from))
+    const firstItem = !prev || !LIST_PREFIX_RE.test(prev.text)
+    const indent = prefixWidthCh(line.text.match(LIST_PREFIX_RE)?.[1] ?? '')
+    ctx.add(getLineDeco(firstItem, indent).range(line.from))
   }
 }

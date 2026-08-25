@@ -7,8 +7,20 @@ import type { BuildContext, Feature } from '../context'
  * carrying its target in data-url (Mod+click opens externally; see plugin
  * event handler). Reveals to raw syntax when the cursor enters.
  */
+/**
+ * `> [!NOTE]` parses as a shortcut reference link, but it is callout syntax —
+ * the blockquote feature renders it. Left alone here it would show as `!NOTE`
+ * styled like a link with an empty target.
+ */
+function isCalloutMarker(node: SyntaxNode, ctx: BuildContext): boolean {
+  if (!/^\[![a-zA-Z_-]+\]$/.test(ctx.state.doc.sliceString(node.from, node.to))) return false
+  const line = ctx.state.doc.lineAt(node.from)
+  return /^\s*>[ \t]*$/.test(line.text.slice(0, node.from - line.from))
+}
+
 function decorate(node: SyntaxNode, ctx: BuildContext, isImage: boolean): void {
   if (ctx.revealed(node.from, node.to)) return
+  if (isCalloutMarker(node, ctx)) return
 
   const marks = node.getChildren('LinkMark')
   const url = node.getChild('URL')

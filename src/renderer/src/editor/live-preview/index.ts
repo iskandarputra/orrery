@@ -7,6 +7,7 @@ import { emphasis } from './features/emphasis'
 import { headings } from './features/headings'
 import { highlight } from './features/highlight'
 import { hr } from './features/hr'
+import { htmlComment } from './features/html-comment'
 import { inlineCode } from './features/inline-code'
 import { links } from './features/links'
 import { lists } from './features/lists'
@@ -69,7 +70,8 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
         blockSpacing,
         blockquote,
         hr,
-        codeBlock
+        codeBlock,
+        htmlComment
       ],
       reveal
     ),
