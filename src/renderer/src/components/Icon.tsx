@@ -2,7 +2,7 @@
  * Minimal 16px stroke icon set (1.5px, round caps) — consistent weight across
  * the whole UI. Paths drawn on a 16×16 grid.
  */
-const PATHS: Record<string, React.JSX.Element> = {
+const PATHS = {
   'chevron-right': <path d="M6 3.5 L10.5 8 L6 12.5" />,
   folder: (
     <path d="M1.75 4.25 a1 1 0 0 1 1-1 h3l1.5 1.75h6a1 1 0 0 1 1 1v6.25a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z" />
@@ -291,12 +291,39 @@ const PATHS: Record<string, React.JSX.Element> = {
   'chevron-down': <path d="M3.5 6L8 10.5 12.5 6" />,
   'chevron-up': <path d="M3.5 10L8 5.5 12.5 10" />,
   'arrow-left': <path d="M13.5 8H2.5M6.5 4L2.5 8l4 4" />,
+  'arrow-up': <path d="M8 13.5V2.5M4 6.5L8 2.5l4 4" />,
   'external-link': (
     <>
       <path d="M11 8.5v4a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1H7.5M9.5 2.5h4v4M6.5 9.5L13.5 2.5" />
     </>
+  ),
+  'bar-chart': (
+    <>
+      <path d="M2.25 13.75h11.5" />
+      <path d="M4.5 13.5V9.25M8 13.5V4.5M11.5 13.5V7" />
+    </>
+  ),
+  'alert-triangle': (
+    <>
+      <path d="M8 2.75 1.9 13.25h12.2z" />
+      <path d="M8 6.5v3.25M8 11.75h.01" />
+    </>
+  ),
+  'git-branch': (
+    <>
+      <circle cx="4.5" cy="3.75" r="1.75" />
+      <circle cx="4.5" cy="12.25" r="1.75" />
+      <circle cx="11.5" cy="7.25" r="1.75" />
+      <path d="M4.5 5.5v5M6.25 7.25h2.1a1.4 1.4 0 0 0 1.35-1" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="M8 1.9 1.9 5.25 8 8.6l6.1-3.35z" />
+      <path d="M2.4 8.35 8 11.4l5.6-3.05M2.4 11.1 8 14.15l5.6-3.05" />
+    </>
   )
-}
+} satisfies Record<string, React.JSX.Element>
 
 export type IconName = keyof typeof PATHS
 

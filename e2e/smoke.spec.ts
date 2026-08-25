@@ -8,6 +8,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
+import { openVault } from './helpers'
 
 let app: ElectronApplication
 let page: Page
@@ -54,9 +55,7 @@ test.beforeAll(async () => {
   page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })
 
-  await page.evaluate((v) => window.zymd.invoke('settings:set', { lastOpenedFolder: v }), vault)
-  await page.reload()
-  await page.waitForSelector('.sidebar__title')
+  await openVault(page, vault, 'Home.md')
 })
 
 test.afterAll(async () => {

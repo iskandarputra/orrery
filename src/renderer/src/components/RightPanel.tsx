@@ -4,8 +4,10 @@ import { getActiveView } from '@/editor/active-view'
 import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
 import { useStore } from '@/state/store'
+import type { SidePanel } from '@/state/ui'
 import { AiChatBody } from './AiChat'
 import { BacklinksBody } from './BacklinksPanel'
+import { NoteAnalysisBody } from './NoteAnalysisPanel'
 import { Icon, type IconName } from './Icon'
 import { EmptyState, ResultGroups } from './PanelBits'
 
@@ -203,7 +205,7 @@ function DocStatsBody(): React.JSX.Element {
           <span className="rpanel-stat-box__lbl">Characters</span>
         </div>
         <div className="rpanel-stat-box">
-          <span className="rpanel-stat-box__val">{stats.line}</span>
+          <span className="rpanel-stat-box__val">{stats.lines.toLocaleString()}</span>
           <span className="rpanel-stat-box__lbl">Lines</span>
         </div>
         <div className="rpanel-stat-box">
@@ -219,12 +221,13 @@ function DocStatsBody(): React.JSX.Element {
   )
 }
 
-const TABS: { id: 'outline' | 'backlinks' | 'search' | 'ai' | 'stats'; label: string; icon: IconName }[] = [
+const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'outline', label: 'Outline', icon: 'list' },
   { id: 'backlinks', label: 'Links', icon: 'link' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'ai', label: 'AI', icon: 'sparkle' },
-  { id: 'stats', label: 'Stats', icon: 'info' }
+  { id: 'stats', label: 'Stats', icon: 'info' },
+  { id: 'analysis', label: 'Analysis', icon: 'bar-chart' }
 ]
 
 export function RightPanel(): React.JSX.Element | null {
@@ -289,6 +292,7 @@ export function RightPanel(): React.JSX.Element | null {
         {panel === 'search' && <SearchBody />}
         {panel === 'ai' && <AiChatBody />}
         {panel === 'stats' && <DocStatsBody />}
+        {panel === 'analysis' && <NoteAnalysisBody />}
       </div>
     </aside>
   )

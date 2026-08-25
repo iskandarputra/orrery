@@ -1,5 +1,7 @@
 import { openSearchPanel, replaceNext } from '@codemirror/search'
 import { unwrapParagraphs } from '@core/reflow'
+import { canvasFromCluster, newCanvas } from '@/notes/canvas-commands'
+import { openDailyNote } from '@/notes/daily'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
 import { invoke } from '@/services/client'
@@ -109,8 +111,12 @@ export const builtinCommands: Command[] = [
         return
       }
       try {
-        const { files, chunks } = await invoke('embeddings:reindex', { rootPath: root })
-        window.alert(`Indexed ${chunks} chunks from ${files} notes.`)
+        const r = await invoke('embeddings:reindex', { rootPath: root })
+        window.alert(
+          r.embedded === 0
+            ? `Index already up to date — ${r.chunks} chunks from ${r.files} notes.`
+            : `Embedded ${r.embedded} changed note(s), reused ${r.reused}. ${r.chunks} chunks total.`
+        )
       } catch (err) {
         window.alert(`Reindex failed: ${err instanceof Error ? err.message : err}`)
       }
@@ -186,9 +192,34 @@ export const builtinCommands: Command[] = [
     }
   },
   {
+    id: 'note.openToday',
+    title: "Open Today's Daily Note",
+    run: () => void openDailyNote()
+  },
+  {
+    id: 'canvas.new',
+    title: 'New Canvas',
+    run: () => void newCanvas()
+  },
+  {
+    id: 'canvas.fromCluster',
+    title: "Canvas from This Note's Cluster",
+    run: () => void canvasFromCluster()
+  },
+  {
+    id: 'note.insertTemplate',
+    title: 'Insert Template…',
+    run: ({ store }) => store().openPalette('templates')
+  },
+  {
     id: 'view.toggleGraph',
     title: 'Open Graph View',
     run: ({ store }) => store().toggleGraph()
+  },
+  {
+    id: 'view.toggleAnalytics',
+    title: 'Open Vault Analytics',
+    run: ({ store }) => store().toggleAnalytics()
   },
   {
     id: 'file.exportHtml',

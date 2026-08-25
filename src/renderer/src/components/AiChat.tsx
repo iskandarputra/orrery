@@ -79,6 +79,14 @@ const SUGGESTIONS = [
 
 export function AiChatBody(): React.JSX.Element {
   const provider = useStore((s) => s.settings.ai.provider)
+  // The custom provider is whatever model you pointed it at, so name that.
+  const providerLabel = useStore((s) =>
+    s.settings.ai.provider === 'claude'
+      ? 'Claude'
+      : s.settings.ai.provider === 'ollama'
+        ? 'Ollama'
+        : s.settings.ai.compatModel || 'Custom'
+  )
   const openSettings = useStore((s) => s.openSettings)
   const showToast = useStore((s) => s.showToast)
   const [turns, setTurns] = useState<Turn[]>([])
@@ -136,7 +144,7 @@ export function AiChatBody(): React.JSX.Element {
       <div className="aichat__header-info">
         <span className="aichat__provider-badge">
           <Icon name="sparkle" size={12} />
-          <span>{provider === 'claude' ? 'Claude' : 'Ollama'}</span>
+          <span>{providerLabel}</span>
         </span>
         {turns.length > 0 && (
           <button
