@@ -31,11 +31,31 @@ test.beforeAll(async () => {
     join(vault, 'Board.canvas'),
     JSON.stringify({
       nodes: [
-        { id: 'a', type: 'text', text: 'First card', x: 0, y: 0, width: 260, height: 120 },
+        {
+          id: 'a',
+          type: 'text',
+          text: '# First card\n\nWith **bold** text.',
+          x: 0,
+          y: 0,
+          width: 260,
+          height: 120
+        },
         { id: 'b', type: 'file', file: 'Rust.md', x: 400, y: 0, width: 260, height: 120 },
         { id: 'broken', x: 0, y: 0 }
       ],
       edges: [{ id: 'e1', fromNode: 'a', toNode: 'b' }]
+    })
+  )
+
+  writeFileSync(
+    join(vault, 'Grouped.canvas'),
+    JSON.stringify({
+      nodes: [
+        { id: 'g', type: 'group', label: 'Reading', x: 0, y: 0, width: 600, height: 400 },
+        { id: 'in', type: 'text', text: 'inside the group', x: 60, y: 80, width: 240, height: 120 },
+        { id: 'out', type: 'text', text: 'outside', x: 800, y: 80, width: 240, height: 120 }
+      ],
+      edges: []
     })
   )
 
@@ -119,7 +139,8 @@ test('seeds a board from the note cluster', async () => {
   await runCommand('canvas.fromCluster')
   await page.waitForSelector('.canvas')
 
-  const created = readdirSync(vault).filter((f) => f.endsWith('.canvas') && f !== 'Board.canvas')
+  const fixtures = new Set(['Board.canvas', 'Grouped.canvas'])
+  const created = readdirSync(vault).filter((f) => f.endsWith('.canvas') && !fixtures.has(f))
   expect(created).toHaveLength(1)
   const board = JSON.parse(readFileSync(join(vault, created[0]!), 'utf-8')) as {
     nodes: { type: string; file?: string }[]
@@ -137,4 +158,63 @@ test('a new blank canvas opens ready to use', async () => {
   await page.waitForSelector('.canvas__empty')
   expect(existsSync(join(vault, 'Canvas.canvas'))).toBe(true)
   await expect(page.locator('.canvas__card')).toHaveCount(0)
+})
+
+test('a marquee selects several cards, and delete removes them together', async () => {
+  await page.locator('.tree-row--file', { hasText: 'Board.canvas' }).click()
+  await page.waitForSelector('.canvas__card')
+  const total = await page.locator('.canvas__card').count()
+  const surface = (await page.locator('.canvas__surface').boundingBox())!
+
+  // Drag a box across the whole board.
+  await page.mouse.move(surface.x + 8, surface.y + 8)
+  await page.mouse.down()
+  await page.mouse.move(surface.x + surface.width - 8, surface.y + surface.height - 8, { steps: 10 })
+  await page.mouse.up()
+  await expect(page.locator('.canvas__card--selected')).toHaveCount(total)
+
+  await page.keyboard.press('Delete')
+  await expect(page.locator('.canvas__card')).toHaveCount(0)
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.canvas__card')).toHaveCount(total)
+})
+
+test('dragging a group carries the cards inside it, and leaves the rest', async () => {
+  await page.locator('.tree-row--file', { hasText: 'Grouped.canvas' }).click()
+  await page.waitForSelector('.canvas__card--group')
+
+  const inside = page.locator('.canvas__card', { hasText: 'inside the group' })
+  const outside = page.locator('.canvas__card', { hasText: 'outside' })
+  const group = page.locator('.canvas__card--group')
+  const beforeIn = (await inside.boundingBox())!
+  const beforeOut = (await outside.boundingBox())!
+  const groupBox = (await group.boundingBox())!
+
+  // Grab the group by its top edge, clear of the card it frames.
+  await page.mouse.move(groupBox.x + groupBox.width / 2, groupBox.y + 4)
+  await page.mouse.down()
+  await page.mouse.move(groupBox.x + groupBox.width / 2, groupBox.y + 124, { steps: 8 })
+  await page.mouse.up()
+
+  const afterIn = (await inside.boundingBox())!
+  const afterOut = (await outside.boundingBox())!
+  expect(Math.round(afterIn.y - beforeIn.y)).toBeGreaterThan(80)
+  // A card outside the frame stays exactly where it was.
+  expect(Math.round(afterOut.y - beforeOut.y)).toBe(0)
+})
+
+test('text cards render their markdown', async () => {
+  await page.locator('.tree-row--file', { hasText: 'Board.canvas' }).click()
+  await page.waitForSelector('.canvas__card')
+
+  const card = page.locator('.canvas__card', { hasText: 'First card' })
+  // Rendered, not raw: the heading marker and asterisks are concealed.
+  await expect(card.locator('.cm-zy-h1')).toBeVisible()
+  await expect(card).not.toContainText('**')
+  await expect(card).not.toContainText('# First card')
+
+  // Double-clicking still edits the underlying markdown, markers and all.
+  await card.dblclick()
+  await expect(page.locator('.canvas__card-input')).toHaveValue('# First card\n\nWith **bold** text.')
+  await page.keyboard.press('Escape')
 })

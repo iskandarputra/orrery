@@ -278,6 +278,36 @@ textarea {
   white-space: pre-wrap;
 }
 
+/* Rendered markdown inside a card: the editor's own preview, scaled down and
+   stripped of its chrome so it reads as card content, not as an editor. */
+.canvas__card-markdown {
+  flex: 1;
+  overflow: hidden;
+  font-size: 12.5px;
+}
+
+.canvas__card-markdown .cm-editor {
+  background: transparent;
+}
+
+.canvas__card-markdown .cm-scroller {
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.canvas__card-markdown .cm-content {
+  padding: 0;
+}
+
+.canvas__card-markdown .cm-line {
+  padding: 0;
+}
+
+.canvas__card-markdown .cm-cursor,
+.canvas__card-markdown .cm-gutters {
+  display: none;
+}
+
 .canvas__card-input {
   flex: 1;
   width: 100%;
@@ -326,6 +356,33 @@ textarea {
     transparent 50%,
     color-mix(in srgb, var(--zy-fg-faint) 60%, transparent) 50%
   );
+}
+
+/* Marquee selection box. */
+.canvas__marquee {
+  position: absolute;
+  border: 1px solid var(--zy-accent);
+  background: var(--zy-accent-soft);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* A group is a frame behind its cards, not a container that hides them. */
+.canvas__card--group {
+  background: color-mix(in srgb, var(--zy-fg-faint) 8%, transparent);
+  border-style: dashed;
+  box-shadow: none;
+  cursor: grab;
+}
+
+.canvas__card--group .canvas__card-title {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--zy-radius-sm);
+  background: var(--zy-panel-bg);
+  border: 1px solid var(--zy-border);
+  font-size: 11.5px;
+  color: var(--zy-fg-muted);
 }
 
 .canvas__empty {

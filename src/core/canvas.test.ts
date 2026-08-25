@@ -5,6 +5,9 @@ import {
   chooseSides,
   sideAnchor,
   nodeAt,
+  nodesInBox,
+  nodesInGroup,
+  normaliseBox,
   parseCanvas,
   seedCanvasFromNotes,
   serializeCanvas,
@@ -175,5 +178,53 @@ describe('edge geometry', () => {
     const below = { ...textNode('c', 0, 400), width: 100, height: 100 }
     expect(chooseSides(a, below)).toEqual({ from: 'bottom', to: 'top' })
     expect(chooseSides(below, a)).toEqual({ from: 'top', to: 'bottom' })
+  })
+})
+
+describe('selection geometry', () => {
+  const a = textNode('a', 0, 0)
+  const b = textNode('b', 400, 300)
+
+  it('selects every node a marquee touches', () => {
+    expect(nodesInBox([a, b], { x: -20, y: -20, width: 260, height: 160 }).map((n) => n.id)).toEqual([
+      'a'
+    ])
+    expect(nodesInBox([a, b], { x: -50, y: -50, width: 900, height: 900 }).map((n) => n.id)).toEqual([
+      'a',
+      'b'
+    ])
+  })
+
+  it('counts a partial overlap as selected', () => {
+    // Clipping a corner is enough — a marquee shouldn't need to swallow a card.
+    expect(nodesInBox([a], { x: 150, y: 80, width: 400, height: 400 })).toHaveLength(1)
+  })
+
+  it('selects nothing when the marquee misses', () => {
+    expect(nodesInBox([a, b], { x: 1000, y: 1000, width: 50, height: 50 })).toEqual([])
+  })
+
+  it('normalises a box dragged up and to the left', () => {
+    expect(normaliseBox(300, 200, 100, 50)).toEqual({ x: 100, y: 50, width: 200, height: 150 })
+  })
+})
+
+describe('groups', () => {
+  const group = { ...textNode('g', 0, 0), type: 'group' as const, width: 600, height: 400 }
+
+  it('finds the cards a group contains', () => {
+    const inside = textNode('in', 50, 50)
+    const outside = textNode('out', 900, 900)
+    expect(nodesInGroup([group, inside, outside], group).map((n) => n.id)).toEqual(['in'])
+  })
+
+  it('never contains itself, or another group', () => {
+    const other = { ...group, id: 'g2', x: 10, y: 10, width: 100, height: 100 }
+    expect(nodesInGroup([group, other], group).map((n) => n.id)).toEqual([])
+  })
+
+  it('leaves out a card that merely overlaps the edge', () => {
+    const straddling = textNode('half', 550, 350)
+    expect(nodesInGroup([group, straddling], group)).toEqual([])
   })
 })

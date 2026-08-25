@@ -269,3 +269,48 @@ export function chooseSides(from: CanvasNode, to: CanvasNode): { from: CanvasSid
   }
   return dy >= 0 ? { from: 'bottom', to: 'top' } : { from: 'top', to: 'bottom' }
 }
+
+export interface Box {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** A drag can go up or left; turn two corners into a positive-sized box. */
+export function normaliseBox(x1: number, y1: number, x2: number, y2: number): Box {
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1)
+  }
+}
+
+const overlaps = (node: CanvasNode, box: Box): boolean =>
+  node.x < box.x + box.width &&
+  node.x + node.width > box.x &&
+  node.y < box.y + box.height &&
+  node.y + node.height > box.y
+
+/** Marquee selection: touching a card is enough, no need to enclose it. */
+export function nodesInBox(nodes: readonly CanvasNode[], box: Box): CanvasNode[] {
+  return nodes.filter((node) => overlaps(node, box))
+}
+
+/**
+ * The cards a group holds — fully inside it, so dragging a group moves what
+ * visibly sits in it and nothing that merely brushes its edge. Groups never
+ * contain other groups, which keeps a drag from cascading.
+ */
+export function nodesInGroup(nodes: readonly CanvasNode[], group: CanvasNode): CanvasNode[] {
+  return nodes.filter(
+    (node) =>
+      node.id !== group.id &&
+      node.type !== 'group' &&
+      node.x >= group.x &&
+      node.y >= group.y &&
+      node.x + node.width <= group.x + group.width &&
+      node.y + node.height <= group.y + group.height
+  )
+}

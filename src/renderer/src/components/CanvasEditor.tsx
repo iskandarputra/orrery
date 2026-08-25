@@ -4,9 +4,13 @@ import {
   DEFAULT_NODE_WIDTH,
   canvasBounds,
   chooseSides,
+  nodesInBox,
+  nodesInGroup,
+  normaliseBox,
   parseCanvas,
   serializeCanvas,
   sideAnchor,
+  type Box,
   type CanvasNode,
   type JsonCanvas
 } from '@core/canvas'
@@ -17,6 +21,7 @@ import { invoke } from '@/services/client'
 import { useDocVersion } from '@/state/doc-version'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
+import { MarkdownCard } from './MarkdownCard'
 
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 2.5
@@ -32,9 +37,11 @@ interface Viewport {
 
 type Gesture =
   | { kind: 'pan'; startX: number; startY: number; originX: number; originY: number }
-  | { kind: 'move'; id: string; grabX: number; grabY: number }
+  /** Dragging a selection: every moving card's starting position, by id. */
+  | { kind: 'move'; startX: number; startY: number; origins: Record<string, { x: number; y: number }> }
   | { kind: 'resize'; id: string; grabX: number; grabY: number; width: number; height: number }
   | { kind: 'connect'; from: string; x: number; y: number }
+  | { kind: 'marquee'; startX: number; startY: number; box: Box }
 
 const shortId = (): string => crypto.randomUUID().replace(/-/g, '').slice(0, 16)
 
@@ -54,11 +61,13 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
 
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 })
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selection, setSelection] = useState<string[]>([])
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState<JsonCanvas | null>(null)
   const [gesture, setGesture] = useState<Gesture | null>(null)
   const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null)
+  /** Held space pans instead of drawing a marquee — the usual canvas idiom. */
+  const spaceRef = useRef(false)
 
   // Re-read the board whenever the document changes — including changes this
   // component didn't make, like an undo.
@@ -121,24 +130,36 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
   const addNode = useCallback(
     (node: CanvasNode): void => {
       commit({ ...canvas, nodes: [...canvas.nodes, node] })
-      setSelected(node.id)
+      setSelection([node.id])
     },
     [canvas, commit]
   )
 
   const removeSelected = useCallback((): void => {
-    if (!selected) return
+    if (selection.length === 0) return
+    const gone = new Set(selection)
     commit({
-      nodes: canvas.nodes.filter((n) => n.id !== selected),
-      edges: canvas.edges.filter((e) => e.fromNode !== selected && e.toNode !== selected)
+      // Deleting a group leaves its cards behind — it is a frame, not a folder.
+      nodes: canvas.nodes.filter((n) => !gone.has(n.id)),
+      edges: canvas.edges.filter((e) => !gone.has(e.fromNode) && !gone.has(e.toNode))
     })
-    setSelected(null)
-  }, [canvas, commit, selected])
+    setSelection([])
+  }, [canvas, commit, selection])
 
   useEffect(() => {
+    const onUp = (e: KeyboardEvent): void => {
+      if (e.code === 'Space') spaceRef.current = false
+    }
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null
       const typing = !!target && /input|textarea/i.test(target.tagName)
+      if (e.code === 'Space' && !typing) spaceRef.current = true
+
+      if ((e.ctrlKey || e.metaKey) && !typing && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        setSelection(canvas.nodes.map((n) => n.id))
+        return
+      }
 
       // The board's history is the document's history, but the editor holding
       // it is hidden and never focused — so its keymap never fires. Drive the
@@ -153,17 +174,21 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         return
       }
 
-      if (editing || !selected || typing) return
+      if (editing || selection.length === 0 || typing) return
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
         removeSelected()
       } else if (e.key === 'Escape') {
-        setSelected(null)
+        setSelection([])
       }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [editing, selected, removeSelected])
+    window.addEventListener('keyup', onUp)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onUp)
+    }
+  }, [editing, selection, removeSelected, canvas.nodes])
 
   const onPointerMove = (e: React.PointerEvent): void => {
     if (!gesture) return
@@ -181,19 +206,36 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
       setGesture({ ...gesture, x: point.x, y: point.y })
       return
     }
+    if (gesture.kind === 'marquee') {
+      setGesture({
+        ...gesture,
+        box: normaliseBox(gesture.startX, gesture.startY, point.x, point.y)
+      })
+      return
+    }
+    if (gesture.kind === 'move') {
+      const dx = point.x - gesture.startX
+      const dy = point.y - gesture.startY
+      setDraft({
+        ...canvas,
+        nodes: canvas.nodes.map((n) => {
+          const origin = gesture.origins[n.id]
+          return origin ? { ...n, x: origin.x + dx, y: origin.y + dy } : n
+        })
+      })
+      return
+    }
     setDraft({
       ...canvas,
-      nodes: canvas.nodes.map((n) => {
-        if (n.id !== gesture.id) return n
-        if (gesture.kind === 'move') {
-          return { ...n, x: point.x - gesture.grabX, y: point.y - gesture.grabY }
-        }
-        return {
-          ...n,
-          width: Math.max(MIN_NODE_SIZE, gesture.width + (point.x - gesture.grabX)),
-          height: Math.max(MIN_NODE_SIZE, gesture.height + (point.y - gesture.grabY))
-        }
-      })
+      nodes: canvas.nodes.map((n) =>
+        n.id === gesture.id
+          ? {
+              ...n,
+              width: Math.max(MIN_NODE_SIZE, gesture.width + (point.x - gesture.grabX)),
+              height: Math.max(MIN_NODE_SIZE, gesture.height + (point.y - gesture.grabY))
+            }
+          : n
+      )
     })
   }
 
@@ -217,6 +259,8 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
           })
         }
       }
+    } else if (gesture?.kind === 'marquee') {
+      setSelection(nodesInBox(canvas.nodes, gesture.box).map((n) => n.id))
     } else if (draft) {
       commit(draft)
     }
@@ -269,6 +313,24 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         <button className="icon-btn" title="Add note" onClick={() => setPickerAt(centre())}>
           <Icon name="file-text" size={15} />
         </button>
+        <button
+          className="icon-btn"
+          title="Add group"
+          onClick={() => {
+            const at = centre()
+            addNode({
+              id: shortId(),
+              type: 'group',
+              label: 'Group',
+              x: at.x - 320,
+              y: at.y - 220,
+              width: 640,
+              height: 440
+            })
+          }}
+        >
+          <Icon name="layers" size={15} />
+        </button>
         <span className="canvas__toolbar-gap" />
         <button
           className="icon-btn"
@@ -305,16 +367,28 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
           // Blur first: clearing `editing` would unmount the textarea and take
           // whatever was typed with it, before its blur handler could save.
           if (editing) (document.activeElement as HTMLElement | null)?.blur()
-          setSelected(null)
           setEditing(null)
           setPickerAt(null)
           e.currentTarget.setPointerCapture(e.pointerId)
+
+          // Middle button or a held space pans; a plain drag draws a marquee.
+          if (e.button === 1 || spaceRef.current) {
+            setGesture({
+              kind: 'pan',
+              startX: e.clientX,
+              startY: e.clientY,
+              originX: viewport.x,
+              originY: viewport.y
+            })
+            return
+          }
+          setSelection([])
+          const start = toScene(e.clientX, e.clientY)
           setGesture({
-            kind: 'pan',
-            startX: e.clientX,
-            startY: e.clientY,
-            originX: viewport.x,
-            originY: viewport.y
+            kind: 'marquee',
+            startX: start.x,
+            startY: start.y,
+            box: { x: start.x, y: start.y, width: 0, height: 0 }
           })
         }}
         onDoubleClick={(e) => {
@@ -330,25 +404,62 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         >
           <Edges canvas={canvas} gesture={gesture} />
 
-          {canvas.nodes.map((node) => (
+          {gesture?.kind === 'marquee' && (
+            <div
+              className="canvas__marquee"
+              style={{
+                left: gesture.box.x,
+                top: gesture.box.y,
+                width: gesture.box.width,
+                height: gesture.box.height
+              }}
+            />
+          )}
+
+          {/* Groups draw behind the cards they frame. */}
+          {[...canvas.nodes]
+            .sort((a, b) => Number(b.type === 'group') - Number(a.type === 'group'))
+            .map((node) => (
             <div
               key={node.id}
               className={`canvas__card canvas__card--${node.type}${
-                selected === node.id ? ' canvas__card--selected' : ''
+                selection.includes(node.id) ? ' canvas__card--selected' : ''
               }`}
               style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
               onPointerDown={(e) => {
                 if ((e.target as HTMLElement).closest('.canvas__handle')) return
                 e.stopPropagation()
-                setSelected(node.id)
+
+                // Dragging an unselected card selects it alone; dragging one
+                // that is already selected moves the whole selection.
+                const additive = e.shiftKey || e.metaKey || e.ctrlKey
+                let moving = selection
+                if (additive) {
+                  moving = selection.includes(node.id)
+                    ? selection.filter((id) => id !== node.id)
+                    : [...selection, node.id]
+                } else if (!selection.includes(node.id)) {
+                  moving = [node.id]
+                }
+                setSelection(moving)
+                if (additive) return // a modifier click adjusts the set, it doesn't drag
+
+                // A group carries the cards that sit inside it.
+                const dragging = new Set(moving)
+                for (const id of moving) {
+                  const candidate = canvas.nodes.find((n) => n.id === id)
+                  if (candidate?.type === 'group') {
+                    for (const child of nodesInGroup(canvas.nodes, candidate)) dragging.add(child.id)
+                  }
+                }
+
                 const point = toScene(e.clientX, e.clientY)
+                const origins: Record<string, { x: number; y: number }> = {}
+                for (const n of canvas.nodes) {
+                  if (dragging.has(n.id)) origins[n.id] = { x: n.x, y: n.y }
+                }
                 e.currentTarget.setPointerCapture(e.pointerId)
-                setGesture({
-                  kind: 'move',
-                  id: node.id,
-                  grabX: point.x - node.x,
-                  grabY: point.y - node.y
-                })
+                setGesture({ kind: 'move', startX: point.x, startY: point.y, origins })
               }}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -504,7 +615,8 @@ function CardBody({
         />
       )
     }
-    return <div className="canvas__card-text">{node.text || 'Empty card'}</div>
+    if (!node.text.trim()) return <div className="canvas__card-text">Empty card</div>
+    return <MarkdownCard text={node.text} />
   }
 
   if (node.type === 'file') {
