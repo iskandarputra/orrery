@@ -41,6 +41,7 @@ export function buildDecorationRanges(
 
   const ctx: BuildContext = {
     state,
+    reading: !reveal,
     // Reading mode (reveal=false) renders statically: clicking never uncovers
     // the raw markdown around the cursor.
     revealed: (from, to) => reveal && selectionTouches(state, from, to),

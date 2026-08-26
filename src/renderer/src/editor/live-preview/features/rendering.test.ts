@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { blockSpacing } from './block-spacing'
 import { blockquote } from './blockquote'
 import { codeBlock } from './code-block'
+import { htmlComment } from './html-comment'
 import { links } from './links'
 import { lists } from './lists'
 import { buildDecorationRanges, type BuiltDecorations } from '../plugin'
@@ -14,7 +15,8 @@ const FEATURES = [
   lists({ fancyBullets: true, interactiveCheckboxes: true }),
   blockSpacing,
   blockquote,
-  codeBlock
+  codeBlock,
+  htmlComment
 ]
 
 function build(doc: string, cursor = doc.length): { state: EditorState; result: BuiltDecorations } {
@@ -231,5 +233,26 @@ describe('blockquote as one container', () => {
       expect(lineClasses(state, result, line)).toContain('cm-zy-blockquote--first')
       expect(lineClasses(state, result, line)).toContain('cm-zy-blockquote--last')
     }
+  })
+})
+
+describe('html comments', () => {
+  const doc = 'before\n\n<!-- a note to self -->\n\nafter'
+
+  it('is hidden in Reading mode, the way a rendered document hides it', () => {
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(0),
+      extensions: [markdown({ base: markdownLanguage })]
+    })
+    ensureSyntaxTree(state, state.doc.length, 5000)
+    const result = buildDecorationRanges(state, FEATURES, [{ from: 0, to: state.doc.length }], false)
+    expect(concealedSpans(doc, result)).toContain('<!-- a note to self -->')
+  })
+
+  it('stays visible while editing — hidden text you cannot see is worse', () => {
+    const { state, result } = build(doc, 0)
+    expect(concealedSpans(doc, result)).not.toContain('<!-- a note to self -->')
+    expect(lineClasses(state, result, 3)).toContain('cm-zy-comment-line')
   })
 })

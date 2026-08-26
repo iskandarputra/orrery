@@ -4,27 +4,24 @@ import type { Feature } from '../context'
 const commentLine = Decoration.line({ class: 'cm-zy-comment-line' })
 
 /**
- * HTML Comments (`<!-- ... -->`) — used for internal notes, author metadata,
- * and documentation notes.
+ * HTML comments (`<!-- ... -->`) — internal notes, author metadata, TODOs.
  *
- * In Reading mode (reveal=false): concealed cleanly as per HTML/Markdown specification.
- * In Hybrid mode: styled with muted theme comment styling (`--zy-code-comment`).
+ * Reading mode is a rendered document, so a comment is hidden there exactly as
+ * every other renderer hides it: it is not content. While editing, hiding it
+ * would make text you cannot see, so it stays visible and muted instead.
  */
 export const htmlComment: Feature = {
   nodes: ['Comment', 'CommentBlock'],
   enter(node, ctx) {
+    if (ctx.reading) {
+      ctx.conceal(node.from, node.to)
+      return
+    }
+    if (ctx.lineRevealed(node.from, node.to)) return
     const doc = ctx.state.doc
-    const first = doc.lineAt(node.from)
-    const last = doc.lineAt(node.to)
-
-    // In Reading mode (pure preview), conceal HTML comments as standard markdown behavior
-    if (!ctx.revealed(node.from, node.to)) {
-      // In reading mode (reveal=false for the entire view), conceal the comment range
-      if (!ctx.lineRevealed(node.from, node.to)) {
-        for (let n = first.number; n <= last.number; n++) {
-          ctx.add(commentLine.range(doc.line(n).from))
-        }
-      }
+    const last = doc.lineAt(node.to).number
+    for (let n = doc.lineAt(node.from).number; n <= last; n++) {
+      ctx.add(commentLine.range(doc.line(n).from))
     }
   }
 }

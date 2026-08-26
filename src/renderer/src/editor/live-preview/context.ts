@@ -9,6 +9,12 @@ import type { SyntaxNodeRef } from '@lezer/common'
  */
 export interface BuildContext {
   state: EditorState
+  /**
+   * True in Reading mode: a static render that never reveals source. Features
+   * that hide something entirely (rather than on the cursor) need to tell that
+   * apart from "the cursor happens to be elsewhere".
+   */
+  reading: boolean
   /** True when a selection range touches [from, to] — syntax marks inside stay visible. */
   revealed(from: number, to: number): boolean
   /** True when a selection range touches any line overlapping [from, to]. */

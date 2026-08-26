@@ -49,6 +49,7 @@ test.beforeAll(async () => {
     async (v) =>
       window.zymd.invoke('settings:set', {
         lastOpenedFolder: v,
+        session: { openPaths: [], activePath: '' },
         dailyNotes: { folder: 'Daily', format: 'YYYY-MM-DD', template: 'Templates/Daily.md' },
         templates: { folder: 'Templates' }
       }),

@@ -10,7 +10,19 @@ import { expect } from '@playwright/test'
  * switch and leaving the tree empty.
  */
 export async function openVault(page: Page, vault: string, sentinelFile: string): Promise<void> {
-  await page.evaluate((v) => window.zymd.invoke('settings:set', { lastOpenedFolder: v }), vault)
+  // Settings live in the user's real userData, shared by every spec, so a run
+  // starts from whatever the last one left behind. Three things have to be
+  // normalised or they leak across specs: the folder, the remembered session
+  // (last run's tabs point at a deleted temp vault), and the view mode (a spec
+  // that ends in Reading leaves the next one read-only).
+  await page.evaluate(async (v) => {
+    const current = await window.zymd.invoke('settings:get', undefined)
+    await window.zymd.invoke('settings:set', {
+      lastOpenedFolder: v,
+      session: { openPaths: [], activePath: '' },
+      editor: { ...current.editor, viewMode: 'live' }
+    })
+  }, vault)
   await page.reload()
   await expect(page.locator('.tree-row--file', { hasText: sentinelFile })).toBeVisible({
     timeout: 15_000
