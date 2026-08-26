@@ -92,7 +92,7 @@ textarea {
 
 .btn--primary {
   background: var(--zy-accent);
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
   color: #fff;
 }
 
@@ -211,7 +211,7 @@ textarea {
 }
 
 .tags-panel__filter:focus {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .tags-panel__list {
@@ -247,7 +247,7 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .tags-panel__count {
@@ -429,7 +429,7 @@ textarea {
 }
 
 .canvas__card--selected {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
   box-shadow: 0 0 0 2px var(--zy-accent-soft);
 }
 
@@ -712,7 +712,7 @@ textarea {
 }
 
 .breadcrumb-file__icon {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .breadcrumb-file__name {
@@ -722,7 +722,7 @@ textarea {
 }
 
 .breadcrumb-dirty {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-size: 10px;
   margin-left: 2px;
 }
@@ -738,6 +738,7 @@ textarea {
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
+  min-height: 24px;
   border-radius: var(--zy-radius-full);
   background: color-mix(in srgb, var(--zy-fg) 5%, transparent);
   color: var(--zy-fg-muted);
@@ -770,7 +771,7 @@ textarea {
 
 .header-btn--active {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .header-viewmode {
@@ -786,6 +787,7 @@ textarea {
   align-items: center;
   gap: 4px;
   padding: 2px 7px;
+  min-height: 24px;
   border-radius: var(--zy-radius-xs);
   color: var(--zy-fg-faint);
   font-size: 11px;
@@ -801,7 +803,7 @@ textarea {
 
 .header-viewmode__btn--active {
   background: var(--zy-editor-bg);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   box-shadow: var(--zy-shadow-sm);
 }
 
@@ -903,7 +905,7 @@ textarea {
 
 .toolbar__btn--active {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .toolbar__btn-hl {
@@ -1000,12 +1002,18 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+  /* The action icons need 138px and the row has 239px, so competing for one
+     line truncated the vault name to about seven characters. Below the width
+     where both fit the actions take a line of their own; widen the sidebar and
+     they move back up beside the name. */
+  flex-wrap: wrap;
 }
 
 .sidebar__workspace-info {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 130px;
   flex: 1;
 }
 
@@ -1044,7 +1052,7 @@ textarea {
   padding: 1px 6px;
   border-radius: var(--zy-radius-full);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-size: 10px;
   font-weight: 600;
 }
@@ -1067,7 +1075,7 @@ textarea {
 }
 
 .sidebar__filter-wrap:focus-within {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .sidebar__filter-icon {
@@ -1117,7 +1125,7 @@ textarea {
   height: 52px;
   border-radius: var(--zy-radius-lg);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1272,7 +1280,7 @@ textarea {
 
 .tree-row--active {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 600;
 }
 
@@ -1319,7 +1327,7 @@ textarea {
 }
 
 .tree-icon--active {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .tree-label {
@@ -1450,7 +1458,7 @@ textarea {
 }
 
 .tab__icon--active {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .tab__label {
@@ -1554,7 +1562,7 @@ textarea {
 }
 
 .status-bar__dirty-badge {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 500;
   margin-left: 4px;
 }
@@ -1579,6 +1587,7 @@ textarea {
   align-items: center;
   gap: 4px;
   padding: 1px 6px;
+  min-height: 24px;
   border-radius: var(--zy-radius-xs);
   color: var(--zy-fg-muted);
   font-size: 11px;
@@ -1607,6 +1616,7 @@ textarea {
   align-items: center;
   gap: 4px;
   padding: 1px 6px;
+  min-height: 24px;
   border-radius: var(--zy-radius-xs);
   color: var(--zy-fg-muted);
   font-size: 11px;
@@ -1619,7 +1629,7 @@ textarea {
 }
 
 .status-bar__btn--on {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .status-bar__theme-label {
@@ -1702,7 +1712,7 @@ textarea {
 }
 
 .welcome__action-card:hover {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
   background: var(--zy-hover-bg);
   transform: translateY(-2px);
   box-shadow: var(--zy-shadow-md);
@@ -1723,7 +1733,7 @@ textarea {
   height: 32px;
   border-radius: var(--zy-radius-md);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .welcome__action-kbd {
@@ -1879,7 +1889,7 @@ textarea {
   background: var(--zy-inline-code-bg);
   padding: 2px 6px;
   border-radius: var(--zy-radius-xs);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .welcome__cheatsheet-row span {
@@ -1923,7 +1933,7 @@ textarea {
 .toast--success .toast__icon { color: #34d399; }
 .toast--error .toast__icon { color: #f87171; }
 .toast--warning .toast__icon { color: #fbbf24; }
-.toast--info .toast__icon { color: var(--zy-accent); }
+.toast--info .toast__icon { color: var(--zy-accent-text); }
 
 .toast__close {
   display: inline-flex;
@@ -1996,7 +2006,7 @@ textarea {
 }
 
 .rpanel-stats__hero-icon {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .rpanel-stats__filename {
@@ -2148,7 +2158,7 @@ textarea {
 
 .rpanel__tab--active {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 600;
 }
 
@@ -2249,7 +2259,7 @@ textarea {
 }
 
 .outline__item--active {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 500;
   background: var(--zy-accent-soft);
 }
@@ -2300,7 +2310,7 @@ textarea {
   padding: 2px 6px;
   border-radius: var(--zy-radius-full);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .aichat__clear-btn {
@@ -2376,7 +2386,7 @@ textarea {
 
 .aichat__chip:hover {
   background: var(--zy-hover-bg);
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .aichat__turn {
@@ -2422,7 +2432,7 @@ textarea {
 
 .aichat__turn-copy:hover {
   opacity: 1;
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .aichat__prose h1,
@@ -2509,7 +2519,7 @@ textarea {
 }
 
 .aichat__input:focus {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .aichat__send-btn {
@@ -2559,7 +2569,7 @@ textarea {
 }
 
 .gsearch__input:focus {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .gsearch__opt {
@@ -2573,8 +2583,8 @@ textarea {
 
 .gsearch__opt--on {
   background: var(--zy-accent-soft);
-  border-color: var(--zy-accent);
-  color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
+  color: var(--zy-accent-text);
   font-weight: 700;
 }
 
@@ -2606,7 +2616,7 @@ textarea {
   padding: 1px 6px;
   border-radius: var(--zy-radius-full);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .result-snippet {
@@ -2625,7 +2635,7 @@ textarea {
 
 .result-snippet:hover {
   background: var(--zy-hover-bg);
-  border-left-color: var(--zy-accent);
+  border-left-color: var(--zy-accent-text);
   color: var(--zy-fg);
 }
 
@@ -2662,7 +2672,7 @@ textarea {
   height: 48px;
   border-radius: var(--zy-radius-lg);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2802,7 +2812,7 @@ textarea {
 
 .settings__nav-item--active {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 600;
 }
 
@@ -2941,7 +2951,7 @@ textarea {
 
 .numfield input:focus,
 .textfield:focus {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .numfield__suffix {
@@ -3108,7 +3118,7 @@ textarea {
 }
 
 .theme-card--active .theme-card__name {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 600;
 }
 
@@ -3151,7 +3161,7 @@ textarea {
 }
 
 .kb-input:focus {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 kbd {
@@ -3182,7 +3192,7 @@ kbd {
   padding: 4px 8px;
   border-radius: var(--zy-radius-sm);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .about-links {
@@ -3260,7 +3270,7 @@ kbd {
 
 .palette__tab--active {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 600;
 }
 
@@ -3289,7 +3299,7 @@ kbd {
 }
 
 .palette__item--active .palette__label {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .palette__item-icon {
@@ -3298,7 +3308,7 @@ kbd {
 }
 
 .palette__item--active .palette__item-icon {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .palette__label {
@@ -3650,7 +3660,7 @@ kbd {
 
 .note-analysis__link-btn:hover {
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .analytics__rescan {
@@ -3752,8 +3762,8 @@ kbd {
 
 .graph__header-btn--active {
   background: var(--zy-accent-soft);
-  border-color: var(--zy-accent);
-  color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
+  color: var(--zy-accent-text);
   font-weight: 600;
 }
 
@@ -3767,7 +3777,7 @@ kbd {
 }
 
 .graph__gear--on {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .graph__body {
@@ -3871,7 +3881,7 @@ kbd {
 }
 
 .graph__check input {
-  accent-color: var(--zy-accent);
+  accent-color: var(--zy-accent-text);
   cursor: pointer;
 }
 
@@ -3888,7 +3898,7 @@ kbd {
 
 .graph__range input {
   width: 100%;
-  accent-color: var(--zy-accent);
+  accent-color: var(--zy-accent-text);
   cursor: pointer;
 }
 
@@ -3905,7 +3915,7 @@ kbd {
 }
 
 .graph__select:hover {
-  border-color: var(--zy-accent);
+  border-color: var(--zy-accent-text);
 }
 
 .graph__reset {
@@ -3980,4 +3990,23 @@ kbd {
   height: 1px;
   margin: 4px 6px;
   background: var(--zy-border);
+}
+
+/* An icon button this small is a hard target to hit. Rather than grow the
+   glyph and coarsen the density, each carries an invisible 24px hit area
+   centred on it — the size WCAG asks for, at the size the design wants. */
+.tab__close,
+.tree-row__action-btn {
+  position: relative;
+}
+
+.tab__close::after,
+.tree-row__action-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
 }

@@ -1,4 +1,4 @@
-import { alpha, mix } from './color'
+import { alpha, fade, mix, reinforce } from './color'
 
 /**
  * A theme is a small hand-picked palette; the full CSS token set is derived
@@ -46,6 +46,7 @@ export type TokenName =
   | 'code-bg'
   | 'inline-code-bg'
   | 'hl-bg'
+  | 'accent-text'
   | 'active-line'
   | 'code-keyword'
   | 'code-string'
@@ -152,10 +153,22 @@ export function resolveTheme(spec: ThemeSpec): ResolvedTheme {
     'hover-bg': alpha(fg, dark ? 0.07 : 0.06),
     'active-bg': alpha(fg, dark ? 0.12 : 0.1),
     fg,
-    'fg-muted': mix(fg, bg, 0.32),
-    'fg-faint': mix(fg, bg, 0.55),
+    // Softened toward the background as far as each palette can afford, rather
+    // than by a fixed blend. Both are text tokens — `faint` alone dresses some
+    // fifty pieces of UI copy — so both hold WCAG AA for body text. A fixed
+    // blend put 13 of the 29 themes under AA on `muted` and 28 of 29 under it
+    // on `faint`, several below even 2:1.
+    //
+    // Where a palette has the headroom the two stay clearly apart; where it
+    // does not they converge, which is the right way for a deliberately
+    // low-contrast theme to lose a level of hierarchy rather than legibility.
+    'fg-muted': fade(fg, bg, 0.32, 4.5, [bg, panel]),
+    'fg-faint': fade(fg, bg, 0.55, 4.5, [bg, panel]),
     border: mix(fg, panel, dark ? 0.86 : 0.82),
     accent,
+    // The accent as *text*. Accents are picked to look right as a fill; several
+    // fall short of AA when they dress a label instead.
+    'accent-text': reinforce(accent, fg, [bg, panel], 4.5),
     'accent-soft': alpha(accent, dark ? 0.16 : 0.12),
     'selection-bg': alpha(accent, dark ? 0.3 : 0.22),
     'search-match': alpha(dark ? '#d2a01e' : '#ffc83c', dark ? 0.4 : 0.45),

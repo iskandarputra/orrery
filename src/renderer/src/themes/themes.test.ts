@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { contrast } from './color'
 import { generateThemeCss, getTheme, resolveTheme, THEMES } from './themes'
 
 const HEX = /^#[0-9a-f]{6}$/i
@@ -31,6 +32,25 @@ describe('themes', () => {
       expect(resolved['selection-bg'], t.id).toContain('rgba')
       expect(resolved['hl-bg'], t.id).toContain('rgba')
       expect(resolved['active-line'], t.id).toContain('rgba')
+    }
+  })
+
+  it('keeps muted and faint ink legible in every theme', () => {
+    for (const t of THEMES) {
+      const resolved = resolveTheme(t)
+      for (const surface of [resolved['editor-bg'], resolved['panel-bg']]) {
+        // Both dress real UI text — the status bar, breadcrumbs, view-mode
+        // labels, panel copy — so both hold AA for body text. Neither can beat
+        // the theme's own foreground, which on a deliberately low-contrast
+        // palette like Solarized Light is itself just under AA.
+        const ceiling = contrast(resolved.fg, surface)
+        expect(contrast(resolved['fg-muted'], surface), `${t.id} muted`).toBeGreaterThanOrEqual(
+          Math.min(4.5, ceiling) - 0.01
+        )
+        expect(contrast(resolved['fg-faint'], surface), `${t.id} faint`).toBeGreaterThanOrEqual(
+          Math.min(4.5, ceiling) - 0.01
+        )
+      }
     }
   })
 

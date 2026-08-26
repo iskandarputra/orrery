@@ -93,7 +93,7 @@
 
 /* Rendered links. */
 .cm-zy-link-text {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   cursor: pointer;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -105,7 +105,7 @@
 
 /* Wikilinks [[Note]] */
 .cm-zy-wikilink {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   background: var(--zy-accent-soft);
   padding: 1px 5px;
   border-radius: 4px;
@@ -159,7 +159,7 @@
 }
 
 .cm-line.cm-zy-callout--note {
-  border-left-color: var(--zy-accent);
+  border-left-color: var(--zy-accent-text);
   background: color-mix(in srgb, var(--zy-accent-soft) 40%, transparent);
 }
 
@@ -192,7 +192,7 @@
 }
 
 .cm-zy-callout--note .cm-zy-callout-title {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .cm-zy-callout--tip .cm-zy-callout-title {
@@ -213,7 +213,7 @@
 
 /* Bullets and task checkboxes. */
 .cm-zy-bullet {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 800;
   display: inline-block;
   width: 1.2ch;
@@ -322,7 +322,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   background: var(--zy-accent-soft);
   padding: 1px 6px;
   border-radius: 4px;
@@ -401,7 +401,7 @@
 
 /* Wikilinks ([[note]]). */
 .cm-zy-wikilink {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   cursor: pointer;
   border-bottom: 1.5px solid transparent;
   font-weight: 500;
@@ -409,7 +409,7 @@
 }
 
 .cm-zy-wikilink:hover {
-  border-bottom-color: var(--zy-accent);
+  border-bottom-color: var(--zy-accent-text);
 }
 
 .cm-zy-wikilink--missing {
@@ -418,8 +418,8 @@
 }
 
 .cm-zy-wikilink--missing:hover {
-  color: var(--zy-accent);
-  border-bottom-color: var(--zy-accent);
+  color: var(--zy-accent-text);
+  border-bottom-color: var(--zy-accent-text);
 }
 
 /* Autocomplete dropdown (wikilink completion). */
@@ -439,7 +439,7 @@
 
 .cm-tooltip-autocomplete ul li[aria-selected] {
   background: var(--zy-accent-soft) !important;
-  color: var(--zy-accent) !important;
+  color: var(--zy-accent-text) !important;
   font-weight: 500;
 }
 
@@ -589,7 +589,7 @@
 }
 
 .cm-zy-bullet {
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-weight: 700;
 }
 
@@ -670,7 +670,7 @@
   padding: 1px 5px;
   border-radius: var(--zy-radius-full);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .cm-zy-properties-grid {
@@ -709,7 +709,7 @@
   padding: 1px 6px;
   border-radius: 4px;
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   border: 1px solid color-mix(in srgb, var(--zy-accent) 25%, transparent);
 }
 
@@ -733,7 +733,7 @@
   padding: 1px 6px;
   border-radius: var(--zy-radius-full);
   background: var(--zy-accent-soft);
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
   font-size: 0.9em;
   font-weight: 500;
 }
@@ -808,7 +808,7 @@
   font-weight: 650;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--zy-accent);
+  color: var(--zy-accent-text);
 }
 
 .cm-zy-embed-body {

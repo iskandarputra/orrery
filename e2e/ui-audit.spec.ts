@@ -1,0 +1,134 @@
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { launchApp, openVault } from './helpers'
+
+let app: ElectronApplication
+let page: Page
+let vault: string
+
+/**
+ * Contrast and target size, measured on the running app.
+ *
+ * Both are properties of the rendered pixels, not of any one rule: a token can
+ * be correct and still fail once a theme, a translucent background and a font
+ * size combine. The only honest way to check them is to compute them from what
+ * the app actually painted.
+ */
+test.beforeAll(async () => {
+  vault = mkdtempSync(join(tmpdir(), 'zymd-ui-audit-'))
+  writeFileSync(join(vault, 'Note.md'), '# Weekly review\n\nSome prose.\n\n- one\n- two\n')
+  app = await launchApp()
+  page = await app.firstWindow()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.waitForSelector('.app', { timeout: 30_000 })
+  await openVault(page, vault, 'Note.md')
+  await page.locator('.tree-row--file', { hasText: 'Note.md' }).click()
+  // Wait for the selected state rather than a bare timeout: the selected tree
+  // row is one of the places contrast goes wrong, and auditing before it
+  // settles silently skips it.
+  await expect(page.locator('.tree-row--active')).toBeVisible({ timeout: 10_000 })
+  await page.waitForTimeout(400)
+})
+
+test.afterAll(async () => {
+  await app.close()
+  rmSync(vault, { recursive: true, force: true })
+})
+
+test('every piece of UI text meets WCAG AA against what is behind it', async () => {
+  const fails = await page.evaluate(() => {
+    const parse = (c: string): [number, number, number, number] => {
+      const m = c.match(/[\d.]+/g)!.map(Number)
+      return [m[0]!, m[1]!, m[2]!, m[3] ?? 1]
+    }
+    const channel = (v: number): number => {
+      const s = v / 255
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+    }
+    const lum = (c: [number, number, number]): number =>
+      0.2126 * channel(c[0]) + 0.7152 * channel(c[1]) + 0.0722 * channel(c[2])
+    // Composite a translucent ink over the first opaque surface behind it.
+    const surfaceOf = (el: Element): [number, number, number] => {
+      let node: Element | null = el
+      while (node) {
+        const c = parse(getComputedStyle(node).backgroundColor)
+        if (c[3] > 0.95) return [c[0], c[1], c[2]]
+        node = node.parentElement
+      }
+      return [255, 255, 255]
+    }
+
+    const out: { sel: string; text: string; ratio: number; size: number }[] = []
+    for (const el of Array.from(document.querySelectorAll('body *'))) {
+      const ownText = Array.from(el.childNodes).some(
+        (n) => n.nodeType === 3 && (n.textContent ?? '').trim().length > 0
+      )
+      if (!ownText) continue
+      const rect = el.getBoundingClientRect()
+      if (rect.width < 1 || rect.height < 1) continue
+      const cs = getComputedStyle(el)
+      if (cs.visibility === 'hidden' || cs.opacity === '0') continue
+
+      const bg = surfaceOf(el)
+      const ink = parse(cs.color)
+      const fg: [number, number, number] = [
+        ink[0] * ink[3] + bg[0] * (1 - ink[3]),
+        ink[1] * ink[3] + bg[1] * (1 - ink[3]),
+        ink[2] * ink[3] + bg[2] * (1 - ink[3])
+      ]
+      const a = lum(fg)
+      const b = lum(bg)
+      const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+      const size = parseFloat(cs.fontSize)
+      const large = size >= 24 || (size >= 18.66 && Number(cs.fontWeight) >= 700)
+      if (ratio < (large ? 3 : 4.5) - 0.01) {
+        out.push({
+          sel: el.className.toString().split(' ').slice(0, 2).join('.') || el.tagName,
+          text: (el.textContent ?? '').trim().slice(0, 30),
+          ratio: Math.round(ratio * 100) / 100,
+          size
+        })
+      }
+    }
+    return out.sort((x, y) => x.ratio - y.ratio)
+  })
+
+  expect(fails, JSON.stringify(fails, null, 1)).toHaveLength(0)
+})
+
+test('every control is reachable and named', async () => {
+  const targets = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('button, [role="button"], a'))
+      .map((el) => {
+        const r = el.getBoundingClientRect()
+        const cx = r.left + r.width / 2
+        const cy = r.top + r.height / 2
+        // The clickable area, which is what the criterion is about — a small
+        // glyph may still carry a full-size hit area around it.
+        const reaches = (dx: number, dy: number): boolean => {
+          const at = document.elementFromPoint(cx + dx, cy + dy)
+          return !!at && (at === el || el.contains(at))
+        }
+        return {
+          sel: el.className.toString().split(' ').slice(0, 2).join('.') || el.tagName,
+          label: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 24),
+          named: !!(el.getAttribute('title') ?? el.getAttribute('aria-label')),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          reach:
+            r.width >= 24 && r.height >= 24
+              ? true
+              : reaches(-11, -11) && reaches(11, -11) && reaches(-11, 11) && reaches(11, 11)
+        }
+      })
+      .filter((t) => t.w > 0 && t.h > 0)
+  )
+
+  expect(targets.length).toBeGreaterThan(8)
+  const unnamed = targets.filter((t) => !t.named && !t.label)
+  expect(unnamed, JSON.stringify(unnamed)).toHaveLength(0)
+  const tooSmall = targets.filter((t) => !t.reach)
+  expect(tooSmall, JSON.stringify(tooSmall, null, 1)).toHaveLength(0)
+})
