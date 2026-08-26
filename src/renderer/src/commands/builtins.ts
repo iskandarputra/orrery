@@ -217,6 +217,16 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().openPalette('templates')
   },
   {
+    id: 'view.toggleSplit',
+    title: 'Split Editor',
+    run: ({ store }) => store().toggleSplit()
+  },
+  {
+    id: 'view.focusOtherPane',
+    title: 'Focus Other Pane',
+    run: ({ store }) => store().focusOtherPane()
+  },
+  {
     id: 'view.toggleGraph',
     title: 'Open Graph View',
     run: ({ store }) => store().toggleGraph()

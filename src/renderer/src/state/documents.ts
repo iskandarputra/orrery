@@ -2,7 +2,7 @@ import type { StateCreator } from 'zustand'
 import { basename } from '@core/paths'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { createDocumentState } from '@/editor/create-state'
-import { getActiveView } from '@/editor/active-view'
+import { getActiveView, viewForBuffer } from '@/editor/active-view'
 import { invoke, parseIpcError } from '@/services/client'
 import type { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
@@ -29,12 +29,21 @@ export interface DocumentBuffer {
 export interface DocumentsSlice {
   buffers: Record<string, DocumentBuffer>
   tabOrder: string[]
+  /** Buffer in the focused pane — a mirror of `paneIds[focusedPane]`. */
   activeId: string | null
+  /** One entry per pane; the second is null when the editor isn't split. */
+  paneIds: [string | null, string | null]
+  focusedPane: 0 | 1
 
   openPaths(paths: string[]): Promise<void>
   openFileDialog(): Promise<void>
   newUntitled(): void
   setActive(id: string): void
+  /** Open a second pane beside the first, or close it. */
+  toggleSplit(): void
+  /** Move focus between panes. Notes stay where they are; only focus moves. */
+  focusPane(pane: 0 | 1): void
+  focusOtherPane(): void
   setDirty(id: string, dirty: boolean): void
   /** Returns true if the document ended up saved. */
   save(id: string, opts?: { forceSaveAs?: boolean }): Promise<boolean>
@@ -66,6 +75,10 @@ function cancelAutosave(id: string): void {
 
 /** Current EditorState of a buffer — live view for the active tab, registry otherwise. */
 function getBufferEditorState(id: string, activeId: string | null): EditorState | null {
+  // A visible pane's own view is the truth; the registry's copy lags by up to
+  // a second, which is exactly the typing a save would drop.
+  const pane = viewForBuffer(id)
+  if (pane) return pane.state
   if (id === activeId) {
     const view = getActiveView()
     if (view) return view.state
@@ -96,6 +109,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   buffers: {},
   tabOrder: [],
   activeId: null,
+  paneIds: [null, null],
+  focusedPane: 0,
 
   async openPaths(paths) {
     for (const path of paths) {
@@ -128,7 +143,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
             }
           },
           tabOrder: [...s.tabOrder, id],
-          activeId: id
+          activeId: id,
+          paneIds: s.focusedPane === 0 ? [id, s.paneIds[1]] : [s.paneIds[0], id]
         }))
         void invoke('app:addRecentFile', { path })
       } catch (err) {
@@ -172,8 +188,42 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
 
   setActive(id) {
     if (!get().buffers[id]) return
-    set({ activeId: id })
+    set((s) => {
+      // Already showing in the other pane? Move focus there rather than
+      // opening the same file twice — two editors on one buffer would give it
+      // two diverging histories.
+      const other = s.focusedPane === 0 ? 1 : 0
+      if (s.paneIds[other] === id) return { activeId: id, focusedPane: other as 0 | 1 }
+
+      const paneIds: [string | null, string | null] = [...s.paneIds]
+      paneIds[s.focusedPane] = id
+      return { activeId: id, paneIds }
+    })
     rememberSession(get())
+  },
+
+  toggleSplit() {
+    set((s) => {
+      if (s.paneIds[1] !== null) {
+        // Collapsing keeps whichever note you were looking at.
+        const kept = s.paneIds[s.focusedPane] ?? s.paneIds[0]
+        return { paneIds: [kept, null], focusedPane: 0, activeId: kept }
+      }
+      const beside = s.tabOrder.find((id) => id !== s.paneIds[0]) ?? null
+      return { paneIds: [s.paneIds[0], beside] }
+    })
+  },
+
+  focusPane(pane) {
+    set((s) => {
+      const id = s.paneIds[pane]
+      if (id === null) return {}
+      return { focusedPane: pane, activeId: id }
+    })
+  },
+
+  focusOtherPane() {
+    get().focusPane(get().focusedPane === 0 ? 1 : 0)
   },
 
   setDirty(id, dirty) {
@@ -282,7 +332,16 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         const idx = s.tabOrder.indexOf(id)
         activeId = tabOrder[Math.min(idx, tabOrder.length - 1)] ?? null
       }
-      return { buffers: rest, tabOrder, activeId }
+      const paneIds = s.paneIds.map((paneId) =>
+        paneId === id ? null : paneId
+      ) as [string | null, string | null]
+      if (paneIds[0] === null && paneIds[1] !== null) {
+        // Never leave a hole on the left; slide the survivor over.
+        paneIds[0] = paneIds[1]
+        paneIds[1] = null
+      }
+      if (activeId && !paneIds.includes(activeId)) paneIds[0] = activeId
+      return { buffers: rest, tabOrder, activeId, paneIds, focusedPane: 0 as 0 | 1 }
     })
     rememberSession(get())
     return true

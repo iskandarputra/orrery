@@ -201,6 +201,17 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
           ]
         },
         { type: 'separator' },
+        {
+          label: 'Split Editor',
+          accelerator: acc('view.toggleSplit', 'CmdOrCtrl+\\'),
+          click: dispatch('view.toggleSplit')
+        },
+        {
+          label: 'Focus Other Pane',
+          accelerator: acc('view.focusOtherPane', 'CmdOrCtrl+Alt+\\'),
+          click: dispatch('view.focusOtherPane')
+        },
+        { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
