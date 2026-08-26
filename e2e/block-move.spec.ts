@@ -40,6 +40,16 @@ async function caretIn(needle: string): Promise<void> {
   const target = page.locator('.cm-content').getByText(needle, { exact: false }).first()
   await expect(target).toBeVisible({ timeout: 10_000 })
   await target.click()
+  // Visible is not the same as ready: a click that lands while the editor is
+  // still settling leaves the caret in the previous block, and the move then
+  // silently moves the wrong thing — which the assertions read as the feature
+  // being broken.
+  await expect
+    .poll(
+      () => page.evaluate(() => document.querySelector('.cm-activeLine')?.textContent ?? ''),
+      { timeout: 5_000 }
+    )
+    .toContain(needle)
 }
 
 async function saved(): Promise<string> {
