@@ -3,6 +3,13 @@ import type { Feature } from '../context'
 
 /** `  - `, `1. `, `10) ` — the marker plus its indent and trailing space. */
 const LIST_PREFIX_RE = /^(\s*(?:[-*+]|\d+[.)])[ \t]+)/
+/** Leading `>` quote markers, which sit before a list marker inside a quote. */
+const QUOTE_PREFIX_RE = /^(\s*>)+[ \t]?/
+
+/** The line as the list sees it, with any quote markers stripped. */
+function withoutQuote(text: string): string {
+  return text.replace(QUOTE_PREFIX_RE, '')
+}
 
 /**
  * Width of the item prefix in `ch`. The editor font is proportional, so a space
@@ -29,7 +36,10 @@ function getLineDeco(firstItem: boolean, indent: number): Decoration {
   if (!deco) {
     deco = Decoration.line({
       class: firstItem ? 'cm-zy-li cm-zy-li--first' : 'cm-zy-li',
-      attributes: { style: `padding-left: ${indent}ch; text-indent: -${indent}ch` }
+      // Published as a variable, not as padding: inside a blockquote the
+      // padding has to compose with the quote's own indent, and an inline
+      // `padding-left` would silently replace it.
+      attributes: { style: `--zy-li-indent: ${indent}ch` }
     })
     lineDecos.set(key, deco)
   }
@@ -52,13 +62,14 @@ export const blockSpacing: Feature = {
     const previousItemLine = (from: number): string | null => {
       for (let n = from; n >= Math.max(1, from - 1); n--) {
         const text = ctx.state.doc.line(n).text
-        if (text.trim() !== '') return text
+        // A `>`-only line is a blank line inside a quote, not content.
+        if (withoutQuote(text).trim() !== '') return text
       }
       return null
     }
     const prev = line.number > 1 ? previousItemLine(line.number - 1) : null
-    const firstItem = !prev || !LIST_PREFIX_RE.test(prev)
-    const indent = prefixWidthCh(line.text.match(LIST_PREFIX_RE)?.[1] ?? '')
+    const firstItem = !prev || !LIST_PREFIX_RE.test(withoutQuote(prev))
+    const indent = prefixWidthCh(withoutQuote(line.text).match(LIST_PREFIX_RE)?.[1] ?? '')
     ctx.add(getLineDeco(firstItem, indent).range(line.from))
   }
 }

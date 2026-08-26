@@ -15,6 +15,7 @@ const editorChrome = EditorView.theme({
     fontSize: 'var(--zy-editor-font-size)'
   },
   '.cm-content': {
+    ['--zy-line-pad' as string]: '2rem',
     fontFamily: 'var(--zy-editor-font-family)',
     lineHeight: 'var(--zy-editor-line-height)',
     caretColor: 'var(--zy-accent)',
@@ -22,7 +23,13 @@ const editorChrome = EditorView.theme({
     maxWidth: 'var(--zy-editor-max-width, 46rem)',
     margin: '0 auto'
   },
-  '.cm-line': { padding: '0 2rem' },
+  /**
+   * Published as a variable so line-level features (quotes, code cards, list
+   * indents) can compose with this padding instead of fighting it: CodeMirror
+   * injects theme rules under a generated class, which outranks a plain
+   * `.cm-zy-*` selector and would silently win.
+   */
+  '.cm-line': { padding: '0 var(--zy-line-pad)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor': { borderLeftColor: 'var(--zy-accent)', borderLeftWidth: '2px' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground':

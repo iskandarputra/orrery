@@ -110,18 +110,18 @@ describe('list hanging indent', () => {
   it('offsets wrapped lines to the item text column', () => {
     const doc = '- top level item\n  - nested item\n'
     const { state, result } = build(doc)
-    // "- "  → marker 1ch + space 0.5ch
-    expect(lineAttrs(state, result, 1)).toContain('padding-left: 1.5ch')
-    expect(lineAttrs(state, result, 1)).toContain('text-indent: -1.5ch')
+    // "- "  → marker 1ch + space 0.5ch. Published as a variable so CSS can add
+    // it to the editor's own line padding rather than replacing it.
+    expect(lineAttrs(state, result, 1)).toContain('--zy-li-indent: 1.5ch')
     // "  - " → two spaces (1ch) on top of that
-    expect(lineAttrs(state, result, 2)).toContain('padding-left: 2.5ch')
+    expect(lineAttrs(state, result, 2)).toContain('--zy-li-indent: 2.5ch')
   })
 
   it('accounts for ordered list markers', () => {
     const doc = '1. first\n10. tenth\n'
     const { state, result } = build(doc)
-    expect(lineAttrs(state, result, 1)).toContain('padding-left: 2.5ch')
-    expect(lineAttrs(state, result, 2)).toContain('padding-left: 3.5ch')
+    expect(lineAttrs(state, result, 1)).toContain('--zy-li-indent: 2.5ch')
+    expect(lineAttrs(state, result, 2)).toContain('--zy-li-indent: 3.5ch')
   })
 })
 
@@ -187,5 +187,49 @@ describe('loose lists', () => {
     const { state, result } = build(doc, 0)
     expect(lineClasses(state, result, 2)).toContain('cm-zy-li--first')
     expect(lineClasses(state, result, 3)).not.toContain('cm-zy-li--first')
+  })
+})
+
+describe('quoted lists', () => {
+  it('measures the indent past the quote markers, not from them', () => {
+    const doc = 'intro\n\n> - one\n> - two\n>   - nested\n'
+    const { state, result } = build(doc, 0)
+    // "- " inside the quote, exactly as it would be outside one.
+    expect(lineAttrs(state, result, 3)).toContain('--zy-li-indent: 1.5ch')
+    expect(lineAttrs(state, result, 5)).toContain('--zy-li-indent: 2.5ch')
+  })
+
+  it('only calls the real first item first, across quote markers', () => {
+    const doc = 'intro\n\n> - one\n> - two\n> - three\n'
+    const { state, result } = build(doc, 0)
+    expect(lineClasses(state, result, 3)).toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 4)).not.toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 5)).not.toContain('cm-zy-li--first')
+  })
+
+  it('treats a bare > line as the blank line it is', () => {
+    const doc = 'intro\n\n> - one\n>\n> - two\n'
+    const { state, result } = build(doc, 0)
+    expect(lineClasses(state, result, 5)).not.toContain('cm-zy-li--first')
+  })
+})
+
+describe('blockquote as one container', () => {
+  it('marks only the ends of a quote', () => {
+    const doc = '> one\n>\n> two\n>\n> three\n\nafter'
+    const { state, result } = build(doc, doc.length)
+    expect(lineClasses(state, result, 1)).toContain('cm-zy-blockquote--first')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-blockquote--first')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-blockquote--last')
+    expect(lineClasses(state, result, 5)).toContain('cm-zy-blockquote--last')
+  })
+
+  it('gives two adjacent quotes their own ends', () => {
+    const doc = '> first quote\n\n> second quote\n'
+    const { state, result } = build(doc, doc.length)
+    for (const line of [1, 3]) {
+      expect(lineClasses(state, result, line)).toContain('cm-zy-blockquote--first')
+      expect(lineClasses(state, result, line)).toContain('cm-zy-blockquote--last')
+    }
   })
 })

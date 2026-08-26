@@ -3,6 +3,9 @@ import type { SyntaxNode } from '@lezer/common'
 import type { BuildContext, Feature } from '../context'
 
 const quoteLine = Decoration.line({ class: 'cm-zy-blockquote' })
+/** Only the ends of a quote are rounded, so the whole reads as one container. */
+const quoteFirst = Decoration.line({ class: 'cm-zy-blockquote cm-zy-blockquote--first' })
+const quoteLast = Decoration.line({ class: 'cm-zy-blockquote cm-zy-blockquote--last' })
 const calloutTitle = Decoration.mark({ class: 'cm-zy-callout-title' })
 
 const calloutLineDecos = new Map<string, Decoration>()
@@ -67,6 +70,10 @@ export const blockquote: Feature = {
 
     for (let n = first.number; n <= last.number; n++) {
       ctx.add(lineDeco.range(doc.line(n).from))
+      // A quote is one block, not a stack of them: only its outermost lines
+      // round off, and nothing between them carries a vertical gap.
+      if (n === first.number) ctx.add(quoteFirst.range(doc.line(n).from))
+      if (n === last.number) ctx.add(quoteLast.range(doc.line(n).from))
     }
 
     if (callout && !ctx.lineRevealed(first.from, first.to)) {

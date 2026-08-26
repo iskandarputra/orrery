@@ -125,13 +125,33 @@
 }
 
 /* Blockquotes & Themed Callouts */
-.cm-zy-blockquote {
+.cm-line.cm-zy-blockquote {
   border-left: 3.5px solid var(--zy-accent);
-  padding-left: 1.1em;
+  /* The editor's own line padding plus the quote's inset — see --zy-line-pad. */
+  padding-left: calc(var(--zy-line-pad, 2rem) + 1.1em);
   color: var(--zy-fg-muted);
   background: color-mix(in srgb, var(--zy-accent-soft) 35%, transparent);
+  /* No vertical margin: a gap between lines would break the bar and the
+     background into one box per line instead of one quote. */
+  margin: 0;
+}
+
+/* Only the ends round off, and the breathing room goes outside the block. */
+.cm-line.cm-zy-blockquote--first {
+  margin-top: 0.5em;
+  padding-top: 0.35em;
+  border-radius: 0 var(--zy-radius-xs) 0 0;
+}
+
+.cm-line.cm-zy-blockquote--last {
+  margin-bottom: 0.5em;
+  padding-bottom: 0.35em;
+  border-radius: 0 0 var(--zy-radius-xs) 0;
+}
+
+/* A quote of a single line is both ends at once. */
+.cm-line.cm-zy-blockquote--first.cm-zy-blockquote--last {
   border-radius: 0 var(--zy-radius-xs) var(--zy-radius-xs) 0;
-  margin: 0.1em 0;
 }
 
 .cm-zy-callout--note {
@@ -216,13 +236,11 @@
 }
 
 /* Fenced code blocks as modern cards. */
-.cm-zy-code-line {
+.cm-line.cm-zy-code-line {
   background: var(--zy-code-bg);
   font-family: var(--zy-mono-font);
   font-size: 0.875em;
   line-height: 1.65;
-  padding-left: 1.2em;
-  padding-right: 1.2em;
   border-left: 1px solid var(--zy-border);
   border-right: 1px solid var(--zy-border);
   /* Code is column-sensitive: never wrap it, scroll instead, so ASCII trees
@@ -240,7 +258,7 @@
   font-size: inherit;
 }
 
-.cm-zy-code-first {
+.cm-line.cm-zy-code-first {
   border-radius: var(--zy-radius-md) var(--zy-radius-md) 0 0;
   padding-top: 0.6em;
   padding-bottom: 0.25em;
@@ -249,7 +267,7 @@
   border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 40%, transparent);
 }
 
-.cm-zy-code-last {
+.cm-line.cm-zy-code-last {
   border-radius: 0 0 var(--zy-radius-md) var(--zy-radius-md);
   padding-bottom: 0.6em;
   border-bottom: 1px solid var(--zy-border);
@@ -483,12 +501,22 @@
 }
 
 /* Comfortable list rhythm — a gentle gap between items. */
-.cm-zy-li {
+/* Comfortable list rhythm, plus a hanging indent so a wrapped item lines up
+   under its own text. The indent arrives as a variable so it can be added to
+   an enclosing quote's padding rather than replacing it. */
+.cm-line.cm-zy-li {
   padding-top: 0.34em;
+  padding-left: calc(var(--zy-line-pad, 2rem) + var(--zy-li-indent, 0px));
+  text-indent: calc(-1 * var(--zy-li-indent, 0px));
 }
 
-.cm-zy-li--first {
+.cm-line.cm-zy-li--first {
   padding-top: 0.12em;
+}
+
+/* A quoted list keeps the quote's inset and adds its own indent on top. */
+.cm-line.cm-zy-blockquote.cm-zy-li {
+  padding-left: calc(var(--zy-line-pad, 2rem) + 1.1em + var(--zy-li-indent, 0px));
 }
 
 /* ==========================================================================
