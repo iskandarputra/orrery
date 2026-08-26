@@ -730,12 +730,32 @@
 }
 
 .cm-zy-embed-body {
-  font-size: 0.95em;
-  line-height: 1.6;
-  color: var(--zy-fg-muted);
-  white-space: pre-wrap;
   max-height: 22em;
   overflow: hidden;
+  /* Embedded content reads as secondary to the note hosting it. */
+  font-size: 0.88em;
+}
+
+/* The nested preview is content, not an editor: strip its chrome. */
+.cm-zy-embed-body .cm-editor {
+  background: transparent;
+  /* The editor theme sets an absolute font size; a preview is content inside
+     something else and has to scale with it. */
+  font-size: inherit;
+}
+
+.cm-zy-embed-body .cm-scroller {
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.cm-zy-embed-body .cm-content {
+  padding: 0;
+}
+
+.cm-zy-embed-body .cm-cursor,
+.cm-zy-embed-body .cm-gutters {
+  display: none;
 }
 
 /* A missing target is worth saying plainly, not rendering as empty. */

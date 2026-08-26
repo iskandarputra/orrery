@@ -1,7 +1,9 @@
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorView as EditorViewType } from '@codemirror/view'
 import { extractSection } from '@core/section'
 import { findWikilinks } from '@core/wikilinks'
+import { mountPreview } from '@/editor/preview-view'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 
@@ -10,6 +12,8 @@ const MAX_EMBED_CHARS = 1200
 
 /** Loaded note bodies, so scrolling past an embed doesn't re-read the file. */
 const cache = new Map<string, string>()
+/** Nested preview editors by card, so they can be torn down with the card. */
+const mounted = new WeakMap<HTMLElement, EditorViewType>()
 
 function resolveNotePath(target: string): string | null {
   const { noteIndex } = useStore.getState()
@@ -52,9 +56,15 @@ async function loadEmbed(target: string, heading: string | null, el: HTMLElement
   title.textContent = heading ? `${target} › ${heading}` : target
   const content = document.createElement('div')
   content.className = 'cm-zy-embed-body'
-  content.textContent =
-    body.length > MAX_EMBED_CHARS ? `${body.slice(0, MAX_EMBED_CHARS)}…` : body || '(empty note)'
   el.append(title, content)
+
+  // Rendered, not raw: an embed showing markdown source beside rendered text
+  // reads as broken. Same renderer as the editor itself.
+  const shown = body.length > MAX_EMBED_CHARS ? `${body.slice(0, MAX_EMBED_CHARS)}…` : body
+  const preview = mountPreview(content, shown || '_(empty note)_')
+  // The field rebuilds on every document change, so the view it replaces has
+  // to go with it or each keystroke leaks an editor.
+  mounted.set(el, preview)
 }
 
 class EmbedWidget extends WidgetType {
@@ -91,6 +101,10 @@ class EmbedWidget extends WidgetType {
       })
     }
     return el
+  }
+
+  override destroy(dom: HTMLElement): void {
+    mounted.get(dom)?.destroy()
   }
 
   override ignoreEvent(event: Event): boolean {

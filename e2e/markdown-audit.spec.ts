@@ -215,3 +215,22 @@ test('html comments hide when reading and return when editing', async () => {
   expect(hybrid.has('cm-zy-comment-line')).toBe(true)
   await runCommand('view.modeReading')
 })
+
+test('an empty histogram bucket draws no bar', async () => {
+  // A minimum bar height would make "no notes" look like a small value.
+  await runCommand('view.toggleAnalytics')
+  await page.waitForSelector('.analytics__hist')
+  const heights = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.analytics__hist-col')).map((col) => ({
+      label: col.querySelector('.analytics__hist-value')?.textContent ?? '',
+      barHeight: Math.round(
+        (col.querySelector('.analytics__hist-bar') as HTMLElement).getBoundingClientRect().height
+      )
+    }))
+  )
+  for (const bucket of heights) {
+    if (bucket.label === '') expect(bucket.barHeight).toBe(0)
+  }
+  expect(heights.some((b) => b.barHeight > 0)).toBe(true)
+  await page.keyboard.press('Escape')
+})

@@ -626,7 +626,11 @@ function CardBody({
           <Icon name="file-text" size={13} />
           <span>{stem(basename(node.file))}</span>
         </div>
-        <div className="canvas__card-preview">{preview ?? '…'}</div>
+        {preview === undefined ? (
+          <div className="canvas__card-preview">…</div>
+        ) : (
+          <MarkdownCard text={preview} />
+        )}
       </>
     )
   }

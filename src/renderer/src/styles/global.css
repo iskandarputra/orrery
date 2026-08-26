@@ -262,6 +262,12 @@ textarea {
   height: min(620px, calc(100vh - 40px));
 }
 
+/* Nothing to list: the dialog shrinks to its message rather than opening a
+   near-empty window the size of the screen. */
+.history--empty {
+  height: auto;
+}
+
 .history__body {
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -464,6 +470,9 @@ textarea {
 
 .canvas__card-markdown .cm-editor {
   background: transparent;
+  /* The editor theme sets an absolute font size; a preview is content inside
+     something else and has to scale with it. */
+  font-size: inherit;
 }
 
 .canvas__card-markdown .cm-scroller {
@@ -3520,6 +3529,13 @@ kbd {
   min-height: 2px;
   border-radius: 4px 4px 0 0;
   background: var(--zy-accent);
+}
+
+/* An empty bucket must not draw a bar: a minimum height would make "none"
+   look like a small value, which is the one thing a chart may not do. */
+.analytics__hist-bar--empty {
+  min-height: 0;
+  background: transparent;
 }
 
 .analytics__hist-col:hover .analytics__hist-bar {

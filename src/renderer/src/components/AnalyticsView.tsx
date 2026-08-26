@@ -314,7 +314,7 @@ function Histogram({ buckets, total }: { buckets: Bucket[]; total: number }): Re
           >
             <span className="analytics__hist-value">{bucket.notes || ''}</span>
             <span
-              className="analytics__hist-bar"
+              className={`analytics__hist-bar${bucket.notes === 0 ? ' analytics__hist-bar--empty' : ''}`}
               style={{ height: `${(bucket.notes / peak) * 100}%` }}
             />
             <span className="analytics__hist-label">{label}</span>

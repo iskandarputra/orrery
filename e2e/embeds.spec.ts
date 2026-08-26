@@ -42,6 +42,14 @@ test.beforeAll(async () => {
   await page.waitForSelector('.cm-zy-embed')
 })
 
+/**
+ * The host editor's content. Embed cards render the note inside a nested
+ * editor of their own, so a bare `.cm-content` matches those too.
+ */
+function hostContent() {
+  return page.locator('.cm-content').first()
+}
+
 test.afterAll(async () => {
   await closeCleanly(app, page)
   rmSync(vault, { recursive: true, force: true })
@@ -72,20 +80,20 @@ test('says so when the target does not exist', async () => {
 
 test('leaves an embed inside a sentence as text', async () => {
   // A card there would tear the paragraph in half.
-  await expect(page.locator('.cm-content')).toContainText('And an inline')
+  await expect(hostContent()).toContainText('And an inline')
   const cards = await page.locator('.cm-zy-embed').count()
   expect(cards).toBe(3) // whole, section, missing — not the inline one
 })
 
 test('clicking a card reveals the markdown that produced it', async () => {
   await runCommand('view.modeHybrid')
-  await expect(page.locator('.cm-content')).toHaveAttribute('contenteditable', 'true')
+  await expect(hostContent()).toHaveAttribute('contenteditable', 'true')
 
   // A block widget can't be arrowed into — CodeMirror steps over it — so the
   // card takes a click and puts the caret on its source, as images and
   // diagrams do here.
   await page.locator('.cm-zy-embed').first().click()
-  await expect(page.locator('.cm-content')).toContainText('![[Source]]')
+  await expect(hostContent()).toContainText('![[Source]]')
 
   await runCommand('view.modeReading')
 })

@@ -3,6 +3,7 @@ import { getActiveView } from '@/editor/active-view'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
+import { EmptyState } from './PanelBits'
 
 interface Version {
   id: string
@@ -86,7 +87,11 @@ export function HistoryModal(): React.JSX.Element | null {
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="graph history" role="dialog" aria-label="Version history">
+      <div
+        className={`graph history${versions && versions.length === 0 ? ' history--empty' : ''}`}
+        role="dialog"
+        aria-label="Version history"
+      >
         <div className="graph__header">
           <div className="graph__title-group">
             <Icon name="clock" size={16} />
@@ -107,9 +112,9 @@ export function HistoryModal(): React.JSX.Element | null {
         ) : versions === null ? (
           <p className="rpanel-empty">Reading history…</p>
         ) : versions.length === 0 ? (
-          <p className="rpanel-empty">
+          <EmptyState icon="clock">
             No versions yet. They are recorded as you save, a couple of minutes apart.
-          </p>
+          </EmptyState>
         ) : (
           <div className="history__body">
             <ul className="history__list">
