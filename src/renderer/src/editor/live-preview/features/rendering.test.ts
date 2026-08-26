@@ -1,5 +1,4 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { blockSpacing } from './block-spacing'
@@ -9,6 +8,7 @@ import { htmlComment } from './html-comment'
 import { links } from './links'
 import { lists } from './lists'
 import { buildDecorationRanges, type BuiltDecorations } from '../plugin'
+import { parseFully } from '../parse-fully'
 
 const FEATURES = [
   links({ renderImages: false }),
@@ -25,7 +25,7 @@ function build(doc: string, cursor = doc.length): { state: EditorState; result: 
     selection: EditorSelection.cursor(cursor),
     extensions: [markdown({ base: markdownLanguage })]
   })
-  ensureSyntaxTree(state, state.doc.length, 5000)
+  parseFully(state)
   const result = buildDecorationRanges(state, FEATURES, [{ from: 0, to: state.doc.length }])
   return { state, result }
 }
@@ -164,7 +164,7 @@ describe('fence marks', () => {
       selection: EditorSelection.cursor(doc.indexOf('```ts') + 1),
       extensions: [markdown({ base: markdownLanguage })]
     })
-    ensureSyntaxTree(state, state.doc.length, 5000)
+    parseFully(state)
     const result = buildDecorationRanges(state, FEATURES, [{ from: 0, to: state.doc.length }], false)
     expect(concealedSpans(doc, result).filter((s) => s === '```')).toHaveLength(2)
   })
@@ -254,7 +254,7 @@ describe('html comments', () => {
       selection: EditorSelection.cursor(0),
       extensions: [markdown({ base: markdownLanguage })]
     })
-    ensureSyntaxTree(state, state.doc.length, 5000)
+    parseFully(state)
     const result = buildDecorationRanges(state, FEATURES, [{ from: 0, to: state.doc.length }], false)
     expect(concealedSpans(doc, result)).toContain('<!-- a note to self -->')
   })

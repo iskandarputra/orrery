@@ -1,10 +1,10 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { blockSpacing } from './block-spacing'
 import { lists } from './lists'
 import { buildDecorationRanges, type BuiltDecorations } from '../plugin'
+import { parseFully } from '../parse-fully'
 
 const FEATURES = [lists({ fancyBullets: true, interactiveCheckboxes: true }), blockSpacing]
 
@@ -14,7 +14,7 @@ function build(doc: string, cursor = 0): { state: EditorState; result: BuiltDeco
     selection: EditorSelection.cursor(cursor),
     extensions: [markdown({ base: markdownLanguage })]
   })
-  ensureSyntaxTree(state, state.doc.length, 5000)
+  parseFully(state)
   return { state, result: buildDecorationRanges(state, FEATURES, [{ from: 0, to: doc.length }]) }
 }
 

@@ -1,10 +1,10 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { HighlightExtension } from '../markdown/highlight-extension'
 import { highlight } from './features/highlight'
 import { buildDecorationRanges } from './plugin'
+import { parseFully } from './parse-fully'
 
 function build(doc: string, cursor = 0) {
   const state = EditorState.create({
@@ -12,7 +12,7 @@ function build(doc: string, cursor = 0) {
     selection: EditorSelection.cursor(cursor),
     extensions: [markdown({ base: markdownLanguage, extensions: [HighlightExtension] })]
   })
-  ensureSyntaxTree(state, state.doc.length, 5000)
+  parseFully(state)
   return buildDecorationRanges(state, [highlight], [{ from: 0, to: state.doc.length }])
 }
 

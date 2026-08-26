@@ -1,9 +1,9 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tableRendering } from './table'
+import { parseFully } from './parse-fully'
 
 const DOC = [
   '# Title',
@@ -24,7 +24,7 @@ function mount(doc: string, cursor: number): EditorView {
     selection: EditorSelection.cursor(cursor),
     extensions: [markdown({ base: markdownLanguage }), tableRendering()]
   })
-  ensureSyntaxTree(state, state.doc.length, 5000)
+  parseFully(state)
   view = new EditorView({ state, parent: document.body })
   return view
 }

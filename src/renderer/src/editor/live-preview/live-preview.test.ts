@@ -1,5 +1,4 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { blockquote } from './features/blockquote'
@@ -10,6 +9,7 @@ import { inlineCode } from './features/inline-code'
 import { links } from './features/links'
 import { lists } from './features/lists'
 import { buildDecorationRanges, type BuiltDecorations } from './plugin'
+import { parseFully } from './parse-fully'
 
 const ALL_FEATURES = [
   headings,
@@ -27,7 +27,7 @@ function build(doc: string, cursor = 0): { state: EditorState; result: BuiltDeco
     selection: EditorSelection.cursor(cursor),
     extensions: [markdown({ base: markdownLanguage })]
   })
-  ensureSyntaxTree(state, state.doc.length, 5000)
+  parseFully(state)
   const result = buildDecorationRanges(state, ALL_FEATURES, [{ from: 0, to: state.doc.length }])
   return { state, result }
 }

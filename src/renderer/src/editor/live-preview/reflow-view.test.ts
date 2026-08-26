@@ -1,16 +1,16 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { buildReflowDecorations, reflowField, reflowParagraphs } from './reflow-view'
+import { parseFully } from './parse-fully'
 
 function decos(doc: string): { from: number; to: number }[] {
   const state = EditorState.create({
     doc,
     extensions: [markdown({ base: markdownLanguage }), reflowField, reflowParagraphs(true)]
   })
-  ensureSyntaxTree(state, state.doc.length, 5000)
+  parseFully(state)
   const set = buildReflowDecorations(state)
   const out: { from: number; to: number }[] = []
   const cursor = set.iter()
