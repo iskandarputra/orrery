@@ -4,11 +4,10 @@ import { join } from 'node:path'
 import {
   test,
   expect,
-  _electron as electron,
   type ElectronApplication,
   type Page
 } from '@playwright/test'
-import { closeCleanly, openVault } from './helpers'
+import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
 let page: Page
@@ -30,10 +29,7 @@ test.beforeAll(async () => {
     join(vault, 'Host.md'),
     'Before the embed.\n\n![[Source]]\n\nBetween them.\n\n![[Source#Beta]]\n\n![[Nowhere]]\n\nAnd an inline ![[Source]] mid-sentence.\n'
   )
-  app = await electron.launch({
-    args: ['./out/main/index.js', '--no-sandbox'],
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' }
-  })
+  app = await launchApp()
   page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Host.md')
@@ -59,6 +55,23 @@ test('embeds the whole note', async () => {
   const whole = page.locator('.cm-zy-embed').first()
   await expect(whole).toContainText('intro text')
   await expect(whole).toContainText('the alpha body')
+})
+
+test('an embedded note is not announced as a second text box', async () => {
+  const roles = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.cm-content')).map((el) => ({
+      role: el.getAttribute('role'),
+      inEmbed: !!el.closest('.cm-zy-embed')
+    }))
+  )
+
+  // Embeds mount a CodeMirror view of their own, and CodeMirror marks its
+  // content as a textbox. Nested inside the host editor's textbox that is
+  // invalid ARIA, and a note with two embeds would announce as three text
+  // boxes rather than one document.
+  expect(roles.filter((r) => r.inEmbed).length).toBeGreaterThan(0)
+  expect(roles.filter((r) => !r.inEmbed && r.role === 'textbox')).toHaveLength(1)
+  for (const entry of roles.filter((r) => r.inEmbed)) expect(entry.role).toBe('article')
 })
 
 test('embeds a single section when given a heading', async () => {

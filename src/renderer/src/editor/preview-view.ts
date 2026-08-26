@@ -44,7 +44,12 @@ export function mountPreview(parent: HTMLElement, text: string): EditorView {
           false
         ),
         EditorView.editable.of(false),
-        EditorState.readOnly.of(true)
+        EditorState.readOnly.of(true),
+        // CodeMirror marks its content as a textbox. Here the content is
+        // rendered prose, and it sits inside the host editor's own textbox —
+        // nested textboxes are invalid ARIA and make one note announce as
+        // several text boxes. An embedded note is self-contained content.
+        EditorView.contentAttributes.of({ role: 'article' })
       ]
     }),
     parent
