@@ -18,6 +18,8 @@ export interface WikilinkMatch {
   /** Offsets of the visible label within [from, to]. */
   labelFrom: number
   labelTo: number
+  /** True for `![[Note]]` — an embed, which renders the note rather than links it. */
+  embed: boolean
 }
 
 const WIKILINK_RE = /\[\[([^\][#|\n]+)(#[^\][|\n]*)?(\|[^\][\n]*)?\]\]/g
@@ -30,17 +32,21 @@ export function findWikilinks(text: string, offset = 0): WikilinkMatch[] {
     const [, rawTarget, rawHeading, rawAlias] = m
     const target = rawTarget?.trim() ?? ''
     if (!target) continue
-    const from = offset + m.index
-    const to = from + m[0].length
+    // `![[Note]]` embeds the note; the bang is part of the match, but every
+    // label offset below is measured from the `[[`.
+    const embed = m.index > 0 && text[m.index - 1] === '!'
+    const linkFrom = offset + m.index
+    const from = embed ? linkFrom - 1 : linkFrom
+    const to = linkFrom + m[0].length
     let labelFrom: number
     let labelTo: number
     if (rawAlias && rawAlias.length > 1) {
       // Label is the alias text (skip the pipe).
-      labelFrom = from + 2 + (rawTarget?.length ?? 0) + (rawHeading?.length ?? 0) + 1
+      labelFrom = linkFrom + 2 + (rawTarget?.length ?? 0) + (rawHeading?.length ?? 0) + 1
       labelTo = to - 2
     } else {
       // Label is the target (heading hidden when concealed).
-      labelFrom = from + 2
+      labelFrom = linkFrom + 2
       labelTo = labelFrom + (rawTarget?.length ?? 0)
     }
     matches.push({
@@ -50,7 +56,8 @@ export function findWikilinks(text: string, offset = 0): WikilinkMatch[] {
       heading: rawHeading ? rawHeading.slice(1).trim() || null : null,
       alias: rawAlias ? rawAlias.slice(1).trim() || null : null,
       labelFrom,
-      labelTo
+      labelTo,
+      embed
     })
   }
   return matches

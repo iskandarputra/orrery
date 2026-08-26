@@ -18,9 +18,27 @@ function isCalloutMarker(node: SyntaxNode, ctx: BuildContext): boolean {
   return /^\s*>[ \t]*$/.test(line.text.slice(0, node.from - line.from))
 }
 
+/**
+ * `[[Note]]` and `![[Note]]` contain an inner `[Note]` that parses as a
+ * shortcut link. The wikilink plugin and the embed renderer own those; letting
+ * this feature conceal their brackets leaves `![Note]` showing when the source
+ * is revealed.
+ */
+function isInsideWikilink(node: SyntaxNode, ctx: BuildContext): boolean {
+  // The embed itself, when images aren't rendered separately: `![[Note]]`.
+  if (/^!?\[\[/.test(ctx.state.doc.sliceString(node.from, Math.min(node.to, node.from + 3)))) {
+    return true
+  }
+  // Or the inner `[Note]` of one, sitting between another pair of brackets.
+  const before = ctx.state.doc.sliceString(Math.max(0, node.from - 1), node.from)
+  const after = ctx.state.doc.sliceString(node.to, node.to + 1)
+  return before === '[' && after === ']'
+}
+
 function decorate(node: SyntaxNode, ctx: BuildContext, isImage: boolean): void {
   if (ctx.revealed(node.from, node.to)) return
   if (isCalloutMarker(node, ctx)) return
+  if (isInsideWikilink(node, ctx)) return
 
   const marks = node.getChildren('LinkMark')
   const url = node.getChild('URL')

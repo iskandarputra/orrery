@@ -57,6 +57,10 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
         for (const { from, to } of view.visibleRanges) {
           const text = state.doc.sliceString(from, to)
           for (const link of findWikilinks(text, from)) {
+            // `![[Note]]` belongs to the embed renderer: decorating the link
+            // inside it would leave `![Source]` showing when the card is
+            // revealed, instead of the markdown that produced it.
+            if (link.embed) continue
             const resolved = resolveNote(index, link.target) !== null
             const cls = `cm-zy-wikilink${resolved ? '' : ' cm-zy-wikilink--missing'}`
             if (touches(link.from, link.to)) {

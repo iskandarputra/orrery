@@ -57,3 +57,33 @@ describe('findLinkLines', () => {
     expect(hits).toHaveLength(0)
   })
 })
+
+describe('embeds', () => {
+  it('marks ![[Note]] as an embed and includes the bang in the range', () => {
+    const text = 'see ![[Note]] here'
+    const [match] = findWikilinks(text)
+    expect(match).toMatchObject({ target: 'Note', embed: true })
+    expect(text.slice(match!.from, match!.to)).toBe('![[Note]]')
+  })
+
+  it('leaves a plain link alone', () => {
+    const [match] = findWikilinks('see [[Note]] here')
+    expect(match!.embed).toBe(false)
+  })
+
+  it('keeps the label offsets right for an embed', () => {
+    const text = '![[Note|Alias]]'
+    const [match] = findWikilinks(text)
+    expect(text.slice(match!.labelFrom, match!.labelTo)).toBe('Alias')
+  })
+
+  it('carries the heading through', () => {
+    const [match] = findWikilinks('![[Note#Section]]')
+    expect(match).toMatchObject({ target: 'Note', heading: 'Section', embed: true })
+  })
+
+  it('is not fooled by a bang that belongs to the previous word', () => {
+    const [match] = findWikilinks('wow! [[Note]]')
+    expect(match!.embed).toBe(false)
+  })
+})

@@ -3,6 +3,7 @@ import { basename } from '@core/paths'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { createDocumentState } from '@/editor/create-state'
 import { getActiveView, viewForBuffer } from '@/editor/active-view'
+import { invalidateEmbed } from '@/editor/live-preview/embeds'
 import { invoke, parseIpcError } from '@/services/client'
 import type { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
@@ -269,6 +270,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     try {
       const result = await invoke('fs:writeFile', { path: targetPath, content, expectedMtimeMs })
       bufferRegistry.markSaved(id, state.doc)
+      // Any embed showing this note is now stale.
+      invalidateEmbed(targetPath)
       set((s) => ({
         buffers: {
           ...s.buffers,

@@ -256,3 +256,26 @@ describe('html comments', () => {
     expect(lineClasses(state, result, 3)).toContain('cm-zy-comment-line')
   })
 })
+
+describe('links inside wikilinks', () => {
+  it('leaves the inner brackets of an embed alone', () => {
+    // `![[Note]]` contains `[Note]`, which parses as a shortcut link; concealing
+    // its brackets would show `![Note]` where the raw markdown should be.
+    const doc = 'text\n\n![[Note]]\n'
+    const { result } = build(doc, 0)
+    expect(concealedSpans(doc, result)).not.toContain('[')
+    expect(concealedSpans(doc, result)).not.toContain(']')
+  })
+
+  it('leaves a plain wikilink alone too', () => {
+    const doc = 'see [[Note]] here'
+    const { result } = build(doc, 0)
+    expect(concealedSpans(doc, result).filter((s) => s === '[' || s === ']')).toEqual([])
+  })
+
+  it('still conceals an ordinary markdown link', () => {
+    const doc = 'see [docs](https://example.com) here'
+    const { result } = build(doc, 0)
+    expect(concealedSpans(doc, result)).toContain('[')
+  })
+})

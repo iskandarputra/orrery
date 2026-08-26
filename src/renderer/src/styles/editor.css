@@ -706,3 +706,41 @@
   pointer-events: none;
   z-index: 3;
 }
+
+/* ==========================================================================
+   Note embeds — ![[Note]]
+   ========================================================================== */
+.cm-zy-embed {
+  margin: 0.4em var(--zy-line-pad, 2rem);
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
+  border: 1px solid var(--zy-border);
+  border-left: 3px solid var(--zy-accent);
+  border-radius: var(--zy-radius-md);
+  cursor: text;
+}
+
+.cm-zy-embed-title {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--zy-accent);
+}
+
+.cm-zy-embed-body {
+  font-size: 0.95em;
+  line-height: 1.6;
+  color: var(--zy-fg-muted);
+  white-space: pre-wrap;
+  max-height: 22em;
+  overflow: hidden;
+}
+
+/* A missing target is worth saying plainly, not rendering as empty. */
+.cm-zy-embed--missing {
+  border-left-color: var(--zy-fg-faint);
+  color: var(--zy-fg-faint);
+  font-style: italic;
+}

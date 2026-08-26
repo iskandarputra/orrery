@@ -36,7 +36,11 @@ async function runCommand(commandId: string): Promise<void> {
 
 /** Put the caret inside the block whose text contains `needle`. */
 async function caretIn(needle: string): Promise<void> {
-  await page.locator('.cm-content').getByText(needle, { exact: false }).first().click()
+  // Wait for the text before clicking: under load the note can still be
+  // rendering, and the click then lands on whatever is there instead.
+  const target = page.locator('.cm-content').getByText(needle, { exact: false }).first()
+  await expect(target).toBeVisible({ timeout: 10_000 })
+  await target.click()
 }
 
 async function saved(): Promise<string> {
