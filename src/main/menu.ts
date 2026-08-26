@@ -75,6 +75,9 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
             { label: 'As PDF…', click: dispatch('file.exportPdf') }
           ]
         },
+        // No accelerator: Ctrl+P is quick-open here, and shadowing it to print
+        // would be a worse trade than reaching for the menu.
+        { label: 'Print…', click: dispatch('file.print') },
         { type: 'separator' },
         {
           label: 'Preferences…',

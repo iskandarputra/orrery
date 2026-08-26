@@ -52,11 +52,20 @@ export const settingsSchema = z.object({
       interactiveCheckboxes: z.boolean().default(true),
       /** Render ![alt](path) and ![[embed]] as inline images. */
       showImages: z.boolean().default(true),
+      /** Vault folder pasted and dropped images are filed into. */
+      assetFolder: z.string().default('assets'),
       /**
        * Reflow soft-wrapped paragraph lines to fill the canvas width, like a
        * markdown preview — single newlines within a paragraph render as spaces.
        */
       reflowParagraphs: z.boolean().default(true)
+    })
+    .prefault({}),
+  /** Restored on the next launch so a restart doesn't cost your working set. */
+  session: z
+    .object({
+      openPaths: z.array(z.string()).default([]),
+      activePath: z.string().default('')
     })
     .prefault({}),
   /** Daily notes: one dated note per day, optionally from a template. */

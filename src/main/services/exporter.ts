@@ -49,6 +49,33 @@ export class ExportService {
     }
   }
 
+  /**
+   * Print the rendered note, not the app window: the same export HTML the PDF
+   * path uses is loaded in a hidden window and printed from there, so the
+   * sidebar, tabs and panels don't end up on paper.
+   */
+  async print(title: string, markdown: string): Promise<boolean> {
+    const tmp = path.join(os.tmpdir(), `zymd-print-${randomUUID()}.html`)
+    let win: BrowserWindow | null = null
+    try {
+      await fs.writeFile(tmp, await buildExportHtml(title, markdown), 'utf-8')
+      win = new BrowserWindow({
+        show: false,
+        webPreferences: { sandbox: true, contextIsolation: true }
+      })
+      await win.loadFile(tmp)
+      const target = win
+      return await new Promise<boolean>((resolve) => {
+        target.webContents.print({ printBackground: true }, (success) => resolve(success))
+      })
+    } catch (err) {
+      throw toIpcError(err)
+    } finally {
+      win?.destroy()
+      void fs.unlink(tmp).catch(() => undefined)
+    }
+  }
+
   private async pickPath(
     title: string,
     ext: string,

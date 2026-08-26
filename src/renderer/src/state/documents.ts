@@ -73,6 +73,25 @@ function getBufferEditorState(id: string, activeId: string | null): EditorState 
   return bufferRegistry.get(id)?.state ?? null
 }
 
+let sessionTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Remember which notes are open so a restart doesn't cost the working set.
+ * Debounced and settings-backed: tab churn shouldn't mean a write per click,
+ * and untitled buffers have no path to remember.
+ */
+function rememberSession(state: AppState): void {
+  if (sessionTimer) clearTimeout(sessionTimer)
+  sessionTimer = setTimeout(() => {
+    sessionTimer = null
+    const openPaths = state.tabOrder
+      .map((id) => state.buffers[id]?.filePath)
+      .filter((path): path is string => !!path)
+    const activePath = (state.activeId && state.buffers[state.activeId]?.filePath) || ''
+    state.updateSettings({ session: { openPaths, activePath } })
+  }, 400)
+}
+
 export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice> = (set, get) => ({
   buffers: {},
   tabOrder: [],
@@ -116,6 +135,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         console.error('Failed to open', path, parseIpcError(err).message)
       }
     }
+    rememberSession(get())
   },
 
   async openFileDialog() {
@@ -151,7 +171,9 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   },
 
   setActive(id) {
-    if (get().buffers[id]) set({ activeId: id })
+    if (!get().buffers[id]) return
+    set({ activeId: id })
+    rememberSession(get())
   },
 
   setDirty(id, dirty) {
@@ -262,6 +284,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       }
       return { buffers: rest, tabOrder, activeId }
     })
+    rememberSession(get())
     return true
   },
 

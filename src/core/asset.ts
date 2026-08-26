@@ -5,6 +5,15 @@ function isAbsoluteUrl(src: string): boolean {
   return /^(https?:|data:|file:|zymd-asset:)/i.test(src)
 }
 
+/** Decode a path segment, tolerating a stray `%` that isn't an escape. */
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
 /** Normalize a POSIX-ish path, collapsing `.` and `..` segments. */
 function normalize(path: string): string {
   const win = path.includes('\\')
@@ -38,7 +47,12 @@ export function resolveAssetUrl(docPath: string | null, src: string): string | n
     if (!docPath) return null
     abs = normalize(`${dirname(docPath)}/${trimmed}`)
   }
-  // zymd-asset://local/<url-encoded-absolute-path>
-  const encoded = abs.split(/[\\/]/).map(encodeURIComponent).join('/')
+  // zymd-asset://local/<url-encoded-absolute-path>. Markdown destinations are
+  // themselves URL-encoded, so each segment is decoded before re-encoding —
+  // otherwise `my%20pic.png` becomes `my%2520pic.png` and resolves to nothing.
+  const encoded = abs
+    .split(/[\\/]/)
+    .map((segment) => encodeURIComponent(decodeSegment(segment)))
+    .join('/')
   return `zymd-asset://local/${encoded.replace(/^\//, '')}`
 }

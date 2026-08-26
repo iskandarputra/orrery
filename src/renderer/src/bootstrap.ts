@@ -1,4 +1,7 @@
 import { builtinCommands } from './commands/builtins'
+import { openContextMenu } from './components/context-menu/context-menu'
+import { buildEditorMenu } from './components/editor-menu'
+import { editorMenuActions } from './components/editor-menu-actions'
 import { createCommandRegistry, type CommandRegistry } from './commands/registry'
 import { getActiveView } from './editor/active-view'
 import type { ZymdPlugin } from './plugins/api'
@@ -55,18 +58,36 @@ export function bootstrap(): CommandRegistry {
   on('window:closeRequested', () => void useStore.getState().handleWindowCloseRequest())
   on('fs:changed', ({ events }) => useStore.getState().onFsChanged(events))
   on('app:openPath', ({ path }) => void useStore.getState().openPaths([path]))
+  on('editor:contextMenu', (request) => {
+    // The tab bar and file tree open their own menus on the DOM event; this
+    // one is the fallback for everywhere else, which in practice is the editor.
+    if ((document.activeElement as HTMLElement | null)?.closest('.tree-row, .tab')) return
+    openContextMenu(
+      { clientX: request.x, clientY: request.y },
+      buildEditorMenu(request, editorMenuActions())
+    )
+  })
 
   void useStore
     .getState()
     .loadSettings()
     .then(() => {
-      const { lastOpenedFolder, general } = useStore.getState().settings
-      if (lastOpenedFolder && general.restoreLastFolder) {
-        useStore
-          .getState()
-          .openFolder(lastOpenedFolder)
-          .catch(() => useStore.getState().updateSettings({ lastOpenedFolder: null }))
-      }
+      const { lastOpenedFolder, general, session } = useStore.getState().settings
+      if (!lastOpenedFolder || !general.restoreLastFolder) return
+      useStore
+        .getState()
+        .openFolder(lastOpenedFolder)
+        .then(async () => {
+          // Reopen last session's tabs. Files deleted since are skipped by
+          // openPaths, so a stale entry costs a warning, not a failure.
+          if (session.openPaths.length === 0) return
+          await useStore.getState().openPaths(session.openPaths)
+          const active = Object.values(useStore.getState().buffers).find(
+            (b) => b.filePath === session.activePath
+          )
+          if (active) useStore.getState().setActive(active.id)
+        })
+        .catch(() => useStore.getState().updateSettings({ lastOpenedFolder: null }))
     })
 
   return registry

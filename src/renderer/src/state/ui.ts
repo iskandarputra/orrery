@@ -49,6 +49,12 @@ export interface UiSlice {
   toast: ToastMessage | null
   /** File tree live search filter query. */
   fileTreeFilter: string
+  /**
+   * Query to run when the search panel opens (right-click → search). The token
+   * makes each request distinct, so the panel can tell a new one from a repeat
+   * without the store having to be cleared afterwards.
+   */
+  searchSeed: { query: string; token: number }
   /** File tree sort mode. */
   fileTreeSort: 'name' | 'modified'
   /** Zen / Focus distraction-free full mode. */
@@ -62,6 +68,8 @@ export interface UiSlice {
   openSettings(): void
   closeSettings(): void
   toggleSidePanel(panel: SidePanel): void
+  /** Open the search panel already looking for `query`. */
+  searchVaultFor(query: string): void
   toggleGraph(): void
   toggleAnalytics(): void
   openPalette(mode: PaletteMode): void
@@ -99,6 +107,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   showFormattingToolbar: false,
   toast: null,
   fileTreeFilter: '',
+  searchSeed: { query: '', token: 0 },
   fileTreeSort: 'name',
   zenMode: false,
   docStatsOpen: false,
@@ -123,6 +132,13 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   toggleSidePanel(panel) {
     set((s) => ({ sidePanel: s.sidePanel === panel ? null : panel }))
+  },
+
+  searchVaultFor(query) {
+    set((s) => ({
+      sidePanel: 'search',
+      searchSeed: { query, token: s.searchSeed.token + 1 }
+    }))
   },
 
   toggleGraph() {

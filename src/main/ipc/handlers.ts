@@ -104,6 +104,11 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     (_e, req) => fs.createFile(req.dirPath, req.name)
   )
   handle(
+    'fs:writeAsset',
+    z.object({ dirPath: z.string().min(1), name: z.string().min(1), base64: z.string() }),
+    (_e, req) => fs.writeAsset(req.dirPath, req.name, req.base64)
+  )
+  handle(
     'fs:ensureFile',
     z.object({ path: z.string().min(1), content: z.string() }),
     (_e, req) => fs.ensureFile(req.path, req.content)
@@ -184,6 +189,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
   handle('export:html', exportReq, (_e, req) => exporter.exportHtml(req.title, req.markdown))
   handle('export:pdf', exportReq, (_e, req) => exporter.exportPdf(req.title, req.markdown))
+  handle('export:print', exportReq, (_e, req) => exporter.print(req.title, req.markdown))
+  handle('editor:replaceMisspelling', z.object({ word: z.string() }), (event, req) => {
+    event.sender.replaceMisspelling(req.word)
+  })
 
   handle(
     'fs:rename',

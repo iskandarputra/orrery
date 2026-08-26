@@ -119,6 +119,31 @@ export class FileSystemService {
     }
   }
 
+  /**
+   * File a pasted or dropped asset into the vault. Never overwrites: a name
+   * already in use gets a numbered variant, because losing an image someone
+   * pasted earlier is not a recoverable mistake.
+   */
+  async writeAsset(dirPath: string, name: string, base64: string): Promise<{ path: string }> {
+    try {
+      await fs.mkdir(dirPath, { recursive: true })
+      const ext = path.extname(name)
+      const stem = path.basename(name, ext)
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const candidate = path.join(dirPath, attempt === 0 ? name : `${stem}-${attempt}${ext}`)
+        try {
+          await fs.writeFile(candidate, Buffer.from(base64, 'base64'), { flag: 'wx' })
+          return { path: candidate }
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
+        }
+      }
+      throw new Error('Could not find a free asset name')
+    } catch (err) {
+      throw toIpcError(err)
+    }
+  }
+
   async createDirectory(dirPath: string, name: string): Promise<FileNode> {
     try {
       const full = path.join(dirPath, name)

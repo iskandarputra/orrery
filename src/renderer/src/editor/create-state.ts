@@ -16,6 +16,7 @@ import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
 import { focusMode, typewriterMode } from './modes'
+import { pasteAssets } from './paste-assets'
 import { reflowField, reflowParagraphs } from './live-preview/reflow-view'
 import { pluginEditorExtensions } from '@/plugins/registry'
 import { bumpDocVersion } from '@/state/doc-version'
@@ -89,6 +90,10 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
         extensions: [HighlightExtension]
       }),
       zymdEditorTheme(),
+      // CodeMirror disables spellcheck by default; prose wants it on, and
+      // Electron's checker supplies the underline and the suggestions.
+      EditorView.contentAttributes.of({ spellcheck: 'true' }),
+      pasteAssets(),
       reflowField,
       search({ top: true }),
       keymap.of([

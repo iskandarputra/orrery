@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BacklinkHit } from '@shared/types'
 import { getActiveView } from '@/editor/active-view'
 import { invoke } from '@/services/client'
@@ -112,19 +112,34 @@ function OutlineBody(): React.JSX.Element {
 function SearchBody(): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
   const openPaths = useStore((s) => s.openPaths)
-  const [query, setQuery] = useState('')
+  const seed = useStore((s) => s.searchSeed)
+  const handledSeed = useRef(0)
+  const [query, setQuery] = useState(seed.query)
   const [regex, setRegex] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [hits, setHits] = useState<BacklinkHit[] | null>(null)
   const [searched, setSearched] = useState('')
 
-  const run = useCallback((): void => {
-    if (!rootPath || !query.trim()) return
-    setSearched(query)
-    void invoke('workspace:search', { rootPath, query, regex, caseSensitive })
-      .then(setHits)
-      .catch(() => setHits([]))
-  }, [rootPath, query, regex, caseSensitive])
+  const run = useCallback(
+    (term = query): void => {
+      if (!rootPath || !term.trim()) return
+      setSearched(term)
+      void invoke('workspace:search', { rootPath, query: term, regex, caseSensitive })
+        .then(setHits)
+        .catch(() => setHits([]))
+    },
+    [rootPath, query, regex, caseSensitive]
+  )
+
+  // Arriving from "search the vault for this", run it without being asked.
+  useEffect(() => {
+    if (seed.token === handledSeed.current || !seed.query) return
+    handledSeed.current = seed.token
+    setQuery(seed.query)
+    run(seed.query)
+    // `run` is recreated on every query change; depending on it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed])
 
   if (!rootPath) return <EmptyState icon="search">Open a folder to search across it.</EmptyState>
 

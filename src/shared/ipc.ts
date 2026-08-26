@@ -32,6 +32,15 @@ export interface IpcInvokeContract {
    * Create a note (and any missing parent folders) only if it isn't there yet.
    * Idempotent, so "open today's note" is one call whether or not it exists.
    */
+  /**
+   * Write binary content (a pasted or dropped image) into the vault, creating
+   * folders as needed and never overwriting: the returned path may be a
+   * de-duplicated variant of the requested name.
+   */
+  'fs:writeAsset': {
+    req: { dirPath: string; name: string; base64: string }
+    res: { path: string }
+  }
   'fs:ensureFile': {
     req: { path: string; content: string }
     res: { path: string; created: boolean }
@@ -81,6 +90,10 @@ export interface IpcInvokeContract {
   /** Export the given markdown; resolves to the saved path or null on cancel. */
   'export:html': { req: { title: string; markdown: string }; res: string | null }
   'export:pdf': { req: { title: string; markdown: string }; res: string | null }
+  /** Print the rendered note; resolves false if the user cancelled. */
+  'export:print': { req: { title: string; markdown: string }; res: boolean }
+  /** Swap a misspelled word for a suggestion, through Electron's checker. */
+  'editor:replaceMisspelling': { req: { word: string }; res: void }
   'fs:watch': { req: { path: string }; res: { watchId: string } }
   'fs:unwatch': { req: { watchId: string }; res: void }
 
@@ -104,6 +117,22 @@ export interface IpcEventContract {
   'window:closeRequested': void
   /** A file was opened via OS (double-click / open-with / CLI arg). */
   'app:openPath': { path: string }
+  /**
+   * Right-click inside the window. Forwarded from main because only there do
+   * the spelling suggestions exist; the renderer draws its own themed menu so
+   * it matches the tab and file-tree menus.
+   */
+  'editor:contextMenu': EditorContextRequest
+}
+
+export interface EditorContextRequest {
+  x: number
+  y: number
+  selectionText: string
+  isEditable: boolean
+  /** The word under the cursor, if the checker flagged it. */
+  misspelledWord: string
+  dictionarySuggestions: string[]
 }
 
 /** Error shape thrown across the IPC boundary for expected failures. */

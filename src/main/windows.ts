@@ -56,6 +56,20 @@ export class WindowManager {
     })
     win.webContents.on('will-navigate', (event) => event.preventDefault())
 
+    // The renderer draws its own themed context menu, but only main sees the
+    // spellchecker's verdict — so the event is forwarded with its params and
+    // the menu is built there.
+    win.webContents.on('context-menu', (_event, params) => {
+      win.webContents.send('editor:contextMenu', {
+        x: params.x,
+        y: params.y,
+        selectionText: params.selectionText,
+        isEditable: params.isEditable,
+        misspelledWord: params.misspelledWord,
+        dictionarySuggestions: params.dictionarySuggestions
+      })
+    })
+
     // Unsaved-changes flow: first close is intercepted; renderer decides.
     win.on('close', (event) => {
       if (!this.closeConfirmed) {

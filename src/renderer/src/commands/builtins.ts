@@ -227,6 +227,23 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().toggleAnalytics()
   },
   {
+    id: 'file.print',
+    title: 'Print…',
+    run: async ({ store, view }) => {
+      const v = view()
+      const active = store().activeId ? store().buffers[store().activeId!] : null
+      if (!v || !active) return
+      try {
+        await invoke('export:print', {
+          title: stem(active.fileName),
+          markdown: v.state.doc.toString()
+        })
+      } catch (err) {
+        store().showToast(`Print failed: ${err instanceof Error ? err.message : err}`, 'error')
+      }
+    }
+  },
+  {
     id: 'file.exportHtml',
     title: 'Export as HTML…',
     run: async ({ store, view }) => {

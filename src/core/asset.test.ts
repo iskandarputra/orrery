@@ -33,3 +33,22 @@ describe('resolveAssetUrl', () => {
     expect(resolveAssetUrl(null, 'pic.png')).toBeNull()
   })
 })
+
+describe('already-encoded sources', () => {
+  it('does not double-encode a markdown-escaped space', () => {
+    // Markdown link destinations are URL-encoded, so %20 means a real space.
+    const url = resolveAssetUrl('/v/Note.md', 'assets/my%20pic.png')
+    expect(url).toBe('zymd-asset://local/v/assets/my%20pic.png')
+    expect(url).not.toContain('%2520')
+  })
+
+  it('treats an encoded and a literal space as the same file', () => {
+    expect(resolveAssetUrl('/v/Note.md', 'assets/my%20pic.png')).toBe(
+      resolveAssetUrl('/v/Note.md', 'assets/my pic.png')
+    )
+  })
+
+  it('survives a source with a stray percent sign', () => {
+    expect(resolveAssetUrl('/v/Note.md', 'assets/100%.png')).toContain('100%25.png')
+  })
+})
