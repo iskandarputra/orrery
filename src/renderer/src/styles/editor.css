@@ -655,3 +655,54 @@
   font-size: 0.9em;
   font-weight: 500;
 }
+
+/* ==========================================================================
+   Block drag handles
+   ========================================================================== */
+.cm-zy-block-gutter {
+  width: 20px;
+  background: transparent;
+  border: 0;
+}
+
+/* Present but invisible until the editor is hovered: a column of grips down
+   the page would compete with the text for attention. */
+.cm-zy-block-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.4em;
+  color: var(--zy-fg-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: grab;
+  opacity: 0;
+  border-radius: var(--zy-radius-sm);
+  transition: opacity var(--zy-transition-fast);
+  user-select: none;
+}
+
+.cm-editor:hover .cm-zy-block-handle {
+  opacity: 0.45;
+}
+
+.cm-zy-block-handle:hover {
+  opacity: 1;
+  background: var(--zy-hover-bg);
+  color: var(--zy-fg);
+}
+
+.cm-zy-dragging-block .cm-zy-block-handle {
+  cursor: grabbing;
+}
+
+/* Where the block will land. */
+.cm-zy-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--zy-accent);
+  pointer-events: none;
+  z-index: 3;
+}

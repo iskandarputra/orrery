@@ -15,6 +15,8 @@ import type { Settings } from '@shared/settings'
 import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
+import { blockHandles } from './block-handles'
+import { blockMoveKeymap } from './block-move'
 import { focusMode, typewriterMode } from './modes'
 import { pasteAssets } from './paste-assets'
 import { reflowField, reflowParagraphs } from './live-preview/reflow-view'
@@ -42,6 +44,8 @@ export function settingsExtensions(settings: Settings): Extension {
   return [
     e.wordWrap || reflow ? EditorView.lineWrapping : [],
     e.lineNumbers && !reading ? lineNumbers() : [],
+    // Handles are for editing; a rendered document has nothing to drag.
+    reading ? [] : blockHandles(),
     e.highlightActiveLine && !reading ? highlightActiveLine() : [],
     e.typewriter && !reading ? typewriterMode() : [],
     e.focusMode && !reading ? focusMode() : [],
@@ -98,6 +102,7 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
       search({ top: true }),
       keymap.of([
         { key: 'Mod-Shift-h', run: toggleHighlight },
+        ...blockMoveKeymap,
         ...defaultKeymap,
         ...historyKeymap,
         ...searchKeymap,

@@ -1,4 +1,5 @@
 import { openSearchPanel, replaceNext } from '@codemirror/search'
+import { moveBlockDown, moveBlockUp } from '@/editor/block-move'
 import { unwrapParagraphs } from '@core/reflow'
 import { canvasFromCluster, clusterMoc, newCanvas } from '@/notes/canvas-commands'
 import { openDailyNote } from '@/notes/daily'
@@ -292,6 +293,22 @@ export const builtinCommands: Command[] = [
     id: 'app.commandPalette',
     title: 'Command Palette',
     run: ({ store }) => store().openPalette('commands')
+  },
+  {
+    id: 'block.moveUp',
+    title: 'Move Block Up',
+    run: ({ view }) => {
+      const v = view()
+      if (v) moveBlockUp(v)
+    }
+  },
+  {
+    id: 'block.moveDown',
+    title: 'Move Block Down',
+    run: ({ view }) => {
+      const v = view()
+      if (v) moveBlockDown(v)
+    }
   },
   {
     id: 'format.unwrapParagraphs',
