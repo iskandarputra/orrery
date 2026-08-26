@@ -38,6 +38,9 @@ a [link](https://example.com), a [[Wikilink]], a [[Missing Note]], and an ![img]
 
 1. ordered one
 2. ordered two
+9. ordered nine
+10. ordered ten
+11. ordered eleven
 
 > quote line
 > second line
@@ -182,6 +185,66 @@ test('block containers all start at the text column', async () => {
   ]) {
     expect(await leftOf(selector), selector).toBe(column)
   }
+})
+
+test('every list marker shares one grid', async () => {
+  await page.locator('.cm-zy-li').first().scrollIntoViewIfNeeded()
+  await page.waitForTimeout(150)
+
+  const rows = await page.evaluate(() => {
+    const lineLeft = document.querySelector('.cm-line')!.getBoundingClientRect().left
+    return Array.from(document.querySelectorAll('.cm-zy-li')).map((el) => {
+      const marker =
+        el.querySelector('.cm-zy-bullet') ??
+        el.querySelector('.cm-zy-ordered-mark') ??
+        el.querySelector('.cm-zy-task-box')
+      // Measured on the text node itself: a nested item wraps its text in no
+      // element, so lastElementChild would hand back the marker instead.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let textX: number | null = null
+      let node: Node | null
+      while ((node = walker.nextNode())) {
+        const value = node.textContent ?? ''
+        if (!value.trim() || marker?.contains(node)) continue
+        const range = document.createRange()
+        const offset = value.search(/\S/)
+        range.setStart(node, offset)
+        range.setEnd(node, offset + 1)
+        textX = Math.round(range.getBoundingClientRect().left - lineLeft)
+        break
+      }
+      return {
+        depth: Number(getComputedStyle(el).getPropertyValue('--zy-li-depth') || 0),
+        markerX: marker ? Math.round(marker.getBoundingClientRect().left - lineLeft) : null,
+        textX
+      }
+    })
+  })
+
+  expect(rows.length).toBeGreaterThan(6)
+  expect(rows.every((r) => r.markerX !== null && r.textX !== null)).toBe(true)
+
+  // Bullets, `1.`, `10.` and checkboxes are different markers of different
+  // widths; the marker column is what makes them share one text edge.
+  const byDepth = new Map<number, typeof rows>()
+  for (const row of rows) byDepth.set(row.depth, [...(byDepth.get(row.depth) ?? []), row])
+  for (const [depth, group] of byDepth) {
+    expect(new Set(group.map((r) => r.markerX)).size, `markers at depth ${depth}`).toBe(1)
+    expect(new Set(group.map((r) => r.textX)).size, `text edges at depth ${depth}`).toBe(1)
+  }
+
+  // Each level steps by a constant amount, and the gap between a marker and its
+  // text never collapses — styling a nested glyph must not shrink the column.
+  const depths = [...byDepth.keys()].sort((a, b) => a - b)
+  const gaps = depths.map((d) => byDepth.get(d)![0]!.textX! - byDepth.get(d)![0]!.markerX!)
+  expect(new Set(gaps).size, 'marker-to-text gap per depth').toBe(1)
+  expect(gaps[0]).toBeGreaterThan(12)
+
+  const steps = depths.slice(1).map((d, i) =>
+    byDepth.get(d)![0]!.markerX! - byDepth.get(depths[i]!)![0]!.markerX!
+  )
+  expect(new Set(steps).size, 'indent step per level').toBe(1)
+  expect(steps[0]).toBeGreaterThan(12)
 })
 
 test('callout types are told apart by colour', async () => {

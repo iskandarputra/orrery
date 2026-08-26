@@ -11,6 +11,9 @@ export class CheckboxWidget extends WidgetType {
   }
 
   override toDOM(view: EditorView): HTMLElement {
+    // Wrapped in the same box a bullet gets, so a mixed list has one text edge.
+    const box = document.createElement('span')
+    box.className = 'cm-zy-task-box'
     const input = document.createElement('input')
     input.type = 'checkbox'
     input.checked = this.checked
@@ -23,7 +26,8 @@ export class CheckboxWidget extends WidgetType {
         changes: { from: pos + 1, to: pos + 2, insert: this.checked ? ' ' : 'x' }
       })
     })
-    return input
+    box.appendChild(input)
+    return box
   }
 
   override ignoreEvent(): boolean {
@@ -40,7 +44,8 @@ export class BulletWidget extends WidgetType {
   override toDOM(): HTMLElement {
     const span = document.createElement('span')
     span.className = 'cm-zy-bullet'
-    span.textContent = '•'
+    // The glyph comes from CSS ::before so nesting depth can swap it without
+    // resizing the box — the box *is* the marker column.
     return span
   }
 }

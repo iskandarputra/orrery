@@ -20,12 +20,12 @@ let vault: string
  */
 const DOC = `# Render check
 
-- a top level bullet item that is deliberately long enough to wrap onto a second visual line
-  - a nested bullet item that is also long enough to wrap onto a second visual line here
-- [ ] a task
+- a top level bullet item that is deliberately long enough to wrap onto a second visual line and keeps going well past the right edge so the wrap is certain at any sane pane width
+  - a nested bullet item that is also long enough to wrap onto a second visual line here and keeps going well past the right edge so the wrap is certain at any sane pane width
+- [ ] a task whose label is long enough to wrap onto a second visual line and keeps going well past the right edge so the wrap is certain at any sane pane width
 
-1. an ordered item that is long enough to wrap onto a second visual line in this pane
-10. a tenth ordered item that is long enough to wrap onto a second visual line here
+1. an ordered item that is long enough to wrap onto a second visual line in this pane and keeps going well past the right edge so the wrap is certain at any sane pane width
+10. a tenth ordered item that is long enough to wrap onto a second visual line here and keeps going well past the right edge so the wrap is certain at any sane pane width
 
 \`\`\`ts
 const tree = { src: ['main.ts'] } // aligned comment
@@ -96,18 +96,26 @@ test('code blocks keep their columns', async () => {
 test('list items hang their wrapped lines under the item text', async () => {
   const rows = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.cm-zy-li')).map((el) => {
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      const rects = Array.from(range.getClientRects()).filter((r) => r.width > 1)
-      const content = el.lastElementChild
+      // One text node spanning a soft wrap yields one rect per visual line —
+      // unlike a Range over the whole line, whose rects are per box (the marker
+      // spans each contribute one) and so can't tell a wrap from a span.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let rects: DOMRect[] = []
+      let node: Node | null
+      while ((node = walker.nextNode())) {
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        const own = Array.from(range.getClientRects()).filter((r) => r.width > 1)
+        if (own.length > rects.length) rects = own
+      }
+      const style = getComputedStyle(el)
+      // Wrapped lines start at the padding edge, which is the item's text
+      // column: the first line only sits left of it via a negative text-indent
+      // that puts the marker in its own column.
+      const column = el.getBoundingClientRect().left + parseFloat(style.paddingLeft)
       return {
         wrapped: rects.length > 1,
-        // The last element child holds the item text; the wrapped line should
-        // start at the same column, not back at the left margin.
-        errPx:
-          rects.length > 1 && content
-            ? Math.abs(rects[rects.length - 1]!.left - content.getBoundingClientRect().left)
-            : 0
+        errPx: rects.length > 1 ? Math.abs(rects[rects.length - 1]!.left - column) : 0
       }
     })
   )

@@ -109,21 +109,30 @@ describe('callouts', () => {
 })
 
 describe('list hanging indent', () => {
-  it('offsets wrapped lines to the item text column', () => {
+  it('offsets wrapped lines by nesting depth, not by marker width', () => {
     const doc = '- top level item\n  - nested item\n'
     const { state, result } = build(doc)
-    // "- "  → marker 1ch + space 0.5ch. Published as a variable so CSS can add
-    // it to the editor's own line padding rather than replacing it.
-    expect(lineAttrs(state, result, 1)).toContain('--zy-li-indent: 1.5ch')
-    // "  - " → two spaces (1ch) on top of that
-    expect(lineAttrs(state, result, 2)).toContain('--zy-li-indent: 2.5ch')
+    // Depth is published as a variable so CSS can add a fixed step per level to
+    // the editor's own line padding rather than replacing it.
+    expect(lineAttrs(state, result, 1)).toContain('--zy-li-depth: 0')
+    expect(lineAttrs(state, result, 2)).toContain('--zy-li-depth: 1')
   })
 
-  it('accounts for ordered list markers', () => {
+  it('indents by the same step whether the source nests by two spaces or four', () => {
+    // Same document meaning; counting source columns would indent them differently.
+    const two = build('- one\n  - nested\n')
+    const four = build('- one\n    - nested\n')
+    expect(lineAttrs(two.state, two.result, 2)).toContain('--zy-li-depth: 1')
+    expect(lineAttrs(four.state, four.result, 2)).toContain('--zy-li-depth: 1')
+  })
+
+  it('gives a wide ordered marker the same indent as a narrow one', () => {
+    // `1.` and `10.` are different widths; the marker column absorbs that, so
+    // the line indent must not.
     const doc = '1. first\n10. tenth\n'
     const { state, result } = build(doc)
-    expect(lineAttrs(state, result, 1)).toContain('--zy-li-indent: 2.5ch')
-    expect(lineAttrs(state, result, 2)).toContain('--zy-li-indent: 3.5ch')
+    expect(lineAttrs(state, result, 1)).toContain('--zy-li-depth: 0')
+    expect(lineAttrs(state, result, 2)).toContain('--zy-li-depth: 0')
   })
 })
 
@@ -193,12 +202,12 @@ describe('loose lists', () => {
 })
 
 describe('quoted lists', () => {
-  it('measures the indent past the quote markers, not from them', () => {
+  it('measures the depth past the quote markers, not from them', () => {
     const doc = 'intro\n\n> - one\n> - two\n>   - nested\n'
     const { state, result } = build(doc, 0)
-    // "- " inside the quote, exactly as it would be outside one.
-    expect(lineAttrs(state, result, 3)).toContain('--zy-li-indent: 1.5ch')
-    expect(lineAttrs(state, result, 5)).toContain('--zy-li-indent: 2.5ch')
+    // A list inside a quote nests exactly as it would outside one.
+    expect(lineAttrs(state, result, 3)).toContain('--zy-li-depth: 0')
+    expect(lineAttrs(state, result, 5)).toContain('--zy-li-depth: 1')
   })
 
   it('only calls the real first item first, across quote markers', () => {

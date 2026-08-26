@@ -222,8 +222,8 @@
   accent-color: var(--zy-accent);
   width: 1em;
   height: 1em;
+  margin: 0 0 0.2em 0;
   vertical-align: middle;
-  margin: 0 0.4em 0.2em 0;
   cursor: pointer;
   border-radius: 3px;
 }
@@ -513,14 +513,26 @@
   white-space: normal;
 }
 
-/* Comfortable list rhythm — a gentle gap between items. */
-/* Comfortable list rhythm, plus a hanging indent so a wrapped item lines up
-   under its own text. The indent arrives as a variable so it can be added to
-   an enclosing quote's padding rather than replacing it. */
+/* ==========================================================================
+   List layout
+   --------------------------------------------------------------------------
+   Indent comes from nesting depth, not from the spaces the author typed, so
+   two-space and four-space nesting render identically. Each item's marker sits
+   in a fixed column, which is what puts `1.`, `10.` and `•` on one text edge.
+   ========================================================================== */
+:root {
+  --zy-li-step: 1.5em;
+  --zy-li-marker: 1.5em;
+}
+
 .cm-line.cm-zy-li {
   padding-top: 0.34em;
-  padding-left: calc(var(--zy-line-pad, 2rem) + var(--zy-li-indent, 0px));
-  text-indent: calc(-1 * var(--zy-li-indent, 0px));
+  padding-left: calc(
+    var(--zy-line-pad, 2rem) + var(--zy-li-depth, 0) * var(--zy-li-step) + var(--zy-li-marker)
+  );
+  /* Pull the first line back by the marker column: the marker sits in it and
+     the text — wrapped lines included — starts after it. */
+  text-indent: calc(-1 * var(--zy-li-marker));
 }
 
 .cm-line.cm-zy-li--first {
@@ -529,8 +541,61 @@
 
 /* A quoted list keeps the quote's inset and adds its own indent on top. */
 .cm-line.cm-zy-blockquote.cm-zy-li {
-  padding-left: calc(1.1em + var(--zy-li-indent, 0px));
+  padding-left: calc(
+    1.1em + var(--zy-li-depth, 0) * var(--zy-li-step) + var(--zy-li-marker)
+  );
 }
+
+/* The marker column itself. Every marker — bullet, number, checkbox — occupies
+   a box of exactly this width, which is what lands `1.`, `10.`, `•` and `[ ]`
+   on a single text edge. Nothing here may change the box's own font-size:
+   `width` is in em, so that would collapse the column. */
+.cm-zy-bullet,
+.cm-zy-ordered-mark,
+.cm-zy-task-box {
+  display: inline-block;
+  width: var(--zy-li-marker);
+  text-align: right;
+  /* The space in the source follows the marker; without this the glyph would
+     sit flush against the text. */
+  padding-right: 0.4em;
+  margin-right: -0.4em;
+}
+
+.cm-zy-ordered-mark {
+  color: var(--zy-fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-zy-bullet::before {
+  content: "\2022";
+}
+
+.cm-zy-bullet {
+  color: var(--zy-accent);
+  font-weight: 700;
+}
+
+/* Depth reads at a glance from the glyph, the way a printed outline does. The
+   size lives on ::before, never on the box. */
+.cm-zy-li[style*="--zy-li-depth: 1"] .cm-zy-bullet {
+  color: var(--zy-fg-muted);
+}
+
+.cm-zy-li[style*="--zy-li-depth: 1"] .cm-zy-bullet::before {
+  content: "\25E6";
+  font-size: 1.3em;
+}
+
+.cm-zy-li[style*="--zy-li-depth: 2"] .cm-zy-bullet {
+  color: var(--zy-fg-muted);
+}
+
+.cm-zy-li[style*="--zy-li-depth: 2"] .cm-zy-bullet::before {
+  content: "\25AA";
+  font-size: 1.05em;
+}
+
 
 /* ==========================================================================
    YAML Frontmatter Properties Card / Box (Obsidian / Notion style)
