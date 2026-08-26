@@ -183,7 +183,8 @@
   background: color-mix(in srgb, var(--zy-code-function) 12%, transparent);
 }
 
-/* Callout title — the text after the concealed [!TYPE] marker. */
+/* Callout title — the text after the concealed [!TYPE] marker. The body starts
+   on its own line; paragraph reflow leaves this break alone. */
 .cm-zy-callout-title {
   font-weight: 650;
   color: var(--zy-fg);
@@ -285,9 +286,25 @@
 }
 
 /* A fence line with its ``` concealed collapses into the card's edge — the
-   backticks come back (full height) when the cursor lands on that line. */
-.cm-zy-code-fence-hidden {
-  line-height: 0.4;
+   backticks come back (full height) when the cursor lands on that line.
+   Scoped to .cm-line: the card's own rule is (0,2,0) and would outrank a bare
+   class, leaving a full empty text line inside the card. */
+.cm-line.cm-zy-code-fence-hidden {
+  /* line-height alone leaves ~14px: CodeMirror's widget buffer is replaced
+     content and keeps its own strut. Zeroing the font size collapses that too. */
+  line-height: 0;
+  font-size: 0;
+}
+
+/* The card's own padding is in em, which the collapse above would zero along
+   with the text — so the edge keeps its breathing room in a unit that doesn't
+   depend on the line's font size. */
+.cm-line.cm-zy-code-fence-hidden.cm-zy-code-first {
+  padding-top: 0.55rem;
+}
+
+.cm-line.cm-zy-code-fence-hidden.cm-zy-code-last {
+  padding-bottom: 0.55rem;
 }
 
 /* Fenced code backticks: subtle and unobtrusive (shown on the active line) */

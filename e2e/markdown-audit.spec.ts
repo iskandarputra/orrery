@@ -160,14 +160,32 @@ test('heading rhythm actually applies', async () => {
   expect(padding[0]!).toBeGreaterThan(padding[5]!)
 })
 
+/**
+ * Bring a block into view, scrolling until it exists.
+ *
+ * CodeMirror renders only the viewport, so a block below the fold is absent
+ * from the DOM entirely — waiting on its selector would wait forever, and any
+ * measurement of it is a measurement of nothing.
+ */
+async function showBlock(selector: string): Promise<void> {
+  const scroller = page.locator('.cm-scroller')
+  for (let step = 0; step < 40; step++) {
+    if (await page.locator(selector).count()) {
+      await page.locator(selector).first().scrollIntoViewIfNeeded()
+      await page.waitForTimeout(120)
+      return
+    }
+    await scroller.evaluate((el) => el.scrollBy(0, el.clientHeight * 0.75))
+    await page.waitForTimeout(90)
+  }
+  throw new Error(`never rendered: ${selector}`)
+}
+
 test('block containers all start at the text column', async () => {
-  // CodeMirror only builds the viewport, so each block has to be brought into
-  // view before it can be measured — otherwise this asserts against nothing.
+  // Each block has to be brought into view before it can be measured.
   const leftOf = async (selector: string): Promise<number> => {
-    const locator = page.locator(selector).first()
-    await locator.scrollIntoViewIfNeeded()
-    await page.waitForTimeout(120)
-    return Math.round((await locator.boundingBox())!.x)
+    await showBlock(selector)
+    return Math.round((await page.locator(selector).first().boundingBox())!.x)
   }
 
   await page.locator('.cm-scroller').evaluate((el) => el.scrollTo(0, 0))
@@ -188,8 +206,7 @@ test('block containers all start at the text column', async () => {
 })
 
 test('every list marker shares one grid', async () => {
-  await page.locator('.cm-zy-li').first().scrollIntoViewIfNeeded()
-  await page.waitForTimeout(150)
+  await showBlock('.cm-zy-li')
 
   const rows = await page.evaluate(() => {
     const lineLeft = document.querySelector('.cm-line')!.getBoundingClientRect().left
@@ -248,6 +265,7 @@ test('every list marker shares one grid', async () => {
 })
 
 test('callout types are told apart by colour', async () => {
+  await showBlock('.cm-zy-callout--tip')
   const bars = await page.evaluate(() =>
     ['note', 'warning', 'tip'].map((type) => {
       const el = document.querySelector(`.cm-zy-callout--${type}`) as HTMLElement | null
@@ -257,9 +275,65 @@ test('callout types are told apart by colour', async () => {
   expect(new Set(bars).size).toBe(3)
 })
 
+test('a callout title takes its own line, above the body', async () => {
+  await showBlock('.cm-zy-callout--note')
+
+  // `> [!NOTE] Title` and the body under it are one paragraph to the parser, so
+  // paragraph reflow would join them onto a single line unless it makes an
+  // exception for the title.
+  const box = await page.evaluate(() => {
+    const lines = Array.from(document.querySelectorAll('.cm-zy-callout--note'))
+    const title = lines[0]!.querySelector('.cm-zy-callout-title')
+    if (!title) return null
+    const body = lines[1]
+    if (!body) return null
+    const firstChar = (el: Element): DOMRect | null => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let node: Node | null
+      while ((node = walker.nextNode())) {
+        const value = node.textContent ?? ''
+        const offset = value.search(/\S/)
+        if (offset < 0) continue
+        const range = document.createRange()
+        range.setStart(node, offset)
+        range.setEnd(node, offset + 1)
+        return range.getBoundingClientRect()
+      }
+      return null
+    }
+    const t = firstChar(title)!
+    const b = firstChar(body)!
+    return { titleBottom: t.bottom, titleLeft: t.left, bodyTop: b.top, bodyLeft: b.left }
+  })
+
+  expect(box, 'callout title and a body line').not.toBeNull()
+  expect(box!.bodyTop).toBeGreaterThanOrEqual(box!.titleBottom - 2)
+  expect(Math.abs(box!.bodyLeft - box!.titleLeft)).toBeLessThanOrEqual(1)
+})
+
+test('a concealed code fence collapses but keeps the card padded', async () => {
+  await showBlock('.cm-zy-code-line')
+  const lines = page.locator('.cm-zy-code-line')
+
+  const heights = await lines.evaluateAll((els) =>
+    els.map((el) => ({
+      hidden: el.classList.contains('cm-zy-code-fence-hidden'),
+      h: el.getBoundingClientRect().height
+    }))
+  )
+  const code = heights.find((l) => !l.hidden)!
+  const hidden = heights.filter((l) => l.hidden)
+  expect(hidden.length).toBeGreaterThan(0)
+  for (const line of hidden) {
+    // Collapsed — an empty text line inside the card reads as a rendering bug.
+    expect(line.h).toBeLessThan(code.h * 0.6)
+    // ...but not to nothing: the card would lose its edge padding.
+    expect(line.h).toBeGreaterThan(4)
+  }
+})
+
 test('table alignment follows the delimiter row', async () => {
-  await page.locator('.cm-zy-table').first().scrollIntoViewIfNeeded()
-  await page.waitForTimeout(150)
+  await showBlock('.cm-zy-table')
   const cells = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.cm-zy-table th')).map(
       (el) => getComputedStyle(el).textAlign

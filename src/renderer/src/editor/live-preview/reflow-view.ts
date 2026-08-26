@@ -1,6 +1,7 @@
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { Facet, StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import { CALLOUT_RE } from './features/blockquote'
 
 /** Renders in place of a soft line break so two source lines flow as one. */
 class SoftSpaceWidget extends WidgetType {
@@ -25,6 +26,15 @@ function isHardBreak(lineText: string): boolean {
   return /( {2,}|\\)$/.test(lineText)
 }
 
+/**
+ * `> [!NOTE] Title` and the body below it are one paragraph to the parser, but
+ * the title is a heading rather than the first half of a sentence — joining
+ * them would run the two together on one line.
+ */
+function isCalloutTitle(lineText: string): boolean {
+  return CALLOUT_RE.test(lineText)
+}
+
 /** Facet controlling whether paragraph reflow is enabled. */
 export const reflowEnabledFacet = Facet.define<boolean, boolean>({
   combine: (values) => (values.length ? Boolean(values[values.length - 1]) : false)
@@ -44,7 +54,7 @@ function build(state: EditorState): DecorationSet {
       // Join every internal newline of the paragraph (all lines but the last).
       for (let n = first.number; n < last.number; n++) {
         const line = state.doc.line(n)
-        if (isHardBreak(line.text)) continue
+        if (isHardBreak(line.text) || isCalloutTitle(line.text)) continue
         decos.push(softSpace.range(line.to, line.to + 1))
       }
       return false // paragraphs don't nest
