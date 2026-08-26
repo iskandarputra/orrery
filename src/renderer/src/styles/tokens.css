@@ -28,6 +28,12 @@
   --zy-shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.12);
   --zy-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.38), 0 8px 24px rgba(0, 0, 0, 0.2);
 
+  /* Tree indent guides. Derived from the per-theme tokens rather than added to
+     the theme set: they are scaffolding, and every palette already carries a
+     border colour tuned to it. */
+  --zy-tree-guide: color-mix(in srgb, var(--zy-border) 75%, transparent);
+  --zy-tree-guide-strong: color-mix(in srgb, var(--zy-fg-faint) 42%, transparent);
+
   /* Physics Transitions */
   --zy-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --zy-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);

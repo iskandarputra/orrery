@@ -7,8 +7,15 @@ import { Icon, type IconName } from './Icon'
 import { buildTreeMenu } from './menus'
 import { TreeEditInput } from './TreeEditInput'
 
-/** One indent step per level, applied by the nested `.tree-children` box. */
-const INDENT_PX = 14
+/**
+ * One indent step per level, applied by the nested `.tree-children` box.
+ *
+ * 15 rather than a round number so the level's guide line lands exactly on the
+ * centre of the parent folder's chevron (8px row padding + half of the 14px
+ * chevron box) — the line then reads as descending from the folder it belongs
+ * to instead of floating beside it.
+ */
+export const INDENT_PX = 15
 /** Row padding inside its level's box: directories lead with a chevron, files don't. */
 const DIR_PAD_PX = 8
 const FILE_PAD_PX = 22

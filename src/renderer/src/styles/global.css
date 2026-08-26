@@ -1361,10 +1361,29 @@ textarea {
   color: var(--zy-fg);
 }
 
+/* Each nesting level draws one continuous guide, descending from the centre of
+   its folder's chevron. Quiet at rest — it is scaffolding, not content. */
 .tree-children {
   position: relative;
-  border-left: 1px solid color-mix(in srgb, var(--zy-border) 60%, transparent);
+  border-left: 1px solid var(--zy-tree-guide);
   padding-left: 2px;
+  transition: border-color var(--zy-transition-fast);
+}
+
+/* The branch holding the open note lights up, so its place in the hierarchy is
+   readable at a glance without expanding or scrolling to check. Every level of
+   the chain matches, which is what draws the path from root to note. */
+.tree-dir-group:has(.tree-row--active) > .tree-children {
+  border-left-color: var(--zy-accent);
+}
+
+/* Hovering a folder traces the same path, one step ahead of clicking. */
+.tree-dir-group:hover > .tree-children {
+  border-left-color: var(--zy-tree-guide-strong);
+}
+
+.tree-dir-group:has(.tree-row--active):hover > .tree-children {
+  border-left-color: var(--zy-accent);
 }
 
 .tree-empty-search {
