@@ -5,6 +5,7 @@ import { send } from './ipc/registry'
 import { buildAppMenu } from './menu'
 import { AiService } from './services/ai'
 import { EmbeddingService } from './services/embeddings'
+import { HistoryService } from './services/history'
 import { ExportService } from './services/exporter'
 import { FileSystemService } from './services/file-system'
 import { LinkScanner } from './services/link-scanner'
@@ -37,6 +38,7 @@ if (!gotLock) {
   const exporter = new ExportService()
   const ai = new AiService(() => settings.get())
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
+  const history = new HistoryService(app.getPath('userData'))
 
   app.on('second-instance', () => {
     const win = windows.window
@@ -49,7 +51,7 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     await settings.load()
     handleAssetProtocol()
-    registerIpcHandlers({ fs, watcher, settings, windows, links, exporter, ai, embeddings })
+    registerIpcHandlers({ fs, watcher, settings, windows, links, exporter, ai, embeddings, history })
     buildAppMenu(settings.get().keybindings)
     windows.createMainWindow()
 

@@ -198,6 +198,11 @@ export const builtinCommands: Command[] = [
     run: () => void openDailyNote()
   },
   {
+    id: 'note.history',
+    title: 'Version History',
+    run: ({ store }) => store().toggleHistory()
+  },
+  {
     id: 'canvas.new',
     title: 'New Canvas',
     run: () => void newCanvas()

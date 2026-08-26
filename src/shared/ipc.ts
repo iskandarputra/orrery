@@ -97,6 +97,11 @@ export interface IpcInvokeContract {
   'fs:watch': { req: { path: string }; res: { watchId: string } }
   'fs:unwatch': { req: { watchId: string }; res: void }
 
+  /** Versions of a note, newest first. */
+  'history:list': { req: { path: string }; res: { id: string; at: number; bytes: number }[] }
+  /** The content of one version. */
+  'history:read': { req: { path: string; id: string }; res: string }
+
   'settings:get': { req: void; res: Settings }
   'settings:set': { req: Partial<Settings>; res: Settings }
 

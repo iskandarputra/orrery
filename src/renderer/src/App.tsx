@@ -5,6 +5,7 @@ import { ContextMenu } from '@/components/context-menu/ContextMenu'
 import { DocStatsModal } from '@/components/DocStatsModal'
 import { EditorPane } from '@/components/EditorPane'
 import { AnalyticsView } from './components/AnalyticsView'
+import { HistoryModal } from './components/HistoryModal'
 import { GraphView } from '@/components/GraphView'
 import { HeaderBar } from '@/components/HeaderBar'
 import { Palette } from '@/components/Palette'
@@ -78,6 +79,7 @@ export function App(): React.JSX.Element {
       {!zenMode && <RightPanel />}
       <GraphView />
       <AnalyticsView />
+      <HistoryModal />
       <Palette />
       <SettingsModal />
       <DocStatsModal />

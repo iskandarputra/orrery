@@ -256,6 +256,86 @@ textarea {
   color: var(--zy-fg-muted);
 }
 
+/* Version history dialog. */
+.history {
+  width: min(900px, calc(100vw - 40px));
+  height: min(620px, calc(100vh - 40px));
+}
+
+.history__body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+.history__list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--zy-border);
+}
+
+.history__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: var(--zy-radius-sm);
+  background: transparent;
+  color: var(--zy-fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history__item:hover {
+  background: var(--zy-hover-bg);
+}
+
+.history__item--active {
+  background: var(--zy-active-bg);
+}
+
+.history__when {
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.history__size {
+  font-size: 11px;
+  color: var(--zy-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.history__preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.history__preview pre {
+  flex: 1;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  background: var(--zy-code-bg);
+  border: 1px solid var(--zy-border);
+  border-radius: var(--zy-radius-md);
+  font-family: var(--zy-mono-font);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.history__restore {
+  align-self: flex-end;
+}
+
 /* ==========================================================================
    Canvas boards (.canvas files)
    ========================================================================== */

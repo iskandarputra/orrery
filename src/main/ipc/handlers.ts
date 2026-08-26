@@ -6,6 +6,7 @@ import { pushRecent } from '@core/recent'
 import type { AiService } from '../services/ai'
 import type { EmbeddingService } from '../services/embeddings'
 import type { ExportService } from '../services/exporter'
+import type { HistoryService } from '../services/history'
 import type { FileSystemService } from '../services/file-system'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
@@ -23,6 +24,7 @@ export interface HandlerDeps {
   exporter: ExportService
   ai: AiService
   embeddings: EmbeddingService
+  history: HistoryService
 }
 
 const pathReq = z.object({ path: z.string().min(1) })
@@ -34,7 +36,7 @@ const MARKDOWN_FILTERS = [
 
 /** Bind every contract channel to its service. All channels registered here. */
 export function registerIpcHandlers(deps: HandlerDeps): void {
-  const { fs, watcher, settings, windows, links, exporter, ai, embeddings } = deps
+  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history } = deps
 
   // --- dialogs -------------------------------------------------------------
   handle('dialog:openFile', null, async () => {
@@ -93,7 +95,13 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       content: z.string(),
       expectedMtimeMs: z.number().nullable()
     }),
-    (_e, req) => fs.writeFile(req.path, req.content, req.expectedMtimeMs)
+    async (_e, req) => {
+      const result = await fs.writeFile(req.path, req.content, req.expectedMtimeMs)
+      // Record the version only once the file is safely on disk, and never let
+      // a history failure cost the user their save.
+      await history.record(req.path, req.content).catch(() => undefined)
+      return result
+    }
   )
 
   handle('fs:readTree', pathReq, (_e, req) => fs.readTree(req.path))
@@ -205,6 +213,14 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('fs:watch', pathReq, async (_e, req) => ({ watchId: await watcher.watch(req.path) }))
 
   handle('fs:unwatch', z.object({ watchId: z.string() }), (_e, req) => watcher.unwatch(req.watchId))
+
+  // --- version history -----------------------------------------------------
+  handle('history:list', z.object({ path: z.string().min(1) }), (_e, req) => history.list(req.path))
+  handle(
+    'history:read',
+    z.object({ path: z.string().min(1), id: z.string().min(1) }),
+    (_e, req) => history.read(req.path, req.id)
+  )
 
   // --- settings ------------------------------------------------------------
   handle('settings:get', null, () => settings.get())

@@ -45,6 +45,8 @@ export interface UiSlice {
   graphOpen: boolean
   /** Full-screen vault analytics overlay. */
   analyticsOpen: boolean
+  /** Version history dialog for the open note. */
+  historyOpen: boolean
   /** Quick switcher, command palette, or the template picker. */
   paletteMode: PaletteMode | null
   /** Expanded directories in the file tree (transient, session-scoped). */
@@ -79,6 +81,7 @@ export interface UiSlice {
   searchVaultFor(query: string): void
   toggleGraph(): void
   toggleAnalytics(): void
+  toggleHistory(): void
   openPalette(mode: PaletteMode): void
   closePalette(): void
   setTreeEdit(edit: TreeEdit | null): void
@@ -108,6 +111,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   sidePanel: null,
   graphOpen: false,
   analyticsOpen: false,
+  historyOpen: false,
   paletteMode: null,
   expandedDirs: {},
   treeEdit: null,
@@ -154,6 +158,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   toggleAnalytics() {
     set((s) => ({ analyticsOpen: !s.analyticsOpen }))
+  },
+
+  toggleHistory() {
+    set((s) => ({ historyOpen: !s.historyOpen }))
   },
 
   openPalette(mode) {
