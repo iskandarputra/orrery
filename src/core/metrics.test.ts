@@ -11,6 +11,7 @@ function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
     folder: '',
     words: 0,
     mtimeMs: 0,
+    tags: [],
     ...over
   }
 }

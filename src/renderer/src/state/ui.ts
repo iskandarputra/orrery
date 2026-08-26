@@ -24,7 +24,14 @@ export interface ToastMessage {
 export type PaletteMode = 'files' | 'commands' | 'templates'
 
 /** Tabs of the right side panel. */
-export type SidePanel = 'outline' | 'backlinks' | 'search' | 'ai' | 'stats' | 'analysis'
+export type SidePanel =
+  | 'outline'
+  | 'backlinks'
+  | 'search'
+  | 'ai'
+  | 'stats'
+  | 'analysis'
+  | 'tags'
 
 export interface UiSlice {
   /** Mirror of main-process settings; defaults until loadSettings resolves. */

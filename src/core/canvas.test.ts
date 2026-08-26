@@ -115,7 +115,7 @@ describe('geometry', () => {
 
 describe('seedCanvasFromNotes', () => {
   function node(id: string): GraphNode {
-    return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0 }
+    return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0, tags: [] }
   }
   const graph: LinkGraph = {
     nodes: ['/v/A.md', '/v/B.md', '/v/C.md'].map(node),

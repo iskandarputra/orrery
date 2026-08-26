@@ -11,6 +11,7 @@ function note(label: string, over: Partial<AnalyzedGraphNode> = {}): AnalyzedGra
     folder: '',
     words: 100,
     mtimeMs: 0,
+    tags: [],
     inDegree: 0,
     outDegree: 0,
     pagerank: 0.1,

@@ -11,6 +11,7 @@ import { htmlComment } from './features/html-comment'
 import { inlineCode } from './features/inline-code'
 import { links } from './features/links'
 import { lists } from './features/lists'
+import { tags } from './features/tags'
 import { frontmatterRendering } from './frontmatter'
 import { imageRendering } from './images'
 import { livePreviewPlugin } from './plugin'
@@ -71,7 +72,8 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
         blockquote,
         hr,
         codeBlock,
-        htmlComment
+        htmlComment,
+        tags
       ],
       reveal
     ),

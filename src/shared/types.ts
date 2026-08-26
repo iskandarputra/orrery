@@ -48,6 +48,8 @@ export interface GraphNode {
   words: number
   /** Last-modified time, epoch ms (0 for ghosts). */
   mtimeMs: number
+  /** `#tags` found in the note, in order of first appearance. */
+  tags: string[]
 }
 
 export interface GraphEdge {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { selectContext, type ScoredChunk } from './retrieval'
 
 function node(id: string): GraphNode {
-  return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0 }
+  return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0, tags: [] }
 }
 
 function graph(ids: string[], links: [string, string][]): LinkGraph {

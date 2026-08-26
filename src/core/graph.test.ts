@@ -45,3 +45,18 @@ describe('per-note facts', () => {
     })
   })
 })
+
+describe('tags', () => {
+  it('records each note\'s tags once', () => {
+    const g = buildGraph(
+      [{ path: '/v/A.md', stem: 'A', content: '#project notes about #rust and #rust again' }],
+      '/v'
+    )
+    expect(g.nodes[0]!.tags).toEqual(['project', 'rust'])
+  })
+
+  it('leaves ghosts with no tags', () => {
+    const g = buildGraph([{ path: '/v/A.md', stem: 'A', content: '[[Missing]] #real' }], '/v')
+    expect(g.nodes.find((n) => !n.exists)!.tags).toEqual([])
+  })
+})

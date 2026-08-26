@@ -156,8 +156,104 @@ textarea {
 }
 
 .editor-host,
+/* One pane, or two side by side. */
+.editor-panes {
+  display: flex;
+  height: 100%;
+}
+
+.editor-pane-host {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The divider only exists when there is something to divide. */
+.editor-panes--split .editor-pane-host + .editor-pane-host {
+  border-left: 1px solid var(--zy-border);
+}
+
+/* A quiet marker for which pane has focus — enough to orient, not to shout. */
+.editor-panes--split .editor-pane-host--focused::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--zy-accent);
+  opacity: 0.6;
+  z-index: 1;
+}
+
 .editor-pane {
   height: 100%;
+}
+
+/* Tag pane. */
+.tags-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.tags-panel__filter {
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--zy-border);
+  border-radius: var(--zy-radius-sm);
+  background: var(--zy-input-bg);
+  color: var(--zy-fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.tags-panel__filter:focus {
+  border-color: var(--zy-accent);
+}
+
+.tags-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tags-panel__tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--zy-radius-sm);
+  background: transparent;
+  color: var(--zy-fg);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tags-panel__tag:hover {
+  background: var(--zy-hover-bg);
+}
+
+.tags-panel__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--zy-accent);
+}
+
+.tags-panel__count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--zy-fg-muted);
 }
 
 /* ==========================================================================

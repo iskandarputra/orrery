@@ -604,3 +604,13 @@
 .cm-zy-comment-line:hover {
   opacity: 1;
 }
+
+/* #tags render as pills — recognisable at a glance, still plain text on disk. */
+.cm-zy-tag {
+  padding: 1px 6px;
+  border-radius: var(--zy-radius-full);
+  background: var(--zy-accent-soft);
+  color: var(--zy-accent);
+  font-size: 0.9em;
+  font-weight: 500;
+}

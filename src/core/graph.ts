@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode, LinkGraph } from '@shared/types'
 import { dirname } from './paths'
+import { findTags } from './tags'
 import { findWikilinks } from './wikilinks'
 
 /** Same definition of a word as the editor's live counter. */
@@ -38,7 +39,8 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       degree: 0,
       folder: folderOf(f.path, rootPath),
       words: f.content.match(WORD_RE)?.length ?? 0,
-      mtimeMs: f.mtimeMs ?? 0
+      mtimeMs: f.mtimeMs ?? 0,
+      tags: [...new Set(findTags(f.content).map((t) => t.tag))]
     })
   }
 
@@ -57,7 +59,8 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
           degree: 0,
           folder: '',
           words: 0,
-          mtimeMs: 0
+          mtimeMs: 0,
+          tags: []
         })
       }
       if (to === f.path) continue // self-link

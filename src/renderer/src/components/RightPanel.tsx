@@ -8,6 +8,7 @@ import type { SidePanel } from '@/state/ui'
 import { AiChatBody } from './AiChat'
 import { BacklinksBody } from './BacklinksPanel'
 import { NoteAnalysisBody } from './NoteAnalysisPanel'
+import { TagsBody } from './TagsPanel'
 import { Icon, type IconName } from './Icon'
 import { EmptyState, ResultGroups } from './PanelBits'
 
@@ -242,7 +243,8 @@ const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'ai', label: 'AI', icon: 'sparkle' },
   { id: 'stats', label: 'Stats', icon: 'info' },
-  { id: 'analysis', label: 'Analysis', icon: 'bar-chart' }
+  { id: 'analysis', label: 'Analysis', icon: 'bar-chart' },
+  { id: 'tags', label: 'Tags', icon: 'hash' }
 ]
 
 export function RightPanel(): React.JSX.Element | null {
@@ -308,6 +310,7 @@ export function RightPanel(): React.JSX.Element | null {
         {panel === 'ai' && <AiChatBody />}
         {panel === 'stats' && <DocStatsBody />}
         {panel === 'analysis' && <NoteAnalysisBody />}
+        {panel === 'tags' && <TagsBody />}
       </div>
     </aside>
   )

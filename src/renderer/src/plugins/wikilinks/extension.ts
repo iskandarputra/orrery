@@ -1,3 +1,4 @@
+import { tagCompletionSource } from '@/editor/tag-complete'
 import {
   autocompletion,
   type CompletionContext,
@@ -115,7 +116,13 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
   return [plugin, click]
 }
 
-/** `[[` triggers note-name completion from the workspace index. */
+/**
+ * `[[` completes note names, `#` completes tags.
+ *
+ * Both live in one `autocompletion` config because CodeMirror's `override`
+ * replaces the source list rather than adding to it — a second config would
+ * silently win and the other's completions would never appear.
+ */
 function wikilinkCompletion(host: WikilinkHost): Extension {
   const source = (context: CompletionContext): CompletionResult | null => {
     const match = context.matchBefore(/\[\[([^\][\n]*)$/)
@@ -134,7 +141,7 @@ function wikilinkCompletion(host: WikilinkHost): Extension {
       validFor: /^[^\][\n]*$/
     }
   }
-  return autocompletion({ override: [source], icons: false })
+  return autocompletion({ override: [source, tagCompletionSource], icons: false })
 }
 
 export function wikilinks(host: WikilinkHost, reveal = true): Extension {
