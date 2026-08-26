@@ -1,3 +1,4 @@
+import { emojiCompletionSource, slashCompletionSource } from '@/editor/insert-complete'
 import { tagCompletionSource } from '@/editor/tag-complete'
 import {
   autocompletion,
@@ -117,7 +118,8 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
 }
 
 /**
- * `[[` completes note names, `#` completes tags.
+ * `[[` completes note names, `#` completes tags, `/` opens the insert menu and
+ * `:` completes emoji.
  *
  * Both live in one `autocompletion` config because CodeMirror's `override`
  * replaces the source list rather than adding to it — a second config would
@@ -141,7 +143,10 @@ function wikilinkCompletion(host: WikilinkHost): Extension {
       validFor: /^[^\][\n]*$/
     }
   }
-  return autocompletion({ override: [source, tagCompletionSource], icons: false })
+  return autocompletion({
+    override: [source, tagCompletionSource, slashCompletionSource, emojiCompletionSource],
+    icons: false
+  })
 }
 
 export function wikilinks(host: WikilinkHost, reveal = true): Extension {
