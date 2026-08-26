@@ -127,13 +127,17 @@
 /* Blockquotes & Themed Callouts */
 .cm-line.cm-zy-blockquote {
   border-left: 3.5px solid var(--zy-accent);
-  /* The editor's own line padding plus the quote's inset — see --zy-line-pad. */
-  padding-left: calc(var(--zy-line-pad, 2rem) + 1.1em);
+  /* Bar at the text column, content inset from the bar. */
+  margin-left: var(--zy-line-pad, 2rem);
+  margin-right: var(--zy-line-pad, 2rem);
+  padding-left: 1.1em;
   color: var(--zy-fg-muted);
   background: color-mix(in srgb, var(--zy-accent-soft) 35%, transparent);
-  /* No vertical margin: a gap between lines would break the bar and the
-     background into one box per line instead of one quote. */
-  margin: 0;
+  /* No *vertical* margin: a gap between lines would break the bar and the
+     background into one box per line instead of one quote. Longhands only —
+     the `margin` shorthand here would silently reset the inset above. */
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* Only the ends round off, and the breathing room goes outside the block. */
@@ -236,7 +240,14 @@
 }
 
 /* Fenced code blocks as modern cards. */
+/* The card is a block, so it starts where the text column starts — not at the
+   editor's edge — matching tables and the properties card. Its own padding
+   then insets the code within it. */
 .cm-line.cm-zy-code-line {
+  margin-left: var(--zy-line-pad, 2rem);
+  margin-right: var(--zy-line-pad, 2rem);
+  padding-left: 1.1em;
+  padding-right: 1.1em;
   background: var(--zy-code-bg);
   font-family: var(--zy-mono-font);
   font-size: 0.875em;
@@ -516,7 +527,7 @@
 
 /* A quoted list keeps the quote's inset and adds its own indent on top. */
 .cm-line.cm-zy-blockquote.cm-zy-li {
-  padding-left: calc(var(--zy-line-pad, 2rem) + 1.1em + var(--zy-li-indent, 0px));
+  padding-left: calc(1.1em + var(--zy-li-indent, 0px));
 }
 
 /* ==========================================================================
