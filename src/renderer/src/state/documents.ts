@@ -183,7 +183,12 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         }
       },
       tabOrder: [...s.tabOrder, id],
-      activeId: id
+      activeId: id,
+      // `activeId` mirrors `paneIds[focusedPane]`; setting it alone left the
+      // tab bar showing the new note while the pane still held the old one, so
+      // the pane never swapped buffers and never took focus — the new note
+      // looked open but could not be typed into.
+      paneIds: s.focusedPane === 0 ? [id, s.paneIds[1]] : [s.paneIds[0], id]
     }))
   },
 

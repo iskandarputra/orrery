@@ -83,6 +83,29 @@ test('edits and saves to disk', async () => {
   expect(readFileSync(join(vault, 'Home.md'), 'utf-8')).toContain('Added by e2e.')
 })
 
+test('a new note opens in the pane and takes the caret', async () => {
+  await page.locator('.tree-row--file', { hasText: 'Home.md' }).click()
+  const before = await page.locator('.tab').count()
+
+  await page.locator('.tab-bar__new-btn').click()
+  await expect(page.locator('.tab')).toHaveCount(before + 1)
+
+  // `activeId` mirrors the focused pane's buffer. Setting one without the
+  // other showed the new tab while the pane kept the old note — so the note
+  // looked open, took no focus, and swallowed everything typed into it.
+  await expect(page.locator('.editor-pane-host .cm-content').first()).toHaveText('')
+  await expect(page.locator('.cm-editor.cm-focused')).toBeVisible()
+
+  await page.keyboard.type('straight into the new note')
+  await expect(page.locator('.editor-pane-host .cm-content').first()).toHaveText(
+    'straight into the new note'
+  )
+
+  // Leave the suite on a saved, known note.
+  await page.locator('.tab--active .tab__close').click()
+  await page.locator('.tree-row--file', { hasText: 'Home.md' }).click()
+})
+
 test('quick-open switches notes', async () => {
   await runCommand('app.quickOpen')
   await expect(page.locator('.palette')).toBeVisible()
