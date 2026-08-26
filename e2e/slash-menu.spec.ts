@@ -4,11 +4,10 @@ import { join } from 'node:path'
 import {
   test,
   expect,
-  _electron as electron,
   type ElectronApplication,
   type Page
 } from '@playwright/test'
-import { closeCleanly, openVault } from './helpers'
+import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
 let page: Page
@@ -17,10 +16,7 @@ let vault: string
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'zymd-slash-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\n')
-  app = await electron.launch({
-    args: ['./out/main/index.js', '--no-sandbox'],
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' }
-  })
+  app = await launchApp()
   page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Note.md')

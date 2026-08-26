@@ -4,11 +4,10 @@ import { join } from 'node:path'
 import {
   test,
   expect,
-  _electron as electron,
   type ElectronApplication,
   type Page
 } from '@playwright/test'
-import { closeCleanly, openVault } from './helpers'
+import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
 let page: Page
@@ -23,10 +22,7 @@ test.beforeAll(async () => {
   writeFileSync(join(vault, 'One.md'), '# One\n')
   writeFileSync(join(vault, 'Two.md'), '# Two\n')
   writeFileSync(join(vault, 'Three.md'), '# Three\n')
-  app = await electron.launch({
-    args: ['./out/main/index.js', '--no-sandbox'],
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' }
-  })
+  app = await launchApp()
   page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'One.md')

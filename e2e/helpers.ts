@@ -1,20 +1,43 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { _electron as electron, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { expect } from '@playwright/test'
+
+const userDataDirs: string[] = []
+
+// Each worker cleans up after the specs it ran.
+process.on('exit', () => {
+  for (const dir of userDataDirs) rmSync(dir, { recursive: true, force: true })
+})
+
+/**
+ * Launch the app against a userData directory of its own.
+ *
+ * Without this every spec shares the developer's real userData, so settings,
+ * the remembered session and the view mode carry from one spec into the next —
+ * which is both a source of order-dependent failures and a way for a test run
+ * to overwrite the settings of the machine it runs on.
+ */
+export async function launchApp(): Promise<ElectronApplication> {
+  const userData = mkdtempSync(join(tmpdir(), 'zymd-userdata-'))
+  userDataDirs.push(userData)
+  return electron.launch({
+    args: ['./out/main/index.js', '--no-sandbox', `--user-data-dir=${userData}`],
+    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' }
+  })
+}
 
 /**
  * Point the app at a test vault and wait until it has actually adopted it.
  *
- * The app restores the last opened folder on boot, which in a fresh run is the
- * previous run's deleted temp vault (settings live in real userData). Waiting
- * for a file of *this* vault to appear keeps that restore from racing the
- * switch and leaving the tree empty.
+ * The app restores the last opened folder on boot, so waiting for a file of
+ * *this* vault to appear keeps that restore from racing the switch and leaving
+ * the tree empty.
  */
 export async function openVault(page: Page, vault: string, sentinelFile: string): Promise<void> {
-  // Settings live in the user's real userData, shared by every spec, so a run
-  // starts from whatever the last one left behind. Three things have to be
-  // normalised or they leak across specs: the folder, the remembered session
-  // (last run's tabs point at a deleted temp vault), and the view mode (a spec
-  // that ends in Reading leaves the next one read-only).
+  // Set explicitly rather than assumed: a spec may open a vault more than once,
+  // and by then the app carries the session and view mode the spec left behind.
   await page.evaluate(async (v) => {
     const current = await window.zymd.invoke('settings:get', undefined)
     await window.zymd.invoke('settings:set', {
