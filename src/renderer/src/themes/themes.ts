@@ -119,7 +119,11 @@ export const THEMES: ThemeSpec[] = [
     code: { keyword: '#cf222e', string: '#0a3069', comment: '#6e7781', number: '#0550ae', function: '#8250df', type: '#953800', property: '#116329' } }),
   l({ id: 'github-light', name: 'GitHub Light', bg: '#ffffff', panel: '#f6f8fa', fg: '#1f2328', accent: '#0969da',
     code: { keyword: '#cf222e', string: '#0a3069', comment: '#59636e', number: '#0550ae', function: '#8250df', type: '#953800', property: '#116329' } }),
-  l({ id: 'solarized-light', name: 'Solarized Light', bg: '#fdf6e3', panel: '#eee8d5', fg: '#586e75', accent: '#268bd2',
+  // fg is Solarized base01 (#586e75) nudged 3% toward base02: on base2 panels
+  // the published value gives 4.39:1, just under AA, which put essentially all
+  // of this theme's chrome text below the line. Two RGB units, inside the
+  // palette's own ramp, buys 4.52:1.
+  l({ id: 'solarized-light', name: 'Solarized Light', bg: '#fdf6e3', panel: '#eee8d5', fg: '#566c73', accent: '#268bd2',
     code: { keyword: '#859900', string: '#2aa198', comment: '#93a1a1', number: '#d33682', function: '#268bd2', type: '#b58900', property: '#cb4b16' } }),
   l({ id: 'nord-light', name: 'Nord Light', bg: '#eceff4', panel: '#e5e9f0', fg: '#2e3440', accent: '#5e81ac',
     code: { keyword: '#5e81ac', string: '#a3be8c', comment: '#9aa4b5', number: '#b48ead', function: '#88c0d0', type: '#8fbcbb', property: '#d08770' } }),

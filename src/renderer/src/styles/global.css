@@ -1350,8 +1350,12 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  /* A real 24px box rather than an invisible one grown around a smaller
+     button: these sit side by side, and expanded hit areas would overlap so
+     that a click near the seam lands on the neighbour. The 28px row has the
+     room, and the icon inside keeps its size. */
+  width: 24px;
+  height: 24px;
   border-radius: var(--zy-radius-xs);
   color: var(--zy-fg-faint);
 }
@@ -4011,16 +4015,14 @@ kbd {
   background: var(--zy-border);
 }
 
-/* An icon button this small is a hard target to hit. Rather than grow the
-   glyph and coarsen the density, each carries an invisible 24px hit area
-   centred on it — the size WCAG asks for, at the size the design wants. */
-.tab__close,
-.tree-row__action-btn {
+/* The tab close button is a hard target to hit, and unlike the tree's action
+   buttons it has no neighbour to collide with — so it keeps its small glyph and
+   carries an invisible 24px hit area centred on it. */
+.tab__close {
   position: relative;
 }
 
-.tab__close::after,
-.tree-row__action-btn::after {
+.tab__close::after {
   content: '';
   position: absolute;
   top: 50%;

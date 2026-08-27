@@ -422,6 +422,15 @@
   border-bottom-color: var(--zy-accent-text);
 }
 
+/* The markdown highlighter wraps inline text in spans of its own, which paint
+   over the colour these rules set — on Ayu Light that left a wikilink at
+   1.85:1. Each of these owns its colour; whatever sits inside it inherits. */
+.cm-zy-wikilink span,
+.cm-zy-link-text span,
+.cm-zy-tag span {
+  color: inherit;
+}
+
 /* Autocomplete dropdown (wikilink completion). */
 .cm-tooltip.cm-tooltip-autocomplete {
   border-radius: var(--zy-radius-md);
