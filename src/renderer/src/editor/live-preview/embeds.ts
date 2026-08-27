@@ -24,7 +24,7 @@ function resolveNotePath(target: string): string | null {
 async function loadEmbed(target: string, heading: string | null, el: HTMLElement): Promise<void> {
   const path = resolveNotePath(target)
   if (!path) {
-    el.classList.add('cm-zy-embed--missing')
+    el.classList.add('cm-or-embed--missing')
     el.textContent = `“${target}” doesn't exist yet`
     return
   }
@@ -37,14 +37,14 @@ async function loadEmbed(target: string, heading: string | null, el: HTMLElement
       const whole = file.content
       const section = heading ? extractSection(whole, heading) : whole
       if (heading && section === null) {
-        el.classList.add('cm-zy-embed--missing')
+        el.classList.add('cm-or-embed--missing')
         el.textContent = `“${target}” has no section “${heading}”`
         return
       }
       body = (section ?? whole).trim()
       cache.set(key, body)
     } catch {
-      el.classList.add('cm-zy-embed--missing')
+      el.classList.add('cm-or-embed--missing')
       el.textContent = `Could not read “${target}”`
       return
     }
@@ -52,10 +52,10 @@ async function loadEmbed(target: string, heading: string | null, el: HTMLElement
 
   el.textContent = ''
   const title = document.createElement('div')
-  title.className = 'cm-zy-embed-title'
+  title.className = 'cm-or-embed-title'
   title.textContent = heading ? `${target} › ${heading}` : target
   const content = document.createElement('div')
-  content.className = 'cm-zy-embed-body'
+  content.className = 'cm-or-embed-body'
   el.append(title, content)
 
   // Rendered, not raw: an embed showing markdown source beside rendered text
@@ -87,7 +87,7 @@ class EmbedWidget extends WidgetType {
 
   override toDOM(view: EditorView): HTMLElement {
     const el = document.createElement('div')
-    el.className = 'cm-zy-embed'
+    el.className = 'cm-or-embed'
     el.textContent = `Loading ${this.target}…`
     void loadEmbed(this.target, this.heading, el)
 

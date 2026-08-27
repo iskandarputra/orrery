@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
 
-export const ASSET_SCHEME = 'zymd-asset'
+export const ASSET_SCHEME = 'orrery-asset'
 
 /**
  * Must run before app `ready`. Marks the asset scheme as standard + secure so
@@ -24,7 +24,7 @@ export function registerAssetScheme(): void {
   ])
 }
 
-/** After ready: serve `zymd-asset://local/<abs-path>` from disk read-only. */
+/** After ready: serve `orrery-asset://local/<abs-path>` from disk read-only. */
 export function handleAssetProtocol(): void {
   protocol.handle(ASSET_SCHEME, (request) => {
     try {

@@ -146,8 +146,8 @@ export interface IpcErrorPayload {
   message: string
 }
 
-/** The api surface exposed on `window.zymd` by the preload script. */
-export interface ZymdApi {
+/** The api surface exposed on `window.orrery` by the preload script. */
+export interface OrreryApi {
   invoke<K extends keyof IpcInvokeContract>(
     channel: K,
     req: IpcInvokeContract[K]['req']

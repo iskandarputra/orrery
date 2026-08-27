@@ -59,7 +59,7 @@ async function saved(): Promise<string> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-blocks-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-blocks-'))
   writeFileSync(join(vault, 'Note.md'), DOC)
   app = await launchApp()
   page = await app.firstWindow()
@@ -130,7 +130,7 @@ test('dragging a block by its handle drops it elsewhere', async () => {
   // The gutter also renders a hidden spacer marker, so pick by geometry rather
   // than by index, skipping anything that isn't really on screen.
   const handleBox = await page.evaluate((y) => {
-    const found = Array.from(document.querySelectorAll('.cm-zy-block-handle')).find((el) => {
+    const found = Array.from(document.querySelectorAll('.cm-or-block-handle')).find((el) => {
       const rect = el.getBoundingClientRect()
       return getComputedStyle(el).visibility !== 'hidden' && Math.abs(rect.y - y) < 24
     })
@@ -144,7 +144,7 @@ test('dragging a block by its handle drops it elsewhere', async () => {
   await page.mouse.move(handleBox!.x, handleBox!.y)
   await page.mouse.down()
   await page.mouse.move(target.x + 20, target.y + target.height - 2, { steps: 12 })
-  await expect(page.locator('.cm-zy-drop-line')).toBeVisible()
+  await expect(page.locator('.cm-or-drop-line')).toBeVisible()
   await page.mouse.up()
 
   const after = await saved()

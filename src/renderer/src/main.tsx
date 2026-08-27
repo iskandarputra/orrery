@@ -14,7 +14,7 @@ import './styles/editor.css'
 // Inject all theme palettes before first paint; App picks the active one
 // by stamping data-theme on <html>.
 const themeStyles = document.createElement('style')
-themeStyles.id = 'zymd-themes'
+themeStyles.id = 'orrery-themes'
 themeStyles.textContent = generateThemeCss()
 document.head.appendChild(themeStyles)
 

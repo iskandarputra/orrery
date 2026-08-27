@@ -27,7 +27,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-notes-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-notes-'))
   mkdirSync(join(vault, 'Templates'), { recursive: true })
   writeFileSync(
     join(vault, 'Templates', 'Daily.md'),
@@ -43,7 +43,7 @@ test.beforeAll(async () => {
   // these have to be in settings before it runs.
   await page.evaluate(
     async (v) =>
-      window.zymd.invoke('settings:set', {
+      window.orrery.invoke('settings:set', {
         lastOpenedFolder: v,
         session: { openPaths: [], activePath: '' },
         dailyNotes: { folder: 'Daily', format: 'YYYY-MM-DD', template: 'Templates/Daily.md' },

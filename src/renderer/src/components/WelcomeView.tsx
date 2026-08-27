@@ -69,7 +69,7 @@ export function WelcomeView(): React.JSX.Element {
       <div className="welcome__hero">
         <Logo size={56} />
         <div className="welcome__title">
-          <h1 className="welcome__wordmark">zymd</h1>
+          <h1 className="welcome__wordmark">orrery</h1>
           <p className="welcome__tagline">High-performance, live-preview markdown editor &amp; knowledge base</p>
         </div>
       </div>

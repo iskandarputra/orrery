@@ -27,7 +27,7 @@ function renderInline(target: HTMLElement, text: string): void {
       target.appendChild(em)
     } else if (m[4]) {
       const link = document.createElement('span')
-      link.className = 'cm-zy-wikilink'
+      link.className = 'cm-or-wikilink'
       link.textContent = m[6] ?? m[5] ?? ''
       target.appendChild(link)
     }
@@ -51,7 +51,7 @@ class TableWidget extends WidgetType {
 
   override toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement('div')
-    wrap.className = 'cm-zy-table'
+    wrap.className = 'cm-or-table'
     const parsed = parseTable(this.source)
     if (!parsed) {
       wrap.textContent = this.source
@@ -93,7 +93,7 @@ class TableWidget extends WidgetType {
   }
 }
 
-const tableSrcLine = Decoration.line({ class: 'cm-zy-table-src' })
+const tableSrcLine = Decoration.line({ class: 'cm-or-table-src' })
 
 function buildTableDecorations(state: EditorState, reveal: boolean): DecorationSet {
   const decorations: Range<Decoration>[] = []

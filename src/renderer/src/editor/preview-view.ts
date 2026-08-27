@@ -7,7 +7,7 @@ import { wikilinks } from '@/plugins/wikilinks/extension'
 import { useStore } from '@/state/store'
 import { HighlightExtension } from './markdown/highlight-extension'
 import { livePreview } from './live-preview'
-import { zymdEditorTheme } from './theme'
+import { orreryEditorTheme } from './theme'
 
 /**
  * A read-only rendered view of some markdown, for places that show a note
@@ -27,7 +27,7 @@ export function mountPreview(parent: HTMLElement, text: string): EditorView {
           codeLanguages: languages,
           extensions: [HighlightExtension]
         }),
-        zymdEditorTheme(),
+        orreryEditorTheme(),
         EditorView.lineWrapping,
         livePreview({ reveal: false }),
         // Wikilinks render here too: an embedded note showing `[[Other]]` as

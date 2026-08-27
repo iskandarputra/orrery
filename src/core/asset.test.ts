@@ -11,22 +11,22 @@ describe('resolveAssetUrl', () => {
 
   it('resolves a relative path against the note directory', () => {
     expect(resolveAssetUrl('/vault/notes/n.md', 'img/pic.png')).toBe(
-      'zymd-asset://local/vault/notes/img/pic.png'
+      'orrery-asset://local/vault/notes/img/pic.png'
     )
   })
 
   it('collapses ../ segments', () => {
     expect(resolveAssetUrl('/vault/notes/n.md', '../assets/pic.png')).toBe(
-      'zymd-asset://local/vault/assets/pic.png'
+      'orrery-asset://local/vault/assets/pic.png'
     )
   })
 
   it('handles absolute local paths', () => {
-    expect(resolveAssetUrl(null, '/abs/pic.png')).toBe('zymd-asset://local/abs/pic.png')
+    expect(resolveAssetUrl(null, '/abs/pic.png')).toBe('orrery-asset://local/abs/pic.png')
   })
 
   it('url-encodes spaces in names', () => {
-    expect(resolveAssetUrl('/v/n.md', 'my pic.png')).toBe('zymd-asset://local/v/my%20pic.png')
+    expect(resolveAssetUrl('/v/n.md', 'my pic.png')).toBe('orrery-asset://local/v/my%20pic.png')
   })
 
   it('returns null for a relative path with no document location', () => {
@@ -38,7 +38,7 @@ describe('already-encoded sources', () => {
   it('does not double-encode a markdown-escaped space', () => {
     // Markdown link destinations are URL-encoded, so %20 means a real space.
     const url = resolveAssetUrl('/v/Note.md', 'assets/my%20pic.png')
-    expect(url).toBe('zymd-asset://local/v/assets/my%20pic.png')
+    expect(url).toBe('orrery-asset://local/v/assets/my%20pic.png')
     expect(url).not.toContain('%2520')
   })
 

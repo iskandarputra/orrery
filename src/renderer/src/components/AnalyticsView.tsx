@@ -213,8 +213,8 @@ function AnalyticsBody({
                   style={{
                     background:
                       cluster.rank < VIZ_SLOTS
-                        ? `var(--zy-viz-${cluster.rank + 1})`
-                        : 'var(--zy-fg-faint)'
+                        ? `var(--or-viz-${cluster.rank + 1})`
+                        : 'var(--or-fg-faint)'
                   }}
                 />
                 <span className="analytics__cluster-label">{cluster.label}</span>

@@ -1,6 +1,6 @@
 import { resolveNote } from '@core/notes'
 import { invoke } from '@/services/client'
-import type { ZymdPlugin } from '../api'
+import type { OrreryPlugin } from '../api'
 import { wikilinks } from './extension'
 
 /**
@@ -9,7 +9,7 @@ import { wikilinks } from './extension'
  * creates it in the workspace root (Obsidian behavior) — notes come cheap
  * in a knowledge base.
  */
-export const wikilinksPlugin: ZymdPlugin = {
+export const wikilinksPlugin: OrreryPlugin = {
   id: 'wikilinks',
   name: 'Wikilinks',
   activate(ctx) {

@@ -23,7 +23,7 @@ class MathWidget extends WidgetType {
 
   override toDOM(view: EditorView): HTMLElement {
     const el = document.createElement(this.display ? 'div' : 'span')
-    el.className = this.display ? 'cm-zy-math cm-zy-math--block' : 'cm-zy-math'
+    el.className = this.display ? 'cm-or-math cm-or-math--block' : 'cm-or-math'
     try {
       katex.render(this.expr, el, { displayMode: this.display, throwOnError: false })
     } catch {

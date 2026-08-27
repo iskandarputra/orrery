@@ -20,7 +20,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-tags-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-tags-'))
   writeFileSync(join(vault, 'Alpha.md'), '# Alpha\n\nAbout #rust and #project work.\n')
   writeFileSync(join(vault, 'Beta.md'), '# Beta\n\nMore #rust, plus a fence:\n\n```\n#include <stdio.h>\n```\n')
   writeFileSync(join(vault, 'Gamma.md'), '# Gamma\n\nNothing tagged here.\n')
@@ -38,13 +38,13 @@ test.afterAll(async () => {
 
 test('tags render as pills, and code fences are left alone', async () => {
   await page.locator('.tree-row--file', { hasText: 'Alpha.md' }).click()
-  await expect(page.locator('.cm-zy-tag')).toHaveCount(2)
-  await expect(page.locator('.cm-zy-tag').first()).toHaveText('#rust')
+  await expect(page.locator('.cm-or-tag')).toHaveCount(2)
+  await expect(page.locator('.cm-or-tag').first()).toHaveText('#rust')
 
   await page.locator('.tree-row--file', { hasText: 'Beta.md' }).click()
   // `#include` inside the fence is not a tag; only #rust is.
-  await expect(page.locator('.cm-zy-tag')).toHaveCount(1)
-  await expect(page.locator('.cm-zy-tag')).toHaveText('#rust')
+  await expect(page.locator('.cm-or-tag')).toHaveCount(1)
+  await expect(page.locator('.cm-or-tag')).toHaveText('#rust')
 })
 
 test('the tag pane counts notes per tag and searches on click', async () => {

@@ -50,7 +50,7 @@ export const settingsSchema = z.object({
     .prefault({}),
   markdown: z
     .object({
-      /** Render formatting inline (headings, bold, links…) — the zymd signature. */
+      /** Render formatting inline (headings, bold, links…) — the orrery signature. */
       livePreview: z.boolean().default(true),
       /** Replace -,*,+ markers with round bullets. */
       fancyBullets: z.boolean().default(true),

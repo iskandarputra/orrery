@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# package.sh — build zymd and produce distributable installers with electron-builder.
+# package.sh — build orrery and produce distributable installers with electron-builder.
 #
 # Usage:
 #   ./scripts/package.sh                 # Linux: .deb + AppImage (default)
@@ -33,7 +33,7 @@ for t in "${TARGETS[@]}"; do
   [[ "$t" == "appimage" ]] && BUILDER_TARGETS+=(AppImage) || BUILDER_TARGETS+=("$t")
 done
 
-echo "▸ zymd package → ${BUILDER_TARGETS[*]}"
+echo "▸ orrery package → ${BUILDER_TARGETS[*]}"
 
 if [[ ! -d node_modules ]]; then
   echo "▸ installing dependencies…"

@@ -40,25 +40,25 @@ class FrontmatterWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {
     const entries = parseFrontmatter(this.source)
     const card = document.createElement('div')
-    card.className = 'cm-zy-properties-card'
+    card.className = 'cm-or-properties-card'
 
     // Header bar
     const header = document.createElement('div')
-    header.className = 'cm-zy-properties-header'
+    header.className = 'cm-or-properties-header'
 
     const titleWrap = document.createElement('div')
-    titleWrap.className = 'cm-zy-properties-title-wrap'
+    titleWrap.className = 'cm-or-properties-title-wrap'
 
     const icon = document.createElement('span')
-    icon.className = 'cm-zy-properties-icon'
+    icon.className = 'cm-or-properties-icon'
     icon.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>`
 
     const title = document.createElement('span')
-    title.className = 'cm-zy-properties-title'
+    title.className = 'cm-or-properties-title'
     title.textContent = 'Properties'
 
     const count = document.createElement('span')
-    count.className = 'cm-zy-properties-count'
+    count.className = 'cm-or-properties-count'
     count.textContent = String(entries.length)
 
     titleWrap.appendChild(icon)
@@ -69,18 +69,18 @@ class FrontmatterWidget extends WidgetType {
 
     // Properties Grid
     const grid = document.createElement('div')
-    grid.className = 'cm-zy-properties-grid'
+    grid.className = 'cm-or-properties-grid'
 
     for (const entry of entries) {
       const row = document.createElement('div')
-      row.className = 'cm-zy-property-row'
+      row.className = 'cm-or-property-row'
 
       const keyEl = document.createElement('span')
-      keyEl.className = 'cm-zy-property-key'
+      keyEl.className = 'cm-or-property-key'
       keyEl.textContent = entry.key
 
       const valEl = document.createElement('span')
-      valEl.className = 'cm-zy-property-val'
+      valEl.className = 'cm-or-property-val'
 
       // Check if value is a short status/category pill
       const isPill =
@@ -89,7 +89,7 @@ class FrontmatterWidget extends WidgetType {
         !/^\d+$/.test(entry.value.trim())
 
       if (isPill) {
-        valEl.className += ' cm-zy-property-val--pill'
+        valEl.className += ' cm-or-property-val--pill'
       }
 
       valEl.textContent = entry.value || '—'

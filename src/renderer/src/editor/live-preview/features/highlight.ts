@@ -1,7 +1,7 @@
 import { Decoration } from '@codemirror/view'
 import type { Feature } from '../context'
 
-const markDeco = Decoration.mark({ class: 'cm-zy-mark' })
+const markDeco = Decoration.mark({ class: 'cm-or-mark' })
 
 /** ==text== renders as a marker-pen highlight; == conceals until revealed. */
 export const highlight: Feature = {

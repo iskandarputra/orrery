@@ -10,11 +10,11 @@ async function renderMermaid(code: string, el: HTMLElement): Promise<void> {
   const dark = document.documentElement.dataset['theme']?.includes('light') !== true
   mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' })
   try {
-    const { svg } = await mermaid.render(`zy-mermaid-${++seq}`, code)
+    const { svg } = await mermaid.render(`or-mermaid-${++seq}`, code)
     el.innerHTML = svg
   } catch (err) {
     el.textContent = `Mermaid error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
-    el.classList.add('cm-zy-mermaid--error')
+    el.classList.add('cm-or-mermaid--error')
   }
 }
 
@@ -33,7 +33,7 @@ class MermaidWidget extends WidgetType {
 
   override toDOM(view: EditorView): HTMLElement {
     const el = document.createElement('div')
-    el.className = 'cm-zy-mermaid'
+    el.className = 'cm-or-mermaid'
     el.textContent = 'Rendering diagram…'
     void renderMermaid(this.code, el)
     if (this.interactive) {

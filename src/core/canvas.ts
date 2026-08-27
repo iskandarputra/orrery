@@ -202,7 +202,7 @@ function relativeTo(root: string, path: string): string {
 /**
  * Build a board from notes already in the vault: a card per note, laid out on a
  * grid, wired with the links that exist between them. This is the canvas only
- * zymd can offer — the graph knows which notes belong together, so a board can
+ * orrery can offer — the graph knows which notes belong together, so a board can
  * start from real structure instead of a blank page.
  *
  * Placement is by index, so seeding the same notes twice gives the same board.

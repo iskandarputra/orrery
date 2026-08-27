@@ -23,7 +23,7 @@ describe('==highlight== live preview', () => {
     const conceals = result.conceals.map((r) => doc.slice(r.from, r.to))
     expect(conceals.filter((s) => s === '==')).toHaveLength(2)
     const mark = result.all.find(
-      (r) => (r.value as { spec?: { class?: string } }).spec?.class === 'cm-zy-mark'
+      (r) => (r.value as { spec?: { class?: string } }).spec?.class === 'cm-or-mark'
     )
     expect(mark).toBeDefined()
     expect(doc.slice(mark!.from, mark!.to)).toBe('==this safe==')

@@ -16,13 +16,13 @@ const lineDecos = new Map<number, Decoration>()
 function headingLine(level: number): Decoration {
   let deco = lineDecos.get(level)
   if (!deco) {
-    deco = Decoration.line({ class: `cm-zy-heading cm-zy-h${level}` })
+    deco = Decoration.line({ class: `cm-or-heading cm-or-h${level}` })
     lineDecos.set(level, deco)
   }
   return deco
 }
 
-const headingMarkDeco = Decoration.mark({ class: 'cm-zy-heading-mark' })
+const headingMarkDeco = Decoration.mark({ class: 'cm-or-heading-mark' })
 
 /** `# Heading` — size the line, conceal the `#` marks unless the line is active. */
 export const headings: Feature = {

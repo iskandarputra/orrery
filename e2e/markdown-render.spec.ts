@@ -48,14 +48,14 @@ project/
 `
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-render-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-render-'))
   writeFileSync(join(vault, 'Render.md'), DOC)
   app = await launchApp()
   page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Render.md')
   await page.locator('.tree-row--file', { hasText: 'Render.md' }).click()
-  await page.waitForSelector('.cm-zy-code-line')
+  await page.waitForSelector('.cm-or-code-line')
 })
 
 test.afterAll(async () => {
@@ -66,14 +66,14 @@ test.afterAll(async () => {
 test('code blocks keep their columns', async () => {
   // Never wrapped: an ASCII tree or an aligned comment must not reflow.
   const whiteSpace = await page
-    .locator('.cm-zy-code-line')
+    .locator('.cm-or-code-line')
     .first()
     .evaluate((el) => getComputedStyle(el).whiteSpace)
   expect(whiteSpace).toBe('pre')
 
   // One font size for every token, or glyph widths stagger mid-line.
   const sizes = await page
-    .locator('.cm-zy-code-line')
+    .locator('.cm-or-code-line')
     .nth(1)
     .evaluate((el) =>
       Array.from(el.querySelectorAll('span')).map((s) => getComputedStyle(s).fontSize)
@@ -82,7 +82,7 @@ test('code blocks keep their columns', async () => {
 
   // Indented (4-space) code blocks get the same card as fenced ones.
   const indented = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.cm-zy-code-line')).some((el) =>
+    Array.from(document.querySelectorAll('.cm-or-code-line')).some((el) =>
       (el.textContent ?? '').includes('indented code block')
     )
   )
@@ -91,7 +91,7 @@ test('code blocks keep their columns', async () => {
 
 test('list items hang their wrapped lines under the item text', async () => {
   const rows = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.cm-zy-li')).map((el) => {
+    Array.from(document.querySelectorAll('.cm-or-li')).map((el) => {
       // One text node spanning a soft wrap yields one rect per visual line —
       // unlike a Range over the whole line, whose rects are per box (the marker
       // spans each contribute one) and so can't tell a wrap from a span.
@@ -120,14 +120,14 @@ test('list items hang their wrapped lines under the item text', async () => {
 })
 
 test('blockquotes and callouts conceal their markers', async () => {
-  const quote = await page.locator('.cm-zy-blockquote').first().textContent()
+  const quote = await page.locator('.cm-or-blockquote').first().textContent()
   expect(quote).toBe('a quoted paragraph that lazily continues on a second source line')
 
-  const callout = await page.locator('.cm-zy-callout--warning').first().evaluate((el) => ({
+  const callout = await page.locator('.cm-or-callout--warning').first().evaluate((el) => ({
     text: el.textContent,
-    title: el.querySelector('.cm-zy-callout-title')?.textContent ?? null,
+    title: el.querySelector('.cm-or-callout-title')?.textContent ?? null,
     // `[!WARNING]` parses as a shortcut link — it must not render as one.
-    link: el.querySelector('.cm-zy-link-text')?.textContent ?? null
+    link: el.querySelector('.cm-or-link-text')?.textContent ?? null
   }))
   expect(callout.title).toBe('Be careful')
   expect(callout.link).toBeNull()
@@ -138,10 +138,10 @@ test('code fences hide until the cursor is on the fence line', async () => {
   // Nothing in the rendered document shows the fence syntax…
   await expect(page.locator('.cm-content')).not.toContainText('```')
   // …but the language badge survives as the card's header.
-  await expect(page.locator('.cm-zy-code-info').first()).toHaveText('ts')
+  await expect(page.locator('.cm-or-code-info').first()).toHaveText('ts')
 
   // Stepping onto the opening fence line brings the backticks back.
-  await page.locator('.cm-zy-code-line', { hasText: 'const tree' }).click()
+  await page.locator('.cm-or-code-line', { hasText: 'const tree' }).click()
   await page.keyboard.press('ArrowUp')
   await expect(page.locator('.cm-content')).toContainText('```ts')
 

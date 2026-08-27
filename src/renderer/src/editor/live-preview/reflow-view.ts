@@ -10,7 +10,7 @@ class SoftSpaceWidget extends WidgetType {
   }
   override toDOM(): HTMLElement {
     const span = document.createElement('span')
-    span.className = 'cm-zy-softbreak'
+    span.className = 'cm-or-softbreak'
     span.textContent = ' '
     return span
   }

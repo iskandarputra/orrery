@@ -33,7 +33,7 @@ const EXPORT_CSS = `
   @media print { body { padding: 0; } }
 `
 
-/** zymd-specific syntax marked doesn't know: [[wikilinks]] and ==highlights==. */
+/** orrery-specific syntax marked doesn't know: [[wikilinks]] and ==highlights==. */
 function preprocess(markdown: string): string {
   return markdown
     .replace(

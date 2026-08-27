@@ -2,7 +2,7 @@ import { dirname } from './paths'
 
 /** True for absolute URLs we should pass through untouched. */
 function isAbsoluteUrl(src: string): boolean {
-  return /^(https?:|data:|file:|zymd-asset:)/i.test(src)
+  return /^(https?:|data:|file:|orrery-asset:)/i.test(src)
 }
 
 /** Decode a path segment, tolerating a stray `%` that isn't an escape. */
@@ -32,7 +32,7 @@ function normalize(path: string): string {
 /**
  * Resolve a markdown image src to a loadable URL. Remote/data URLs pass
  * through; local paths resolve against the note's directory and are served
- * over the sandboxed `zymd-asset://` protocol. Returns null when it can't
+ * over the sandboxed `orrery-asset://` protocol. Returns null when it can't
  * resolve (e.g. relative path with no known document location).
  */
 export function resolveAssetUrl(docPath: string | null, src: string): string | null {
@@ -47,12 +47,12 @@ export function resolveAssetUrl(docPath: string | null, src: string): string | n
     if (!docPath) return null
     abs = normalize(`${dirname(docPath)}/${trimmed}`)
   }
-  // zymd-asset://local/<url-encoded-absolute-path>. Markdown destinations are
+  // orrery-asset://local/<url-encoded-absolute-path>. Markdown destinations are
   // themselves URL-encoded, so each segment is decoded before re-encoding —
   // otherwise `my%20pic.png` becomes `my%2520pic.png` and resolves to nothing.
   const encoded = abs
     .split(/[\\/]/)
     .map((segment) => encodeURIComponent(decodeSegment(segment)))
     .join('/')
-  return `zymd-asset://local/${encoded.replace(/^\//, '')}`
+  return `orrery-asset://local/${encoded.replace(/^\//, '')}`
 }

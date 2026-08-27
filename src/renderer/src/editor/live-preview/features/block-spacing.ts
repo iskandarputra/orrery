@@ -30,8 +30,8 @@ function getLineDeco(firstItem: boolean, depth: number): Decoration {
   let deco = lineDecos.get(key)
   if (!deco) {
     deco = Decoration.line({
-      class: firstItem ? 'cm-zy-li cm-zy-li--first' : 'cm-zy-li',
-      attributes: { style: `--zy-li-depth: ${depth}` }
+      class: firstItem ? 'cm-or-li cm-or-li--first' : 'cm-or-li',
+      attributes: { style: `--or-li-depth: ${depth}` }
     })
     lineDecos.set(key, deco)
   }

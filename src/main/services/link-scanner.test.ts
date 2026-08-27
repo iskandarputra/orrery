@@ -8,7 +8,7 @@ let vault: string
 let scanner: LinkScanner
 
 beforeEach(() => {
-  vault = mkdtempSync(path.join(tmpdir(), 'zymd-scan-'))
+  vault = mkdtempSync(path.join(tmpdir(), 'orrery-scan-'))
   writeFileSync(path.join(vault, 'A.md'), '# A\n\nLinks [[B]].\n')
   writeFileSync(path.join(vault, 'B.md'), '# B\n\nBack to [[A]].\n')
   scanner = new LinkScanner()
@@ -61,7 +61,7 @@ describe('graph caching', () => {
   })
 
   it('keeps separate caches per vault', async () => {
-    const other = mkdtempSync(path.join(tmpdir(), 'zymd-scan2-'))
+    const other = mkdtempSync(path.join(tmpdir(), 'orrery-scan2-'))
     writeFileSync(path.join(other, 'Only.md'), '# Only\n')
     try {
       const a = await scanner.graph(vault)

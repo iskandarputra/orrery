@@ -34,7 +34,7 @@ export class WindowManager {
     // It is shown rather than hidden because CodeMirror measures on animation
     // frames, and a window that is never shown stops receiving them — every
     // layout assertion in the suite then reads zero.
-    const headless = process.env.ZYMD_HEADLESS === '1'
+    const headless = process.env.ORRERY_HEADLESS === '1'
 
     const win = new BrowserWindow({
       width: bounds.width,

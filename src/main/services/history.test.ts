@@ -10,7 +10,7 @@ const NOTE = '/vault/Note.md'
 const MINUTE = 60_000
 
 beforeEach(() => {
-  userData = mkdtempSync(path.join(tmpdir(), 'zymd-history-'))
+  userData = mkdtempSync(path.join(tmpdir(), 'orrery-history-'))
   history = new HistoryService(userData)
 })
 

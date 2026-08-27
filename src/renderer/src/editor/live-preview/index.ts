@@ -35,7 +35,7 @@ export interface LivePreviewOptions {
 const linkClickHandler = EditorView.domEventHandlers({
   click(event) {
     if (!event.ctrlKey && !event.metaKey) return false
-    const target = (event.target as HTMLElement).closest?.('.cm-zy-link-text')
+    const target = (event.target as HTMLElement).closest?.('.cm-or-link-text')
     if (!(target instanceof HTMLElement)) return false
     const url = target.dataset['url']
     if (url && /^https?:/i.test(url)) {
@@ -49,7 +49,7 @@ const linkClickHandler = EditorView.domEventHandlers({
 })
 
 /**
- * The zymd live-preview experience: markdown renders in place, syntax marks
+ * The orrery live-preview experience: markdown renders in place, syntax marks
  * reappear around the cursor. Future features (math, mermaid, tables) are new
  * feature modules added to this list.
  */

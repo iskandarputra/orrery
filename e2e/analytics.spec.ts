@@ -53,7 +53,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-analytics-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-analytics-'))
   for (const [rel, body] of Object.entries(VAULT)) {
     const full = join(vault, rel)
     mkdirSync(join(full, '..'), { recursive: true })
@@ -72,7 +72,7 @@ test.afterAll(async () => {
 
 test('the vault scan returns a structural analysis', async () => {
   const analysis = await page.evaluate(
-    async (root) => window.zymd.invoke('workspace:graph', { rootPath: root }),
+    async (root) => window.orrery.invoke('workspace:graph', { rootPath: root }),
     vault
   )
 
@@ -143,7 +143,7 @@ test('the note panel analyses the open note', async () => {
   // Whichever note the engine ranks first must read as #1 in the panel — the
   // point is that the panel and the engine agree, not which note wins.
   const top = await page.evaluate(async (root) => {
-    const g = await window.zymd.invoke('workspace:graph', { rootPath: root })
+    const g = await window.orrery.invoke('workspace:graph', { rootPath: root })
     return g.insights.hubs[0]!.label
   }, vault)
 
@@ -175,7 +175,7 @@ test('link suggestions degrade gracefully with no embedding index', async () => 
   // empty rather than throw, and the panel must say what is missing.
   const suggestions = await page.evaluate(
     async (root) =>
-      window.zymd.invoke('embeddings:suggestLinks', {
+      window.orrery.invoke('embeddings:suggestLinks', {
         rootPath: root,
         path: `${root}/Index.md`,
         limit: 5

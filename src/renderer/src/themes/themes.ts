@@ -243,12 +243,12 @@ export function generateThemeCss(): string {
     const resolved = resolveTheme(spec)
     const vars = (Object.keys(resolved) as (keyof ResolvedTheme)[])
       .filter((k) => k !== 'appearance')
-      .map((k) => `  --zy-${k}: ${resolved[k as TokenName]};`)
+      .map((k) => `  --or-${k}: ${resolved[k as TokenName]};`)
       .join('\n')
     const base = `:root[data-theme='${spec.id}'] {\n  color-scheme: ${spec.appearance};\n${vars}\n}`
 
     const hc = Object.entries(highContrastCodeTokens(spec))
-      .map(([k, v]) => `  --zy-${k}: ${v};`)
+      .map(([k, v]) => `  --or-${k}: ${v};`)
       .join('\n')
     return `${base}\n\n:root[data-theme='${spec.id}'][data-hc-code='on'] {\n${hc}\n}`
   }).join('\n\n')

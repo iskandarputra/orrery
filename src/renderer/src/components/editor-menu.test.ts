@@ -74,7 +74,7 @@ describe('buildEditorMenu', () => {
 
   it('says so when a word is flagged with no suggestions to offer', () => {
     const menu = labels(
-      buildEditorMenu({ ...base, misspelledWord: 'zymd', dictionarySuggestions: [] }, actions())
+      buildEditorMenu({ ...base, misspelledWord: 'orrery', dictionarySuggestions: [] }, actions())
     )
     expect(menu[0]).toMatch(/no suggestions/i)
   })

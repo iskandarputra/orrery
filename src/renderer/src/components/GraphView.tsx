@@ -241,12 +241,12 @@ export function GraphView(): React.JSX.Element | null {
     }
 
     const colors = {
-      edge: cssVar('--zy-border'),
-      node: cssVar('--zy-accent'),
-      ghost: cssVar('--zy-fg-faint'),
-      label: cssVar('--zy-fg-muted'),
-      labelHover: cssVar('--zy-fg'),
-      viz: Array.from({ length: VIZ_SLOTS }, (_, i) => cssVar(`--zy-viz-${i + 1}`))
+      edge: cssVar('--or-border'),
+      node: cssVar('--or-accent'),
+      ghost: cssVar('--or-fg-faint'),
+      label: cssVar('--or-fg-muted'),
+      labelHover: cssVar('--or-fg'),
+      viz: Array.from({ length: VIZ_SLOTS }, (_, i) => cssVar(`--or-viz-${i + 1}`))
     }
 
     const resize = (): void => {

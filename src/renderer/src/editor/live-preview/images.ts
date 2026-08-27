@@ -22,13 +22,13 @@ class ImageWidget extends WidgetType {
 
   override toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement('span')
-    wrap.className = 'cm-zy-image'
+    wrap.className = 'cm-or-image'
     const img = document.createElement('img')
     img.src = this.url
     img.alt = this.alt
     img.loading = 'lazy'
     img.addEventListener('error', () => {
-      wrap.classList.add('cm-zy-image--broken')
+      wrap.classList.add('cm-or-image--broken')
       wrap.textContent = `🖼 ${this.alt || this.url}`
     })
     wrap.appendChild(img)

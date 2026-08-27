@@ -28,7 +28,7 @@ async function editAndSave(text: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-history-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-history-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\noriginal body\n')
   app = await launchApp()
   page = await app.firstWindow()

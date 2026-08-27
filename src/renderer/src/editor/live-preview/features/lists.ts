@@ -4,7 +4,7 @@ import { BulletWidget, CheckboxWidget } from '../widgets'
 
 const bullet = Decoration.replace({ widget: new BulletWidget() })
 /** Holds the number in a fixed-width, right-aligned column. */
-const orderedMark = Decoration.mark({ class: 'cm-zy-ordered-mark' })
+const orderedMark = Decoration.mark({ class: 'cm-or-ordered-mark' })
 
 export interface ListsOptions {
   /** Replace -,*,+ markers with round bullets. */

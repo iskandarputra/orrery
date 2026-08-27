@@ -33,7 +33,7 @@ export function typewriterMode(): Extension {
   )
 }
 
-const dimLine = Decoration.line({ class: 'cm-zy-dim' })
+const dimLine = Decoration.line({ class: 'cm-or-dim' })
 
 /**
  * Focus mode: dim every line except the one holding the caret. Uses line

@@ -57,16 +57,16 @@ describe('indented code blocks', () => {
   it('styles a 4-space indented code block like a fenced one', () => {
     const doc = 'para\n\n    indented code\n    more code\n\nend'
     const { state, result } = build(doc)
-    expect(lineClasses(state, result, 3)).toContain('cm-zy-code-line')
-    expect(lineClasses(state, result, 3)).toContain('cm-zy-code-first')
-    expect(lineClasses(state, result, 4)).toContain('cm-zy-code-line')
-    expect(lineClasses(state, result, 4)).toContain('cm-zy-code-last')
+    expect(lineClasses(state, result, 3)).toContain('cm-or-code-line')
+    expect(lineClasses(state, result, 3)).toContain('cm-or-code-first')
+    expect(lineClasses(state, result, 4)).toContain('cm-or-code-line')
+    expect(lineClasses(state, result, 4)).toContain('cm-or-code-last')
   })
 
   it('leaves ordinary paragraphs untouched', () => {
     const doc = 'para\n\nend'
     const { state, result } = build(doc)
-    expect(lineClasses(state, result, 1)).not.toContain('cm-zy-code-line')
+    expect(lineClasses(state, result, 1)).not.toContain('cm-or-code-line')
   })
 })
 
@@ -91,17 +91,17 @@ describe('callouts', () => {
     const { state, result } = build(doc)
     expect(concealedSpans(doc, result)).toContain('[!NOTE] ')
     const linkDecos = result.all.filter((r) =>
-      ((r.value.spec as { class?: string }).class ?? '').includes('cm-zy-link-text')
+      ((r.value.spec as { class?: string }).class ?? '').includes('cm-or-link-text')
     )
     expect(linkDecos).toHaveLength(0)
-    expect(lineClasses(state, result, 1)).toContain('cm-zy-callout--note')
+    expect(lineClasses(state, result, 1)).toContain('cm-or-callout--note')
   })
 
   it('marks the callout title text', () => {
     const doc = '> [!WARNING] Be careful\n> body\n\nplain'
     const { result } = build(doc)
     const title = result.all.find((r) =>
-      ((r.value.spec as { class?: string }).class ?? '').includes('cm-zy-callout-title')
+      ((r.value.spec as { class?: string }).class ?? '').includes('cm-or-callout-title')
     )
     expect(title).toBeDefined()
     expect(doc.slice(title!.from, title!.to)).toBe('Be careful')
@@ -114,16 +114,16 @@ describe('list hanging indent', () => {
     const { state, result } = build(doc)
     // Depth is published as a variable so CSS can add a fixed step per level to
     // the editor's own line padding rather than replacing it.
-    expect(lineAttrs(state, result, 1)).toContain('--zy-li-depth: 0')
-    expect(lineAttrs(state, result, 2)).toContain('--zy-li-depth: 1')
+    expect(lineAttrs(state, result, 1)).toContain('--or-li-depth: 0')
+    expect(lineAttrs(state, result, 2)).toContain('--or-li-depth: 1')
   })
 
   it('indents by the same step whether the source nests by two spaces or four', () => {
     // Same document meaning; counting source columns would indent them differently.
     const two = build('- one\n  - nested\n')
     const four = build('- one\n    - nested\n')
-    expect(lineAttrs(two.state, two.result, 2)).toContain('--zy-li-depth: 1')
-    expect(lineAttrs(four.state, four.result, 2)).toContain('--zy-li-depth: 1')
+    expect(lineAttrs(two.state, two.result, 2)).toContain('--or-li-depth: 1')
+    expect(lineAttrs(four.state, four.result, 2)).toContain('--or-li-depth: 1')
   })
 
   it('gives a wide ordered marker the same indent as a narrow one', () => {
@@ -131,8 +131,8 @@ describe('list hanging indent', () => {
     // the line indent must not.
     const doc = '1. first\n10. tenth\n'
     const { state, result } = build(doc)
-    expect(lineAttrs(state, result, 1)).toContain('--zy-li-depth: 0')
-    expect(lineAttrs(state, result, 2)).toContain('--zy-li-depth: 0')
+    expect(lineAttrs(state, result, 1)).toContain('--or-li-depth: 0')
+    expect(lineAttrs(state, result, 2)).toContain('--or-li-depth: 0')
   })
 })
 
@@ -147,7 +147,7 @@ describe('fence marks', () => {
   it('keeps the language badge on the concealed opening fence', () => {
     const { result } = build(doc, 0)
     const badge = result.all.find((r) =>
-      ((r.value.spec as { class?: string }).class ?? '').includes('cm-zy-code-info')
+      ((r.value.spec as { class?: string }).class ?? '').includes('cm-or-code-info')
     )
     expect(badge).toBeDefined()
     expect(doc.slice(badge!.from, badge!.to)).toBe('ts')
@@ -172,14 +172,14 @@ describe('fence marks', () => {
   it('collapses a fence line that has nothing left to show', () => {
     const plain = 'a\n\n```\ncode\n```\n\nb'
     const { state, result } = build(plain, 0)
-    expect(lineClasses(state, result, 3)).toContain('cm-zy-code-fence-hidden') // no language badge
-    expect(lineClasses(state, result, 5)).toContain('cm-zy-code-fence-hidden')
+    expect(lineClasses(state, result, 3)).toContain('cm-or-code-fence-hidden') // no language badge
+    expect(lineClasses(state, result, 5)).toContain('cm-or-code-fence-hidden')
   })
 
   it('keeps the badge line at full height', () => {
     const { state, result } = build(doc, 0)
-    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-code-fence-hidden')
-    expect(lineClasses(state, result, 5)).toContain('cm-zy-code-fence-hidden')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-or-code-fence-hidden')
+    expect(lineClasses(state, result, 5)).toContain('cm-or-code-fence-hidden')
   })
 })
 
@@ -187,17 +187,17 @@ describe('loose lists', () => {
   it('treats only the real first item as first, across blank lines', () => {
     const doc = 'intro\n\n- one\n\n- two\n\n- three\n'
     const { state, result } = build(doc, 0)
-    expect(lineClasses(state, result, 3)).toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 3)).toContain('cm-or-li--first')
     // Items 2 and 3 are separated by blank lines but are not new lists.
-    expect(lineClasses(state, result, 5)).not.toContain('cm-zy-li--first')
-    expect(lineClasses(state, result, 7)).not.toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 5)).not.toContain('cm-or-li--first')
+    expect(lineClasses(state, result, 7)).not.toContain('cm-or-li--first')
   })
 
   it('still marks the first item of a list that follows a paragraph', () => {
     const doc = 'a paragraph\n- one\n- two\n'
     const { state, result } = build(doc, 0)
-    expect(lineClasses(state, result, 2)).toContain('cm-zy-li--first')
-    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 2)).toContain('cm-or-li--first')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-or-li--first')
   })
 })
 
@@ -206,22 +206,22 @@ describe('quoted lists', () => {
     const doc = 'intro\n\n> - one\n> - two\n>   - nested\n'
     const { state, result } = build(doc, 0)
     // A list inside a quote nests exactly as it would outside one.
-    expect(lineAttrs(state, result, 3)).toContain('--zy-li-depth: 0')
-    expect(lineAttrs(state, result, 5)).toContain('--zy-li-depth: 1')
+    expect(lineAttrs(state, result, 3)).toContain('--or-li-depth: 0')
+    expect(lineAttrs(state, result, 5)).toContain('--or-li-depth: 1')
   })
 
   it('only calls the real first item first, across quote markers', () => {
     const doc = 'intro\n\n> - one\n> - two\n> - three\n'
     const { state, result } = build(doc, 0)
-    expect(lineClasses(state, result, 3)).toContain('cm-zy-li--first')
-    expect(lineClasses(state, result, 4)).not.toContain('cm-zy-li--first')
-    expect(lineClasses(state, result, 5)).not.toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 3)).toContain('cm-or-li--first')
+    expect(lineClasses(state, result, 4)).not.toContain('cm-or-li--first')
+    expect(lineClasses(state, result, 5)).not.toContain('cm-or-li--first')
   })
 
   it('treats a bare > line as the blank line it is', () => {
     const doc = 'intro\n\n> - one\n>\n> - two\n'
     const { state, result } = build(doc, 0)
-    expect(lineClasses(state, result, 5)).not.toContain('cm-zy-li--first')
+    expect(lineClasses(state, result, 5)).not.toContain('cm-or-li--first')
   })
 })
 
@@ -229,18 +229,18 @@ describe('blockquote as one container', () => {
   it('marks only the ends of a quote', () => {
     const doc = '> one\n>\n> two\n>\n> three\n\nafter'
     const { state, result } = build(doc, doc.length)
-    expect(lineClasses(state, result, 1)).toContain('cm-zy-blockquote--first')
-    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-blockquote--first')
-    expect(lineClasses(state, result, 3)).not.toContain('cm-zy-blockquote--last')
-    expect(lineClasses(state, result, 5)).toContain('cm-zy-blockquote--last')
+    expect(lineClasses(state, result, 1)).toContain('cm-or-blockquote--first')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-or-blockquote--first')
+    expect(lineClasses(state, result, 3)).not.toContain('cm-or-blockquote--last')
+    expect(lineClasses(state, result, 5)).toContain('cm-or-blockquote--last')
   })
 
   it('gives two adjacent quotes their own ends', () => {
     const doc = '> first quote\n\n> second quote\n'
     const { state, result } = build(doc, doc.length)
     for (const line of [1, 3]) {
-      expect(lineClasses(state, result, line)).toContain('cm-zy-blockquote--first')
-      expect(lineClasses(state, result, line)).toContain('cm-zy-blockquote--last')
+      expect(lineClasses(state, result, line)).toContain('cm-or-blockquote--first')
+      expect(lineClasses(state, result, line)).toContain('cm-or-blockquote--last')
     }
   })
 })
@@ -262,7 +262,7 @@ describe('html comments', () => {
   it('stays visible while editing — hidden text you cannot see is worse', () => {
     const { state, result } = build(doc, 0)
     expect(concealedSpans(doc, result)).not.toContain('<!-- a note to self -->')
-    expect(lineClasses(state, result, 3)).toContain('cm-zy-comment-line')
+    expect(lineClasses(state, result, 3)).toContain('cm-or-comment-line')
   })
 })
 

@@ -1,8 +1,8 @@
-import type { ZymdApi } from '@shared/ipc'
+import type { OrreryApi } from '@shared/ipc'
 
 declare global {
   interface Window {
-    zymd: ZymdApi
+    orrery: OrreryApi
   }
 }
 

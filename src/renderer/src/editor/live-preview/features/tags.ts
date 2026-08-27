@@ -2,7 +2,7 @@ import { Decoration } from '@codemirror/view'
 import { findTags } from '@core/tags'
 import type { Feature } from '../context'
 
-const tagMark = Decoration.mark({ class: 'cm-zy-tag' })
+const tagMark = Decoration.mark({ class: 'cm-or-tag' })
 
 /**
  * `#tag` renders as a pill.

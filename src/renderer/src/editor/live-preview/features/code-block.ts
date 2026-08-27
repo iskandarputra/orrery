@@ -1,13 +1,13 @@
 import { Decoration } from '@codemirror/view'
 import type { Feature } from '../context'
 
-const codeLine = Decoration.line({ class: 'cm-zy-code-line' })
-const codeFirst = Decoration.line({ class: 'cm-zy-code-line cm-zy-code-first' })
-const codeLast = Decoration.line({ class: 'cm-zy-code-line cm-zy-code-last' })
-const codeMarkDeco = Decoration.mark({ class: 'cm-zy-code-mark' })
-const codeInfoDeco = Decoration.mark({ class: 'cm-zy-code-info' })
+const codeLine = Decoration.line({ class: 'cm-or-code-line' })
+const codeFirst = Decoration.line({ class: 'cm-or-code-line cm-or-code-first' })
+const codeLast = Decoration.line({ class: 'cm-or-code-line cm-or-code-last' })
+const codeMarkDeco = Decoration.mark({ class: 'cm-or-code-mark' })
+const codeInfoDeco = Decoration.mark({ class: 'cm-or-code-info' })
 /** A fence line with its ``` concealed and no badge left — collapse it to a card edge. */
-const fenceHidden = Decoration.line({ class: 'cm-zy-code-fence-hidden' })
+const fenceHidden = Decoration.line({ class: 'cm-or-code-fence-hidden' })
 
 /**
  * Code blocks get a sleek card container with background and rounded corners —

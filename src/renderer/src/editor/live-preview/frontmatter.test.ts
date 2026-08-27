@@ -27,17 +27,17 @@ Body content goes here.
       extensions: [markdown({ base: markdownLanguage }), frontmatterRendering(false)]
     })
     const view = new EditorView({ state })
-    const card = view.dom.querySelector('.cm-zy-properties-card')
+    const card = view.dom.querySelector('.cm-or-properties-card')
     expect(card).not.toBeNull()
 
-    const keys = Array.from(view.dom.querySelectorAll('.cm-zy-property-key')).map(
+    const keys = Array.from(view.dom.querySelectorAll('.cm-or-property-key')).map(
       (el) => el.textContent
     )
     expect(keys).toContain('id')
     expect(keys).toContain('status')
     expect(keys).toContain('owner')
 
-    const count = view.dom.querySelector('.cm-zy-properties-count')
+    const count = view.dom.querySelector('.cm-or-properties-count')
     expect(count?.textContent).toBe('8')
   })
 
@@ -47,7 +47,7 @@ Body content goes here.
       extensions: [markdown({ base: markdownLanguage }), frontmatterRendering(false)]
     })
     const view = new EditorView({ state })
-    const card = view.dom.querySelector('.cm-zy-properties-card')
+    const card = view.dom.querySelector('.cm-or-properties-card')
     expect(card).toBeNull()
   })
 })

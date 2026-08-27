@@ -14,7 +14,7 @@ let page: Page
 let vault: string
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-menu-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-menu-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nOwnership is the core idea here.\n')
   writeFileSync(join(vault, 'Other.md'), '# Other\n\nAlso mentions ownership once.\n')
   app = await launchApp()

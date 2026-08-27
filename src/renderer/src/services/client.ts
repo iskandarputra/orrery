@@ -1,22 +1,22 @@
-import type { IpcErrorPayload, ZymdApi } from '@shared/ipc'
+import type { IpcErrorPayload, OrreryApi } from '@shared/ipc'
 
 /**
  * The renderer's single seam to the outside world. Components and stores use
- * this module instead of touching `window.zymd`, so tests can swap it for an
+ * this module instead of touching `window.orrery`, so tests can swap it for an
  * in-memory fake with `setClient`.
  */
-let client: ZymdApi = typeof window !== 'undefined' && window.zymd ? window.zymd : (null as never)
+let client: OrreryApi = typeof window !== 'undefined' && window.orrery ? window.orrery : (null as never)
 
-export function setClient(next: ZymdApi): void {
+export function setClient(next: OrreryApi): void {
   client = next
 }
 
-export function getClient(): ZymdApi {
+export function getClient(): OrreryApi {
   return client
 }
 
-export const invoke: ZymdApi['invoke'] = (channel, req) => client.invoke(channel, req)
-export const on: ZymdApi['on'] = (channel, listener) => client.on(channel, listener)
+export const invoke: OrreryApi['invoke'] = (channel, req) => client.invoke(channel, req)
+export const on: OrreryApi['on'] = (channel, listener) => client.on(channel, listener)
 
 /** Decode the `code|message` convention used by main-process IpcError. */
 export function parseIpcError(err: unknown): IpcErrorPayload {

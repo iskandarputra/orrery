@@ -2,17 +2,17 @@ import { Decoration } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import type { BuildContext, Feature } from '../context'
 
-const quoteLine = Decoration.line({ class: 'cm-zy-blockquote' })
+const quoteLine = Decoration.line({ class: 'cm-or-blockquote' })
 /** Only the ends of a quote are rounded, so the whole reads as one container. */
-const quoteFirst = Decoration.line({ class: 'cm-zy-blockquote cm-zy-blockquote--first' })
-const quoteLast = Decoration.line({ class: 'cm-zy-blockquote cm-zy-blockquote--last' })
-const calloutTitle = Decoration.mark({ class: 'cm-zy-callout-title' })
+const quoteFirst = Decoration.line({ class: 'cm-or-blockquote cm-or-blockquote--first' })
+const quoteLast = Decoration.line({ class: 'cm-or-blockquote cm-or-blockquote--last' })
+const calloutTitle = Decoration.mark({ class: 'cm-or-callout-title' })
 
 const calloutLineDecos = new Map<string, Decoration>()
 function getCalloutLineDeco(type: string): Decoration {
   let deco = calloutLineDecos.get(type)
   if (!deco) {
-    deco = Decoration.line({ class: `cm-zy-blockquote cm-zy-callout cm-zy-callout--${type}` })
+    deco = Decoration.line({ class: `cm-or-blockquote cm-or-callout cm-or-callout--${type}` })
     calloutLineDecos.set(type, deco)
   }
   return deco

@@ -45,7 +45,7 @@ function useThemeSync(): void {
 function useWindowTitleSync(): void {
   const active = useStore((s) => (s.activeId ? s.buffers[s.activeId] : null))
   useEffect(() => {
-    const title = active ? `${active.isDirty ? '● ' : ''}${active.fileName} — zymd` : 'zymd'
+    const title = active ? `${active.isDirty ? '● ' : ''}${active.fileName} — Orrery` : 'Orrery'
     void invoke('window:setTitle', { title })
   }, [active])
 }

@@ -25,7 +25,7 @@ describe('buildExportHtml', () => {
     expect(html).toContain('<style>')
   })
 
-  it('converts zymd syntax: wikilinks and highlights', async () => {
+  it('converts orrery syntax: wikilinks and highlights', async () => {
     const html = await buildExportHtml('t', 'see [[Note|the note]] and ==this==')
     expect(html).toContain('<span class="wikilink">the note</span>')
     expect(html).toContain('<mark>this</mark>')

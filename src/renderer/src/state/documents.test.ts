@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IpcInvokeContract, ZymdApi } from '@shared/ipc'
+import type { IpcInvokeContract, OrreryApi } from '@shared/ipc'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { setClient } from '@/services/client'
 import { useStore } from './store'
 
 /**
- * In-memory fake of the main process behind the ZymdApi seam — the whole
+ * In-memory fake of the main process behind the OrreryApi seam — the whole
  * open/save/close/dirty lifecycle tests here without Electron.
  */
 function createFakeMain(): {
-  api: ZymdApi
+  api: OrreryApi
   files: Map<string, { content: string; mtimeMs: number }>
   readyToClose: () => boolean
 } {
@@ -47,7 +47,7 @@ function createFakeMain(): {
     }
   }
 
-  const api: ZymdApi = {
+  const api: OrreryApi = {
     invoke: (channel, req) => {
       const handler = handlers[channel]
       if (!handler) throw new Error(`no fake for ${channel}`)

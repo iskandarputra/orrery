@@ -20,8 +20,8 @@ let userData: string
 let service: CountingEmbeddings
 
 beforeEach(() => {
-  vault = mkdtempSync(path.join(tmpdir(), 'zymd-embed-vault-'))
-  userData = mkdtempSync(path.join(tmpdir(), 'zymd-embed-data-'))
+  vault = mkdtempSync(path.join(tmpdir(), 'orrery-embed-vault-'))
+  userData = mkdtempSync(path.join(tmpdir(), 'orrery-embed-data-'))
   writeFileSync(path.join(vault, 'A.md'), '# A\n\nAlpha note about rust.\n')
   writeFileSync(path.join(vault, 'B.md'), '# B\n\nBeta note about cooking.\n')
   service = new CountingEmbeddings(() => defaultSettings, userData)

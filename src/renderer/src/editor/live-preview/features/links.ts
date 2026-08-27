@@ -54,7 +54,7 @@ function decorate(node: SyntaxNode, ctx: BuildContext, isImage: boolean): void {
   const href = url ? ctx.state.doc.sliceString(url.from, url.to) : ''
   ctx.add(
     Decoration.mark({
-      class: isImage ? 'cm-zy-link-text cm-zy-image-alt' : 'cm-zy-link-text',
+      class: isImage ? 'cm-or-link-text cm-or-image-alt' : 'cm-or-link-text',
       attributes: { 'data-url': href, title: href }
     }).range(labelFrom, labelTo)
   )

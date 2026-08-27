@@ -18,7 +18,7 @@ const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-session-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-session-'))
   writeFileSync(join(vault, 'One.md'), '# One\n')
   writeFileSync(join(vault, 'Two.md'), '# Two\n')
   writeFileSync(join(vault, 'Three.md'), '# Three\n')
@@ -78,7 +78,7 @@ test('a pasted image is filed into the vault and embedded', async () => {
     timeout: 10_000
   })
   await page.keyboard.press('Control+Home')
-  await expect(page.locator('.cm-zy-image img')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.cm-or-image img')).toBeVisible({ timeout: 10_000 })
 
   const assets = readdirSync(join(vault, 'assets'))
   expect(assets).toHaveLength(1)
@@ -88,7 +88,7 @@ test('a pasted image is filed into the vault and embedded', async () => {
   // The image actually decoded — the %20 in the link resolved to the real file.
   await expect
     .poll(() =>
-      page.locator('.cm-zy-image img').evaluate((el: HTMLImageElement) => el.naturalWidth)
+      page.locator('.cm-or-image img').evaluate((el: HTMLImageElement) => el.naturalWidth)
     )
     .toBeGreaterThan(0)
   await expect(page.locator('.tab__close--dirty')).toBeVisible()

@@ -43,20 +43,20 @@ describe('list depth', () => {
 
   it('counts depth from zero at the top level', () => {
     const { state, result } = build('- one\n  - two\n    - three\n')
-    expect(lineStyle(state, result, 1)).toContain('--zy-li-depth: 0')
-    expect(lineStyle(state, result, 2)).toContain('--zy-li-depth: 1')
-    expect(lineStyle(state, result, 3)).toContain('--zy-li-depth: 2')
+    expect(lineStyle(state, result, 1)).toContain('--or-li-depth: 0')
+    expect(lineStyle(state, result, 2)).toContain('--or-li-depth: 1')
+    expect(lineStyle(state, result, 3)).toContain('--or-li-depth: 2')
   })
 
   it('treats an ordered list the same way', () => {
     const { state, result } = build('1. one\n   1. two\n')
-    expect(lineStyle(state, result, 1)).toContain('--zy-li-depth: 0')
-    expect(lineStyle(state, result, 2)).toContain('--zy-li-depth: 1')
+    expect(lineStyle(state, result, 1)).toContain('--or-li-depth: 0')
+    expect(lineStyle(state, result, 2)).toContain('--or-li-depth: 1')
   })
 
   it('nests a bullet under an ordered parent', () => {
     const { state, result } = build('1. parent\n   - child\n')
-    expect(lineStyle(state, result, 2)).toContain('--zy-li-depth: 1')
+    expect(lineStyle(state, result, 2)).toContain('--or-li-depth: 1')
   })
 })
 
@@ -86,7 +86,7 @@ describe('ordered markers', () => {
   it('marks the number so it can hold a fixed column', () => {
     const { result } = build('1. one\n10. ten\n')
     const marks = result.all.filter((r) =>
-      ((r.value.spec as { class?: string }).class ?? '').includes('cm-zy-ordered-mark')
+      ((r.value.spec as { class?: string }).class ?? '').includes('cm-or-ordered-mark')
     )
     expect(marks).toHaveLength(2)
   })
@@ -94,7 +94,7 @@ describe('ordered markers', () => {
   it('leaves bullet markers to the widget', () => {
     const { result } = build('- one\n')
     const marks = result.all.filter((r) =>
-      ((r.value.spec as { class?: string }).class ?? '').includes('cm-zy-ordered-mark')
+      ((r.value.spec as { class?: string }).class ?? '').includes('cm-or-ordered-mark')
     )
     expect(marks).toEqual([])
   })

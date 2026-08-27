@@ -20,13 +20,13 @@ process.on('exit', () => {
  * to overwrite the settings of the machine it runs on.
  */
 export async function launchApp(): Promise<ElectronApplication> {
-  const userData = mkdtempSync(join(tmpdir(), 'zymd-userdata-'))
+  const userData = mkdtempSync(join(tmpdir(), 'orrery-userdata-'))
   userDataDirs.push(userData)
   return electron.launch({
     args: ['./out/main/index.js', '--no-sandbox', `--user-data-dir=${userData}`],
-    // ZYMD_HEADLESS keeps the window off the developer's screen: a suite run
+    // ORRERY_HEADLESS keeps the window off the developer's screen: a suite run
     // otherwise pops up and grabs focus once per spec file.
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ZYMD_HEADLESS: '1' }
+    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ORRERY_HEADLESS: '1' }
   })
 }
 
@@ -41,8 +41,8 @@ export async function openVault(page: Page, vault: string, sentinelFile: string)
   // Set explicitly rather than assumed: a spec may open a vault more than once,
   // and by then the app carries the session and view mode the spec left behind.
   await page.evaluate(async (v) => {
-    const current = await window.zymd.invoke('settings:get', undefined)
-    await window.zymd.invoke('settings:set', {
+    const current = await window.orrery.invoke('settings:get', undefined)
+    await window.orrery.invoke('settings:set', {
       lastOpenedFolder: v,
       session: { openPaths: [], activePath: '' },
       editor: { ...current.editor, viewMode: 'live' }

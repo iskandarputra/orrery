@@ -1,7 +1,7 @@
 import { Decoration } from '@codemirror/view'
 import type { Feature } from '../context'
 
-const codeMark = Decoration.mark({ class: 'cm-zy-inline-code' })
+const codeMark = Decoration.mark({ class: 'cm-or-inline-code' })
 
 /** `` `code` `` — pill background over the span, backticks concealed when inactive. */
 export const inlineCode: Feature = {

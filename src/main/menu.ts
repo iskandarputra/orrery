@@ -225,8 +225,8 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
       role: 'help',
       submenu: [
         {
-          label: 'zymd on GitHub',
-          click: () => void shell.openExternal('https://github.com/zymd')
+          label: 'Orrery on GitHub',
+          click: () => void shell.openExternal('https://github.com/iskandarputra/zymd')
         }
       ]
     }

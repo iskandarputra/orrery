@@ -20,7 +20,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-canvas-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-canvas-'))
   // A small cluster, so the seeded board has something real to lay out.
   writeFileSync(join(vault, 'Rust.md'), '# Rust\n\nSee [[Ownership]] and [[Cargo]].\n')
   writeFileSync(join(vault, 'Ownership.md'), '# Ownership\n\nPart of [[Rust]].\n')
@@ -205,7 +205,7 @@ test('text cards render their markdown', async () => {
 
   const card = page.locator('.canvas__card', { hasText: 'First card' })
   // Rendered, not raw: the heading marker and asterisks are concealed.
-  await expect(card.locator('.cm-zy-h1')).toBeVisible()
+  await expect(card.locator('.cm-or-h1')).toBeVisible()
   await expect(card).not.toContainText('**')
   await expect(card).not.toContainText('# First card')
 

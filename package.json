@@ -1,9 +1,9 @@
 {
-  "name": "zymd",
+  "name": "orrery",
   "version": "0.1.0",
-  "description": "A high-performance, feature-rich markdown editor",
+  "description": "A markdown editor and knowledge base that reads the shape of what you write",
   "main": "./out/main/index.js",
-  "author": "zymd contributors",
+  "author": "orrery contributors",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -72,9 +72,9 @@
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
-  "homepage": "https://github.com/zymd/zymd",
+  "homepage": "https://github.com/orrery/orrery",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zymd/zymd.git"
+    "url": "https://github.com/orrery/orrery.git"
   }
 }

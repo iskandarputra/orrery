@@ -20,7 +20,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-embed-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-embed-'))
   writeFileSync(
     join(vault, 'Source.md'),
     '# Source\n\nintro text\n\n## Alpha\n\nthe alpha body\n\n## Beta\n\nthe beta body\n'
@@ -35,7 +35,7 @@ test.beforeAll(async () => {
   await openVault(page, vault, 'Host.md')
   await page.locator('.tree-row--file', { hasText: 'Host.md' }).click()
   await runCommand('view.modeReading')
-  await page.waitForSelector('.cm-zy-embed')
+  await page.waitForSelector('.cm-or-embed')
 })
 
 /**
@@ -52,7 +52,7 @@ test.afterAll(async () => {
 })
 
 test('embeds the whole note', async () => {
-  const whole = page.locator('.cm-zy-embed').first()
+  const whole = page.locator('.cm-or-embed').first()
   await expect(whole).toContainText('intro text')
   await expect(whole).toContainText('the alpha body')
 })
@@ -61,7 +61,7 @@ test('an embedded note is not announced as a second text box', async () => {
   const roles = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.cm-content')).map((el) => ({
       role: el.getAttribute('role'),
-      inEmbed: !!el.closest('.cm-zy-embed')
+      inEmbed: !!el.closest('.cm-or-embed')
     }))
   )
 
@@ -78,15 +78,15 @@ test('embeds a single section when given a heading', async () => {
   // Match on the card's own title, not on its text: the whole-note card also
   // contains the word "Beta", as one of the headings it embeds.
   const section = page
-    .locator('.cm-zy-embed')
-    .filter({ has: page.locator('.cm-zy-embed-title', { hasText: '› Beta' }) })
+    .locator('.cm-or-embed')
+    .filter({ has: page.locator('.cm-or-embed-title', { hasText: '› Beta' }) })
   await expect(section).toContainText('the beta body')
   // Only that section — the sibling's body is not dragged along.
   await expect(section).not.toContainText('the alpha body')
 })
 
 test('says so when the target does not exist', async () => {
-  const missing = page.locator('.cm-zy-embed--missing')
+  const missing = page.locator('.cm-or-embed--missing')
   await expect(missing).toBeVisible()
   await expect(missing).toContainText("doesn't exist yet")
 })
@@ -94,7 +94,7 @@ test('says so when the target does not exist', async () => {
 test('leaves an embed inside a sentence as text', async () => {
   // A card there would tear the paragraph in half.
   await expect(hostContent()).toContainText('And an inline')
-  const cards = await page.locator('.cm-zy-embed').count()
+  const cards = await page.locator('.cm-or-embed').count()
   expect(cards).toBe(3) // whole, section, missing — not the inline one
 })
 
@@ -105,7 +105,7 @@ test('clicking a card reveals the markdown that produced it', async () => {
   // A block widget can't be arrowed into — CodeMirror steps over it — so the
   // card takes a click and puts the caret on its source, as images and
   // diagrams do here.
-  await page.locator('.cm-zy-embed').first().click()
+  await page.locator('.cm-or-embed').first().click()
   await expect(hostContent()).toContainText('![[Source]]')
 
   await runCommand('view.modeReading')

@@ -34,7 +34,7 @@ export function GeneralSection(): React.JSX.Element {
       <h3 className="set-group">Startup</h3>
       <SettingRow
         label="Restore last folder"
-        description="Reopen the previous workspace when zymd starts"
+        description="Reopen the previous workspace when orrery starts"
       >
         <Toggle
           checked={g.restoreLastFolder}
@@ -87,7 +87,7 @@ export function EditorSection(): React.JSX.Element {
           style={{
             fontSize: `${e.fontSize}px`,
             lineHeight: e.lineHeight,
-            fontFamily: e.fontFamily || 'var(--zy-prose-font)'
+            fontFamily: e.fontFamily || 'var(--or-prose-font)'
           }}
         >
           <h4 style={{ margin: '0 0 0.3em 0', fontSize: '1.25em' }}>The quick brown fox jumps</h4>
@@ -644,7 +644,7 @@ export function KeybindingsSection(): React.JSX.Element {
 export function AboutSection(): React.JSX.Element {
   return (
     <>
-      <h3 className="set-group">zymd</h3>
+      <h3 className="set-group">orrery</h3>
       <div className="about-hero">
         <div className="about-hero__badge">v0.1.0</div>
         <p className="set-note" style={{ margin: 0 }}>

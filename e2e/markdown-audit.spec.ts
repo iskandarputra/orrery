@@ -89,10 +89,10 @@ async function classesThroughDocument(): Promise<Set<string>> {
   for (let step = 0; step <= 10; step++) {
     const seen = await page.evaluate(() => {
       const found: string[] = []
-      document.querySelectorAll('[class*="cm-zy-"]').forEach((el) => {
+      document.querySelectorAll('[class*="cm-or-"]').forEach((el) => {
         el.className
           .split(/\s+/)
-          .filter((c) => c.startsWith('cm-zy-'))
+          .filter((c) => c.startsWith('cm-or-'))
           .forEach((c) => found.push(c))
       })
       return found
@@ -108,7 +108,7 @@ async function classesThroughDocument(): Promise<Set<string>> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-audit-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-audit-'))
   writeFileSync(join(vault, 'Torture.md'), TORTURE)
   app = await launchApp()
   page = await app.firstWindow()
@@ -116,7 +116,7 @@ test.beforeAll(async () => {
   await openVault(page, vault, 'Torture.md')
   await page.locator('.tree-row--file', { hasText: 'Torture.md' }).click()
   await runCommand('view.modeReading')
-  await page.waitForSelector('.cm-zy-h1')
+  await page.waitForSelector('.cm-or-h1')
 })
 
 test.afterAll(async () => {
@@ -127,16 +127,16 @@ test.afterAll(async () => {
 test('every construct renders its decoration', async () => {
   const present = await classesThroughDocument()
   const expected = [
-    'cm-zy-h1', 'cm-zy-h2', 'cm-zy-h3', 'cm-zy-h4', 'cm-zy-h5', 'cm-zy-h6',
-    'cm-zy-inline-code', 'cm-zy-mark', 'cm-zy-tag', 'cm-zy-link-text',
-    'cm-zy-wikilink', 'cm-zy-wikilink--missing', 'cm-zy-image', 'cm-zy-image--broken',
-    'cm-zy-bullet', 'cm-zy-task-checkbox', 'cm-zy-li', 'cm-zy-li--first',
-    'cm-zy-blockquote', 'cm-zy-blockquote--first',
-    'cm-zy-callout', 'cm-zy-callout--note', 'cm-zy-callout--warning', 'cm-zy-callout--tip',
-    'cm-zy-callout-title',
-    'cm-zy-code-line', 'cm-zy-code-first', 'cm-zy-code-last', 'cm-zy-code-info',
-    'cm-zy-table', 'cm-zy-math', 'cm-zy-math--block', 'cm-zy-hr',
-    'cm-zy-properties-card', 'cm-zy-property-key', 'cm-zy-property-val'
+    'cm-or-h1', 'cm-or-h2', 'cm-or-h3', 'cm-or-h4', 'cm-or-h5', 'cm-or-h6',
+    'cm-or-inline-code', 'cm-or-mark', 'cm-or-tag', 'cm-or-link-text',
+    'cm-or-wikilink', 'cm-or-wikilink--missing', 'cm-or-image', 'cm-or-image--broken',
+    'cm-or-bullet', 'cm-or-task-checkbox', 'cm-or-li', 'cm-or-li--first',
+    'cm-or-blockquote', 'cm-or-blockquote--first',
+    'cm-or-callout', 'cm-or-callout--note', 'cm-or-callout--warning', 'cm-or-callout--tip',
+    'cm-or-callout-title',
+    'cm-or-code-line', 'cm-or-code-first', 'cm-or-code-last', 'cm-or-code-info',
+    'cm-or-table', 'cm-or-math', 'cm-or-math--block', 'cm-or-hr',
+    'cm-or-properties-card', 'cm-or-property-key', 'cm-or-property-val'
   ]
   const missing = expected.filter((c) => !present.has(c))
   expect(missing).toEqual([])
@@ -144,10 +144,10 @@ test('every construct renders its decoration', async () => {
 
 test('heading rhythm actually applies', async () => {
   // The editor theme styles `.cm-line` with higher specificity than a plain
-  // `.cm-zy-*` rule, which has silently killed line-level padding before.
+  // `.cm-or-*` rule, which has silently killed line-level padding before.
   const padding = await page.evaluate(() =>
     [1, 2, 3, 4, 5, 6].map((n) => {
-      const el = document.querySelector(`.cm-zy-h${n}`) as HTMLElement | null
+      const el = document.querySelector(`.cm-or-h${n}`) as HTMLElement | null
       return el ? parseFloat(getComputedStyle(el).paddingTop) : -1
     })
   )
@@ -187,30 +187,30 @@ test('block containers all start at the text column', async () => {
   await page.locator('.cm-scroller').evaluate((el) => el.scrollTo(0, 0))
   await page.waitForTimeout(150)
   const column = Math.round(
-    (await page.locator('.cm-zy-h1 span').first().boundingBox())!.x
+    (await page.locator('.cm-or-h1 span').first().boundingBox())!.x
   )
 
   // A card starting further left than the prose reads as misaligned.
   for (const selector of [
-    '.cm-zy-properties-card',
-    '.cm-zy-code-line',
-    '.cm-zy-blockquote',
-    '.cm-zy-math--block'
+    '.cm-or-properties-card',
+    '.cm-or-code-line',
+    '.cm-or-blockquote',
+    '.cm-or-math--block'
   ]) {
     expect(await leftOf(selector), selector).toBe(column)
   }
 })
 
 test('every list marker shares one grid', async () => {
-  await showBlock('.cm-zy-li')
+  await showBlock('.cm-or-li')
 
   const rows = await page.evaluate(() => {
     const lineLeft = document.querySelector('.cm-line')!.getBoundingClientRect().left
-    return Array.from(document.querySelectorAll('.cm-zy-li')).map((el) => {
+    return Array.from(document.querySelectorAll('.cm-or-li')).map((el) => {
       const marker =
-        el.querySelector('.cm-zy-bullet') ??
-        el.querySelector('.cm-zy-ordered-mark') ??
-        el.querySelector('.cm-zy-task-box')
+        el.querySelector('.cm-or-bullet') ??
+        el.querySelector('.cm-or-ordered-mark') ??
+        el.querySelector('.cm-or-task-box')
       // Measured on the text node itself: a nested item wraps its text in no
       // element, so lastElementChild would hand back the marker instead.
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
@@ -227,7 +227,7 @@ test('every list marker shares one grid', async () => {
         break
       }
       return {
-        depth: Number(getComputedStyle(el).getPropertyValue('--zy-li-depth') || 0),
+        depth: Number(getComputedStyle(el).getPropertyValue('--or-li-depth') || 0),
         markerX: marker ? Math.round(marker.getBoundingClientRect().left - lineLeft) : null,
         textX
       }
@@ -261,10 +261,10 @@ test('every list marker shares one grid', async () => {
 })
 
 test('callout types are told apart by colour', async () => {
-  await showBlock('.cm-zy-callout--tip')
+  await showBlock('.cm-or-callout--tip')
   const bars = await page.evaluate(() =>
     ['note', 'warning', 'tip'].map((type) => {
-      const el = document.querySelector(`.cm-zy-callout--${type}`) as HTMLElement | null
+      const el = document.querySelector(`.cm-or-callout--${type}`) as HTMLElement | null
       return el ? getComputedStyle(el).borderLeftColor : null
     })
   )
@@ -272,14 +272,14 @@ test('callout types are told apart by colour', async () => {
 })
 
 test('a callout title takes its own line, above the body', async () => {
-  await showBlock('.cm-zy-callout--note')
+  await showBlock('.cm-or-callout--note')
 
   // `> [!NOTE] Title` and the body under it are one paragraph to the parser, so
   // paragraph reflow would join them onto a single line unless it makes an
   // exception for the title.
   const box = await page.evaluate(() => {
-    const lines = Array.from(document.querySelectorAll('.cm-zy-callout--note'))
-    const title = lines[0]!.querySelector('.cm-zy-callout-title')
+    const lines = Array.from(document.querySelectorAll('.cm-or-callout--note'))
+    const title = lines[0]!.querySelector('.cm-or-callout-title')
     if (!title) return null
     const body = lines[1]
     if (!body) return null
@@ -308,12 +308,12 @@ test('a callout title takes its own line, above the body', async () => {
 })
 
 test('a concealed code fence collapses but keeps the card padded', async () => {
-  await showBlock('.cm-zy-code-line')
-  const lines = page.locator('.cm-zy-code-line')
+  await showBlock('.cm-or-code-line')
+  const lines = page.locator('.cm-or-code-line')
 
   const heights = await lines.evaluateAll((els) =>
     els.map((el) => ({
-      hidden: el.classList.contains('cm-zy-code-fence-hidden'),
+      hidden: el.classList.contains('cm-or-code-fence-hidden'),
       h: el.getBoundingClientRect().height
     }))
   )
@@ -329,9 +329,9 @@ test('a concealed code fence collapses but keeps the card padded', async () => {
 })
 
 test('table alignment follows the delimiter row', async () => {
-  await showBlock('.cm-zy-table')
+  await showBlock('.cm-or-table')
   const cells = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.cm-zy-table th')).map(
+    Array.from(document.querySelectorAll('.cm-or-table th')).map(
       (el) => getComputedStyle(el).textAlign
     )
   )
@@ -340,12 +340,12 @@ test('table alignment follows the delimiter row', async () => {
 
 test('html comments hide when reading and return when editing', async () => {
   const reading = await classesThroughDocument()
-  expect(reading.has('cm-zy-comment-line')).toBe(false)
+  expect(reading.has('cm-or-comment-line')).toBe(false)
 
   await runCommand('view.modeHybrid')
   await page.waitForTimeout(400)
   const hybrid = await classesThroughDocument()
-  expect(hybrid.has('cm-zy-comment-line')).toBe(true)
+  expect(hybrid.has('cm-or-comment-line')).toBe(true)
   await runCommand('view.modeReading')
 })
 

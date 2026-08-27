@@ -65,7 +65,7 @@ async function buildContext(question: string): Promise<string> {
   return parts.join('\n\n')
 }
 
-const SYSTEM = `You are the AI assistant inside zymd, the user's markdown knowledge base.
+const SYSTEM = `You are the AI assistant inside orrery, the user's markdown knowledge base.
 Answer from the provided vault context when possible and cite sources as [file:line].
 When the context is insufficient, say so briefly before answering from general knowledge.
 Be concise. Use markdown.`

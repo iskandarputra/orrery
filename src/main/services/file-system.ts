@@ -31,7 +31,7 @@ export class FileSystemService {
       if (expectedMtimeMs !== null) {
         const stat = await fs.stat(filePath).catch(() => null)
         if (stat && Math.abs(stat.mtimeMs - expectedMtimeMs) > 1) {
-          throw new IpcError('CONFLICT', 'File was modified outside zymd since it was loaded')
+          throw new IpcError('CONFLICT', 'File was modified outside orrery since it was loaded')
         }
       }
       const tmp = path.join(

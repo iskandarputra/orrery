@@ -62,7 +62,7 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
             // revealed, instead of the markdown that produced it.
             if (link.embed) continue
             const resolved = resolveNote(index, link.target) !== null
-            const cls = `cm-zy-wikilink${resolved ? '' : ' cm-zy-wikilink--missing'}`
+            const cls = `cm-or-wikilink${resolved ? '' : ' cm-or-wikilink--missing'}`
             if (touches(link.from, link.to)) {
               // Revealed: style the whole raw link, keep syntax visible.
               all.push(
@@ -108,7 +108,7 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
   const click = EditorView.domEventHandlers({
     click(event) {
       if (!event.ctrlKey && !event.metaKey) return false
-      const target = (event.target as HTMLElement).closest?.('.cm-zy-wikilink')
+      const target = (event.target as HTMLElement).closest?.('.cm-or-wikilink')
       if (!(target instanceof HTMLElement)) return false
       const note = target.dataset['target']
       if (!note) return false

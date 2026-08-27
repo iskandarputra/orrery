@@ -26,7 +26,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-e2e-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-e2e-'))
   writeFileSync(
     join(vault, 'Home.md'),
     '# Home\n\nWelcome. Link to [[Ideas]] and some **bold** text.\n\n| A | B |\n| - | - |\n| 1 | 2 |\n'
@@ -67,9 +67,9 @@ test('loads the workspace and lists notes', async () => {
 test('opens a note and renders live preview', async () => {
   await page.locator('.tree-row--file', { hasText: 'Home.md' }).click()
   await expect(page.locator('.cm-content')).toContainText('Home')
-  await expect(page.locator('.cm-zy-h1').first()).toBeVisible()
-  await expect(page.locator('.cm-zy-wikilink', { hasText: 'Ideas' })).toBeVisible()
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-h1').first()).toBeVisible()
+  await expect(page.locator('.cm-or-wikilink', { hasText: 'Ideas' })).toBeVisible()
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
 })
 
 test('edits and saves to disk', async () => {
@@ -134,7 +134,7 @@ test('backlinks panel finds references', async () => {
 
 test('renders a local inline image via the asset protocol', async () => {
   await page.locator('.tree-row--file', { hasText: 'Media.md' }).click()
-  const img = page.locator('.cm-zy-image img')
+  const img = page.locator('.cm-or-image img')
   await expect(img).toBeVisible()
   // The asset actually decoded (not a broken image).
   await expect
@@ -144,56 +144,56 @@ test('renders a local inline image via the asset protocol', async () => {
 
 test('source mode shows raw markdown; toggling back restores rendering', async () => {
   await page.locator('.tree-row--file', { hasText: 'Home.md' }).click()
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
   await runCommand('view.toggleSourceMode')
-  await expect(page.locator('.cm-zy-table table')).toBeHidden()
+  await expect(page.locator('.cm-or-table table')).toBeHidden()
   await expect(page.locator('.cm-content')).toContainText('| A | B |')
   await runCommand('view.toggleSourceMode')
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
 })
 
 test('view modes: edit / hybrid / reading', async () => {
   await page.locator('.tree-row--file', { hasText: 'Home.md' }).click()
   // Hybrid (default) renders the table and is editable.
   await runCommand('view.modeHybrid')
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
   await expect(page.locator('.cm-content')).toHaveAttribute('contenteditable', 'true')
 
   // Reading: still rendered, but read-only (not editable).
   await runCommand('view.modeReading')
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
   await expect(page.locator('.cm-content')).toHaveAttribute('contenteditable', 'false')
   // Clicking in reading mode must NOT flip the table to source (static render).
-  await page.locator('.cm-zy-table').click({ position: { x: 30, y: 15 } })
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
-  await expect(page.locator('.cm-zy-table-src')).toHaveCount(0)
+  await page.locator('.cm-or-table').click({ position: { x: 30, y: 15 } })
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-table-src')).toHaveCount(0)
 
   // Edit: raw markdown, editable again.
   await runCommand('view.modeEdit')
-  await expect(page.locator('.cm-zy-table table')).toBeHidden()
+  await expect(page.locator('.cm-or-table table')).toBeHidden()
   await expect(page.locator('.cm-content')).toContainText('| A | B |')
   await expect(page.locator('.cm-content')).toHaveAttribute('contenteditable', 'true')
 
   await runCommand('view.modeHybrid') // restore
-  await expect(page.locator('.cm-zy-table table')).toBeVisible()
+  await expect(page.locator('.cm-or-table table')).toBeVisible()
 })
 
 test('focus mode dims inactive lines', async () => {
   await page.locator('.tree-row--file', { hasText: 'Media.md' }).click()
   await page.locator('.cm-content').click()
   await runCommand('view.toggleFocusMode')
-  await expect(page.locator('.cm-zy-dim').first()).toBeVisible()
+  await expect(page.locator('.cm-or-dim').first()).toBeVisible()
   await runCommand('view.toggleFocusMode')
-  await expect(page.locator('.cm-zy-dim')).toHaveCount(0)
+  await expect(page.locator('.cm-or-dim')).toHaveCount(0)
 })
 
 test('reflow toggle applies and syncs across file switches', async () => {
   // Deterministic start (the app shares real userData settings): force reflow on.
   await page.evaluate(() =>
-    window.zymd
+    window.orrery
       .invoke('settings:get', undefined)
       .then((s) =>
-        window.zymd.invoke('settings:set', { markdown: { ...s.markdown, reflowParagraphs: true } })
+        window.orrery.invoke('settings:set', { markdown: { ...s.markdown, reflowParagraphs: true } })
       )
   )
   await page.reload()
@@ -201,19 +201,19 @@ test('reflow toggle applies and syncs across file switches', async () => {
 
   // Reflow.md's intro paragraph spans three source lines → two soft breaks.
   await page.locator('.tree-row--file', { hasText: 'Reflow.md' }).click()
-  await expect(page.locator('.cm-zy-softbreak')).toHaveCount(2)
+  await expect(page.locator('.cm-or-softbreak')).toHaveCount(2)
 
   // Toggle off while Reflow.md is active.
   await runCommand('view.toggleReflow')
-  await expect(page.locator('.cm-zy-softbreak')).toHaveCount(0)
+  await expect(page.locator('.cm-or-softbreak')).toHaveCount(0)
 
   // Switch away and back — the OFF setting must hold (proving the per-buffer
   // reconfigure applies current settings, not creation-time ones). This is the
   // exact "had to toggle again after changing file" bug, now covered.
   await page.locator('.tree-row--file', { hasText: 'Home.md' }).click()
   await page.locator('.tree-row--file', { hasText: 'Reflow.md' }).click()
-  await expect(page.locator('.cm-zy-softbreak')).toHaveCount(0)
+  await expect(page.locator('.cm-or-softbreak')).toHaveCount(0)
 
   await runCommand('view.toggleReflow') // restore
-  await expect(page.locator('.cm-zy-softbreak')).toHaveCount(2)
+  await expect(page.locator('.cm-or-softbreak')).toHaveCount(2)
 })

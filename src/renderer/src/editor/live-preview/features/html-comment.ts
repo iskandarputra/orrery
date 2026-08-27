@@ -1,7 +1,7 @@
 import { Decoration } from '@codemirror/view'
 import type { Feature } from '../context'
 
-const commentLine = Decoration.line({ class: 'cm-zy-comment-line' })
+const commentLine = Decoration.line({ class: 'cm-or-comment-line' })
 
 /**
  * HTML comments (`<!-- ... -->`) — internal notes, author metadata, TODOs.

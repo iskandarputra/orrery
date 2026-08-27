@@ -14,7 +14,7 @@ const tree: FileNode = {
       path: '/vault/projects',
       kind: 'directory',
       children: [
-        { name: 'Zymd Plan.md', path: '/vault/projects/Zymd Plan.md', kind: 'file' },
+        { name: 'Orrery Plan.md', path: '/vault/projects/Orrery Plan.md', kind: 'file' },
         { name: 'notes.markdown', path: '/vault/projects/notes.markdown', kind: 'file' }
       ]
     }
@@ -26,7 +26,7 @@ describe('buildNoteIndex', () => {
     const index = buildNoteIndex(tree)
     expect(index).toEqual([
       { path: '/vault/Inbox.md', stem: 'Inbox' },
-      { path: '/vault/projects/Zymd Plan.md', stem: 'Zymd Plan' },
+      { path: '/vault/projects/Orrery Plan.md', stem: 'Orrery Plan' },
       { path: '/vault/projects/notes.markdown', stem: 'notes' }
     ])
   })
@@ -40,7 +40,7 @@ describe('resolveNote', () => {
   const index = buildNoteIndex(tree)
 
   it('matches stems case-insensitively', () => {
-    expect(resolveNote(index, 'zymd plan')?.path).toBe('/vault/projects/Zymd Plan.md')
+    expect(resolveNote(index, 'orrery plan')?.path).toBe('/vault/projects/Orrery Plan.md')
     expect(resolveNote(index, 'INBOX')?.path).toBe('/vault/Inbox.md')
   })
 

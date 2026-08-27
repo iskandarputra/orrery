@@ -110,10 +110,10 @@ function Pane({
         hidden={isCanvas || !bufferId}
         style={{
           fontSize: `${settings.editor.fontSize}px`,
-          ['--zy-editor-font-size' as string]: `${settings.editor.fontSize}px`,
-          ['--zy-editor-line-height' as string]: String(settings.editor.lineHeight),
-          ['--zy-editor-font-family' as string]: settings.editor.fontFamily || 'var(--zy-prose-font)',
-          ['--zy-editor-max-width' as string]: lineWidthCss(settings.editor)
+          ['--or-editor-font-size' as string]: `${settings.editor.fontSize}px`,
+          ['--or-editor-line-height' as string]: String(settings.editor.lineHeight),
+          ['--or-editor-font-family' as string]: settings.editor.fontFamily || 'var(--or-prose-font)',
+          ['--or-editor-max-width' as string]: lineWidthCss(settings.editor)
         }}
       />
       {isCanvas && bufferId && <CanvasEditor key={bufferId} bufferId={bufferId} />}

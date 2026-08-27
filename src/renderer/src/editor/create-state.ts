@@ -25,7 +25,7 @@ import { bumpDocVersion } from '@/state/doc-version'
 import { scheduleStatsUpdate } from '@/state/editor-stats'
 import { bufferRegistry } from './buffer-registry'
 import { livePreview } from './live-preview'
-import { zymdEditorTheme } from './theme'
+import { orreryEditorTheme } from './theme'
 
 /**
  * Compartments allow live reconfiguration (settings changes) without
@@ -93,7 +93,7 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
         codeLanguages: languages,
         extensions: [HighlightExtension]
       }),
-      zymdEditorTheme(),
+      orreryEditorTheme(),
       // CodeMirror disables spellcheck by default; prose wants it on, and
       // Electron's checker supplies the underline and the suggestions.
       EditorView.contentAttributes.of({ spellcheck: 'true' }),

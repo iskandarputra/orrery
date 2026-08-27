@@ -25,7 +25,7 @@ export class ExportService {
     const target = await this.pickPath(title, 'pdf', [{ name: 'PDF', extensions: ['pdf'] }])
     if (!target) return null
 
-    const tmp = path.join(os.tmpdir(), `zymd-export-${randomUUID()}.html`)
+    const tmp = path.join(os.tmpdir(), `orrery-export-${randomUUID()}.html`)
     let win: BrowserWindow | null = null
     try {
       await fs.writeFile(tmp, await buildExportHtml(title, markdown), 'utf-8')
@@ -55,7 +55,7 @@ export class ExportService {
    * sidebar, tabs and panels don't end up on paper.
    */
   async print(title: string, markdown: string): Promise<boolean> {
-    const tmp = path.join(os.tmpdir(), `zymd-print-${randomUUID()}.html`)
+    const tmp = path.join(os.tmpdir(), `orrery-print-${randomUUID()}.html`)
     let win: BrowserWindow | null = null
     try {
       await fs.writeFile(tmp, await buildExportHtml(title, markdown), 'utf-8')

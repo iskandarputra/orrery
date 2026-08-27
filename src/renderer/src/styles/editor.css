@@ -9,32 +9,32 @@
 }
 
 /* Headings — Refined, comfortable typography rhythm */
-.cm-line.cm-zy-heading {
+.cm-line.cm-or-heading {
   line-height: 1.36;
   font-weight: 600;
 }
 
-.cm-line.cm-zy-h1 {
+.cm-line.cm-or-h1 {
   font-size: 1.45em;
   font-weight: 650;
   letter-spacing: -0.018em;
   padding-top: 0.85em;
   padding-bottom: 0.25em;
-  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 45%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--or-border) 45%, transparent);
   margin-bottom: 0.2em;
 }
 
-.cm-line.cm-zy-h2 {
+.cm-line.cm-or-h2 {
   font-size: 1.28em;
   font-weight: 600;
   letter-spacing: -0.012em;
   padding-top: 0.75em;
   padding-bottom: 0.2em;
-  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--or-border) 30%, transparent);
   margin-bottom: 0.15em;
 }
 
-.cm-line.cm-zy-h3 {
+.cm-line.cm-or-h3 {
   font-size: 1.14em;
   font-weight: 600;
   letter-spacing: -0.006em;
@@ -42,38 +42,38 @@
   padding-bottom: 0.15em;
 }
 
-.cm-line.cm-zy-h4 {
+.cm-line.cm-or-h4 {
   font-size: 1.04em;
   font-weight: 600;
   padding-top: 0.45em;
   padding-bottom: 0.1em;
 }
 
-.cm-line.cm-zy-h5 {
+.cm-line.cm-or-h5 {
   font-size: 0.94em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--zy-fg-muted);
+  color: var(--or-fg-muted);
   padding-top: 0.4em;
   padding-bottom: 0.1em;
 }
 
-.cm-line.cm-zy-h6 {
+.cm-line.cm-or-h6 {
   font-size: 0.88em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--zy-fg-faint);
+  color: var(--or-fg-faint);
   padding-top: 0.35em;
   padding-bottom: 0.1em;
 }
 
 /* Elegant `#` syntax marker when active/revealed */
-.cm-zy-heading-mark {
-  color: var(--zy-fg-faint);
+.cm-or-heading-mark {
+  color: var(--or-fg-faint);
   font-weight: 400;
-  font-family: var(--zy-mono-font);
+  font-family: var(--or-mono-font);
   font-size: 0.82em;
   opacity: 0.55;
   margin-right: 0.2em;
@@ -81,58 +81,58 @@
 }
 
 /* Inline code pills with syntax tint */
-.cm-zy-inline-code {
-  background: var(--zy-inline-code-bg);
-  color: var(--zy-code-keyword);
-  border-radius: var(--zy-radius-xs);
+.cm-or-inline-code {
+  background: var(--or-inline-code-bg);
+  color: var(--or-code-keyword);
+  border-radius: var(--or-radius-xs);
   padding: 0.15em 0.38em;
-  font-family: var(--zy-mono-font);
+  font-family: var(--or-mono-font);
   font-size: 0.88em;
-  border: 1px solid color-mix(in srgb, var(--zy-border) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--or-border) 60%, transparent);
 }
 
 /* Rendered links. */
-.cm-zy-link-text {
-  color: var(--zy-accent-text);
+.cm-or-link-text {
+  color: var(--or-accent-text);
   cursor: pointer;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
-.cm-zy-link-text:hover {
+.cm-or-link-text:hover {
   text-decoration: underline;
 }
 
 /* Wikilinks [[Note]] */
-.cm-zy-wikilink {
-  color: var(--zy-accent-text);
-  background: var(--zy-accent-soft);
+.cm-or-wikilink {
+  color: var(--or-accent-text);
+  background: var(--or-accent-soft);
   padding: 1px 5px;
   border-radius: 4px;
   text-decoration: none;
-  border-bottom: 1px dashed var(--zy-accent);
+  border-bottom: 1px dashed var(--or-accent);
   cursor: pointer;
-  transition: background var(--zy-transition-fast);
+  transition: background var(--or-transition-fast);
 }
 
-.cm-zy-wikilink:hover {
-  background: color-mix(in srgb, var(--zy-accent-soft) 180%, transparent);
+.cm-or-wikilink:hover {
+  background: color-mix(in srgb, var(--or-accent-soft) 180%, transparent);
 }
 
-.cm-zy-image-alt::before {
+.cm-or-image-alt::before {
   content: '🖼 ';
   font-size: 0.85em;
 }
 
 /* Blockquotes & Themed Callouts */
-.cm-line.cm-zy-blockquote {
-  border-left: 3.5px solid var(--zy-accent);
+.cm-line.cm-or-blockquote {
+  border-left: 3.5px solid var(--or-accent);
   /* Bar at the text column, content inset from the bar. */
-  margin-left: var(--zy-line-pad, 2rem);
-  margin-right: var(--zy-line-pad, 2rem);
+  margin-left: var(--or-line-pad, 2rem);
+  margin-right: var(--or-line-pad, 2rem);
   padding-left: 1.1em;
-  color: var(--zy-fg-muted);
-  background: color-mix(in srgb, var(--zy-accent-soft) 35%, transparent);
+  color: var(--or-fg-muted);
+  background: color-mix(in srgb, var(--or-accent-soft) 35%, transparent);
   /* No *vertical* margin: a gap between lines would break the bar and the
      background into one box per line instead of one quote. Longhands only —
      the `margin` shorthand here would silently reset the inset above. */
@@ -141,86 +141,86 @@
 }
 
 /* Only the ends round off, and the breathing room goes outside the block. */
-.cm-line.cm-zy-blockquote--first {
+.cm-line.cm-or-blockquote--first {
   margin-top: 0.5em;
   padding-top: 0.35em;
-  border-radius: 0 var(--zy-radius-xs) 0 0;
+  border-radius: 0 var(--or-radius-xs) 0 0;
 }
 
-.cm-line.cm-zy-blockquote--last {
+.cm-line.cm-or-blockquote--last {
   margin-bottom: 0.5em;
   padding-bottom: 0.35em;
-  border-radius: 0 0 var(--zy-radius-xs) 0;
+  border-radius: 0 0 var(--or-radius-xs) 0;
 }
 
 /* A quote of a single line is both ends at once. */
-.cm-line.cm-zy-blockquote--first.cm-zy-blockquote--last {
-  border-radius: 0 var(--zy-radius-xs) var(--zy-radius-xs) 0;
+.cm-line.cm-or-blockquote--first.cm-or-blockquote--last {
+  border-radius: 0 var(--or-radius-xs) var(--or-radius-xs) 0;
 }
 
-.cm-line.cm-zy-callout--note {
-  border-left-color: var(--zy-accent-text);
-  background: color-mix(in srgb, var(--zy-accent-soft) 40%, transparent);
+.cm-line.cm-or-callout--note {
+  border-left-color: var(--or-accent-text);
+  background: color-mix(in srgb, var(--or-accent-soft) 40%, transparent);
 }
 
-.cm-line.cm-zy-callout--tip {
-  border-left-color: var(--zy-code-property);
-  background: color-mix(in srgb, var(--zy-code-property) 12%, transparent);
+.cm-line.cm-or-callout--tip {
+  border-left-color: var(--or-code-property);
+  background: color-mix(in srgb, var(--or-code-property) 12%, transparent);
 }
 
-.cm-line.cm-zy-callout--warning {
-  border-left-color: var(--zy-code-type);
-  background: color-mix(in srgb, var(--zy-code-type) 12%, transparent);
+.cm-line.cm-or-callout--warning {
+  border-left-color: var(--or-code-type);
+  background: color-mix(in srgb, var(--or-code-type) 12%, transparent);
 }
 
-.cm-line.cm-zy-callout--caution {
-  border-left-color: var(--zy-code-keyword);
-  background: color-mix(in srgb, var(--zy-code-keyword) 12%, transparent);
+.cm-line.cm-or-callout--caution {
+  border-left-color: var(--or-code-keyword);
+  background: color-mix(in srgb, var(--or-code-keyword) 12%, transparent);
 }
 
-.cm-line.cm-zy-callout--important {
-  border-left-color: var(--zy-code-function);
-  background: color-mix(in srgb, var(--zy-code-function) 12%, transparent);
+.cm-line.cm-or-callout--important {
+  border-left-color: var(--or-code-function);
+  background: color-mix(in srgb, var(--or-code-function) 12%, transparent);
 }
 
 /* Callout title — the text after the concealed [!TYPE] marker. The body starts
    on its own line; paragraph reflow leaves this break alone. */
-.cm-zy-callout-title {
+.cm-or-callout-title {
   font-weight: 650;
-  color: var(--zy-fg);
+  color: var(--or-fg);
   letter-spacing: -0.005em;
 }
 
-.cm-zy-callout--note .cm-zy-callout-title {
-  color: var(--zy-accent-text);
+.cm-or-callout--note .cm-or-callout-title {
+  color: var(--or-accent-text);
 }
 
-.cm-zy-callout--tip .cm-zy-callout-title {
-  color: var(--zy-code-property);
+.cm-or-callout--tip .cm-or-callout-title {
+  color: var(--or-code-property);
 }
 
-.cm-zy-callout--warning .cm-zy-callout-title {
-  color: var(--zy-code-type);
+.cm-or-callout--warning .cm-or-callout-title {
+  color: var(--or-code-type);
 }
 
-.cm-zy-callout--caution .cm-zy-callout-title {
-  color: var(--zy-code-keyword);
+.cm-or-callout--caution .cm-or-callout-title {
+  color: var(--or-code-keyword);
 }
 
-.cm-zy-callout--important .cm-zy-callout-title {
-  color: var(--zy-code-function);
+.cm-or-callout--important .cm-or-callout-title {
+  color: var(--or-code-function);
 }
 
 /* Bullets and task checkboxes. */
-.cm-zy-bullet {
-  color: var(--zy-accent-text);
+.cm-or-bullet {
+  color: var(--or-accent-text);
   font-weight: 800;
   display: inline-block;
   width: 1.2ch;
 }
 
-.cm-zy-task-checkbox {
-  accent-color: var(--zy-accent);
+.cm-or-task-checkbox {
+  accent-color: var(--or-accent);
   width: 1em;
   height: 1em;
   margin: 0 0 0.2em 0;
@@ -230,11 +230,11 @@
 }
 
 /* Horizontal rule. */
-.cm-zy-hr {
+.cm-or-hr {
   display: inline-block;
   width: 100%;
   height: 2px;
-  background: linear-gradient(to right, transparent, var(--zy-border) 15%, var(--zy-border) 85%, transparent);
+  background: linear-gradient(to right, transparent, var(--or-border) 15%, var(--or-border) 85%, transparent);
   border-radius: 1px;
   vertical-align: middle;
   margin: 0.8em 0;
@@ -244,17 +244,17 @@
 /* The card is a block, so it starts where the text column starts — not at the
    editor's edge — matching tables and the properties card. Its own padding
    then insets the code within it. */
-.cm-line.cm-zy-code-line {
-  margin-left: var(--zy-line-pad, 2rem);
-  margin-right: var(--zy-line-pad, 2rem);
+.cm-line.cm-or-code-line {
+  margin-left: var(--or-line-pad, 2rem);
+  margin-right: var(--or-line-pad, 2rem);
   padding-left: 1.1em;
   padding-right: 1.1em;
-  background: var(--zy-code-bg);
-  font-family: var(--zy-mono-font);
+  background: var(--or-code-bg);
+  font-family: var(--or-mono-font);
   font-size: 0.875em;
   line-height: 1.65;
-  border-left: 1px solid var(--zy-border);
-  border-right: 1px solid var(--zy-border);
+  border-left: 1px solid var(--or-border);
+  border-right: 1px solid var(--or-border);
   /* Code is column-sensitive: never wrap it, scroll instead, so ASCII trees
      and aligned comments survive a narrow window. */
   white-space: pre;
@@ -265,31 +265,31 @@
 /* One font, one size for every token — the markdown `monospace` highlight
    shrinks spans to 0.88em, which would stagger glyph widths mid-line and
    break box-drawing alignment. The language badge keeps its own scale. */
-.cm-zy-code-line span:not(.cm-zy-code-info):not(.cm-zy-code-info span) {
+.cm-or-code-line span:not(.cm-or-code-info):not(.cm-or-code-info span) {
   font-family: inherit;
   font-size: inherit;
 }
 
-.cm-line.cm-zy-code-first {
-  border-radius: var(--zy-radius-md) var(--zy-radius-md) 0 0;
+.cm-line.cm-or-code-first {
+  border-radius: var(--or-radius-md) var(--or-radius-md) 0 0;
   padding-top: 0.6em;
   padding-bottom: 0.25em;
-  border-top: 1px solid var(--zy-border);
-  background: color-mix(in srgb, var(--zy-panel-bg) 65%, var(--zy-code-bg));
-  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 40%, transparent);
+  border-top: 1px solid var(--or-border);
+  background: color-mix(in srgb, var(--or-panel-bg) 65%, var(--or-code-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--or-border) 40%, transparent);
 }
 
-.cm-line.cm-zy-code-last {
-  border-radius: 0 0 var(--zy-radius-md) var(--zy-radius-md);
+.cm-line.cm-or-code-last {
+  border-radius: 0 0 var(--or-radius-md) var(--or-radius-md);
   padding-bottom: 0.6em;
-  border-bottom: 1px solid var(--zy-border);
+  border-bottom: 1px solid var(--or-border);
 }
 
 /* A fence line with its ``` concealed collapses into the card's edge — the
    backticks come back (full height) when the cursor lands on that line.
    Scoped to .cm-line: the card's own rule is (0,2,0) and would outrank a bare
    class, leaving a full empty text line inside the card. */
-.cm-line.cm-zy-code-fence-hidden {
+.cm-line.cm-or-code-fence-hidden {
   /* line-height alone leaves ~14px: CodeMirror's widget buffer is replaced
      content and keeps its own strut. Zeroing the font size collapses that too. */
   line-height: 0;
@@ -299,99 +299,99 @@
 /* The card's own padding is in em, which the collapse above would zero along
    with the text — so the edge keeps its breathing room in a unit that doesn't
    depend on the line's font size. */
-.cm-line.cm-zy-code-fence-hidden.cm-zy-code-first {
+.cm-line.cm-or-code-fence-hidden.cm-or-code-first {
   padding-top: 0.55rem;
 }
 
-.cm-line.cm-zy-code-fence-hidden.cm-zy-code-last {
+.cm-line.cm-or-code-fence-hidden.cm-or-code-last {
   padding-bottom: 0.55rem;
 }
 
 /* Fenced code backticks: subtle and unobtrusive (shown on the active line) */
-.cm-zy-code-mark {
-  color: var(--zy-fg-faint);
+.cm-or-code-mark {
+  color: var(--or-fg-faint);
   opacity: 0.55;
   font-weight: 500;
   letter-spacing: -0.05em;
 }
 
 /* Language info tag: sleek badge pill */
-.cm-zy-code-info {
-  font-family: var(--zy-mono-font);
+.cm-or-code-info {
+  font-family: var(--or-mono-font);
   font-size: 0.82em;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--zy-accent-text);
-  background: var(--zy-accent-soft);
+  color: var(--or-accent-text);
+  background: var(--or-accent-soft);
   padding: 1px 6px;
   border-radius: 4px;
   margin-left: 6px;
-  border: 1px solid color-mix(in srgb, var(--zy-accent) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--or-accent) 25%, transparent);
 }
 
 /* Tables — rendered widget (GitHub / Notion style) */
-.cm-zy-table {
+.cm-or-table {
   padding: 0.5em 2rem;
   overflow-x: auto;
 }
 
-.cm-zy-table table {
+.cm-or-table table {
   border-collapse: collapse;
   font-size: 0.9em;
   line-height: 1.5;
-  border-radius: var(--zy-radius-sm);
+  border-radius: var(--or-radius-sm);
   overflow: hidden;
-  box-shadow: var(--zy-shadow-sm);
+  box-shadow: var(--or-shadow-sm);
 }
 
-.cm-zy-table th,
-.cm-zy-table td {
-  border: 1px solid var(--zy-border);
+.cm-or-table th,
+.cm-or-table td {
+  border: 1px solid var(--or-border);
   padding: 8px 14px;
   text-align: left;
   vertical-align: top;
 }
 
-.cm-zy-table th {
+.cm-or-table th {
   font-weight: 600;
-  background: var(--zy-panel-bg);
-  color: var(--zy-fg);
+  background: var(--or-panel-bg);
+  color: var(--or-fg);
 }
 
-.cm-zy-table tbody tr:nth-child(2n) {
-  background: color-mix(in srgb, var(--zy-panel-bg) 50%, transparent);
+.cm-or-table tbody tr:nth-child(2n) {
+  background: color-mix(in srgb, var(--or-panel-bg) 50%, transparent);
 }
 
-.cm-zy-table tbody tr:hover {
-  background: var(--zy-hover-bg);
+.cm-or-table tbody tr:hover {
+  background: var(--or-hover-bg);
 }
 
-.cm-zy-table code {
-  font-family: var(--zy-mono-font);
+.cm-or-table code {
+  font-family: var(--or-mono-font);
   font-size: 0.9em;
-  background: var(--zy-inline-code-bg);
+  background: var(--or-inline-code-bg);
   border-radius: 4px;
   padding: 0.1em 0.3em;
 }
 
-.cm-zy-table:hover {
-  outline: 1px dashed var(--zy-accent);
+.cm-or-table:hover {
+  outline: 1px dashed var(--or-accent);
   outline-offset: 3px;
   cursor: text;
 }
 
 /* …and source mode while cursor is inside. */
-.cm-zy-table-src {
-  font-family: var(--zy-mono-font);
+.cm-or-table-src {
+  font-family: var(--or-mono-font);
   font-size: 0.85em;
   line-height: 1.5;
-  background: color-mix(in srgb, var(--zy-panel-bg) 40%, transparent);
+  background: color-mix(in srgb, var(--or-panel-bg) 40%, transparent);
 }
 
 /* ==Marker-pen highlight== — theme-tinted, soft edges, clones across wraps. */
-.cm-zy-mark {
-  background: var(--zy-hl-bg);
+.cm-or-mark {
+  background: var(--or-hl-bg);
   border-radius: 3px;
   padding: 0.08em 0.16em;
   margin: -0.08em -0.16em;
@@ -400,105 +400,105 @@
 }
 
 /* Wikilinks ([[note]]). */
-.cm-zy-wikilink {
-  color: var(--zy-accent-text);
+.cm-or-wikilink {
+  color: var(--or-accent-text);
   cursor: pointer;
   border-bottom: 1.5px solid transparent;
   font-weight: 500;
-  transition: border-bottom-color var(--zy-transition-fast);
+  transition: border-bottom-color var(--or-transition-fast);
 }
 
-.cm-zy-wikilink:hover {
-  border-bottom-color: var(--zy-accent-text);
+.cm-or-wikilink:hover {
+  border-bottom-color: var(--or-accent-text);
 }
 
-.cm-zy-wikilink--missing {
-  color: var(--zy-fg-faint);
-  border-bottom: 1.5px dashed var(--zy-fg-faint);
+.cm-or-wikilink--missing {
+  color: var(--or-fg-faint);
+  border-bottom: 1.5px dashed var(--or-fg-faint);
 }
 
-.cm-zy-wikilink--missing:hover {
-  color: var(--zy-accent-text);
-  border-bottom-color: var(--zy-accent-text);
+.cm-or-wikilink--missing:hover {
+  color: var(--or-accent-text);
+  border-bottom-color: var(--or-accent-text);
 }
 
 /* The markdown highlighter wraps inline text in spans of its own, which paint
    over the colour these rules set — on Ayu Light that left a wikilink at
    1.85:1. Each of these owns its colour; whatever sits inside it inherits. */
-.cm-zy-wikilink span,
-.cm-zy-link-text span,
-.cm-zy-tag span {
+.cm-or-wikilink span,
+.cm-or-link-text span,
+.cm-or-tag span {
   color: inherit;
 }
 
 /* Autocomplete dropdown (wikilink completion). */
 .cm-tooltip.cm-tooltip-autocomplete {
-  border-radius: var(--zy-radius-md);
+  border-radius: var(--or-radius-md);
   overflow: hidden;
-  border: 1px solid var(--zy-border);
-  box-shadow: var(--zy-shadow-lg);
-  background: var(--zy-editor-bg);
+  border: 1px solid var(--or-border);
+  box-shadow: var(--or-shadow-lg);
+  background: var(--or-editor-bg);
 }
 
 .cm-tooltip-autocomplete ul li {
   padding: 5px 12px !important;
-  font-family: var(--zy-ui-font) !important;
+  font-family: var(--or-ui-font) !important;
   font-size: 12.5px;
 }
 
 .cm-tooltip-autocomplete ul li[aria-selected] {
-  background: var(--zy-accent-soft) !important;
-  color: var(--zy-accent-text) !important;
+  background: var(--or-accent-soft) !important;
+  color: var(--or-accent-text) !important;
   font-weight: 500;
 }
 
 .cm-completionDetail {
-  color: var(--zy-fg-faint);
+  color: var(--or-fg-faint);
   font-style: normal;
   margin-left: 10px;
 }
 
 /* Math and mermaid widgets. */
-.cm-zy-math {
+.cm-or-math {
   cursor: text;
 }
 
 /* Card edges sit at the text column, like code blocks, quotes and the
    properties card — the inset is a margin so the padding stays content spacing. */
-.cm-zy-math--block {
+.cm-or-math--block {
   padding: 0.8em 1.1em;
   text-align: center;
   overflow-x: auto;
-  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
-  border-radius: var(--zy-radius-md);
-  margin: 0.4em var(--zy-line-pad, 2rem);
-  border: 1px solid var(--zy-border);
+  background: color-mix(in srgb, var(--or-panel-bg) 60%, transparent);
+  border-radius: var(--or-radius-md);
+  margin: 0.4em var(--or-line-pad, 2rem);
+  border: 1px solid var(--or-border);
 }
 
-.cm-zy-mermaid {
+.cm-or-mermaid {
   padding: 1em 1.1em;
   display: flex;
   justify-content: center;
   cursor: text;
-  color: var(--zy-fg-faint);
+  color: var(--or-fg-faint);
   font-size: 12px;
-  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
-  border-radius: var(--zy-radius-md);
-  margin: 0.4em var(--zy-line-pad, 2rem);
-  border: 1px solid var(--zy-border);
+  background: color-mix(in srgb, var(--or-panel-bg) 60%, transparent);
+  border-radius: var(--or-radius-md);
+  margin: 0.4em var(--or-line-pad, 2rem);
+  border: 1px solid var(--or-border);
 }
 
-.cm-zy-mermaid svg {
+.cm-or-mermaid svg {
   max-width: 100%;
 }
 
-.cm-zy-mermaid--error {
+.cm-or-mermaid--error {
   color: #ef4444;
-  font-family: var(--zy-mono-font);
+  font-family: var(--or-mono-font);
 }
 
 /* Inline images. */
-.cm-zy-image {
+.cm-or-image {
   display: inline-block;
   cursor: pointer;
   max-width: 100%;
@@ -506,36 +506,36 @@
   margin: 0.4em 0;
 }
 
-.cm-zy-image img {
+.cm-or-image img {
   max-width: 100%;
   max-height: 60vh;
-  border-radius: var(--zy-radius-md);
+  border-radius: var(--or-radius-md);
   display: block;
-  box-shadow: var(--zy-shadow-md);
-  transition: transform var(--zy-transition-fast);
+  box-shadow: var(--or-shadow-md);
+  transition: transform var(--or-transition-fast);
 }
 
-.cm-zy-image img:hover {
+.cm-or-image img:hover {
   transform: scale(1.01);
 }
 
-.cm-zy-image--broken {
-  color: var(--zy-fg-faint);
-  font-family: var(--zy-mono-font);
+.cm-or-image--broken {
+  color: var(--or-fg-faint);
+  font-family: var(--or-mono-font);
   font-size: 0.85em;
-  border: 1px dashed var(--zy-border);
-  border-radius: var(--zy-radius-sm);
+  border: 1px dashed var(--or-border);
+  border-radius: var(--or-radius-sm);
   padding: 0.3em 0.6em;
 }
 
 /* Focus mode: dim non-active lines. */
-.cm-zy-dim {
+.cm-or-dim {
   opacity: 0.32;
   transition: opacity 0.15s ease;
 }
 
 /* Reflowed soft line break — a real, breakable inter-line space. */
-.cm-zy-softbreak {
+.cm-or-softbreak {
   white-space: normal;
 }
 
@@ -547,28 +547,28 @@
    in a fixed column, which is what puts `1.`, `10.` and `•` on one text edge.
    ========================================================================== */
 :root {
-  --zy-li-step: 1.5em;
-  --zy-li-marker: 1.5em;
+  --or-li-step: 1.5em;
+  --or-li-marker: 1.5em;
 }
 
-.cm-line.cm-zy-li {
+.cm-line.cm-or-li {
   padding-top: 0.34em;
   padding-left: calc(
-    var(--zy-line-pad, 2rem) + var(--zy-li-depth, 0) * var(--zy-li-step) + var(--zy-li-marker)
+    var(--or-line-pad, 2rem) + var(--or-li-depth, 0) * var(--or-li-step) + var(--or-li-marker)
   );
   /* Pull the first line back by the marker column: the marker sits in it and
      the text — wrapped lines included — starts after it. */
-  text-indent: calc(-1 * var(--zy-li-marker));
+  text-indent: calc(-1 * var(--or-li-marker));
 }
 
-.cm-line.cm-zy-li--first {
+.cm-line.cm-or-li--first {
   padding-top: 0.12em;
 }
 
 /* A quoted list keeps the quote's inset and adds its own indent on top. */
-.cm-line.cm-zy-blockquote.cm-zy-li {
+.cm-line.cm-or-blockquote.cm-or-li {
   padding-left: calc(
-    1.1em + var(--zy-li-depth, 0) * var(--zy-li-step) + var(--zy-li-marker)
+    1.1em + var(--or-li-depth, 0) * var(--or-li-step) + var(--or-li-marker)
   );
 }
 
@@ -576,11 +576,11 @@
    a box of exactly this width, which is what lands `1.`, `10.`, `•` and `[ ]`
    on a single text edge. Nothing here may change the box's own font-size:
    `width` is in em, so that would collapse the column. */
-.cm-zy-bullet,
-.cm-zy-ordered-mark,
-.cm-zy-task-box {
+.cm-or-bullet,
+.cm-or-ordered-mark,
+.cm-or-task-box {
   display: inline-block;
-  width: var(--zy-li-marker);
+  width: var(--or-li-marker);
   text-align: right;
   /* The space in the source follows the marker; without this the glyph would
      sit flush against the text. */
@@ -588,36 +588,36 @@
   margin-right: -0.4em;
 }
 
-.cm-zy-ordered-mark {
-  color: var(--zy-fg-faint);
+.cm-or-ordered-mark {
+  color: var(--or-fg-faint);
   font-variant-numeric: tabular-nums;
 }
 
-.cm-zy-bullet::before {
+.cm-or-bullet::before {
   content: "\2022";
 }
 
-.cm-zy-bullet {
-  color: var(--zy-accent-text);
+.cm-or-bullet {
+  color: var(--or-accent-text);
   font-weight: 700;
 }
 
 /* Depth reads at a glance from the glyph, the way a printed outline does. The
    size lives on ::before, never on the box. */
-.cm-zy-li[style*="--zy-li-depth: 1"] .cm-zy-bullet {
-  color: var(--zy-fg-muted);
+.cm-or-li[style*="--or-li-depth: 1"] .cm-or-bullet {
+  color: var(--or-fg-muted);
 }
 
-.cm-zy-li[style*="--zy-li-depth: 1"] .cm-zy-bullet::before {
+.cm-or-li[style*="--or-li-depth: 1"] .cm-or-bullet::before {
   content: "\25E6";
   font-size: 1.3em;
 }
 
-.cm-zy-li[style*="--zy-li-depth: 2"] .cm-zy-bullet {
-  color: var(--zy-fg-muted);
+.cm-or-li[style*="--or-li-depth: 2"] .cm-or-bullet {
+  color: var(--or-fg-muted);
 }
 
-.cm-zy-li[style*="--zy-li-depth: 2"] .cm-zy-bullet::before {
+.cm-or-li[style*="--or-li-depth: 2"] .cm-or-bullet::before {
   content: "\25AA";
   font-size: 1.05em;
 }
@@ -626,69 +626,69 @@
 /* ==========================================================================
    YAML Frontmatter Properties Card / Box (Obsidian / Notion style)
    ========================================================================== */
-.cm-zy-properties-card {
+.cm-or-properties-card {
   margin: 0.2em 2rem 1.4em;
   padding: 10px 14px;
-  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
-  border: 1px solid var(--zy-border);
-  border-radius: var(--zy-radius-md);
+  background: color-mix(in srgb, var(--or-panel-bg) 60%, transparent);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-md);
   cursor: text;
-  box-shadow: var(--zy-shadow-sm);
+  box-shadow: var(--or-shadow-sm);
   transition:
-    border-color var(--zy-transition-fast),
-    background var(--zy-transition-fast);
+    border-color var(--or-transition-fast),
+    background var(--or-transition-fast);
 }
 
-.cm-zy-properties-card:hover {
-  border-color: var(--zy-fg-faint);
-  background: var(--zy-panel-bg);
+.cm-or-properties-card:hover {
+  border-color: var(--or-fg-faint);
+  background: var(--or-panel-bg);
 }
 
-.cm-zy-properties-header {
+.cm-or-properties-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
   padding-bottom: 6px;
-  border-bottom: 1px solid color-mix(in srgb, var(--zy-border) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--or-border) 60%, transparent);
 }
 
-.cm-zy-properties-title-wrap {
+.cm-or-properties-title-wrap {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.cm-zy-properties-icon {
-  color: var(--zy-fg-faint);
+.cm-or-properties-icon {
+  color: var(--or-fg-faint);
   display: flex;
   align-items: center;
 }
 
-.cm-zy-properties-title {
+.cm-or-properties-title {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--zy-fg-faint);
+  color: var(--or-fg-faint);
 }
 
-.cm-zy-properties-count {
+.cm-or-properties-count {
   font-size: 10px;
   font-weight: 700;
   padding: 1px 5px;
-  border-radius: var(--zy-radius-full);
-  background: var(--zy-accent-soft);
-  color: var(--zy-accent-text);
+  border-radius: var(--or-radius-full);
+  background: var(--or-accent-soft);
+  color: var(--or-accent-text);
 }
 
-.cm-zy-properties-grid {
+.cm-or-properties-grid {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-.cm-zy-property-row {
+.cm-or-property-row {
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -696,53 +696,53 @@
   line-height: 1.5;
 }
 
-.cm-zy-property-key {
+.cm-or-property-key {
   font-size: 11.5px;
   font-weight: 500;
-  color: var(--zy-fg-faint);
+  color: var(--or-fg-faint);
   min-width: 80px;
   flex-shrink: 0;
   user-select: none;
 }
 
-.cm-zy-property-val {
-  color: var(--zy-fg);
+.cm-or-property-val {
+  color: var(--or-fg);
   word-break: break-word;
 }
 
-.cm-zy-property-val--pill {
+.cm-or-property-val--pill {
   display: inline-flex;
   align-items: center;
   font-size: 11px;
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 4px;
-  background: var(--zy-accent-soft);
-  color: var(--zy-accent-text);
-  border: 1px solid color-mix(in srgb, var(--zy-accent) 25%, transparent);
+  background: var(--or-accent-soft);
+  color: var(--or-accent-text);
+  border: 1px solid color-mix(in srgb, var(--or-accent) 25%, transparent);
 }
 
 /* HTML Comments (<!-- ... -->): Muted Author Notes */
-.cm-zy-comment-line {
-  color: var(--zy-code-comment);
+.cm-or-comment-line {
+  color: var(--or-code-comment);
   font-style: italic;
-  font-family: var(--zy-mono-font);
+  font-family: var(--or-mono-font);
   font-size: 0.88em;
   line-height: 1.6;
   opacity: 0.72;
-  transition: opacity var(--zy-transition-fast);
+  transition: opacity var(--or-transition-fast);
 }
 
-.cm-zy-comment-line:hover {
+.cm-or-comment-line:hover {
   opacity: 1;
 }
 
 /* #tags render as pills — recognisable at a glance, still plain text on disk. */
-.cm-zy-tag {
+.cm-or-tag {
   padding: 1px 6px;
-  border-radius: var(--zy-radius-full);
-  background: var(--zy-accent-soft);
-  color: var(--zy-accent-text);
+  border-radius: var(--or-radius-full);
+  background: var(--or-accent-soft);
+  color: var(--or-accent-text);
   font-size: 0.9em;
   font-weight: 500;
 }
@@ -750,7 +750,7 @@
 /* ==========================================================================
    Block drag handles
    ========================================================================== */
-.cm-zy-block-gutter {
+.cm-or-block-gutter {
   width: 20px;
   background: transparent;
   border: 0;
@@ -758,42 +758,42 @@
 
 /* Present but invisible until the editor is hovered: a column of grips down
    the page would compete with the text for attention. */
-.cm-zy-block-handle {
+.cm-or-block-handle {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 1.4em;
-  color: var(--zy-fg-faint);
+  color: var(--or-fg-faint);
   font-size: 13px;
   line-height: 1;
   cursor: grab;
   opacity: 0;
-  border-radius: var(--zy-radius-sm);
-  transition: opacity var(--zy-transition-fast);
+  border-radius: var(--or-radius-sm);
+  transition: opacity var(--or-transition-fast);
   user-select: none;
 }
 
-.cm-editor:hover .cm-zy-block-handle {
+.cm-editor:hover .cm-or-block-handle {
   opacity: 0.45;
 }
 
-.cm-zy-block-handle:hover {
+.cm-or-block-handle:hover {
   opacity: 1;
-  background: var(--zy-hover-bg);
-  color: var(--zy-fg);
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
 }
 
-.cm-zy-dragging-block .cm-zy-block-handle {
+.cm-or-dragging-block .cm-or-block-handle {
   cursor: grabbing;
 }
 
 /* Where the block will land. */
-.cm-zy-drop-line {
+.cm-or-drop-line {
   position: absolute;
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--zy-accent);
+  background: var(--or-accent);
   pointer-events: none;
   z-index: 3;
 }
@@ -801,26 +801,26 @@
 /* ==========================================================================
    Note embeds — ![[Note]]
    ========================================================================== */
-.cm-zy-embed {
-  margin: 0.4em var(--zy-line-pad, 2rem);
+.cm-or-embed {
+  margin: 0.4em var(--or-line-pad, 2rem);
   padding: 10px 14px;
-  background: color-mix(in srgb, var(--zy-panel-bg) 60%, transparent);
-  border: 1px solid var(--zy-border);
-  border-left: 3px solid var(--zy-accent);
-  border-radius: var(--zy-radius-md);
+  background: color-mix(in srgb, var(--or-panel-bg) 60%, transparent);
+  border: 1px solid var(--or-border);
+  border-left: 3px solid var(--or-accent);
+  border-radius: var(--or-radius-md);
   cursor: text;
 }
 
-.cm-zy-embed-title {
+.cm-or-embed-title {
   margin-bottom: 6px;
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--zy-accent-text);
+  color: var(--or-accent-text);
 }
 
-.cm-zy-embed-body {
+.cm-or-embed-body {
   max-height: 22em;
   overflow: hidden;
   /* Embedded content reads as secondary to the note hosting it. */
@@ -828,30 +828,30 @@
 }
 
 /* The nested preview is content, not an editor: strip its chrome. */
-.cm-zy-embed-body .cm-editor {
+.cm-or-embed-body .cm-editor {
   background: transparent;
   /* The editor theme sets an absolute font size; a preview is content inside
      something else and has to scale with it. */
   font-size: inherit;
 }
 
-.cm-zy-embed-body .cm-scroller {
+.cm-or-embed-body .cm-scroller {
   overflow: hidden;
   font-family: inherit;
 }
 
-.cm-zy-embed-body .cm-content {
+.cm-or-embed-body .cm-content {
   padding: 0;
 }
 
-.cm-zy-embed-body .cm-cursor,
-.cm-zy-embed-body .cm-gutters {
+.cm-or-embed-body .cm-cursor,
+.cm-or-embed-body .cm-gutters {
   display: none;
 }
 
 /* A missing target is worth saying plainly, not rendering as empty. */
-.cm-zy-embed--missing {
-  border-left-color: var(--zy-fg-faint);
-  color: var(--zy-fg-faint);
+.cm-or-embed--missing {
+  border-left-color: var(--or-fg-faint);
+  color: var(--or-fg-faint);
   font-style: italic;
 }

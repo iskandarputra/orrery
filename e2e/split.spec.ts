@@ -20,7 +20,7 @@ async function runCommand(commandId: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-split-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-split-'))
   writeFileSync(join(vault, 'Left.md'), '# Left\n\nleft body\n')
   writeFileSync(join(vault, 'Right.md'), '# Right\n\nright body\n')
   app = await launchApp()

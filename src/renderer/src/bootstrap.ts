@@ -4,7 +4,7 @@ import { buildEditorMenu } from './components/editor-menu'
 import { editorMenuActions } from './components/editor-menu-actions'
 import { createCommandRegistry, type CommandRegistry } from './commands/registry'
 import { getActiveView } from './editor/active-view'
-import type { ZymdPlugin } from './plugins/api'
+import type { OrreryPlugin } from './plugins/api'
 import { builtinPlugins } from './plugins/builtins'
 import { activatePlugins } from './plugins/registry'
 import { invoke, on } from './services/client'
@@ -34,14 +34,14 @@ export function bootstrap(): CommandRegistry {
     store: useStore
   })
 
-  // User plugins: <userData>/plugins/*.js — each calls zymd.register({...}).
+  // User plugins: <userData>/plugins/*.js — each calls orrery.register({...}).
   // Trusted local code, same model as Obsidian community plugins.
   void invoke('plugins:list', undefined).then((files) => {
     for (const file of files) {
       try {
-        const plugins: ZymdPlugin[] = []
-        new Function('zymd', file.source)({
-          register: (p: ZymdPlugin) => plugins.push(p)
+        const plugins: OrreryPlugin[] = []
+        new Function('orrery', file.source)({
+          register: (p: OrreryPlugin) => plugins.push(p)
         })
         activatePlugins(plugins, {
           registerCommand: (command) => registry.register(command),

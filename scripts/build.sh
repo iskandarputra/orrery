@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# build.sh — compile zymd (main + preload + renderer) into ./out
+# build.sh — compile orrery (main + preload + renderer) into ./out
 #
 # Usage:
 #   ./scripts/build.sh          # typecheck + build
@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 FAST=0
 [[ "${1:-}" == "--fast" ]] && FAST=1
 
-echo "▸ zymd build"
+echo "▸ orrery build"
 
 if [[ ! -d node_modules ]]; then
   echo "▸ installing dependencies…"

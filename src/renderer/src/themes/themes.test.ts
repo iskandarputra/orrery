@@ -86,7 +86,7 @@ describe('themes', () => {
     for (const t of THEMES) {
       expect(css).toContain(`[data-theme='${t.id}']`)
     }
-    expect(css).toContain('--zy-editor-bg:')
+    expect(css).toContain('--or-editor-bg:')
   })
 
   it('falls back to the first theme for unknown ids', () => {

@@ -3,40 +3,40 @@
    Inter / JetBrains Mono / Newsreader are bundled (see main.tsx) so typography
    is identical on every machine regardless of installed system fonts. */
 :root {
-  --zy-prose-font:
+  --or-prose-font:
     'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
-  --zy-serif-font: 'Newsreader Variable', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
-  --zy-mono-font:
+  --or-serif-font: 'Newsreader Variable', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --or-mono-font:
     'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-  --zy-ui-font: var(--zy-prose-font);
+  --or-ui-font: var(--or-prose-font);
 
-  --zy-editor-font-size: 16px;
-  --zy-editor-line-height: 1.7;
-  --zy-editor-font-family: var(--zy-prose-font);
+  --or-editor-font-size: 16px;
+  --or-editor-line-height: 1.7;
+  --or-editor-font-family: var(--or-prose-font);
 
   /* Radius tokens */
-  --zy-radius-xs: 4px;
-  --zy-radius-sm: 6px;
-  --zy-radius-md: 8px;
-  --zy-radius-lg: 12px;
-  --zy-radius-xl: 16px;
-  --zy-radius-full: 9999px;
+  --or-radius-xs: 4px;
+  --or-radius-sm: 6px;
+  --or-radius-md: 8px;
+  --or-radius-lg: 12px;
+  --or-radius-xl: 16px;
+  --or-radius-full: 9999px;
 
   /* Elevation Shadows */
-  --zy-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
-  --zy-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08);
-  --zy-shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.12);
-  --zy-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.38), 0 8px 24px rgba(0, 0, 0, 0.2);
+  --or-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --or-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --or-shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.12);
+  --or-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.38), 0 8px 24px rgba(0, 0, 0, 0.2);
 
   /* Tree indent guides. Derived from the per-theme tokens rather than added to
      the theme set: they are scaffolding, and every palette already carries a
      border colour tuned to it. */
-  --zy-tree-guide: color-mix(in srgb, var(--zy-border) 75%, transparent);
-  --zy-tree-guide-strong: color-mix(in srgb, var(--zy-fg-faint) 42%, transparent);
+  --or-tree-guide: color-mix(in srgb, var(--or-border) 75%, transparent);
+  --or-tree-guide-strong: color-mix(in srgb, var(--or-fg-faint) 42%, transparent);
 
   /* Physics Transitions */
-  --zy-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --zy-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --zy-transition-fast: 0.12s var(--zy-ease-out);
-  --zy-transition-normal: 0.18s var(--zy-ease-out);
+  --or-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --or-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --or-transition-fast: 0.12s var(--or-ease-out);
+  --or-transition-normal: 0.18s var(--or-ease-out);
 }

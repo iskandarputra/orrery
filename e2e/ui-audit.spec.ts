@@ -35,7 +35,7 @@ const THEMES: [string, 'light' | 'dark'][] = [
 ]
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-ui-audit-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-ui-audit-'))
   mkdirSync(join(vault, 'Folder'), { recursive: true })
   // Every construct that dresses its own text: a wikilink's colour comes from
   // the link rule but its inner span comes from the highlighter, and only one
@@ -129,7 +129,7 @@ async function contrastFailures(): Promise<Fail[]> {
           text: (el.textContent ?? '').trim().slice(0, 30),
           ratio: Math.round(ratio * 100) / 100,
           size,
-          code: !!el.closest('.cm-zy-code-line, .cm-zy-inline-code, .cm-zy-code-block')
+          code: !!el.closest('.cm-or-code-line, .cm-or-inline-code, .cm-or-code-block')
         })
       }
     }
@@ -145,8 +145,8 @@ async function useTheme(
 ): Promise<void> {
   await page.evaluate(
     async ([themeId, mode, hc]) => {
-      const current = await window.zymd.invoke('settings:get', undefined)
-      await window.zymd.invoke('settings:set', {
+      const current = await window.orrery.invoke('settings:get', undefined)
+      await window.orrery.invoke('settings:set', {
         ...current,
         theme: mode,
         highContrastCode: hc === 'on',

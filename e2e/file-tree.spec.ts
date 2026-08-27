@@ -9,7 +9,7 @@ let page: Page
 let vault: string
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-file-tree-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-file-tree-'))
   mkdirSync(join(vault, 'Projects', 'Alpha'), { recursive: true })
   mkdirSync(join(vault, 'Projects', 'Beta'), { recursive: true })
   mkdirSync(join(vault, 'Archive'), { recursive: true })

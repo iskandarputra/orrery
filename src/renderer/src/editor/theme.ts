@@ -10,59 +10,59 @@ import type { Extension } from '@codemirror/state'
 const editorChrome = EditorView.theme({
   '&': {
     height: '100%',
-    backgroundColor: 'var(--zy-editor-bg)',
-    color: 'var(--zy-fg)',
-    fontSize: 'var(--zy-editor-font-size)'
+    backgroundColor: 'var(--or-editor-bg)',
+    color: 'var(--or-fg)',
+    fontSize: 'var(--or-editor-font-size)'
   },
   '.cm-content': {
-    ['--zy-line-pad' as string]: '2rem',
-    fontFamily: 'var(--zy-editor-font-family)',
-    lineHeight: 'var(--zy-editor-line-height)',
-    caretColor: 'var(--zy-accent)',
+    ['--or-line-pad' as string]: '2rem',
+    fontFamily: 'var(--or-editor-font-family)',
+    lineHeight: 'var(--or-editor-line-height)',
+    caretColor: 'var(--or-accent)',
     padding: '2rem 0 50vh',
-    maxWidth: 'var(--zy-editor-max-width, 46rem)',
+    maxWidth: 'var(--or-editor-max-width, 46rem)',
     margin: '0 auto'
   },
   /**
    * Published as a variable so line-level features (quotes, code cards, list
    * indents) can compose with this padding instead of fighting it: CodeMirror
    * injects theme rules under a generated class, which outranks a plain
-   * `.cm-zy-*` selector and would silently win.
+   * `.cm-or-*` selector and would silently win.
    */
-  '.cm-line': { padding: '0 var(--zy-line-pad)' },
+  '.cm-line': { padding: '0 var(--or-line-pad)' },
   '&.cm-focused': { outline: 'none' },
-  '.cm-cursor': { borderLeftColor: 'var(--zy-accent)', borderLeftWidth: '2px' },
+  '.cm-cursor': { borderLeftColor: 'var(--or-accent)', borderLeftWidth: '2px' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground':
     {
-      backgroundColor: 'var(--zy-selection-bg) !important'
+      backgroundColor: 'var(--or-selection-bg) !important'
     },
   '.cm-gutters': {
-    backgroundColor: 'var(--zy-editor-bg)',
-    color: 'var(--zy-fg-faint)',
+    backgroundColor: 'var(--or-editor-bg)',
+    color: 'var(--or-fg-faint)',
     border: 'none'
   },
-  '.cm-activeLine': { backgroundColor: 'var(--zy-active-line, transparent)' },
-  '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--zy-fg-muted)' },
+  '.cm-activeLine': { backgroundColor: 'var(--or-active-line, transparent)' },
+  '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--or-fg-muted)' },
   '.cm-panels': {
-    backgroundColor: 'var(--zy-panel-bg)',
-    color: 'var(--zy-fg)',
-    borderTop: '1px solid var(--zy-border)'
+    backgroundColor: 'var(--or-panel-bg)',
+    color: 'var(--or-fg)',
+    borderTop: '1px solid var(--or-border)'
   },
   '.cm-panel.cm-search': { padding: '8px 12px' },
   '.cm-panel input, .cm-panel button': {
-    background: 'var(--zy-input-bg)',
-    color: 'var(--zy-fg)',
-    border: '1px solid var(--zy-border)',
+    background: 'var(--or-input-bg)',
+    color: 'var(--or-fg)',
+    border: '1px solid var(--or-border)',
     borderRadius: '4px',
     padding: '3px 8px'
   },
-  '.cm-panel button:hover': { background: 'var(--zy-hover-bg)' },
-  '.cm-searchMatch': { backgroundColor: 'var(--zy-search-match)' },
-  '.cm-searchMatch-selected': { backgroundColor: 'var(--zy-search-match-selected)' },
+  '.cm-panel button:hover': { background: 'var(--or-hover-bg)' },
+  '.cm-searchMatch': { backgroundColor: 'var(--or-search-match)' },
+  '.cm-searchMatch-selected': { backgroundColor: 'var(--or-search-match-selected)' },
   '.cm-tooltip': {
-    backgroundColor: 'var(--zy-panel-bg)',
-    border: '1px solid var(--zy-border)',
-    color: 'var(--zy-fg)'
+    backgroundColor: 'var(--or-panel-bg)',
+    border: '1px solid var(--or-border)',
+    color: 'var(--or-fg)'
   }
 })
 
@@ -73,58 +73,58 @@ const editorChrome = EditorView.theme({
  */
 // Balanced comfortable heading typography scale
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em', color: 'var(--zy-fg)' },
-  { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em', color: 'var(--zy-fg)' },
-  { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em', color: 'var(--zy-fg)' },
-  { tag: tags.heading4, fontSize: '1.04em', fontWeight: '600', color: 'var(--zy-fg)' },
-  { tag: tags.heading5, fontSize: '0.94em', fontWeight: '600', letterSpacing: '0.03em', color: 'var(--zy-fg-muted)' },
-  { tag: tags.heading6, fontSize: '0.88em', fontWeight: '600', letterSpacing: '0.04em', color: 'var(--zy-fg-faint)' },
-  { tag: tags.strong, fontWeight: '700', color: 'var(--zy-fg)' },
-  { tag: tags.emphasis, fontStyle: 'italic', color: 'var(--zy-fg)' },
-  { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--zy-fg-muted)' },
-  { tag: tags.link, color: 'var(--zy-accent)' },
-  { tag: tags.url, color: 'var(--zy-fg-faint)' },
-  { tag: tags.labelName, color: 'var(--zy-accent)' },
-  { tag: tags.monospace, fontFamily: 'var(--zy-mono-font)', fontSize: '0.88em' },
-  { tag: tags.quote, color: 'var(--zy-fg-muted)' },
-  { tag: tags.list, color: 'var(--zy-fg)' },
-  { tag: tags.meta, color: 'var(--zy-fg-faint)' },
-  { tag: tags.processingInstruction, color: 'var(--zy-fg-faint)' },
-  { tag: tags.contentSeparator, color: 'var(--zy-border)' },
-  { tag: tags.escape, color: 'var(--zy-fg-faint)' },
-  { tag: tags.regexp, color: 'var(--zy-code-string)' },
-  { tag: tags.tagName, color: 'var(--zy-code-keyword)' },
-  { tag: tags.attributeName, color: 'var(--zy-code-type)' },
-  { tag: tags.attributeValue, color: 'var(--zy-code-string)' },
-  { tag: tags.bracket, color: 'var(--zy-fg-faint)' },
-  { tag: tags.punctuation, color: 'var(--zy-fg-muted)' },
-  { tag: tags.atom, color: 'var(--zy-code-number)' },
-  { tag: tags.bool, color: 'var(--zy-code-number)' },
-  { tag: tags.null, color: 'var(--zy-code-number)' },
-  { tag: tags.inserted, color: 'var(--zy-code-property)' },
-  { tag: tags.deleted, color: 'var(--zy-code-keyword)', textDecoration: 'line-through' },
-  { tag: tags.changed, color: 'var(--zy-code-type)' },
+  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em', color: 'var(--or-fg)' },
+  { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em', color: 'var(--or-fg)' },
+  { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em', color: 'var(--or-fg)' },
+  { tag: tags.heading4, fontSize: '1.04em', fontWeight: '600', color: 'var(--or-fg)' },
+  { tag: tags.heading5, fontSize: '0.94em', fontWeight: '600', letterSpacing: '0.03em', color: 'var(--or-fg-muted)' },
+  { tag: tags.heading6, fontSize: '0.88em', fontWeight: '600', letterSpacing: '0.04em', color: 'var(--or-fg-faint)' },
+  { tag: tags.strong, fontWeight: '700', color: 'var(--or-fg)' },
+  { tag: tags.emphasis, fontStyle: 'italic', color: 'var(--or-fg)' },
+  { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--or-fg-muted)' },
+  { tag: tags.link, color: 'var(--or-accent)' },
+  { tag: tags.url, color: 'var(--or-fg-faint)' },
+  { tag: tags.labelName, color: 'var(--or-accent)' },
+  { tag: tags.monospace, fontFamily: 'var(--or-mono-font)', fontSize: '0.88em' },
+  { tag: tags.quote, color: 'var(--or-fg-muted)' },
+  { tag: tags.list, color: 'var(--or-fg)' },
+  { tag: tags.meta, color: 'var(--or-fg-faint)' },
+  { tag: tags.processingInstruction, color: 'var(--or-fg-faint)' },
+  { tag: tags.contentSeparator, color: 'var(--or-border)' },
+  { tag: tags.escape, color: 'var(--or-fg-faint)' },
+  { tag: tags.regexp, color: 'var(--or-code-string)' },
+  { tag: tags.tagName, color: 'var(--or-code-keyword)' },
+  { tag: tags.attributeName, color: 'var(--or-code-type)' },
+  { tag: tags.attributeValue, color: 'var(--or-code-string)' },
+  { tag: tags.bracket, color: 'var(--or-fg-faint)' },
+  { tag: tags.punctuation, color: 'var(--or-fg-muted)' },
+  { tag: tags.atom, color: 'var(--or-code-number)' },
+  { tag: tags.bool, color: 'var(--or-code-number)' },
+  { tag: tags.null, color: 'var(--or-code-number)' },
+  { tag: tags.inserted, color: 'var(--or-code-property)' },
+  { tag: tags.deleted, color: 'var(--or-code-keyword)', textDecoration: 'line-through' },
+  { tag: tags.changed, color: 'var(--or-code-type)' },
   // Code-block token colors (via language-data nested parsers).
-  { tag: tags.keyword, color: 'var(--zy-code-keyword)' },
-  { tag: tags.string, color: 'var(--zy-code-string)' },
-  { tag: tags.comment, color: 'var(--zy-code-comment)', fontStyle: 'italic' },
-  { tag: tags.number, color: 'var(--zy-code-number)' },
+  { tag: tags.keyword, color: 'var(--or-code-keyword)' },
+  { tag: tags.string, color: 'var(--or-code-string)' },
+  { tag: tags.comment, color: 'var(--or-code-comment)', fontStyle: 'italic' },
+  { tag: tags.number, color: 'var(--or-code-number)' },
   {
     tag: [
       tags.function(tags.variableName),
       tags.function(tags.propertyName),
       tags.definition(tags.variableName)
     ],
-    color: 'var(--zy-code-function)'
+    color: 'var(--or-code-function)'
   },
-  { tag: [tags.typeName, tags.className, tags.constant(tags.variableName)], color: 'var(--zy-code-type)' },
+  { tag: [tags.typeName, tags.className, tags.constant(tags.variableName)], color: 'var(--or-code-type)' },
   {
     tag: [tags.propertyName, tags.definition(tags.propertyName), tags.variableName],
-    color: 'var(--zy-code-property)'
+    color: 'var(--or-code-property)'
   },
-  { tag: tags.operator, color: 'var(--zy-fg-muted)' }
+  { tag: tags.operator, color: 'var(--or-fg-muted)' }
 ])
 
-export function zymdEditorTheme(): Extension {
+export function orreryEditorTheme(): Extension {
   return [editorChrome, syntaxHighlighting(markdownHighlight)]
 }

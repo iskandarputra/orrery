@@ -29,7 +29,7 @@ export function StatusBar(): React.JSX.Element {
               {active.isDirty && <span className="status-bar__dirty-badge">● Modified</span>}
             </>
           ) : (
-            <span className="status-bar__ready">zymd ready</span>
+            <span className="status-bar__ready">orrery ready</span>
           )}
         </span>
       </div>

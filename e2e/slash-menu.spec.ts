@@ -14,7 +14,7 @@ let page: Page
 let vault: string
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'zymd-slash-'))
+  vault = mkdtempSync(join(tmpdir(), 'orrery-slash-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\n')
   app = await launchApp()
   page = await app.firstWindow()
@@ -82,7 +82,7 @@ test('choosing an item inserts the block and removes the command', async () => {
   await acceptCompletion('Quote')
 
   // The block is there and the typed "/quote" is gone.
-  await expect(page.locator('.cm-zy-blockquote').last()).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.cm-or-blockquote').last()).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.cm-content')).not.toContainText('/quote')
 })
 

@@ -9,7 +9,7 @@ import { topLevelBlocks } from './block-move'
 class HandleMarker extends GutterMarker {
   override toDOM(): HTMLElement {
     const handle = document.createElement('div')
-    handle.className = 'cm-zy-block-handle'
+    handle.className = 'cm-or-block-handle'
     handle.title = 'Drag to move this block'
     handle.textContent = '⠿'
     return handle
@@ -46,7 +46,7 @@ function dropIndexAt(view: EditorView, clientY: number): number | null {
 export function blockHandles(): Extension {
   return [
     gutter({
-      class: 'cm-zy-block-gutter',
+      class: 'cm-or-block-gutter',
       lineMarker: (view, line) => {
         const blocks = topLevelBlocks(view.state)
         // One handle per block, on the line the block starts at.
@@ -62,9 +62,9 @@ export function blockHandles(): Extension {
           const index = blocks.findIndex((block) => block.from === line.from)
           if (index === -1) return false
 
-          view.dom.classList.add('cm-zy-dragging-block')
+          view.dom.classList.add('cm-or-dragging-block')
           const indicator = document.createElement('div')
-          indicator.className = 'cm-zy-drop-line'
+          indicator.className = 'cm-or-drop-line'
           view.dom.appendChild(indicator)
 
           const showDrop = (clientY: number): number | null => {
@@ -91,7 +91,7 @@ export function blockHandles(): Extension {
             window.removeEventListener('mousemove', onMove)
             window.removeEventListener('mouseup', onUp)
             indicator.remove()
-            view.dom.classList.remove('cm-zy-dragging-block')
+            view.dom.classList.remove('cm-or-dragging-block')
             if (target === null) return
 
             const text = view.state.doc.toString()

@@ -4,7 +4,7 @@ import type { Command } from '@/commands/registry'
 import type { useStore } from '@/state/store'
 
 /**
- * The surface a zymd plugin programs against. Kept deliberately narrow and
+ * The surface a orrery plugin programs against. Kept deliberately narrow and
  * versioned by addition only — the same contract will back external/community
  * modules and AI capabilities later; built-ins prove it today.
  */
@@ -20,7 +20,7 @@ export interface PluginContext {
   store: typeof useStore
 }
 
-export interface ZymdPlugin {
+export interface OrreryPlugin {
   /** Unique id, kebab-case (e.g. 'wikilinks'). */
   id: string
   name: string
