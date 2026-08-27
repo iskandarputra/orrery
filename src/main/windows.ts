@@ -26,6 +26,15 @@ export class WindowManager {
 
   createMainWindow(): BrowserWindow {
     const { window: bounds } = this.deps.getSettings()
+    // An e2e run pops a window per spec file and takes the keyboard with it,
+    // which is disruptive to whoever is working on the machine. Under test the
+    // window is shown *inactive* and parked off to the side: never focused, so
+    // it cannot swallow a keystroke meant for something else.
+    //
+    // It is shown rather than hidden because CodeMirror measures on animation
+    // frames, and a window that is never shown stops receiving them — every
+    // layout assertion in the suite then reads zero.
+    const headless = process.env.ZYMD_HEADLESS === '1'
 
     const win = new BrowserWindow({
       width: bounds.width,
@@ -43,11 +52,19 @@ export class WindowManager {
         nodeIntegration: false,
         sandbox: true,
         webSecurity: true,
-        spellcheck: false
+        spellcheck: false,
+        backgroundThrottling: !headless
       }
     })
 
-    win.once('ready-to-show', () => win.show())
+    win.once('ready-to-show', () => {
+      if (headless) {
+        win.setPosition(-20000, -20000)
+        win.showInactive()
+      } else {
+        win.show()
+      }
+    })
 
     // Deny all window creation and in-app navigation; open http(s) externally.
     win.webContents.setWindowOpenHandler(({ url }) => {

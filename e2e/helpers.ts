@@ -24,7 +24,9 @@ export async function launchApp(): Promise<ElectronApplication> {
   userDataDirs.push(userData)
   return electron.launch({
     args: ['./out/main/index.js', '--no-sandbox', `--user-data-dir=${userData}`],
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' }
+    // ZYMD_HEADLESS keeps the window off the developer's screen: a suite run
+    // otherwise pops up and grabs focus once per spec file.
+    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ZYMD_HEADLESS: '1' }
   })
 }
 
