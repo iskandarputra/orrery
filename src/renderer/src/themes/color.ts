@@ -103,6 +103,27 @@ export function reinforce(
   return mix(color, toward, hi)
 }
 
+/**
+ * A fill and an ink for it that are legible together.
+ *
+ * A filled accent chip is the one place a brand colour has to carry text on
+ * top of itself, and `#fff` was simply assumed: on the lighter accents that
+ * left white-on-accent labels at under 3:1. The ink is whichever of the two
+ * extremes contrasts better, and the fill is then deepened away from it until
+ * the pair clears `target` — so the chip stays recognisably the accent, and
+ * only moves as far as it has to.
+ */
+export function fillFor(
+  accent: string,
+  light: string,
+  dark: string,
+  target: number
+): { fill: string; ink: string } {
+  const ink = contrast(accent, light) >= contrast(accent, dark) ? light : dark
+  const away = ink === light ? dark : light
+  return { fill: reinforce(accent, away, [ink], target), ink }
+}
+
 /** rgba() string from hex + alpha. */
 export function alpha(hex: string, a: number): string {
   const [r, g, b] = parse(hex)

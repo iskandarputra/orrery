@@ -81,6 +81,17 @@ describe('themes', () => {
     }
   })
 
+  it('gives every accent chip an ink that reads on its fill', () => {
+    for (const t of THEMES) {
+      const resolved = resolveTheme(t)
+      // A filled chip is the one place the brand colour carries text itself.
+      expect(
+        contrast(resolved['accent-ink'], resolved['accent-fill']),
+        `${t.id} accent chip`
+      ).toBeGreaterThanOrEqual(4.49)
+    }
+  })
+
   it('generates a CSS block per theme', () => {
     const css = generateThemeCss()
     for (const t of THEMES) {

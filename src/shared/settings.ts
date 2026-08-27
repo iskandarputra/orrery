@@ -121,7 +121,16 @@ export const settingsSchema = z.object({
     .prefault({}),
   rightPanel: z
     .object({
-      width: z.number().min(220).max(720).default(300)
+      width: z.number().min(220).max(720).default(300),
+      /**
+       * Which side panel is open, or null for none. Remembered so closing it
+       * sticks; the outline is the default because a note's own structure is
+       * the most useful thing to see beside it on a first run.
+       */
+      panel: z
+        .enum(['outline', 'backlinks', 'search', 'ai', 'stats', 'analysis', 'tags'])
+        .nullable()
+        .default('outline')
     })
     .prefault({}),
   window: z

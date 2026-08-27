@@ -252,7 +252,38 @@ export function RightPanel(): React.JSX.Element | null {
   const toggle = useStore((s) => s.toggleSidePanel)
   const width = useStore((s) => s.settings.rightPanel.width)
   const setWidth = useStore((s) => s.setRightPanelWidth)
+  const setSidePanel = useStore((s) => s.setSidePanel)
   const dragging = useRef(false)
+  const activeTabRef = useRef<HTMLButtonElement>(null)
+
+  // Keep the selected tab visible: it can be scrolled out of the row, and a
+  // panel opened by a command or shortcut would otherwise show no active tab.
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [panel])
+
+  // Which way the row can still travel, so the edge that has more tabs behind
+  // it fades instead of simply ending — a hard cut reads as a clipped label
+  // rather than as something to scroll.
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const row = tabsRef.current
+    if (!row) return
+    const update = (): void => {
+      const more = row.scrollWidth - row.clientWidth
+      const left = row.scrollLeft > 1
+      const right = row.scrollLeft < more - 1
+      row.dataset['overflow'] = left && right ? 'both' : left ? 'left' : right ? 'right' : 'none'
+    }
+    update()
+    row.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(row)
+    return () => {
+      row.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [panel])
 
   const startResize = useCallback(
     (event: React.MouseEvent) => {
@@ -280,21 +311,26 @@ export function RightPanel(): React.JSX.Element | null {
   return (
     <aside className="rpanel" style={{ width }}>
       <div className="rpanel__resizer" onMouseDown={startResize} />
-      <div className="rpanel__tabs" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={panel === t.id}
-            title={t.label}
-            className={`rpanel__tab${panel === t.id ? ' rpanel__tab--active' : ''}`}
-            onClick={() => useStore.setState({ sidePanel: t.id })}
-          >
-            <Icon name={t.icon} size={14} />
-            <span className="rpanel__tab-label">{t.label}</span>
-          </button>
-        ))}
-        <span className="rpanel__tabs-spacer" />
+      <div className="rpanel__tabs">
+        {/* The tabs scroll on their own so the close button stays put: seven
+            tabs do not fit a panel narrowed to its 220px minimum, and a row
+            that scrolled as a whole would carry the close button off-screen. */}
+        <div className="rpanel__tabs-scroll" role="tablist" ref={tabsRef}>
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              ref={panel === t.id ? activeTabRef : undefined}
+              role="tab"
+              aria-selected={panel === t.id}
+              title={t.label}
+              className={`rpanel__tab${panel === t.id ? ' rpanel__tab--active' : ''}`}
+              onClick={() => setSidePanel(t.id)}
+            >
+              <Icon name={t.icon} size={14} />
+              <span className="rpanel__tab-label">{t.label}</span>
+            </button>
+          ))}
+        </div>
         <button className="icon-btn rpanel__close-btn" title="Close panel" onClick={() => toggle(panel)}>
           <Icon name="x" size={13} />
         </button>

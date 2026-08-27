@@ -91,9 +91,9 @@ textarea {
 }
 
 .btn--primary {
-  background: var(--or-accent);
+  background: var(--or-accent-fill);
   border-color: var(--or-accent-text);
-  color: #fff;
+  color: var(--or-accent-ink);
 }
 
 .btn--primary:hover {
@@ -2160,10 +2160,51 @@ textarea {
   padding: 8px 8px 0;
 }
 
+/* Seven tabs do not fit a panel at its 220px minimum, so the row scrolls
+   sideways rather than wrapping or squashing the labels. No scrollbar: it
+   would eat a third of the row's height for a few pixels of travel, and the
+   selected tab is scrolled into view whenever it changes. */
+.rpanel__tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.rpanel__tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fade the edge the row can still travel toward. Only that edge: fading a side
+   with nothing behind it would dim a tab for no reason. */
+.rpanel__tabs-scroll[data-overflow='right'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+
+.rpanel__tabs-scroll[data-overflow='left'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 18px), transparent);
+}
+
+.rpanel__tabs-scroll[data-overflow='both'] {
+  mask-image: linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+
+/* Pinned beside the scrolling row, never carried off with it. */
+.rpanel__close-btn {
+  flex: 0 0 auto;
+}
+
 .rpanel__tab {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  /* Never squashed by the row: they scroll instead. */
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 6px 9px;
   border-radius: var(--or-radius-sm);
   color: var(--or-fg-faint);
@@ -2183,10 +2224,6 @@ textarea {
   background: var(--or-accent-soft);
   color: var(--or-accent-text);
   font-weight: 600;
-}
-
-.rpanel__tabs-spacer {
-  flex: 1;
 }
 
 .rpanel__title-row {
@@ -2298,8 +2335,8 @@ textarea {
 }
 
 .outline__item--active .outline__level-badge {
-  background: var(--or-accent);
-  color: #fff;
+  background: var(--or-accent-fill);
+  color: var(--or-accent-ink);
 }
 
 .outline__label {
@@ -2563,8 +2600,8 @@ textarea {
 }
 
 .aichat__send-btn--active {
-  background: var(--or-accent);
-  color: #fff;
+  background: var(--or-accent-fill);
+  color: var(--or-accent-ink);
 }
 
 /* Results (search & backlinks) */

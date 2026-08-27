@@ -1,4 +1,4 @@
-import { alpha, fade, mix, reinforce } from './color'
+import { alpha, fade, fillFor, mix, reinforce } from './color'
 
 /**
  * A theme is a small hand-picked palette; the full CSS token set is derived
@@ -47,6 +47,8 @@ export type TokenName =
   | 'inline-code-bg'
   | 'hl-bg'
   | 'accent-text'
+  | 'accent-fill'
+  | 'accent-ink'
   | 'active-line'
   | 'code-keyword'
   | 'code-string'
@@ -173,6 +175,10 @@ export function resolveTheme(spec: ThemeSpec): ResolvedTheme {
     // The accent as *text*. Accents are picked to look right as a fill; several
     // fall short of AA when they dress a label instead.
     'accent-text': reinforce(accent, fg, [bg, panel], 4.5),
+    // A filled accent chip carries text on top of the brand colour. Both halves
+    // are derived together so the pair is legible whatever the accent is.
+    'accent-fill': fillFor(accent, '#ffffff', '#101014', 4.5).fill,
+    'accent-ink': fillFor(accent, '#ffffff', '#101014', 4.5).ink,
     'accent-soft': alpha(accent, dark ? 0.16 : 0.12),
     'selection-bg': alpha(accent, dark ? 0.3 : 0.22),
     'search-match': alpha(dark ? '#d2a01e' : '#ffc83c', dark ? 0.4 : 0.45),

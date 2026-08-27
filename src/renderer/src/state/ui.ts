@@ -77,6 +77,8 @@ export interface UiSlice {
   openSettings(): void
   closeSettings(): void
   toggleSidePanel(panel: SidePanel): void
+  /** Show a panel (or none) and remember the choice across restarts. */
+  setSidePanel(panel: SidePanel | null): void
   /** Open the search panel already looking for `query`. */
   searchVaultFor(query: string): void
   toggleGraph(): void
@@ -125,7 +127,17 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   async loadSettings() {
     const settings = await invoke('settings:get', undefined)
-    set({ settings, settingsLoaded: true })
+    // The open panel is restored from settings rather than starting closed, so
+    // a first run opens on the outline and every run after that reopens
+    // whatever was left showing.
+    set({ settings, settingsLoaded: true, sidePanel: settings.rightPanel.panel })
+  },
+
+  /** Open a panel and remember it, so the choice survives a restart. */
+  setSidePanel(panel) {
+    set({ sidePanel: panel })
+    const { rightPanel } = get().settings
+    if (rightPanel.panel !== panel) get().updateSettings({ rightPanel: { ...rightPanel, panel } })
   },
 
   updateSettings(patch) {
@@ -142,10 +154,11 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   },
 
   toggleSidePanel(panel) {
-    set((s) => ({ sidePanel: s.sidePanel === panel ? null : panel }))
+    get().setSidePanel(get().sidePanel === panel ? null : panel)
   },
 
   searchVaultFor(query) {
+    get().setSidePanel('search')
     set((s) => ({
       sidePanel: 'search',
       searchSeed: { query, token: s.searchSeed.token + 1 }
