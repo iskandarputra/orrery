@@ -22,6 +22,7 @@ function useThemeSync(): void {
   const mode = useStore((s) => s.settings.theme)
   const lightTheme = useStore((s) => s.settings.lightTheme)
   const darkTheme = useStore((s) => s.settings.darkTheme)
+  const highContrastCode = useStore((s) => s.settings.highContrastCode)
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const apply = (): void => {
@@ -32,6 +33,13 @@ function useThemeSync(): void {
     media.addEventListener('change', apply)
     return () => media.removeEventListener('change', apply)
   }, [mode, lightTheme, darkTheme])
+
+  // Its own attribute rather than a second set of themes: every palette ships
+  // both variants in the stylesheet, and this picks between them.
+  useEffect(() => {
+    if (highContrastCode) document.documentElement.dataset['hcCode'] = 'on'
+    else delete document.documentElement.dataset['hcCode']
+  }, [highContrastCode])
 }
 
 function useWindowTitleSync(): void {

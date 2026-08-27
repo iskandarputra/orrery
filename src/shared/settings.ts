@@ -10,6 +10,12 @@ export const settingsSchema = z.object({
   /** Appearance mode; the concrete palette comes from lightTheme/darkTheme. */
   theme: z.enum(['light', 'dark', 'system']).default('system'),
   lightTheme: z.string().default('zinc-light'),
+  /**
+   * Raise the theme's code colours until they meet WCAG AA on the code
+   * surface. Off by default: the seven code colours are each theme's upstream
+   * palette, and most of those palettes are under AA as published.
+   */
+  highContrastCode: z.boolean().default(false),
   darkTheme: z.string().default('zinc-dark'),
   general: z
     .object({

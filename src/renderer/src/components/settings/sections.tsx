@@ -492,6 +492,8 @@ function ThemeCard({ spec }: { spec: ThemeSpec }): React.JSX.Element {
 export function AppearanceSection(): React.JSX.Element {
   const mode = useStore((s) => s.settings.theme)
   const setThemeMode = useStore((s) => s.setThemeMode)
+  const highContrastCode = useStore((s) => s.settings.highContrastCode)
+  const updateSettings = useStore((s) => s.updateSettings)
   const [themeFilter, setThemeFilter] = useState('')
 
   const dark = useMemo(() => {
@@ -519,6 +521,16 @@ export function AppearanceSection(): React.JSX.Element {
             { value: 'dark', label: <Icon name="moon" size={14} /> },
             { value: 'system', label: <Icon name="monitor" size={14} /> }
           ]}
+        />
+      </SettingRow>
+
+      <SettingRow
+        label="High-contrast code"
+        description="Deepen syntax colours until they meet WCAG AA. Most palettes ship at least one colour below it, so this trades a little of a theme's character for readability."
+      >
+        <Toggle
+          checked={highContrastCode}
+          onChange={(value) => updateSettings({ highContrastCode: value })}
         />
       </SettingRow>
 

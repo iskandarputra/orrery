@@ -207,6 +207,36 @@ export function getTheme(id: string): ThemeSpec {
   return THEMES.find((t) => t.id === id) ?? THEMES[0]!
 }
 
+const CODE_TOKENS = [
+  'code-keyword',
+  'code-string',
+  'code-comment',
+  'code-number',
+  'code-function',
+  'code-type',
+  'code-property'
+] as const
+
+/**
+ * The theme's code colours, pulled toward its foreground until each is legible
+ * on the code surface.
+ *
+ * These seven are the one part of a theme taken verbatim from upstream, and
+ * upstream is where the contrast problem lives: 26 of the 28 palettes ship at
+ * least one token under AA and seven of them ship all seven, the worst at
+ * 1.63:1. Correcting them by default would mean Dracula no longer looks like
+ * Dracula, so this is what the high-contrast-code setting turns on, and the
+ * palettes stay as their authors wrote them until someone asks otherwise.
+ */
+export function highContrastCodeTokens(spec: ThemeSpec): Record<string, string> {
+  const resolved = resolveTheme(spec)
+  const out: Record<string, string> = {}
+  for (const token of CODE_TOKENS) {
+    out[token] = reinforce(resolved[token], resolved.fg, [resolved['code-bg']], 4.5)
+  }
+  return out
+}
+
 /** One stylesheet with a `[data-theme='<id>']` block per theme. */
 export function generateThemeCss(): string {
   return THEMES.map((spec) => {
@@ -215,6 +245,11 @@ export function generateThemeCss(): string {
       .filter((k) => k !== 'appearance')
       .map((k) => `  --zy-${k}: ${resolved[k as TokenName]};`)
       .join('\n')
-    return `:root[data-theme='${spec.id}'] {\n  color-scheme: ${spec.appearance};\n${vars}\n}`
+    const base = `:root[data-theme='${spec.id}'] {\n  color-scheme: ${spec.appearance};\n${vars}\n}`
+
+    const hc = Object.entries(highContrastCodeTokens(spec))
+      .map(([k, v]) => `  --zy-${k}: ${v};`)
+      .join('\n')
+    return `${base}\n\n:root[data-theme='${spec.id}'][data-hc-code='on'] {\n${hc}\n}`
   }).join('\n\n')
 }

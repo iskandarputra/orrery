@@ -138,18 +138,23 @@ async function contrastFailures(): Promise<Fail[]> {
 }
 
 /** Switch palette. Settings reach the renderer on reload, as openVault does. */
-async function useTheme(id: string, appearance: 'light' | 'dark'): Promise<void> {
+async function useTheme(
+  id: string,
+  appearance: 'light' | 'dark',
+  highContrastCode = false
+): Promise<void> {
   await page.evaluate(
-    async ([themeId, mode]) => {
+    async ([themeId, mode, hc]) => {
       const current = await window.zymd.invoke('settings:get', undefined)
       await window.zymd.invoke('settings:set', {
         ...current,
         theme: mode,
+        highContrastCode: hc === 'on',
         lightTheme: mode === 'light' ? themeId : current.lightTheme,
         darkTheme: mode === 'dark' ? themeId : current.darkTheme
       })
     },
-    [id, appearance]
+    [id, appearance, highContrastCode ? 'on' : 'off']
   )
   await page.reload()
   await page.waitForSelector('.app', { timeout: 30_000 })
@@ -184,6 +189,24 @@ for (const [id, appearance] of THEMES) {
     expect(chrome, JSON.stringify(chrome, null, 1)).toHaveLength(0)
   })
 }
+
+test('high-contrast code makes the worst palette readable', async () => {
+  // Ayu Light is the sharpest case: as published, every one of its seven code
+  // colours is under AA and its `function` colour sits at 1.78:1.
+  await useTheme('ayu-light', 'light')
+  const before = (await contrastFailures()).filter((f) => f.code)
+  expect(before.length, 'the default keeps the palette as published').toBeGreaterThan(0)
+
+  await useTheme('ayu-light', 'light', true)
+  const after = (await contrastFailures()).filter((f) => f.code)
+  expect(after, JSON.stringify(after, null, 1)).toHaveLength(0)
+
+  // ...and it is the code that changed, not the rest of the UI.
+  const chrome = (await contrastFailures()).filter((f) => !f.code)
+  expect(chrome, JSON.stringify(chrome, null, 1)).toHaveLength(0)
+
+  await useTheme('zinc-light', 'light')
+})
 
 test('every control is reachable and named', async () => {
   const targets = await page.evaluate(() =>

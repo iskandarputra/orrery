@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { contrast } from './color'
-import { generateThemeCss, getTheme, resolveTheme, THEMES } from './themes'
+import {
+  generateThemeCss,
+  getTheme,
+  highContrastCodeTokens,
+  resolveTheme,
+  THEMES
+} from './themes'
 
 const HEX = /^#[0-9a-f]{6}$/i
 
@@ -51,6 +57,27 @@ describe('themes', () => {
           Math.min(4.5, ceiling) - 0.01
         )
       }
+    }
+  })
+
+  it('high-contrast code lifts every token to AA in every theme', () => {
+    for (const spec of THEMES) {
+      const surface = resolveTheme(spec)['code-bg']
+      const tokens = highContrastCodeTokens(spec)
+      expect(Object.keys(tokens)).toHaveLength(7)
+      for (const [name, colour] of Object.entries(tokens)) {
+        expect(contrast(colour, surface), `${spec.id} ${name}`).toBeGreaterThanOrEqual(4.49)
+      }
+    }
+  })
+
+  it('leaves the palettes as published when high contrast is off', () => {
+    // The point of the setting is that it is a choice: the default has to be
+    // the theme's own colours, verbatim, however they measure.
+    for (const spec of THEMES) {
+      const resolved = resolveTheme(spec)
+      expect(resolved['code-keyword'], spec.id).toBe(spec.code.keyword)
+      expect(resolved['code-comment'], spec.id).toBe(spec.code.comment)
     }
   })
 
