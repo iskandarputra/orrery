@@ -15,6 +15,11 @@ let vault: string
  * be correct and still fail once a theme, a translucent background, an inner
  * span from the syntax highlighter and a font size combine. The only honest way
  * to check them is to compute them from what the app actually painted.
+ *
+ * An audit that only ever sees the note you land on is an audit of one screen,
+ * so the scans below walk the surfaces a session actually opens — the palette,
+ * the graph and its settings drawer, analytics, history, document statistics
+ * and a canvas board — opening each, measuring it, and closing it again.
  */
 
 /**
@@ -34,6 +39,12 @@ const THEMES: [string, 'light' | 'dark'][] = [
   ['solarized-dark', 'dark']
 ]
 
+async function runCommand(commandId: string): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, id) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', { commandId: id })
+  }, commandId)
+}
+
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-ui-audit-'))
   mkdirSync(join(vault, 'Folder'), { recursive: true })
@@ -47,6 +58,27 @@ test.beforeAll(async () => {
   )
   writeFileSync(join(vault, 'Other.md'), '# Other\n\nBack to [[Index]]. #tag\n')
   writeFileSync(join(vault, 'Folder', 'Deep.md'), '# Deep\n\nSee [[Index]].\n')
+  // A board with one of each kind of card, so the canvas surface has its own
+  // text to measure: rendered markdown, a note preview and a group label.
+  writeFileSync(
+    join(vault, 'Board.canvas'),
+    JSON.stringify({
+      nodes: [
+        {
+          id: 'text',
+          type: 'text',
+          text: '# On the board\n\nProse with **bold** and `code`.',
+          x: 0,
+          y: 0,
+          width: 260,
+          height: 140
+        },
+        { id: 'file', type: 'file', file: 'Other.md', x: 320, y: 0, width: 260, height: 140 },
+        { id: 'group', type: 'group', label: 'Reading', x: -40, y: 200, width: 640, height: 260 }
+      ],
+      edges: [{ id: 'edge', fromNode: 'text', toNode: 'file' }]
+    })
+  )
 
   app = await launchApp()
   page = await app.firstWindow()
@@ -56,6 +88,14 @@ test.beforeAll(async () => {
   await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
   await expect(page.locator('.tree-row--active')).toBeVisible({ timeout: 10_000 })
   await page.waitForTimeout(400)
+
+  // One saved version, so the history modal is audited with a list, a preview
+  // and a restore button rather than in its empty state.
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type('\n\nA second thought, saved.')
+  await runCommand('file.save')
+  await expect(page.locator('.tab__close--dirty')).toBeHidden({ timeout: 10_000 })
 })
 
 test.afterAll(async () => {
@@ -64,6 +104,7 @@ test.afterAll(async () => {
 })
 
 interface Fail {
+  surface: string
   sel: string
   parent: string
   text: string
@@ -73,9 +114,23 @@ interface Fail {
   code: boolean
 }
 
-/** Every visible piece of text whose contrast is under its WCAG AA threshold. */
-async function contrastFailures(): Promise<Fail[]> {
-  return page.evaluate(() => {
+interface Scan {
+  /** How much text the scan actually saw — a scoped scan that finds none is a
+   * surface that failed to open, and would otherwise pass by measuring nothing. */
+  scanned: number
+  fails: Omit<Fail, 'surface'>[]
+}
+
+/**
+ * Every visible piece of text under `root` whose contrast is under its WCAG AA
+ * threshold.
+ *
+ * Scoped rather than run over the whole body: with a modal open the app behind
+ * it is still in the DOM, dimmed by the backdrop and unreadable by design, and
+ * measuring it would report the backdrop as a contrast defect.
+ */
+async function contrastFailures(root: string): Promise<Scan> {
+  return page.evaluate((sel) => {
     const parse = (c: string): [number, number, number, number] => {
       const m = c.match(/[\d.]+/g)!.map(Number)
       return [m[0]!, m[1]!, m[2]!, m[3] ?? 1]
@@ -99,8 +154,9 @@ async function contrastFailures(): Promise<Fail[]> {
     const name = (el: Element | null): string =>
       el ? el.className.toString().split(' ').slice(0, 2).join('.') || el.tagName : ''
 
-    const out: Fail[] = []
-    for (const el of Array.from(document.querySelectorAll('body *'))) {
+    const out: Omit<Fail, 'surface'>[] = []
+    let scanned = 0
+    for (const el of Array.from(document.querySelectorAll(`${sel}, ${sel} *`))) {
       const ownText = Array.from(el.childNodes).some(
         (n) => n.nodeType === 3 && (n.textContent ?? '').trim().length > 0
       )
@@ -109,6 +165,7 @@ async function contrastFailures(): Promise<Fail[]> {
       if (rect.width < 1 || rect.height < 1) continue
       const cs = getComputedStyle(el)
       if (cs.visibility === 'hidden' || cs.opacity === '0') continue
+      scanned++
 
       const bg = surfaceOf(el)
       const ink = parse(cs.color)
@@ -133,9 +190,387 @@ async function contrastFailures(): Promise<Fail[]> {
         })
       }
     }
-    return out.sort((x, y) => x.ratio - y.ratio)
-  }) as Promise<Fail[]>
+    return { scanned, fails: out.sort((x, y) => x.ratio - y.ratio) }
+  }, root)
 }
+
+/**
+ * The graph draws its note labels onto a <canvas>, where no computed style can
+ * reach them — so a DOM scan reports the graph as clean however those labels
+ * are painted.
+ *
+ * They are measured instead from the two live values the drawing code itself
+ * reads: the label token, and the surface the canvas is cleared to. The painted
+ * pixels are then searched for that ink, so a label drawn in some other colour
+ * fails here rather than passing unmeasured.
+ */
+async function graphCanvasLabels(): Promise<Omit<Fail, 'surface'>[]> {
+  return page.evaluate(() => {
+    const rgb = (c: string): [number, number, number] => {
+      const hex = c.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+      if (hex) {
+        const h = hex[1]!
+        const full = h.length === 3 ? [...h].map((x) => x + x).join('') : h
+        return [
+          parseInt(full.slice(0, 2), 16),
+          parseInt(full.slice(2, 4), 16),
+          parseInt(full.slice(4, 6), 16)
+        ]
+      }
+      const m = c.match(/[\d.]+/g)!.map(Number)
+      return [m[0]!, m[1]!, m[2]!]
+    }
+    const channel = (v: number): number => {
+      const s = v / 255
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+    }
+    const lum = (c: [number, number, number]): number =>
+      0.2126 * channel(c[0]) + 0.7152 * channel(c[1]) + 0.0722 * channel(c[2])
+    const ratioOf = (a: [number, number, number], b: [number, number, number]): number => {
+      const [x, y] = [lum(a), lum(b)]
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+    }
+
+    const canvas = document.querySelector('.graph__canvas') as HTMLCanvasElement | null
+    if (!canvas) return []
+
+    // The canvas is cleared to transparent every frame, so what sits behind the
+    // labels is whatever the first opaque element under it paints.
+    let paper: [number, number, number] = [255, 255, 255]
+    for (let node: Element | null = canvas; node; node = node.parentElement) {
+      const c = getComputedStyle(node)
+        .backgroundColor.match(/[\d.]+/g)!
+        .map(Number)
+      if ((c[3] ?? 1) > 0.95) {
+        paper = [c[0]!, c[1]!, c[2]!]
+        break
+      }
+    }
+
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+    const style = getComputedStyle(document.documentElement)
+    const out: Omit<Fail, 'surface'>[] = []
+
+    // Both inks the labels are drawn in: the resting one, and the one the
+    // hovered and active notes are picked out with. The second is on the canvas
+    // because the note behind the graph is one of its nodes — a surface that
+    // opened the graph over a canvas board instead would report it missing.
+    for (const [what, token] of [
+      ['graph node label', '--or-fg-muted'],
+      ['graph node label (active)', '--or-fg']
+    ] as const) {
+      const ink = rgb(style.getPropertyValue(token))
+      // A glyph's core pixels carry the fill colour unblended; its edges are
+      // part-covered, and at 11px a 400-weight stroke peaks a little short of
+      // fully opaque — so near-opaque, not opaque, is what a painted label
+      // looks like. Anything dimmed is drawn at a fifth of that and drops out.
+      let painted = false
+      for (let i = 0; i < pixels.length && !painted; i += 4) {
+        if (pixels[i + 3]! < 200) continue
+        painted =
+          Math.abs(pixels[i]! - ink[0]) +
+            Math.abs(pixels[i + 1]! - ink[1]) +
+            Math.abs(pixels[i + 2]! - ink[2]) <=
+          12
+      }
+      const ratio = ratioOf(ink, paper)
+      // A label that is nowhere on the canvas is a label this check never
+      // measured, and saying so is more use than a silent pass.
+      if (!painted) {
+        out.push({
+          sel: what,
+          parent: 'graph__canvas',
+          text: `no pixels painted in ${style.getPropertyValue(token).trim()}`,
+          ratio: 0,
+          size: 11,
+          code: false
+        })
+      } else if (ratio < 4.49) {
+        out.push({
+          sel: what,
+          parent: 'graph__canvas',
+          text: `${style.getPropertyValue(token).trim()} on rgb(${paper.join(',')})`,
+          ratio: Math.round(ratio * 100) / 100,
+          size: 11,
+          code: false
+        })
+      }
+    }
+    return out
+  })
+}
+
+interface Target {
+  sel: string
+  label: string
+  named: boolean
+  /** Buttons and links carry their own name; a form control gets one from a label. */
+  namable: boolean
+  /** Sits in a line of prose, where 2.5.8 stops asking for 24px. */
+  inline: boolean
+  w: number
+  h: number
+  reach: boolean
+}
+
+/** Every control under `root`, with the size of the area it can be hit in. */
+async function controls(root: string): Promise<Target[]> {
+  return page.evaluate(
+    (sel) =>
+      Array.from(
+        document.querySelectorAll(
+          `${sel} button, ${sel} [role="button"], ${sel} a, ` +
+            `${sel} input:not([type="hidden"]), ${sel} select, ${sel} textarea`
+        )
+      )
+        .map((el) => {
+          // A tick box is operated by clicking the words next to it, so the
+          // target is the whole label rather than the box at the end of it.
+          // Only where that holds: clicking a slider's label focuses it but
+          // does not move it, so a slider is measured on its own track.
+          const label = el.closest('label')
+          const activatedByLabel =
+            !!label && el.matches('input[type="checkbox"], input[type="radio"]')
+          const r = (activatedByLabel ? label : el).getBoundingClientRect()
+          const cx = r.left + r.width / 2
+          const cy = r.top + r.height / 2
+          // The clickable area, which is what the criterion is about — a small
+          // glyph may still carry a full-size hit area around it.
+          const reaches = (dx: number, dy: number): boolean => {
+            const at = document.elementFromPoint(cx + dx, cy + dy)
+            if (!at) return false
+            if (at === el || el.contains(at)) return true
+            const hit = at.closest('label')
+            return !!hit && (hit as HTMLLabelElement).control === el
+          }
+          return {
+            sel: el.className.toString().split(' ').slice(0, 2).join('.') || el.tagName,
+            label: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 24),
+            named: !!(el.getAttribute('title') ?? el.getAttribute('aria-label')),
+            namable: !!el.closest('button, [role="button"], a'),
+            inline: !!el.closest('.cm-line'),
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+            reach:
+              r.width >= 24 && r.height >= 24
+                ? true
+                : reaches(-11, -11) && reaches(11, -11) && reaches(-11, 11) && reaches(11, 11)
+          }
+        })
+        .filter((t) => t.w > 0 && t.h > 0),
+    root
+  )
+}
+
+/**
+ * A screen the audit opens, measures and closes again.
+ *
+ * `root` scopes both scans to what the surface owns, and `hidden` lets a
+ * surface report the text it paints somewhere a DOM scan cannot follow.
+ */
+interface Surface {
+  name: string
+  root: string
+  open(): Promise<void>
+  close(): Promise<void>
+  hidden?(): Promise<Omit<Fail, 'surface'>[]>
+}
+
+async function openGraph(): Promise<void> {
+  await runCommand('view.toggleGraph')
+  await expect(page.locator('.graph__canvas')).toBeVisible()
+  await expect(page.locator('.graph__status-pill')).toContainText('notes')
+  // The pill goes up when the graph is built, which is one animation frame
+  // before anything is drawn — so wait for paint rather than for a fixed pause,
+  // which on a loaded machine is a guess either way.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const canvas = document.querySelector('.graph__canvas') as HTMLCanvasElement | null
+          if (!canvas) return false
+          const d = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+          for (let i = 3; i < d.length; i += 4) if (d[i]! > 0) return true
+          return false
+        }),
+      { timeout: 15_000 }
+    )
+    .toBe(true)
+}
+
+async function closeGraph(): Promise<void> {
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.graph__canvas')).toBeHidden()
+  // Park the pointer somewhere inert: left over a node it would leave a hover
+  // style on whatever the next surface puts underneath it.
+  await page.mouse.move(2, 2)
+}
+
+/** Hover a node the way a mouse finds one — by moving until the graph reacts. */
+async function hoverGraphNode(): Promise<void> {
+  const card = page.locator('.graph__hover-card')
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const point = await page.evaluate(() => {
+      const canvas = document.querySelector('.graph__canvas') as HTMLCanvasElement
+      const r = canvas.getBoundingClientRect()
+      // The graph sets the cursor synchronously from its own hit test, so a
+      // sweep can ask it where the nodes are without waiting for a repaint.
+      // A node's hit radius is never under 12px, so an 8px grid cannot step
+      // over one.
+      for (let y = r.top + 4; y < r.bottom; y += 8) {
+        for (let x = r.left + 4; x < r.right; x += 8) {
+          canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y }))
+          if (canvas.style.cursor === 'pointer') return { x, y }
+        }
+      }
+      return null
+    })
+    if (point) {
+      await page.mouse.move(point.x, point.y)
+      // The card is a React render away from the mouse event, so it is waited
+      // for rather than looked at; and while the simulation is still moving the
+      // node can drift out from under the pointer between the sweep and the
+      // move, which is what the second attempt is for.
+      try {
+        await card.waitFor({ state: 'visible', timeout: 1_000 })
+        return
+      } catch {
+        // Missed it — sweep again against where the nodes are now.
+      }
+    }
+    await page.waitForTimeout(200)
+  }
+  throw new Error('no graph node could be hovered')
+}
+
+async function openBoard(): Promise<void> {
+  await page.locator('.tree-row--file', { hasText: 'Board.canvas' }).click()
+  await expect(page.locator('.canvas__card').first()).toBeVisible()
+  await expect(page.locator('.canvas__card')).toHaveCount(3)
+}
+
+async function closeBoard(): Promise<void> {
+  await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+  await expect(page.locator('.editor-pane')).toBeVisible()
+}
+
+const SURFACES: Surface[] = [
+  {
+    name: 'workspace',
+    root: '.app',
+    open: async () => {
+      // With both filters in use: a filter's clear button only exists once
+      // something has been typed into it, so an idle workspace never shows one.
+      await page.locator('.sidebar__filter-input').fill('Index')
+      await page.locator('.outline-filter__input').fill('week')
+      await expect(page.locator('.sidebar__filter-clear')).toBeVisible()
+      await expect(page.locator('.outline-filter__clear')).toBeVisible()
+    },
+    close: async () => {
+      await page.locator('.sidebar__filter-clear').click()
+      await page.locator('.outline-filter__clear').click()
+      await expect(page.locator('.tree-row--file', { hasText: 'Board.canvas' })).toBeVisible()
+    }
+  },
+  {
+    name: 'command palette',
+    root: '.palette',
+    open: async () => {
+      await runCommand('app.commandPalette')
+      await expect(page.locator('.palette__item').first()).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.palette')).toBeHidden()
+    }
+  },
+  {
+    name: 'document statistics',
+    root: '.doc-stats-modal',
+    open: async () => {
+      await page.locator('.header-stats-pill').click()
+      await expect(page.locator('.doc-stat-card').first()).toBeVisible()
+    },
+    close: async () => {
+      await page.locator('.doc-stats-modal .icon-btn').click()
+      await expect(page.locator('.doc-stats-modal')).toBeHidden()
+    }
+  },
+  {
+    name: 'version history',
+    root: '.history',
+    open: async () => {
+      await runCommand('note.history')
+      await expect(page.locator('.history__item').first()).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.history')).toBeHidden()
+    }
+  },
+  {
+    name: 'analytics',
+    root: '.analytics',
+    open: async () => {
+      await runCommand('view.toggleAnalytics')
+      await expect(page.locator('.analytics__body')).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.analytics')).toBeHidden()
+    }
+  },
+  {
+    // At rest, with the settings drawer open: every note label is painted in
+    // its resting ink, which is what `graphCanvasLabels` goes looking for.
+    name: 'graph',
+    root: '[aria-label="Knowledge Graph View"]',
+    open: async () => {
+      await openGraph()
+      await page.locator('button[aria-label="Graph Physics & Display Settings"]').click()
+      await expect(page.locator('.graph__panel')).toBeVisible()
+    },
+    close: async () => {
+      // The drawer outlives a close, so the next surface would open with it
+      // still covering the right of the canvas — and the hover sweep with it.
+      await page.locator('button[aria-label="Graph Physics & Display Settings"]').click()
+      await expect(page.locator('.graph__panel')).toBeHidden()
+      await closeGraph()
+    },
+    hidden: graphCanvasLabels
+  },
+  {
+    name: 'graph hover',
+    root: '[aria-label="Knowledge Graph View"]',
+    open: async () => {
+      await openGraph()
+      // A query in the filter box is what puts its clear button on screen.
+      await page.locator('.graph__header-search input').fill('e')
+      await hoverGraphNode()
+    },
+    close: closeGraph
+  },
+  {
+    name: 'canvas board',
+    root: '.canvas',
+    open: openBoard,
+    close: closeBoard
+  },
+  {
+    name: 'canvas note picker',
+    root: '.canvas__picker',
+    open: async () => {
+      await openBoard()
+      await page.locator('.canvas__toolbar button[title="Add note"]').click()
+      await expect(page.locator('.canvas__picker-list button').first()).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.canvas__picker')).toBeHidden()
+      await closeBoard()
+    }
+  }
+]
 
 /** Switch palette. Settings reach the renderer on reload, as openVault does. */
 async function useTheme(
@@ -169,7 +604,16 @@ async function useTheme(
 for (const [id, appearance] of THEMES) {
   test(`UI text meets WCAG AA in ${id}`, async () => {
     await useTheme(id, appearance)
-    const fails = await contrastFailures()
+
+    const fails: Fail[] = []
+    for (const surface of SURFACES) {
+      await surface.open()
+      const scan = await contrastFailures(surface.root)
+      expect(scan.scanned, `${surface.name} has text to measure`).toBeGreaterThan(0)
+      const found = [...scan.fails, ...(surface.hidden ? await surface.hidden() : [])]
+      for (const fail of found) fails.push({ surface: surface.name, ...fail })
+      await surface.close()
+    }
 
     // Syntax highlighting is held out, and counted out loud rather than
     // quietly dropped. Those seven colours per theme are the upstream
@@ -194,51 +638,47 @@ test('high-contrast code makes the worst palette readable', async () => {
   // Ayu Light is the sharpest case: as published, every one of its seven code
   // colours is under AA and its `function` colour sits at 1.78:1.
   await useTheme('ayu-light', 'light')
-  const before = (await contrastFailures()).filter((f) => f.code)
+  const before = (await contrastFailures('.app')).fails.filter((f) => f.code)
   expect(before.length, 'the default keeps the palette as published').toBeGreaterThan(0)
 
   await useTheme('ayu-light', 'light', true)
-  const after = (await contrastFailures()).filter((f) => f.code)
+  const after = (await contrastFailures('.app')).fails.filter((f) => f.code)
   expect(after, JSON.stringify(after, null, 1)).toHaveLength(0)
 
   // ...and it is the code that changed, not the rest of the UI.
-  const chrome = (await contrastFailures()).filter((f) => !f.code)
+  const chrome = (await contrastFailures('.app')).fails.filter((f) => !f.code)
   expect(chrome, JSON.stringify(chrome, null, 1)).toHaveLength(0)
 
   await useTheme('zinc-light', 'light')
 })
 
 test('every control is reachable and named', async () => {
-  const targets = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('button, [role="button"], a'))
-      .map((el) => {
-        const r = el.getBoundingClientRect()
-        const cx = r.left + r.width / 2
-        const cy = r.top + r.height / 2
-        // The clickable area, which is what the criterion is about — a small
-        // glyph may still carry a full-size hit area around it.
-        const reaches = (dx: number, dy: number): boolean => {
-          const at = document.elementFromPoint(cx + dx, cy + dy)
-          return !!at && (at === el || el.contains(at))
-        }
-        return {
-          sel: el.className.toString().split(' ').slice(0, 2).join('.') || el.tagName,
-          label: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 24),
-          named: !!(el.getAttribute('title') ?? el.getAttribute('aria-label')),
-          w: Math.round(r.width),
-          h: Math.round(r.height),
-          reach:
-            r.width >= 24 && r.height >= 24
-              ? true
-              : reaches(-11, -11) && reaches(11, -11) && reaches(-11, 11) && reaches(11, 11)
-        }
-      })
-      .filter((t) => t.w > 0 && t.h > 0)
-  )
+  const unnamed: (Target & { surface: string })[] = []
+  const tooSmall: (Target & { surface: string })[] = []
+  let counted = 0
 
-  expect(targets.length).toBeGreaterThan(8)
-  const unnamed = targets.filter((t) => !t.named && !t.label)
-  expect(unnamed, JSON.stringify(unnamed)).toHaveLength(0)
-  const tooSmall = targets.filter((t) => !t.reach)
-  expect(tooSmall, JSON.stringify(tooSmall, null, 1)).toHaveLength(0)
+  for (const surface of SURFACES) {
+    await surface.open()
+    const found = await controls(surface.root)
+    expect(found.length, `${surface.name} has controls to measure`).toBeGreaterThan(0)
+    counted += found.length
+    for (const target of found) {
+      // Naming is asked of buttons and links only: a form control is named by
+      // the label around it, and auditing those is a different criterion.
+      if (target.namable && !target.named && !target.label) {
+        unnamed.push({ surface: surface.name, ...target })
+      }
+      // 2.5.8 exempts a target whose size is set by the line-height of the text
+      // around it: a task checkbox drawn into a line of prose is that case, and
+      // growing it to 24px would push the line it belongs to apart.
+      if (!target.reach && !target.inline) tooSmall.push({ surface: surface.name, ...target })
+    }
+    await surface.close()
+  }
+
+  expect(counted).toBeGreaterThan(8)
+  // Soft, so one run reports every control it has something to say about
+  // rather than stopping at the first kind of fault.
+  expect.soft(unnamed, JSON.stringify(unnamed, null, 1)).toHaveLength(0)
+  expect.soft(tooSmall, JSON.stringify(tooSmall, null, 1)).toHaveLength(0)
 })

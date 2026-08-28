@@ -80,7 +80,12 @@ function OutlineBody(): React.JSX.Element {
           onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
         />
         {filter && (
-          <button className="outline-filter__clear" onClick={() => setFilter('')}>
+          <button
+            className="outline-filter__clear"
+            title="Clear filter (Esc)"
+            aria-label="Clear filter"
+            onClick={() => setFilter('')}
+          >
             <Icon name="x" size={11} />
           </button>
         )}

@@ -549,7 +549,12 @@ export function GraphView(): React.JSX.Element | null {
                 onChange={(e) => up({ query: e.target.value })}
               />
               {ctl.query && (
-                <button className="graph__search-clear" onClick={() => up({ query: '' })}>
+                <button
+                  className="graph__search-clear"
+                  title="Clear filter"
+                  aria-label="Clear filter"
+                  onClick={() => up({ query: '' })}
+                >
                   <Icon name="x" size={11} />
                 </button>
               )}
