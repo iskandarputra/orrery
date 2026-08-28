@@ -15,6 +15,23 @@ import { SettingsStore } from './services/settings-store'
 import { WatcherService } from './services/watcher'
 import { WindowManager } from './windows'
 
+/**
+ * A development run gets its own userData directory.
+ *
+ * Two things follow from sharing one. The single-instance lock is keyed on it,
+ * so a dev instance left running makes the *installed* app exit half a second
+ * after launch with no message — it hands off to the dev window and quits,
+ * which looks exactly like the app failing to start. And a dev run writes to
+ * the real app's settings and session, so testing a change edits the state of
+ * the copy actually being used.
+ *
+ * Must happen before the lock is requested and before any service reads the
+ * path.
+ */
+if (!app.isPackaged) {
+  app.setPath('userData', `${app.getPath('userData')}-dev`)
+}
+
 // Composition root: construct services, wire dependencies, start the app.
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
