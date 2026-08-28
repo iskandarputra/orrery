@@ -1,5 +1,11 @@
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+  toggleBlockComment
+} from '@codemirror/commands'
 import { markdown, markdownKeymap, markdownLanguage } from '@codemirror/lang-markdown'
 import {
   bracketMatching,
@@ -14,11 +20,13 @@ import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/sea
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import {
   EditorView,
+  crosshairCursor,
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
-  lineNumbers
+  lineNumbers,
+  rectangularSelection
 } from '@codemirror/view'
 import type { Settings } from '@shared/settings'
 import { documentKind, type DocumentKind } from '@core/document-kind'
@@ -86,9 +94,21 @@ function codeExtensions(settings: Settings): Extension {
     closeBrackets(),
     indentOnInput(),
     highlightSelectionMatches(),
+    // Column selection on Alt-drag, with the crosshair that signals it is armed.
+    // Mod-D (next occurrence) and Mod-Shift-L (all occurrences) already come
+    // from searchKeymap; this is the third of the three, and the only one that
+    // was missing.
+    rectangularSelection(),
+    crosshairCursor(),
     EditorState.tabSize.of(e.tabSize),
     indentUnit.of(' '.repeat(e.tabSize)),
-    keymap.of([...closeBracketsKeymap, ...foldKeymap])
+    keymap.of([
+      ...closeBracketsKeymap,
+      ...foldKeymap,
+      // defaultKeymap binds Mod-/ for line comments but leaves block comments
+      // unbound.
+      { key: 'Mod-Shift-/', run: toggleBlockComment }
+    ])
   ]
 }
 
