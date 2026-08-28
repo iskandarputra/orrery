@@ -30,6 +30,7 @@ test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-lsp-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nProse.\n')
   writeFileSync(join(vault, 'code.ts'), SOURCE)
+  writeFileSync(join(vault, 'target.ts'), 'export const definedHere = 1\n')
 
   // A stand-in for typescript-language-server, put on PATH ahead of any real
   // one. The client cannot tell the difference, which is the point: the test
@@ -81,6 +82,43 @@ test('editing the document updates what the server says', async () => {
   await page.keyboard.type('const BAD2 = 4')
 
   await expect.poll(async () => (await diagnostics()).length, { timeout: 20_000 }).toBe(2)
+})
+
+test('hovering a symbol shows what the server knows about it', async () => {
+  await open('code.ts')
+  await expect
+    .poll(async () => (await diagnostics()).length, { timeout: 20_000 })
+    .toBeGreaterThan(0)
+
+  // Hover the word "fine" on the first line.
+  // CodeMirror tracks the pointer across a run of mousemove events and then
+  // waits for it to settle; one jump to the target coordinate produces neither.
+  const box = (await page.locator('.cm-content .cm-line').first().boundingBox())!
+  await page.locator('.cm-content').click()
+  await page.mouse.move(box.x + 10, box.y + box.height / 2, { steps: 5 })
+  await page.mouse.move(box.x + 48, box.y + box.height / 2, { steps: 15 })
+
+  const tip = page.locator('.cm-or-hover')
+  await expect(tip).toBeVisible({ timeout: 15_000 })
+  await expect(tip).toContainText('stub docs for')
+})
+
+test('go to definition jumps to the other file', async () => {
+  await open('code.ts')
+  await expect
+    .poll(async () => (await diagnostics()).length, { timeout: 20_000 })
+    .toBeGreaterThan(0)
+
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('F12')
+
+  // The definition lives in another file, so the jump has to open it first.
+  await expect(page.locator('.tab--active')).toContainText('target.ts', { timeout: 15_000 })
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector('.cm-content')?.textContent ?? ''), {
+      timeout: 15_000
+    })
+    .toContain('definedHere')
 })
 
 test('a note never reaches a language server', async () => {

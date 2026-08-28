@@ -1,5 +1,6 @@
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint'
 import type { EditorState } from '@codemirror/state'
+import { positionToOffset } from './lsp-position'
 import type { EditorView } from '@codemirror/view'
 import type { LspDiagnostic } from '@shared/types'
 
@@ -11,30 +12,14 @@ const SEVERITY: Record<LspDiagnostic['severity'], Diagnostic['severity']> = {
   hint: 'info'
 }
 
-/**
- * Convert a server's line/character positions into document offsets.
- *
- * The protocol counts lines and characters from zero and the document counts
- * lines from one, and a server can name a position the document no longer has —
- * diagnostics arrive asynchronously, so by the time they land the file may have
- * been edited under them. Out-of-range positions are clamped rather than
- * dropped: a diagnostic in roughly the right place is still worth showing, and
- * an unclamped offset throws inside CodeMirror.
- */
-function toOffset(state: EditorState, line: number, character: number): number {
-  const lineNumber = Math.min(Math.max(line + 1, 1), state.doc.lines)
-  const docLine = state.doc.line(lineNumber)
-  return Math.min(docLine.from + Math.max(character, 0), docLine.to)
-}
-
 export function toCodeMirrorDiagnostics(
   state: EditorState,
   incoming: LspDiagnostic[]
 ): Diagnostic[] {
   return incoming
     .map((d) => {
-      const from = toOffset(state, d.startLine, d.startChar)
-      const to = toOffset(state, d.endLine, d.endChar)
+      const from = positionToOffset(state, { line: d.startLine, character: d.startChar })
+      const to = positionToOffset(state, { line: d.endLine, character: d.endChar })
       return {
         // An empty range draws nothing, so a zero-width diagnostic is widened
         // to the character it sits on.

@@ -101,6 +101,15 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('lsp:changeDocument', docReq, (_e, req) => lsp.changeDocument(req.path, req.text))
   handle('lsp:closeDocument', pathReq, (_e, req) => lsp.closeDocument(req.path))
   handle('lsp:installed', null, () => lsp.installed())
+  const posReq = z.object({
+    path: z.string().min(1),
+    line: z.number().int().min(0),
+    character: z.number().int().min(0)
+  })
+  handle('lsp:hover', posReq, (_e, req) => lsp.hover(req.path, req.line, req.character))
+  handle('lsp:definition', posReq, (_e, req) =>
+    lsp.definition(req.path, req.line, req.character)
+  )
 
   handle(
     'fs:writeFile',

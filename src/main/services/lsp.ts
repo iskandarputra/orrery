@@ -22,8 +22,13 @@ interface RawDiagnostic {
 /** A server that failed to start is remembered, so we do not retry per keystroke. */
 type SessionState = 'starting' | 'ready' | 'failed'
 
+/** How long to wait for an answer before giving the caller nothing. */
+const REQUEST_TIMEOUT_MS = 5000
+
 class Session {
   readonly decoder = new MessageDecoder()
+  /** In-flight requests by id, so a response can find who asked. */
+  readonly pending = new Map<number, (result: unknown) => void>()
   proc: ChildProcessWithoutNullStreams | null = null
   state: SessionState = 'starting'
   nextId = 1
@@ -173,6 +178,17 @@ export class LspService {
 
   private receive(session: Session, chunk: Buffer): void {
     for (const message of session.decoder.push(chunk)) {
+      // A response to something we asked. An error reply resolves to nothing
+      // rather than rejecting: every caller's fallback is "show nothing", and
+      // a server is entitled to not know an answer.
+      if (message.id !== undefined && message.method === undefined) {
+        const settle = session.pending.get(Number(message.id))
+        if (settle) {
+          session.pending.delete(Number(message.id))
+          settle(message.error ? null : message.result)
+        }
+        continue
+      }
       if (message.method === 'textDocument/publishDiagnostics') {
         const params = message.params as { uri?: string; diagnostics?: RawDiagnostic[] } | undefined
         if (!params?.uri) continue
@@ -197,8 +213,58 @@ export class LspService {
     this.send(session, { jsonrpc: '2.0', method, params })
   }
 
+  /** Fire a notification-style request whose answer nobody waits for. */
   private request(session: Session, method: string, params: unknown): void {
     this.send(session, { jsonrpc: '2.0', id: session.nextId++, method, params })
+  }
+
+  /**
+   * Ask, and wait for the answer.
+   *
+   * Always settles: a server that never replies resolves to null on a timeout
+   * rather than leaving a promise — and the pending entry is dropped, so a very
+   * late reply cannot resolve something nobody is waiting for any more.
+   */
+  private ask(session: Session, method: string, params: unknown): Promise<unknown> {
+    if (!session.proc?.stdin.writable) return Promise.resolve(null)
+    const id = session.nextId++
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        session.pending.delete(id)
+        resolve(null)
+      }, REQUEST_TIMEOUT_MS)
+      session.pending.set(id, (result) => {
+        clearTimeout(timer)
+        resolve(result)
+      })
+      this.send(session, { jsonrpc: '2.0', id, method, params })
+    })
+  }
+
+  /** Documentation for the symbol at a position, as markdown or plain text. */
+  async hover(path: string, line: number, character: number): Promise<string | null> {
+    const session = this.sessions.get(this.keyFor(path) ?? '')
+    if (!session || session.state !== 'ready') return null
+    const result = (await this.ask(session, 'textDocument/hover', {
+      textDocument: { uri: uriOf(path) },
+      position: { line, character }
+    })) as { contents?: unknown } | null
+    return result ? hoverText(result.contents) : null
+  }
+
+  /** Where a symbol is defined, if the server knows. */
+  async definition(
+    path: string,
+    line: number,
+    character: number
+  ): Promise<{ path: string; line: number; character: number } | null> {
+    const session = this.sessions.get(this.keyFor(path) ?? '')
+    if (!session || session.state !== 'ready') return null
+    const result = await this.ask(session, 'textDocument/definition', {
+      textDocument: { uri: uriOf(path) },
+      position: { line, character }
+    })
+    return firstLocation(result)
   }
 }
 
@@ -211,6 +277,49 @@ function flatten(d: RawDiagnostic): LspDiagnostic {
     severity: SEVERITY[d.severity ?? 1] ?? 'error',
     message: d.message,
     ...(d.source ? { source: d.source } : {})
+  }
+}
+
+/**
+ * Flatten `Hover.contents`, which the protocol allows in three shapes: a
+ * markup object, a marked string, or an array of either. Older servers still
+ * send the older forms, so all three are read.
+ */
+function hoverText(contents: unknown): string | null {
+  const one = (value: unknown): string => {
+    if (typeof value === 'string') return value
+    if (value && typeof value === 'object') {
+      const record = value as { value?: unknown }
+      if (typeof record.value === 'string') return record.value
+    }
+    return ''
+  }
+  const text = Array.isArray(contents)
+    ? contents.map(one).filter(Boolean).join('\n\n')
+    : one(contents)
+  return text.trim() ? text.trim() : null
+}
+
+/**
+ * The first location from a definition response, which may be a single
+ * Location, an array of them, or LocationLink objects with a different shape.
+ */
+function firstLocation(result: unknown): { path: string; line: number; character: number } | null {
+  const candidate = Array.isArray(result) ? result[0] : result
+  if (!candidate || typeof candidate !== 'object') return null
+  const link = candidate as {
+    uri?: string
+    range?: { start?: { line?: number; character?: number } }
+    targetUri?: string
+    targetSelectionRange?: { start?: { line?: number; character?: number } }
+  }
+  const uri = link.uri ?? link.targetUri
+  const start = (link.range ?? link.targetSelectionRange)?.start
+  if (!uri || !start) return null
+  return {
+    path: pathOf(uri),
+    line: start.line ?? 0,
+    character: start.character ?? 0
   }
 }
 

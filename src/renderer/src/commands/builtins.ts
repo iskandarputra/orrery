@@ -6,6 +6,7 @@ import { openDailyNote } from '@/notes/daily'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
 import { mediaAtCursor } from '@/editor/live-preview/media-at-cursor'
+import { goToDefinition } from '@/editor/lsp-definition'
 import { invoke } from '@/services/client'
 import { THEMES } from '@/themes/themes'
 import type { Command } from './registry'
@@ -242,6 +243,16 @@ export const builtinCommands: Command[] = [
     id: 'view.toggleAnalytics',
     title: 'Open Vault Analytics',
     run: ({ store }) => store().toggleAnalytics()
+  },
+  {
+    id: 'code.goToDefinition',
+    title: 'Go to Definition',
+    run: async ({ store, view }) => {
+      const v = view()
+      if (!v) return
+      const found = await goToDefinition(v)
+      if (!found) store().showToast('No definition found for the symbol here', 'info')
+    }
   },
   {
     id: 'view.expandMedia',

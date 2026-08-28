@@ -25,6 +25,8 @@ import { documentKind, type DocumentKind } from '@core/document-kind'
 import { languageCompartment } from './code-language'
 import { gitGutter } from './git-gutter'
 import { changeDocument } from './lsp-session'
+import { goToDefinition } from './lsp-definition'
+import { lspHover } from './lsp-hover'
 import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
@@ -65,6 +67,19 @@ function codeExtensions(settings: Settings): Extension {
     gitGutter(),
     // Draws whatever a language server reports; harmless when none is installed.
     lintGutter(),
+    lspHover(),
+    keymap.of([
+      {
+        key: 'F12',
+        mac: 'F12',
+        run: (view) => {
+          void goToDefinition(view)
+          // Claimed unconditionally: the answer arrives asynchronously, and
+          // letting the key fall through would act on it twice.
+          return true
+        }
+      }
+    ]),
     highlightActiveLine(),
     foldGutter(),
     bracketMatching(),

@@ -2785,6 +2785,24 @@ textarea {
   padding-top: 10vh;
 }
 
+/* Language-server hover. Plain text by design: the body is a string the server
+   controls, and rendering it as markup would mean injecting that into the page. */
+.cm-or-hover {
+  max-width: 60ch;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 0.5rem 0.7rem;
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--or-fg);
+  background: var(--or-panel-bg);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-md);
+  box-shadow: var(--or-shadow-lg);
+}
+
 /* Language-server detection pills. Not bundling servers means a language can
    have none, so the state has to be legible rather than silent. */
 .lsp-pill {

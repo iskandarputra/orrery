@@ -2,12 +2,17 @@
 /**
  * A minimal language server, for testing the client.
  *
- * It speaks just enough LSP to prove the pipe: it answers `initialize`, and on
- * every `didOpen` / `didChange` it publishes one diagnostic per line containing
- * the word BAD. That makes the assertion in the spec a real round trip —
- * spawn, frame, handshake, sync, publish, decode, draw — rather than a mock.
+ * It speaks just enough LSP to prove the pipe:
+ *   - answers `initialize`
+ *   - publishes one diagnostic per line containing BAD, on open and on change
+ *   - answers `hover` with the word under the cursor
+ *   - answers `definition` by pointing at the first line of `target.ts`
+ *
+ * That makes the assertions in the spec real round trips — spawn, frame,
+ * handshake, sync, request, correlate, decode, draw — rather than mocks.
  */
 let buffer = Buffer.alloc(0)
+const documents = new Map()
 
 function send(message) {
   const body = Buffer.from(JSON.stringify(message), 'utf8')
@@ -64,7 +69,30 @@ process.stdin.on('data', (chunk) => {
       // didOpen carries the text on the document; didChange carries it in the
       // change list (full-text sync).
       const text = doc.text ?? message.params.contentChanges?.[0]?.text ?? ''
+      documents.set(doc.uri, text)
       publish(doc.uri, text)
+    } else if (message.method === 'textDocument/hover') {
+      const { textDocument, position } = message.params
+      const line = (documents.get(textDocument.uri) ?? '').split('\n')[position.line] ?? ''
+      const word = /[A-Za-z0-9_]+/.exec(line.slice(position.character)) ?? ['']
+      send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: word[0]
+          ? { contents: { kind: 'markdown', value: `stub docs for ${word[0]}` } }
+          : null
+      })
+    } else if (message.method === 'textDocument/definition') {
+      // Always point at the first line of target.ts, next to the open file.
+      const dir = message.params.textDocument.uri.replace(/\/[^/]*$/, '')
+      send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          uri: `${dir}/target.ts`,
+          range: { start: { line: 0, character: 6 }, end: { line: 0, character: 12 } }
+        }
+      })
     }
   }
 })

@@ -42,6 +42,16 @@ export interface IpcInvokeContract {
   'lsp:closeDocument': { req: { path: string }; res: void }
   /** Which known servers are present on this machine, by languageId. */
   'lsp:installed': { req: void; res: Record<string, boolean> }
+  /** Documentation for the symbol at a position; null when nothing is known. */
+  'lsp:hover': {
+    req: { path: string; line: number; character: number }
+    res: string | null
+  }
+  /** Where a symbol is defined; null when the server cannot say. */
+  'lsp:definition': {
+    req: { path: string; line: number; character: number }
+    res: { path: string; line: number; character: number } | null
+  }
   'fs:writeFile': {
     req: { path: string; content: string; expectedMtimeMs: number | null }
     res: FileWriteResult
