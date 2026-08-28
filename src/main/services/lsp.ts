@@ -1,8 +1,9 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { dirname } from 'node:path'
+import { promisify } from 'node:util'
 import { MessageDecoder, encodeMessage, type RpcMessage } from './lsp-protocol'
-import { languageIdForFile, serverForFile, type ServerSpec } from '@core/lsp-servers'
+import { allServers, languageIdForFile, serverForFile, type ServerSpec } from '@core/lsp-servers'
 import type { DiagnosticsPayload, LspDiagnostic } from '@shared/types'
 
 const SEVERITY: Record<number, LspDiagnostic['severity']> = {
@@ -23,6 +24,9 @@ interface RawDiagnostic {
 type SessionState = 'starting' | 'ready' | 'failed'
 
 /** How long to wait for an answer before giving the caller nothing. */
+/** Promisified once: `installed()` looks up every known server at once. */
+const which = promisify(execFile)
+
 const REQUEST_TIMEOUT_MS = 5000
 /**
  * A server can answer with thousands of completions; past a screenful they
@@ -66,7 +70,6 @@ export class LspService {
 
   /** Which known servers are actually present on this machine. */
   async installed(): Promise<Record<string, boolean>> {
-    const { allServers } = await import('@core/lsp-servers')
     const out: Record<string, boolean> = {}
     await Promise.all(
       allServers().map(async (s) => {
@@ -372,11 +375,10 @@ function pathOf(uri: string): string {
 
 /** Whether an executable can be found, without running it. */
 async function onPath(command: string): Promise<boolean> {
-  const { execFile } = await import('node:child_process')
-  const { promisify } = await import('node:util')
-  const run = promisify(execFile)
   try {
-    await run(process.platform === 'win32' ? 'where' : 'which', [command], { timeout: 3000 })
+    await which(process.platform === 'win32' ? 'where' : 'which', [command], {
+      timeout: 3000
+    })
     return true
   } catch {
     return false
