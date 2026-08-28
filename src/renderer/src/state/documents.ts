@@ -8,6 +8,7 @@ import { invoke, parseIpcError } from '@/services/client'
 import type { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
 import { documentKind, type DocumentKind } from '@core/document-kind'
+import { closeDocument } from '@/editor/lsp-session'
 
 
 export type { DocumentKind }
@@ -328,6 +329,9 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       }
     }
     cancelAutosave(id)
+    // Let the language server drop the file too; a server that is never told
+    // keeps analysing documents nobody has open.
+    if (buffer.filePath) closeDocument(id, buffer.filePath)
     bufferRegistry.remove(id)
     set((s) => {
       const { [id]: _removed, ...rest } = s.buffers

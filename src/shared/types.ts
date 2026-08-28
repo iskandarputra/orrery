@@ -151,3 +151,20 @@ export interface BacklinkHit {
   line: number
   snippet: string
 }
+
+/** One diagnostic from a language server, flattened to what the editor draws. */
+export interface LspDiagnostic {
+  /** 0-based, as the protocol gives them. */
+  startLine: number
+  startChar: number
+  endLine: number
+  endChar: number
+  severity: 'error' | 'warning' | 'info' | 'hint'
+  message: string
+  source?: string
+}
+
+export interface DiagnosticsPayload {
+  path: string
+  diagnostics: LspDiagnostic[]
+}

@@ -9,6 +9,7 @@ import type { ExportService } from '../services/exporter'
 import type { HistoryService } from '../services/history'
 import type { FileSystemService } from '../services/file-system'
 import type { GitService } from '../services/git'
+import type { LspService } from '../services/lsp'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -27,6 +28,7 @@ export interface HandlerDeps {
   embeddings: EmbeddingService
   history: HistoryService
   git: GitService
+  lsp: LspService
 }
 
 const pathReq = z.object({ path: z.string().min(1) })
@@ -38,7 +40,7 @@ const MARKDOWN_FILTERS = [
 
 /** Bind every contract channel to its service. All channels registered here. */
 export function registerIpcHandlers(deps: HandlerDeps): void {
-  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history, git } = deps
+  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history, git, lsp } = deps
 
   // --- dialogs -------------------------------------------------------------
   handle('dialog:openFile', null, async () => {
@@ -92,6 +94,13 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   // --- git ------------------------------------------------------------------
   handle('git:fileChanges', pathReq, (_e, req) => git.fileChanges(req.path))
+
+  // --- language servers -----------------------------------------------------
+  const docReq = z.object({ path: z.string().min(1), text: z.string() })
+  handle('lsp:openDocument', docReq, (_e, req) => lsp.openDocument(req.path, req.text))
+  handle('lsp:changeDocument', docReq, (_e, req) => lsp.changeDocument(req.path, req.text))
+  handle('lsp:closeDocument', pathReq, (_e, req) => lsp.closeDocument(req.path))
+  handle('lsp:installed', null, () => lsp.installed())
 
   handle(
     'fs:writeFile',

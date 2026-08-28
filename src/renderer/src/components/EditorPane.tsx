@@ -7,6 +7,7 @@ import { bufferRegistry } from '@/editor/buffer-registry'
 import { settingsCompartment, settingsExtensions } from '@/editor/create-state'
 import { ensureLanguage } from '@/editor/code-language'
 import { refreshGitGutter } from '@/editor/git-gutter'
+import { openDocument, replayDiagnostics } from '@/editor/lsp-session'
 import { lineWidthCss } from '@/editor/line-width'
 import { useStore } from '@/state/store'
 import { CanvasEditor } from './CanvasEditor'
@@ -75,7 +76,14 @@ function Pane({
     // Grammars are code-split, so a code buffer opens unhighlighted for as
     // long as its language takes to arrive.
     const shownPath = useStore.getState().buffers[bufferId]?.filePath
-    if (shownKind === 'code' && shownPath) void ensureLanguage(view, shownPath)
+    if (shownKind === 'code' && shownPath) {
+      void ensureLanguage(view, shownPath)
+      // Tell the server the file is open, and draw anything it has already
+      // said about it — diagnostics for a background tab arrive before the tab
+      // is ever looked at.
+      void openDocument(shownPath, view.state.doc.toString())
+      replayDiagnostics(bufferId, shownPath, view)
+    }
     shownIdRef.current = bufferId
     registerPaneView(bufferId, view)
     // A tab swap fires no editor update, so anything rendered *from* the
@@ -135,7 +143,8 @@ function Pane({
           fontSize: `${settings.editor.fontSize}px`,
           ['--or-editor-font-size' as string]: `${settings.editor.fontSize}px`,
           ['--or-editor-line-height' as string]: String(settings.editor.lineHeight),
-          ['--or-editor-font-family' as string]: settings.editor.fontFamily || 'var(--or-prose-font)',
+          ['--or-editor-font-family' as string]:
+            settings.editor.fontFamily || 'var(--or-prose-font)',
           ['--or-editor-max-width' as string]: lineWidthCss(settings.editor)
         }}
       />

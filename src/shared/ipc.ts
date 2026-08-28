@@ -1,5 +1,6 @@
 import type {
   BacklinkHit,
+  DiagnosticsPayload,
   CloseConfirmChoice,
   FileNode,
   FileReadResult,
@@ -30,6 +31,17 @@ export interface IpcInvokeContract {
    * no git installed, an untracked file — so callers need no error path.
    */
   'git:fileChanges': { req: { path: string }; res: LineChange[] }
+
+  /**
+   * Language-server document sync. Every call is best-effort: a language
+   * with no server installed resolves normally and simply produces no
+   * diagnostics, so callers need no capability check.
+   */
+  'lsp:openDocument': { req: { path: string; text: string }; res: void }
+  'lsp:changeDocument': { req: { path: string; text: string }; res: void }
+  'lsp:closeDocument': { req: { path: string }; res: void }
+  /** Which known servers are present on this machine, by languageId. */
+  'lsp:installed': { req: void; res: Record<string, boolean> }
   'fs:writeFile': {
     req: { path: string; content: string; expectedMtimeMs: number | null }
     res: FileWriteResult
@@ -124,6 +136,8 @@ export interface IpcInvokeContract {
 /** Main -> renderer push events. */
 export interface IpcEventContract {
   'fs:changed': FsChangedPayload
+  /** A language server published diagnostics for a file. */
+  'lsp:diagnostics': DiagnosticsPayload
   /** Native menu item clicked; renderer command registry executes it. */
   'menu:command': { commandId: string }
   /** Main intercepted a close; renderer must run the unsaved-changes flow. */

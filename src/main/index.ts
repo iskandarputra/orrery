@@ -7,6 +7,7 @@ import { AiService } from './services/ai'
 import { EmbeddingService } from './services/embeddings'
 import { HistoryService } from './services/history'
 import { GitService } from './services/git'
+import { LspService } from './services/lsp'
 import { ExportService } from './services/exporter'
 import { FileSystemService } from './services/file-system'
 import { LinkScanner } from './services/link-scanner'
@@ -41,6 +42,14 @@ if (!gotLock) {
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
   const history = new HistoryService(app.getPath('userData'))
   const git = new GitService()
+  const lsp = new LspService((payload) => {
+    const win = windows.window
+    if (win) send(win, 'lsp:diagnostics', payload)
+  })
+
+  // Language servers are children of this process; leaving them running
+  // after a quit would leak one per session.
+  app.on('will-quit', () => lsp.shutdown())
 
   app.on('second-instance', () => {
     const win = windows.window
@@ -63,7 +72,8 @@ if (!gotLock) {
       ai,
       embeddings,
       history,
-      git
+      git,
+      lsp
     })
     buildAppMenu(settings.get().keybindings)
     windows.createMainWindow()

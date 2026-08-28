@@ -8,6 +8,7 @@ import {
   EditorSection,
   GeneralSection,
   KeybindingsSection,
+  LanguageServersSection,
   MarkdownSection,
   NotesSection
 } from './sections'
@@ -19,6 +20,7 @@ type SectionId =
   | 'notes'
   | 'appearance'
   | 'ai'
+  | 'lsp'
   | 'keybindings'
   | 'about'
 
@@ -29,6 +31,7 @@ const SECTIONS: { id: SectionId; label: string; icon: IconName; desc: string }[]
   { id: 'notes', label: 'Notes', icon: 'clock', desc: 'Daily notes and templates' },
   { id: 'appearance', label: 'Appearance', icon: 'palette', desc: 'Themes, dark mode, accent colors' },
   { id: 'ai', label: 'AI Assistant', icon: 'sparkle', desc: 'Claude, Ollama, DeepSeek & compatible APIs' },
+  { id: 'lsp', label: 'Language Servers', icon: 'code', desc: 'Diagnostics for code files' },
   { id: 'keybindings', label: 'Keybindings', icon: 'keyboard', desc: 'Keyboard shortcuts customization' },
   { id: 'about', label: 'About', icon: 'info', desc: 'Version and system information' }
 ]
@@ -40,6 +43,7 @@ const CONTENT: Record<SectionId, () => React.JSX.Element> = {
   notes: NotesSection,
   appearance: AppearanceSection,
   ai: AiSection,
+  lsp: LanguageServersSection,
   keybindings: KeybindingsSection,
   about: AboutSection
 }

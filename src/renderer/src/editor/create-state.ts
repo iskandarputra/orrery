@@ -9,6 +9,7 @@ import {
   indentUnit
 } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
+import { lintGutter } from '@codemirror/lint'
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import {
@@ -23,6 +24,7 @@ import type { Settings } from '@shared/settings'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import { languageCompartment } from './code-language'
 import { gitGutter } from './git-gutter'
+import { changeDocument } from './lsp-session'
 import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
@@ -61,6 +63,8 @@ function codeExtensions(settings: Settings): Extension {
     lineNumbers(),
     highlightActiveLineGutter(),
     gitGutter(),
+    // Draws whatever a language server reports; harmless when none is installed.
+    lintGutter(),
     highlightActiveLine(),
     foldGutter(),
     bracketMatching(),
@@ -71,6 +75,28 @@ function codeExtensions(settings: Settings): Extension {
     indentUnit.of(' '.repeat(e.tabSize)),
     keymap.of([...closeBracketsKeymap, ...foldKeymap])
   ]
+}
+
+/**
+ * Coalesce edits into one didChange per idle moment, per file.
+ *
+ * A server re-analyses the whole document on every change notification, so
+ * sending one per keystroke makes it do far more work than the typing warrants
+ * and puts the answers further behind the cursor, not closer.
+ */
+const SYNC_DELAY_MS = 300
+const syncTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function scheduleSync(path: string, text: string): void {
+  const existing = syncTimers.get(path)
+  if (existing) clearTimeout(existing)
+  syncTimers.set(
+    path,
+    setTimeout(() => {
+      syncTimers.delete(path)
+      void changeDocument(path, text)
+    }, SYNC_DELAY_MS)
+  )
 }
 
 export function settingsExtensions(settings: Settings, kind: DocumentKind = 'markdown'): Extension {
@@ -167,6 +193,9 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           onDirtyChange(bufferRegistry.isDirty(id, update.state.doc))
+          // Language servers want every keystroke, but not one IPC round trip
+          // per keystroke; they re-analyse on each didChange.
+          if (isCode && filePath) scheduleSync(filePath, update.state.doc.toString())
           // Views rendered from the document (the canvas) re-read on this.
           bumpDocVersion(id)
         }

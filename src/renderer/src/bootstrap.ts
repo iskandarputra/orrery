@@ -4,6 +4,7 @@ import { buildEditorMenu } from './components/editor-menu'
 import { editorMenuActions } from './components/editor-menu-actions'
 import { createCommandRegistry, type CommandRegistry } from './commands/registry'
 import { getActiveView } from './editor/active-view'
+import { routeDiagnostics } from './editor/lsp-session'
 import type { OrreryPlugin } from './plugins/api'
 import { builtinPlugins } from './plugins/builtins'
 import { activatePlugins } from './plugins/registry'
@@ -57,6 +58,10 @@ export function bootstrap(): CommandRegistry {
   on('menu:command', ({ commandId }) => registry.execute(commandId))
   on('window:closeRequested', () => void useStore.getState().handleWindowCloseRequest())
   on('fs:changed', ({ events }) => useStore.getState().onFsChanged(events))
+  // Diagnostics arrive whenever a server has something to say, for whatever
+  // file it pleases — including one in a background tab, which is why they
+  // are routed by path rather than applied to whatever is on screen.
+  on('lsp:diagnostics', (payload) => routeDiagnostics(payload))
   on('app:openPath', ({ path }) => void useStore.getState().openPaths([path]))
   on('editor:contextMenu', (request) => {
     // The tab bar and file tree open their own menus on the DOM event; this
