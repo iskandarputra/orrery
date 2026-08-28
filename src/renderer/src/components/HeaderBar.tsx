@@ -132,17 +132,20 @@ export function HeaderBar(): React.JSX.Element | null {
         </div>
       </div>
 
-      {/* Center: Reading time / stats pill */}
+      {/* Center: Reading time / stats pill. Prose only — "1 min read" on a
+          JSON file is a number nobody asked for and nobody can use. */}
       <div className="header-bar__center">
-        <button
-          className="header-stats-pill"
-          title="Click to view detailed document statistics"
-          onClick={() => setDocStatsOpen(true)}
-        >
-          <span>{stats.words} words</span>
-          <span className="header-stats-pill__dot">·</span>
-          <span>{readingTimeMin} min read</span>
-        </button>
+        {buffer?.kind !== 'code' && (
+          <button
+            className="header-stats-pill"
+            title="Click to view detailed document statistics"
+            onClick={() => setDocStatsOpen(true)}
+          >
+            <span>{stats.words} words</span>
+            <span className="header-stats-pill__dot">·</span>
+            <span>{readingTimeMin} min read</span>
+          </button>
+        )}
       </div>
 
       {/* Right: Quick actions toolbar */}

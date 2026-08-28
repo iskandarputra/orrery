@@ -37,6 +37,7 @@ function collectHeadings(): HeadingItem[] {
 function OutlineBody(): React.JSX.Element {
   const stats = useEditorStats()
   const activeId = useStore((s) => s.activeId)
+  const isCode = useStore((s) => (s.activeId ? s.buffers[s.activeId]?.kind === 'code' : false))
   const [filter, setFilter] = useState('')
   // Re-collect headings when activeId or stats change as document edits occur
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +61,13 @@ function OutlineBody(): React.JSX.Element {
   if (!activeId) return <EmptyState icon="list">Open a note to see its outline.</EmptyState>
   if (headings.length === 0)
     return (
-      <EmptyState icon="list">No headings found. Add # Headings to create a table of contents.</EmptyState>
+      <EmptyState icon="list">
+        {isCode
+          ? // Telling someone to add "# Headings" to a TypeScript file is advice
+            // that would break it.
+            'An outline is built from markdown headings, which a code file has none of.'
+          : 'No headings found. Add # Headings to create a table of contents.'}
+      </EmptyState>
     )
 
   let activeLine = -1

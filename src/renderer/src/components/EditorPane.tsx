@@ -5,6 +5,7 @@ import { bumpDocVersion } from '@/state/doc-version'
 import { refreshStatsNow } from '@/state/editor-stats'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { settingsCompartment, settingsExtensions } from '@/editor/create-state'
+import { ensureLanguage } from '@/editor/code-language'
 import { lineWidthCss } from '@/editor/line-width'
 import { useStore } from '@/state/store'
 import { CanvasEditor } from './CanvasEditor'
@@ -31,7 +32,8 @@ function Pane({
   const viewRef = useRef<EditorView | null>(null)
   const shownIdRef = useRef<string | null>(null)
   const settings = useStore((s) => s.settings)
-  const isCanvas = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind === 'canvas' : false))
+  const kind = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind : undefined))
+  const isCanvas = kind === 'canvas'
 
   useEffect(() => {
     const view = new EditorView({ parent: containerRef.current! })
@@ -62,9 +64,16 @@ function Pane({
 
     view.setState(next.state)
     // States created while in the background may carry stale settings.
+    const shownKind = useStore.getState().buffers[bufferId]?.kind ?? 'markdown'
     view.dispatch({
-      effects: settingsCompartment.reconfigure(settingsExtensions(useStore.getState().settings))
+      effects: settingsCompartment.reconfigure(
+        settingsExtensions(useStore.getState().settings, shownKind)
+      )
     })
+    // Grammars are code-split, so a code buffer opens unhighlighted for as
+    // long as its language takes to arrive.
+    const shownPath = useStore.getState().buffers[bufferId]?.filePath
+    if (shownKind === 'code' && shownPath) void ensureLanguage(view, shownPath)
     shownIdRef.current = bufferId
     registerPaneView(bufferId, view)
     // A tab swap fires no editor update, so anything rendered *from* the
@@ -79,9 +88,11 @@ function Pane({
 
   useEffect(() => {
     viewRef.current?.dispatch({
-      effects: settingsCompartment.reconfigure(settingsExtensions(settings))
+      effects: settingsCompartment.reconfigure(settingsExtensions(settings, kind ?? 'markdown'))
     })
-  }, [settings])
+    // `kind` matters as much as the settings do: it decides whether this buffer
+    // gets the markdown machinery or the code one.
+  }, [settings, kind])
 
   // Keep the registry's copy fresh so store actions can read a consistent
   // state for a buffer whose pane isn't focused.

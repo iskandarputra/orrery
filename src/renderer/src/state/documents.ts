@@ -7,14 +7,10 @@ import { invalidateEmbed } from '@/editor/live-preview/embeds'
 import { invoke, parseIpcError } from '@/services/client'
 import type { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
+import { documentKind, type DocumentKind } from '@core/document-kind'
 
-/** Which editor surface a buffer belongs in. */
-export type DocumentKind = 'markdown' | 'canvas'
 
-/** `.canvas` files are JSON boards, everything else is markdown text. */
-export function documentKind(fileName: string): DocumentKind {
-  return /\.canvas$/i.test(fileName) ? 'canvas' : 'markdown'
-}
+export type { DocumentKind }
 
 export interface DocumentBuffer {
   /** Stable tab identity — NOT the path (untitled docs have no path). */
@@ -128,6 +124,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           content: file.content,
           settings: get().settings,
           filePath: path,
+          kind: documentKind(path),
           onDirtyChange: (dirty) => get().setDirty(id, dirty)
         })
         bufferRegistry.create(id, state, state.doc)

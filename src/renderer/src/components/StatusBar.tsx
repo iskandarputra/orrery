@@ -1,5 +1,6 @@
 import { useEditorStats } from '@/state/editor-stats'
 import { useStore } from '@/state/store'
+import { languageLabel } from '@/editor/code-language'
 import { getTheme } from '@/themes/themes'
 import { Icon, type IconName } from './Icon'
 
@@ -14,6 +15,11 @@ export function StatusBar(): React.JSX.Element {
   const lightTheme = useStore((s) => s.settings.lightTheme)
   const setThemeMode = useStore((s) => s.setThemeMode)
   const setDocStatsOpen = useStore((s) => s.setDocStatsOpen)
+
+  // A word count on a source file is noise, and "Markdown" on a .py file is
+  // simply wrong. Both said exactly that before code became its own kind.
+  const isCode = active?.kind === 'code'
+  const language = isCode ? languageLabel(active.fileName) : 'Markdown'
 
   const activeThemeId = mode === 'dark' ? darkTheme : lightTheme
   const activeThemeName = getTheme(activeThemeId).name
@@ -46,16 +52,20 @@ export function StatusBar(): React.JSX.Element {
 
             <span className="status-bar__sep">·</span>
 
-            {/* Word count metric pill */}
-            <button
-              className="status-bar__stats-btn"
-              title="Click to view detailed document metrics"
-              onClick={() => setDocStatsOpen(true)}
-            >
-              <span>{stats.words.toLocaleString()} words</span>
-            </button>
+            {/* Word count metric pill — prose only. */}
+            {!isCode && (
+              <>
+                <button
+                  className="status-bar__stats-btn"
+                  title="Click to view detailed document metrics"
+                  onClick={() => setDocStatsOpen(true)}
+                >
+                  <span>{stats.words.toLocaleString()} words</span>
+                </button>
 
-            <span className="status-bar__sep">·</span>
+                <span className="status-bar__sep">·</span>
+              </>
+            )}
 
             {/* Indentation & Encoding */}
             <span className="status-bar__item" title="Tab indentation width">
@@ -71,7 +81,7 @@ export function StatusBar(): React.JSX.Element {
             <span className="status-bar__sep">·</span>
 
             <span className="status-bar__item" title="Language mode">
-              Markdown
+              {language}
             </span>
           </>
         )}
