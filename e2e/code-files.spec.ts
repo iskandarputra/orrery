@@ -89,6 +89,47 @@ test('the outline does not tell you to put markdown in a source file', async () 
   await expect(hint).toContainText('code file')
 })
 
+/**
+ * A reading column is for prose. Code is read down its left edge against the
+ * indentation, so it takes the full pane and starts at the gutter rather than
+ * being centred in a 46rem measure.
+ */
+test('code uses the full width, prose keeps its column', async () => {
+  await open('script.ts')
+  const code = await page.evaluate(() => {
+    const content = document.querySelector('.cm-content') as HTMLElement
+    const gutter = document.querySelector('.cm-gutters') as HTMLElement
+    const scroller = document.querySelector('.cm-scroller') as HTMLElement
+    const line = document.querySelector('.cm-content .cm-line') as HTMLElement
+    return {
+      maxWidth: getComputedStyle(content).maxWidth,
+      gapAfterGutter: Math.round(
+        content.getBoundingClientRect().left - gutter.getBoundingClientRect().right
+      ),
+      unusedRight: Math.round(
+        scroller.getBoundingClientRect().right - content.getBoundingClientRect().right
+      ),
+      // The per-line inset, which is what actually holds the text away from
+      // the gutter — it is padding inside the line, not on the content box.
+      linePad: parseFloat(getComputedStyle(line).paddingLeft)
+    }
+  })
+  expect(code.maxWidth, 'code is not held to a reading column').toBe('none')
+  expect(code.gapAfterGutter, 'code starts at the gutter').toBeLessThanOrEqual(2)
+  expect(code.unusedRight, 'code runs to the edge of the pane').toBeLessThanOrEqual(2)
+  expect(code.linePad, 'code is not inset like prose').toBeLessThan(20)
+
+  await open('Note.md')
+  const note = await page.evaluate(() => ({
+    maxWidth: getComputedStyle(document.querySelector('.cm-content') as HTMLElement).maxWidth,
+    linePad: parseFloat(
+      getComputedStyle(document.querySelector('.cm-content .cm-line') as HTMLElement).paddingLeft
+    )
+  }))
+  expect(note.maxWidth, 'prose still gets a measure').not.toBe('none')
+  expect(note.linePad, 'prose keeps its generous inset').toBeGreaterThan(20)
+})
+
 test('prose counters go quiet on code', async () => {
   await open('Note.md')
   await expect(page.locator('.header-stats-pill')).toBeVisible()

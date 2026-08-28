@@ -15,7 +15,7 @@ const editorChrome = EditorView.theme({
     fontSize: 'var(--or-editor-font-size)'
   },
   '.cm-content': {
-    ['--or-line-pad' as string]: '2rem',
+    ['--or-line-pad' as string]: 'var(--or-editor-line-pad, 2rem)',
     fontFamily: 'var(--or-editor-font-family)',
     lineHeight: 'var(--or-editor-line-height)',
     caretColor: 'var(--or-accent)',
@@ -77,12 +77,42 @@ const editorChrome = EditorView.theme({
  * highlighter the editor uses — one token palette, whichever path drew the code.
  */
 export const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em', color: 'var(--or-fg)' },
-  { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em', color: 'var(--or-fg)' },
-  { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em', color: 'var(--or-fg)' },
+  {
+    tag: tags.heading1,
+    fontSize: '1.45em',
+    fontWeight: '650',
+    letterSpacing: '-0.018em',
+    color: 'var(--or-fg)'
+  },
+  {
+    tag: tags.heading2,
+    fontSize: '1.28em',
+    fontWeight: '600',
+    letterSpacing: '-0.012em',
+    color: 'var(--or-fg)'
+  },
+  {
+    tag: tags.heading3,
+    fontSize: '1.14em',
+    fontWeight: '600',
+    letterSpacing: '-0.006em',
+    color: 'var(--or-fg)'
+  },
   { tag: tags.heading4, fontSize: '1.04em', fontWeight: '600', color: 'var(--or-fg)' },
-  { tag: tags.heading5, fontSize: '0.94em', fontWeight: '600', letterSpacing: '0.03em', color: 'var(--or-fg-muted)' },
-  { tag: tags.heading6, fontSize: '0.88em', fontWeight: '600', letterSpacing: '0.04em', color: 'var(--or-fg-faint)' },
+  {
+    tag: tags.heading5,
+    fontSize: '0.94em',
+    fontWeight: '600',
+    letterSpacing: '0.03em',
+    color: 'var(--or-fg-muted)'
+  },
+  {
+    tag: tags.heading6,
+    fontSize: '0.88em',
+    fontWeight: '600',
+    letterSpacing: '0.04em',
+    color: 'var(--or-fg-faint)'
+  },
   { tag: tags.strong, fontWeight: '700', color: 'var(--or-fg)' },
   { tag: tags.emphasis, fontStyle: 'italic', color: 'var(--or-fg)' },
   { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--or-fg-muted)' },
@@ -121,7 +151,10 @@ export const markdownHighlight = HighlightStyle.define([
     ],
     color: 'var(--or-code-function)'
   },
-  { tag: [tags.typeName, tags.className, tags.constant(tags.variableName)], color: 'var(--or-code-type)' },
+  {
+    tag: [tags.typeName, tags.className, tags.constant(tags.variableName)],
+    color: 'var(--or-code-type)'
+  },
   {
     tag: [tags.propertyName, tags.definition(tags.propertyName), tags.variableName],
     color: 'var(--or-code-property)'

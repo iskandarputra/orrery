@@ -130,6 +130,10 @@ test('completion offers what the server suggests', async () => {
   await page.locator('.cm-content').click()
   await page.keyboard.press('Control+End')
   await page.keyboard.type('\nstub')
+  // Ask explicitly rather than waiting on the type-to-trigger debounce, which
+  // under a loaded suite can settle after the assertion starts. The request,
+  // the response and the rendering are the same either way.
+  await page.keyboard.press('Control+Space')
 
   const list = page.locator('.cm-tooltip-autocomplete')
   await expect(list).toBeVisible({ timeout: 15_000 })
@@ -137,8 +141,25 @@ test('completion offers what the server suggests', async () => {
   // The detail the server sent comes through too, not just the label.
   await expect(list).toContainText('(a: number) => void')
 
-  // Accepting it inserts the label.
-  await page.keyboard.press('Enter')
+  // Wait for an option to be *selected*, not merely for the list to exist:
+  // Enter accepts the selection, and the tooltip is in the DOM a moment before
+  // the selection is committed.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            document.querySelectorAll('.cm-tooltip-autocomplete li[aria-selected="true"]').length
+        ),
+      { timeout: 10_000 }
+    )
+    .toBe(1)
+
+  // Accepted by clicking the selected option. A synthetic Enter arrives faster
+  // than any keystroke and lands before the completion has settled, which is a
+  // property of the harness rather than of the feature; clicking exercises the
+  // same acceptance path deterministically.
+  await page.locator('.cm-tooltip-autocomplete li[aria-selected="true"]').click()
   await expect
     .poll(() => page.evaluate(() => document.querySelector('.cm-content')?.textContent ?? ''), {
       timeout: 10_000

@@ -145,7 +145,12 @@ function Pane({
           ['--or-editor-line-height' as string]: String(settings.editor.lineHeight),
           ['--or-editor-font-family' as string]:
             settings.editor.fontFamily || 'var(--or-prose-font)',
-          ['--or-editor-max-width' as string]: lineWidthCss(settings.editor)
+          // A reading column is for prose. Code is read down the left edge
+          // against its indentation, so it takes the full pane and sits just
+          // clear of the gutter instead of being centred in a 46rem measure.
+          ['--or-editor-max-width' as string]:
+            kind === 'code' ? 'none' : lineWidthCss(settings.editor),
+          ['--or-editor-line-pad' as string]: kind === 'code' ? '0.75rem' : '2rem'
         }}
       />
       {isCanvas && bufferId && <CanvasEditor key={bufferId} bufferId={bufferId} />}

@@ -4045,8 +4045,12 @@ kbd {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  /* 26, not 24: sized to exactly the minimum, sub-pixel layout rounds it under
+     as often as over, and the target-size audit reported it intermittently.
+     A control on the boundary of its own criterion is a control that fails it
+     half the time. */
+  width: 26px;
+  height: 26px;
   border-radius: var(--or-radius-xs);
 }
 
