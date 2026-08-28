@@ -121,6 +121,31 @@ test('go to definition jumps to the other file', async () => {
     .toContain('definedHere')
 })
 
+test('completion offers what the server suggests', async () => {
+  await open('code.ts')
+  await expect
+    .poll(async () => (await diagnostics()).length, { timeout: 20_000 })
+    .toBeGreaterThan(0)
+
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type('\nstub')
+
+  const list = page.locator('.cm-tooltip-autocomplete')
+  await expect(list).toBeVisible({ timeout: 15_000 })
+  await expect(list).toContainText('stubComplete')
+  // The detail the server sent comes through too, not just the label.
+  await expect(list).toContainText('(a: number) => void')
+
+  // Accepting it inserts the label.
+  await page.keyboard.press('Enter')
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector('.cm-content')?.textContent ?? ''), {
+      timeout: 10_000
+    })
+    .toContain('stubComplete')
+})
+
 test('a note never reaches a language server', async () => {
   await open('Note.md')
   // Prose has no server and no lint surface at all.

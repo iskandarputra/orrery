@@ -107,6 +107,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     character: z.number().int().min(0)
   })
   handle('lsp:hover', posReq, (_e, req) => lsp.hover(req.path, req.line, req.character))
+  handle('lsp:complete', posReq, (_e, req) => lsp.complete(req.path, req.line, req.character))
   handle('lsp:definition', posReq, (_e, req) =>
     lsp.definition(req.path, req.line, req.character)
   )

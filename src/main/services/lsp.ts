@@ -24,6 +24,11 @@ type SessionState = 'starting' | 'ready' | 'failed'
 
 /** How long to wait for an answer before giving the caller nothing. */
 const REQUEST_TIMEOUT_MS = 5000
+/**
+ * A server can answer with thousands of completions; past a screenful they
+ * cost IPC and rendering time to deliver something nobody scrolls to.
+ */
+const MAX_COMPLETIONS = 200
 
 class Session {
   readonly decoder = new MessageDecoder()
@@ -250,6 +255,36 @@ export class LspService {
       position: { line, character }
     })) as { contents?: unknown } | null
     return result ? hoverText(result.contents) : null
+  }
+
+  /** Completions at a position. Empty when the server has nothing to offer. */
+  async complete(
+    path: string,
+    line: number,
+    character: number
+  ): Promise<{ label: string; detail?: string; kind?: number }[]> {
+    const session = this.sessions.get(this.keyFor(path) ?? '')
+    if (!session || session.state !== 'ready') return []
+    const result = await this.ask(session, 'textDocument/completion', {
+      textDocument: { uri: uriOf(path) },
+      position: { line, character },
+      context: { triggerKind: 1 }
+    })
+    // The response is either a bare list or a CompletionList wrapping one.
+    const items = Array.isArray(result)
+      ? result
+      : ((result as { items?: unknown[] } | null)?.items ?? [])
+    return items.slice(0, MAX_COMPLETIONS).flatMap((raw) => {
+      const item = raw as { label?: unknown; detail?: unknown; kind?: unknown }
+      if (typeof item.label !== 'string' || !item.label) return []
+      return [
+        {
+          label: item.label,
+          ...(typeof item.detail === 'string' ? { detail: item.detail } : {}),
+          ...(typeof item.kind === 'number' ? { kind: item.kind } : {})
+        }
+      ]
+    })
   }
 
   /** Where a symbol is defined, if the server knows. */

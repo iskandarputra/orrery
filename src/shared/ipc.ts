@@ -47,6 +47,11 @@ export interface IpcInvokeContract {
     req: { path: string; line: number; character: number }
     res: string | null
   }
+  /** Completions at a position; empty when the server has nothing. */
+  'lsp:complete': {
+    req: { path: string; line: number; character: number }
+    res: { label: string; detail?: string; kind?: number }[]
+  }
   /** Where a symbol is defined; null when the server cannot say. */
   'lsp:definition': {
     req: { path: string; line: number; character: number }

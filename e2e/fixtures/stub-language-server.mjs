@@ -6,6 +6,7 @@
  *   - answers `initialize`
  *   - publishes one diagnostic per line containing BAD, on open and on change
  *   - answers `hover` with the word under the cursor
+ *   - answers `completion` with two fixed items
  *   - answers `definition` by pointing at the first line of `target.ts`
  *
  * That makes the assertions in the spec real round trips — spawn, frame,
@@ -81,6 +82,18 @@ process.stdin.on('data', (chunk) => {
         result: word[0]
           ? { contents: { kind: 'markdown', value: `stub docs for ${word[0]}` } }
           : null
+      })
+    } else if (message.method === 'textDocument/completion') {
+      send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          isIncomplete: false,
+          items: [
+            { label: 'stubComplete', kind: 3, detail: '(a: number) => void' },
+            { label: 'stubOther', kind: 6, detail: 'number' }
+          ]
+        }
       })
     } else if (message.method === 'textDocument/definition') {
       // Always point at the first line of target.ts, next to the open file.

@@ -35,6 +35,7 @@ import { gitGutter } from './git-gutter'
 import { changeDocument } from './lsp-session'
 import { goToDefinition } from './lsp-definition'
 import { lspHover } from './lsp-hover'
+import { lspCompletion } from './lsp-completion'
 import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
@@ -76,6 +77,7 @@ function codeExtensions(settings: Settings): Extension {
     // Draws whatever a language server reports; harmless when none is installed.
     lintGutter(),
     lspHover(),
+    lspCompletion(),
     keymap.of([
       {
         key: 'F12',
