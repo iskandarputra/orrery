@@ -19,7 +19,10 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 echo "› building orrery-sidecar (release)"
-cargo build --release --manifest-path native/Cargo.toml
+# Run from inside native/: rustup resolves rust-toolchain.toml from the working
+# directory, not from --manifest-path, so building from the repo root would
+# silently ignore the pin.
+( cd native && cargo build --release )
 
 BIN=orrery-sidecar
 [[ "${OS:-}" == "Windows_NT" ]] && BIN=orrery-sidecar.exe

@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'spike/**', 'feat/**', 'fix/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A push that supersedes an in-flight run cancels it; desktop e2e is slow and
+# there is no value in finishing a run for a commit nobody will look at.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  check:
+    name: lint, typecheck, unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      # --maxWorkers=1: list-layout.test.ts is order-dependent under parallel
+      # load. Pre-existing, reproduces on a clean main, and unrelated to CI.
+      - run: npx vitest run --maxWorkers=1
+
+  rust:
+    name: sidecar (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      # Run from native/ so rust-toolchain.toml is honoured; rustup resolves it
+      # from the working directory, not from --manifest-path.
+      - name: cargo test
+        working-directory: native
+        run: cargo test
+      - name: cargo build --release
+        working-directory: native
+        run: cargo build --release
+      # The whole point of this job: prove a sidecar can be produced for every
+      # platform the app ships to, which one developer machine cannot answer.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orrery-sidecar-${{ matrix.os }}
+          path: |
+            native/target/release/orrery-sidecar
+            native/target/release/orrery-sidecar.exe
+          if-no-files-found: error
+
+  e2e:
+    name: e2e (TypeScript and Rust paths)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - run: npm ci
+      # Electron needs a display and the same GTK/NSS libraries the .deb depends on.
+      - name: install runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils
+      - run: npm run build
+      - run: npm run build:native
+      - name: e2e with the sidecar off
+        run: xvfb-run -a npx playwright test --reporter=line
+      # Run the whole suite again against the Rust path. Search is the only
+      # behaviour that changes, but the point is that nothing else does.
+      - name: e2e with the sidecar on
+        env:
+          ORRERY_RUST_SEARCH: '1'
+        run: xvfb-run -a npx playwright test --reporter=line
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore
