@@ -2,6 +2,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import { expandButton } from './expand-button'
 
 class MathWidget extends WidgetType {
   constructor(
@@ -29,6 +30,9 @@ class MathWidget extends WidgetType {
     } catch {
       el.textContent = this.expr
     }
+    // Only the block form: an inline equation sits in a run of text, where a
+    // corner button would have nowhere to go and nothing to reveal.
+    if (this.display) el.appendChild(expandButton({ kind: 'math', code: this.expr }))
     if (this.interactive) {
       el.addEventListener('mousedown', (event) => {
         event.preventDefault()

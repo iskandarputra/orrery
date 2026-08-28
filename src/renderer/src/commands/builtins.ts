@@ -5,6 +5,7 @@ import { canvasFromCluster, clusterMoc, newCanvas } from '@/notes/canvas-command
 import { openDailyNote } from '@/notes/daily'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
+import { mediaAtCursor } from '@/editor/live-preview/media-at-cursor'
 import { invoke } from '@/services/client'
 import { THEMES } from '@/themes/themes'
 import type { Command } from './registry'
@@ -241,6 +242,17 @@ export const builtinCommands: Command[] = [
     id: 'view.toggleAnalytics',
     title: 'Open Vault Analytics',
     run: ({ store }) => store().toggleAnalytics()
+  },
+  {
+    id: 'view.expandMedia',
+    title: 'Expand Diagram, Image or Equation',
+    run: ({ store, view }) => {
+      const v = view()
+      if (!v) return
+      const target = mediaAtCursor(v)
+      if (target) store().openMediaViewer(target)
+      else store().showToast('Put the cursor in a diagram, image or block equation', 'info')
+    }
   },
   {
     id: 'file.print',

@@ -1,11 +1,12 @@
 import { syntaxTree } from '@codemirror/language'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import { expandButton } from './expand-button'
 
 let seq = 0
 
 /** Lazy-loaded so the ~2MB mermaid bundle never blocks startup. */
-async function renderMermaid(code: string, el: HTMLElement): Promise<void> {
+export async function renderMermaid(code: string, el: HTMLElement): Promise<void> {
   const { default: mermaid } = await import('mermaid')
   const dark = document.documentElement.dataset['theme']?.includes('light') !== true
   mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' })
@@ -35,7 +36,13 @@ class MermaidWidget extends WidgetType {
     const el = document.createElement('div')
     el.className = 'cm-or-mermaid'
     el.textContent = 'Rendering diagram…'
-    void renderMermaid(this.code, el)
+    void renderMermaid(this.code, el).then(() => {
+      // Appended after the render, which replaces the element's children — and
+      // not onto a failed one, where there is nothing to enlarge but the error.
+      if (!el.classList.contains('cm-or-mermaid--error')) {
+        el.appendChild(expandButton({ kind: 'mermaid', code: this.code }))
+      }
+    })
     if (this.interactive) {
       el.addEventListener('mousedown', (event) => {
         event.preventDefault()

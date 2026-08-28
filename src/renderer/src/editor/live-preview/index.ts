@@ -15,6 +15,7 @@ import { tags } from './features/tags'
 import { embedRendering } from './embeds'
 import { frontmatterRendering } from './frontmatter'
 import { imageRendering } from './images'
+import { codeCardRendering } from './code-card'
 import { livePreviewPlugin } from './plugin'
 import { mathRendering } from './math'
 import { mermaidRendering } from './mermaid'
@@ -81,6 +82,7 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
     frontmatterRendering(reveal),
     embedRendering(reveal),
     tableRendering(reveal),
+    codeCardRendering(reveal),
     mathRendering(reveal),
     mermaidRendering(reveal),
     showImages ? imageRendering(reveal) : [],

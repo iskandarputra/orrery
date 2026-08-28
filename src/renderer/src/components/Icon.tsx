@@ -27,6 +27,7 @@ const PATHS = {
     </>
   ),
   plus: <path d="M8 3.25v9.5M3.25 8h9.5" />,
+  minus: <path d="M3.25 8h9.5" />,
   'file-plus': (
     <>
       <path d="M4 1.75h5.25L12.75 5.25v9a1 1 0 0 1-1 1H4.25a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1z" />

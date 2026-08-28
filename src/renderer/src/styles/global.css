@@ -2785,6 +2785,170 @@ textarea {
   padding-top: 10vh;
 }
 
+/* Media viewer — a diagram, image or equation at whatever size it needs.
+   Darker than the other dialogs: the point is to get the app out of the way and
+   leave only the thing being read. */
+.media-viewer {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.media-viewer__frame {
+  display: flex;
+  flex-direction: column;
+  width: 92vw;
+  height: 88vh;
+  background: var(--or-panel-bg);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-lg);
+  box-shadow: var(--or-shadow-xl);
+  overflow: hidden;
+  animation: pop-in 0.14s ease;
+}
+
+.media-viewer__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.9rem;
+  border-bottom: 1px solid var(--or-border);
+  flex: 0 0 auto;
+}
+
+.media-viewer__title {
+  font-size: 12px;
+  color: var(--or-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-viewer__tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.media-viewer__pct {
+  min-width: 4ch;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--or-fg-muted);
+}
+
+.media-viewer__stage {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden;
+  cursor: grab;
+  /* A faint grid gives the pan and zoom something to read against, the same way
+     the canvas board does. */
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in srgb, var(--or-fg) 9%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 22px 22px;
+  touch-action: none;
+}
+
+.media-viewer__stage--panning {
+  cursor: grabbing;
+}
+
+.media-viewer__content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  width: max-content;
+  /* Nothing in here may be constrained by the viewport — the content is what is
+     being measured, so it has to report its own natural size. */
+  max-width: none;
+  will-change: transform;
+}
+
+.media-viewer__content img {
+  display: block;
+  max-width: none;
+  max-height: none;
+}
+
+.media-viewer__content svg {
+  display: block;
+  max-width: none;
+}
+
+.media-viewer__math {
+  padding: 1.5rem 2rem;
+  font-size: 22px;
+  color: var(--or-fg);
+}
+
+/* Code presentation. A wall of text wants a scrollbar and a wheel, not a drag
+   and a transform — so this stage scrolls, and the +/- controls change type
+   size rather than zoom. */
+.media-viewer__stage--code {
+  overflow: auto;
+  cursor: auto;
+  background-image: none;
+  background: var(--or-code-bg);
+}
+
+.media-viewer__code {
+  margin: 0;
+  padding: 1.1rem 1.4rem;
+  font-family: var(--or-mono-font);
+  line-height: 1.6;
+  color: var(--or-fg);
+  /* Column-sensitive by default, as everywhere else code is shown. */
+  white-space: pre;
+  user-select: text;
+}
+
+.media-viewer__code--wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.media-viewer__code code {
+  font: inherit;
+}
+
+/* A labelled toggle rather than an icon: there is no conventional glyph for
+   line wrapping, and a guessed one would need the tooltip to be legible anyway. */
+.media-viewer__toggle {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 0.6rem;
+  margin: 0 2px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  background: transparent;
+  color: var(--or-fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background var(--or-transition-fast),
+    color var(--or-transition-fast);
+}
+
+.media-viewer__toggle:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.media-viewer__toggle[aria-pressed='true'] {
+  background: var(--or-accent-soft);
+  border-color: color-mix(in srgb, var(--or-accent) 35%, transparent);
+  color: var(--or-accent-text);
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
 }

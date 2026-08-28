@@ -33,6 +33,39 @@ export type SidePanel =
   | 'analysis'
   | 'tags'
 
+/** One run of code sharing a colour, as already worked out by the renderer. */
+export interface CodeSpan {
+  text: string
+  cls: string
+}
+
+/** A block opened full screen in the media viewer. */
+export interface MediaViewerTarget {
+  kind: 'image' | 'mermaid' | 'math' | 'code'
+  /** Resolved image URL (kind 'image'). */
+  src?: string
+  /** Diagram, equation or code source (every kind but 'image'). */
+  code?: string
+  /** Language label (kind 'code'). */
+  lang?: string
+  /**
+   * Pre-coloured runs (kind 'code'). Carried rather than recomputed: the
+   * colours come from the editor's syntax tree, which the modal has no access
+   * to, and re-parsing to get them back would mean loading a second parser.
+   */
+  spans?: CodeSpan[]
+  /** Alt text, used as the dialog's accessible name when there is one. */
+  alt?: string
+}
+
+/** What the media viewer calls each kind, in labels and announcements. */
+export const MEDIA_NOUN: Record<MediaViewerTarget['kind'], string> = {
+  image: 'image',
+  mermaid: 'diagram',
+  math: 'equation',
+  code: 'code block'
+}
+
 export interface UiSlice {
   /** Mirror of main-process settings; defaults until loadSettings resolves. */
   settings: Settings
@@ -70,6 +103,14 @@ export interface UiSlice {
   zenMode: boolean
   /** Document statistics drawer/modal. */
   docStatsOpen: boolean
+  /**
+   * The block currently open in the full-screen media viewer.
+   *
+   * It lives here rather than in the editor because the viewer is a React
+   * modal mounted beside the other dialogs, while the control that opens it is
+   * a CodeMirror widget — the store is the seam between the two.
+   */
+  mediaViewer: MediaViewerTarget | null
 
   loadSettings(): Promise<void>
   /** Optimistic local update, persisted through main. */
@@ -102,6 +143,8 @@ export interface UiSlice {
   setFileTreeSort(sort: 'name' | 'modified'): void
   toggleZenMode(): void
   setDocStatsOpen(open: boolean): void
+  openMediaViewer(target: MediaViewerTarget): void
+  closeMediaViewer(): void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -124,6 +167,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   fileTreeSort: 'name',
   zenMode: false,
   docStatsOpen: false,
+  mediaViewer: null,
 
   async loadSettings() {
     const settings = await invoke('settings:get', undefined)
@@ -267,5 +311,13 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   setDocStatsOpen(open) {
     set({ docStatsOpen: open })
+  },
+
+  openMediaViewer(target) {
+    set({ mediaViewer: target })
+  },
+
+  closeMediaViewer() {
+    set({ mediaViewer: null })
   }
 })

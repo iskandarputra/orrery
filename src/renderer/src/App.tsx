@@ -3,6 +3,7 @@ import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { ContextMenu } from '@/components/context-menu/ContextMenu'
 import { DocStatsModal } from '@/components/DocStatsModal'
+import { MediaViewerModal } from '@/components/MediaViewerModal'
 import { EditorPane } from '@/components/EditorPane'
 import { AnalyticsView } from './components/AnalyticsView'
 import { HistoryModal } from './components/HistoryModal'
@@ -91,6 +92,7 @@ export function App(): React.JSX.Element {
       <Palette />
       <SettingsModal />
       <DocStatsModal />
+      <MediaViewerModal />
       <ContextMenu />
       <Toast />
     </div>

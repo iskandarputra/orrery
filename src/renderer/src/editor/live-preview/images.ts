@@ -3,6 +3,7 @@ import { StateField, type EditorState, type Extension, type Range } from '@codem
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { resolveAssetUrl } from '@core/asset'
 import { docPathFacet } from '../doc-context'
+import { expandButton } from './expand-button'
 
 class ImageWidget extends WidgetType {
   constructor(
@@ -32,6 +33,7 @@ class ImageWidget extends WidgetType {
       wrap.textContent = `🖼 ${this.alt || this.url}`
     })
     wrap.appendChild(img)
+    wrap.appendChild(expandButton({ kind: 'image', src: this.url, alt: this.alt }))
     if (this.interactive) {
       wrap.addEventListener('mousedown', (event) => {
         // Click reveals the source for editing (not in reading mode).

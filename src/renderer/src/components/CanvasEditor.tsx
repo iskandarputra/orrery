@@ -15,6 +15,16 @@ import {
   type JsonCanvas
 } from '@core/canvas'
 import { redo, undo } from '@codemirror/commands'
+import {
+  IDENTITY,
+  fitBounds,
+  panBy,
+  transformOf,
+  zoomAround,
+  zoomToCentre,
+  type Viewport,
+  type ZoomLimits
+} from '@core/pan-zoom'
 import { basename, stem } from '@core/paths'
 import { getActiveView } from '@/editor/active-view'
 import { invoke } from '@/services/client'
@@ -23,17 +33,12 @@ import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 import { MarkdownCard } from './MarkdownCard'
 
-const MIN_ZOOM = 0.2
-const MAX_ZOOM = 2.5
+const ZOOM: ZoomLimits = { min: 0.2, max: 2.5 }
+/** Board-space margin left around the content when framing. */
+const FIT_PAD = 60
 const MIN_NODE_SIZE = 80
 /** How much of a note to show on its card. */
 const PREVIEW_CHARS = 240
-
-interface Viewport {
-  x: number
-  y: number
-  zoom: number
-}
 
 type Gesture =
   | { kind: 'pan'; startX: number; startY: number; originX: number; originY: number }
@@ -105,19 +110,19 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
   const fit = useCallback((): void => {
     const rect = surfaceRef.current?.getBoundingClientRect()
     if (!rect || canvas.nodes.length === 0) {
-      setViewport({ x: 0, y: 0, zoom: 1 })
+      setViewport(IDENTITY)
       return
     }
-    const box = canvasBounds(canvas.nodes)
-    const width = box.maxX - box.minX + 120
-    const height = box.maxY - box.minY + 120
-    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(rect.width / width, rect.height / height)))
-    setViewport({
-      zoom,
-      x: rect.width / 2 - ((box.minX + box.maxX) / 2) * zoom,
-      y: rect.height / 2 - ((box.minY + box.maxY) / 2) * zoom
-    })
+    setViewport(fitBounds(rect, canvasBounds(canvas.nodes), ZOOM, FIT_PAD))
   }, [canvas.nodes])
+
+  /** Toolbar zoom. About the centre, so the board does not slide out from under
+      the pointer the way zooming about the origin does. */
+  const zoomBy = useCallback((factor: number): void => {
+    const rect = surfaceRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setViewport((v) => zoomToCentre(v, factor, rect, ZOOM))
+  }, [])
 
   // Frame the board the first time it is shown.
   const framedRef = useRef<string | null>(null)
@@ -272,17 +277,10 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
       const rect = surfaceRef.current?.getBoundingClientRect()
       if (!rect) return
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
-      setViewport((v) => {
-        const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * factor))
-        const scale = zoom / v.zoom
-        // Keep the point under the cursor pinned while zooming.
-        const cx = e.clientX - rect.left
-        const cy = e.clientY - rect.top
-        return { zoom, x: cx - (cx - v.x) * scale, y: cy - (cy - v.y) * scale }
-      })
+      setViewport((v) => zoomAround(v, factor, e.clientX - rect.left, e.clientY - rect.top, ZOOM))
       return
     }
-    setViewport((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }))
+    setViewport((v) => panBy(v, -e.deltaX, -e.deltaY))
   }
 
   const newTextCard = (at: { x: number; y: number }): void => {
@@ -335,7 +333,7 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         <button
           className="icon-btn"
           title="Zoom out"
-          onClick={() => setViewport((v) => ({ ...v, zoom: Math.max(MIN_ZOOM, v.zoom / 1.2) }))}
+          onClick={() => zoomBy(1 / 1.2)}
         >
           <span style={{ fontWeight: 700 }}>−</span>
         </button>
@@ -345,7 +343,7 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         <button
           className="icon-btn"
           title="Zoom in"
-          onClick={() => setViewport((v) => ({ ...v, zoom: Math.min(MAX_ZOOM, v.zoom * 1.2) }))}
+          onClick={() => zoomBy(1.2)}
         >
           <Icon name="plus" size={14} />
         </button>
@@ -399,7 +397,7 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         <div
           className="canvas__scene"
           style={{
-            transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`
+            transform: transformOf(viewport)
           }}
         >
           <Edges canvas={canvas} gesture={gesture} />

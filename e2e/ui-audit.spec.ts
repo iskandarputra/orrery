@@ -57,6 +57,21 @@ test.beforeAll(async () => {
       '- one\n- [ ] two\n\n> [!NOTE] Heads up\n> Body of the note.\n\n```ts\nconst a = 1\n```\n'
   )
   writeFileSync(join(vault, 'Other.md'), '# Other\n\nBack to [[Index]]. #tag\n')
+  // Rendered media, so the blocks that carry an expand control — and the viewer
+  // that control opens — are audited rather than assumed. 64x64 red PNG.
+  writeFileSync(
+    join(vault, 'pic.png'),
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAK0lEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAA' +
+        'AAAAAAAAAAAAAAAAAB4GxAAAAHmVwZ/AAAAAElFTkSuQmCC',
+      'base64'
+    )
+  )
+  writeFileSync(
+    join(vault, 'Diagram.md'),
+    '# Diagram\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Middle]\n  B --> C[End]\n```\n\n' +
+      'An image: ![red](pic.png)\n\n$$\n\\int_0^1 x^2 dx = \\frac{1}{3}\n$$\n\nTail.\n'
+  )
   writeFileSync(join(vault, 'Folder', 'Deep.md'), '# Deep\n\nSee [[Index]].\n')
   // A board with one of each kind of card, so the canvas surface has its own
   // text to measure: rendered markdown, a note preview and a group label.
@@ -454,6 +469,19 @@ async function closeBoard(): Promise<void> {
   await expect(page.locator('.editor-pane')).toBeVisible()
 }
 
+async function openDiagramNote(): Promise<void> {
+  await page.locator('.tree-row--file', { hasText: 'Diagram.md' }).click()
+  // The mermaid bundle is loaded on demand, so the first note of a fresh reload
+  // waits on a ~1MB chunk before there is a diagram to measure.
+  await expect(page.locator('.cm-or-mermaid > svg')).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.cm-or-image img')).toBeVisible()
+}
+
+async function closeDiagramNote(): Promise<void> {
+  await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+  await expect(page.locator('.cm-or-mermaid')).toBeHidden()
+}
+
 const SURFACES: Surface[] = [
   {
     name: 'workspace',
@@ -568,6 +596,33 @@ const SURFACES: Surface[] = [
       await page.keyboard.press('Escape')
       await expect(page.locator('.canvas__picker')).toBeHidden()
       await closeBoard()
+    }
+  },
+  {
+    // Hovered on the control itself, which is where it takes its emphasised
+    // colours — at rest it is deliberately quiet.
+    name: 'editor media controls',
+    root: '.editor-pane',
+    open: async () => {
+      await openDiagramNote()
+      await expect(page.locator('.cm-or-mermaid .cm-or-expand')).toBeVisible()
+      await page.locator('.cm-or-mermaid .cm-or-expand').hover()
+    },
+    close: closeDiagramNote
+  },
+  {
+    name: 'media viewer',
+    root: '.media-viewer__frame',
+    open: async () => {
+      await openDiagramNote()
+      await page.locator('.cm-or-mermaid .cm-or-expand').click()
+      await expect(page.locator('.media-viewer__frame')).toBeVisible()
+      await expect(page.locator('.media-viewer__content svg')).toBeVisible({ timeout: 20_000 })
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.media-viewer__frame')).toBeHidden()
+      await closeDiagramNote()
     }
   }
 ]

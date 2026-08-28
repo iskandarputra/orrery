@@ -134,12 +134,24 @@ test('every construct renders its decoration', async () => {
     'cm-or-blockquote', 'cm-or-blockquote--first',
     'cm-or-callout', 'cm-or-callout--note', 'cm-or-callout--warning', 'cm-or-callout--tip',
     'cm-or-callout-title',
-    'cm-or-code-line', 'cm-or-code-first', 'cm-or-code-last', 'cm-or-code-info',
+    'cm-or-code-card', 'cm-or-code-card__lang', 'cm-or-code-card__pre',
     'cm-or-table', 'cm-or-math', 'cm-or-math--block', 'cm-or-hr',
     'cm-or-properties-card', 'cm-or-property-key', 'cm-or-property-val'
   ]
   const missing = expected.filter((c) => !present.has(c))
   expect(missing).toEqual([])
+
+  // Reading mode replaces a fence with one scrollable card, so the per-line
+  // code rendering it used to show now belongs to the editing modes. Checked
+  // here rather than dropped, or the swap above would quietly lose it.
+  await runCommand('view.modeHybrid')
+  await page.waitForTimeout(400)
+  const editing = await classesThroughDocument()
+  const editingMissing = [
+    'cm-or-code-line', 'cm-or-code-first', 'cm-or-code-last', 'cm-or-code-info'
+  ].filter((c) => !editing.has(c))
+  expect(editingMissing).toEqual([])
+  await runCommand('view.modeReading')
 })
 
 test('heading rhythm actually applies', async () => {
@@ -308,6 +320,10 @@ test('a callout title takes its own line, above the body', async () => {
 })
 
 test('a concealed code fence collapses but keeps the card padded', async () => {
+  // Hybrid rather than Reading: Reading renders a fence as a single card, which
+  // has no fence lines left to collapse. This is about the editing rendering.
+  await runCommand('view.modeHybrid')
+  await page.waitForTimeout(400)
   await showBlock('.cm-or-code-line')
   const lines = page.locator('.cm-or-code-line')
 
@@ -326,6 +342,7 @@ test('a concealed code fence collapses but keeps the card padded', async () => {
     // ...but not to nothing: the card would lose its edge padding.
     expect(line.h).toBeGreaterThan(4)
   }
+  await runCommand('view.modeReading')
 })
 
 test('table alignment follows the delimiter row', async () => {

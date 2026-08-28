@@ -330,6 +330,65 @@
   border: 1px solid color-mix(in srgb, var(--or-accent) 25%, transparent);
 }
 
+/* Reading mode renders a fence as one card instead of a run of styled lines.
+   The reason is scrolling: CodeMirror gives every line its own element, sibling
+   elements cannot share a scrollbar, and code is deliberately never wrapped —
+   so without a single container a long line spills out of the card and drags
+   the whole document sideways. One element, one scrollbar. */
+.cm-or-code-card {
+  position: relative;
+  margin: 0.4em var(--or-line-pad, 2rem);
+  background: var(--or-code-bg);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-md);
+  /* .cm-content is a flex item with min-width:auto, so it cannot shrink below
+     its widest child — and a block child's min-content contribution is its
+     content's width, scroll container or not. A grid column of minmax(0, 1fr)
+     is allowed to shrink below that, which is what keeps the card from widening
+     the document and bringing the sideways scroll back, just smaller. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cm-or-code-card__lang {
+  /* Its own row above the code, not floated over it: pinned to a corner it
+     would sit on top of the first line, which is exactly the line most likely
+     to be long enough to reach it. */
+  justify-self: start;
+  margin: 0.5em 0 0 1.1em;
+  font-family: var(--or-mono-font);
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--or-accent-text);
+  background: var(--or-accent-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--or-accent) 25%, transparent);
+}
+
+.cm-or-code-card__pre {
+  margin: 0;
+  padding: 0.55em 1.1em 0.7em;
+  /* The whole point of the card. */
+  overflow-x: auto;
+  font-family: var(--or-mono-font);
+  font-size: 0.875em;
+  line-height: 1.65;
+  /* Selectable and copyable, even though the block ignores editor events. */
+  user-select: text;
+}
+
+.cm-or-code-card__pre code {
+  font: inherit;
+  /* Column-sensitive: it scrolls rather than wrapping, so ASCII trees and
+     aligned comments survive a narrow window. */
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 /* Tables — rendered widget (GitHub / Notion style) */
 .cm-or-table {
   padding: 0.5em 2rem;
@@ -526,6 +585,60 @@
   border: 1px dashed var(--or-border);
   border-radius: var(--or-radius-sm);
   padding: 0.3em 0.6em;
+}
+
+/* Corner control that opens a rendered block in the full-screen media viewer.
+   A bare click on one of these blocks already means "put the caret in the
+   source", so enlarging needs a control of its own rather than a second
+   meaning for the same gesture. */
+.cm-or-mermaid,
+.cm-or-image,
+.cm-or-math--block {
+  position: relative;
+}
+
+.cm-or-expand {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Matches .icon-btn, and clears the 24px minimum target. */
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  background: var(--or-panel-bg);
+  box-shadow: var(--or-shadow-sm);
+  color: var(--or-fg-muted);
+  cursor: pointer;
+  /* Quiet at rest rather than absent. A hover-gated control does not exist at
+     all on a touch screen, and gating hit-testing on :hover makes it unclickable
+     for a moment whenever CodeMirror rebuilds the block underneath the pointer —
+     replacing the hovered node drops :hover until the mouse moves again. */
+  opacity: 0.55;
+  transition:
+    opacity var(--or-transition-fast),
+    background var(--or-transition-fast),
+    color var(--or-transition-fast);
+}
+
+.cm-or-mermaid:hover > .cm-or-expand,
+.cm-or-image:hover > .cm-or-expand,
+.cm-or-math--block:hover > .cm-or-expand,
+.cm-or-expand:focus-visible {
+  opacity: 1;
+}
+
+.cm-or-expand:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+/* The image scales a touch on hover; the button must not ride along with it. */
+.cm-or-image:hover .cm-or-expand {
+  transform: none;
 }
 
 /* Focus mode: dim non-active lines. */

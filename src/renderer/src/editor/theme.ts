@@ -72,7 +72,11 @@ const editorChrome = EditorView.theme({
  * from styling — the live-preview plugin only conceals syntax markers.
  */
 // Balanced comfortable heading typography scale
-const markdownHighlight = HighlightStyle.define([
+/**
+ * Exported so a rendered code card can colour itself with the very same
+ * highlighter the editor uses — one token palette, whichever path drew the code.
+ */
+export const markdownHighlight = HighlightStyle.define([
   { tag: tags.heading1, fontSize: '1.45em', fontWeight: '650', letterSpacing: '-0.018em', color: 'var(--or-fg)' },
   { tag: tags.heading2, fontSize: '1.28em', fontWeight: '600', letterSpacing: '-0.012em', color: 'var(--or-fg)' },
   { tag: tags.heading3, fontSize: '1.14em', fontWeight: '600', letterSpacing: '-0.006em', color: 'var(--or-fg)' },
