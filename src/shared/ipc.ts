@@ -9,6 +9,7 @@ import type {
   LinkSuggestion
 } from './types'
 import type { Settings } from './settings'
+import type { LineChange } from '@core/git-diff'
 
 /**
  * Single source of truth for renderer -> main request/response channels.
@@ -22,6 +23,13 @@ export interface IpcInvokeContract {
   'dialog:confirmClose': { req: { fileNames: string[] }; res: CloseConfirmChoice }
 
   'fs:readFile': { req: { path: string }; res: FileReadResult }
+
+  /**
+   * Changed lines for one file, against git HEAD, for the editor gutter.
+   * Resolves to an empty list whenever git cannot answer — no repository,
+   * no git installed, an untracked file — so callers need no error path.
+   */
+  'git:fileChanges': { req: { path: string }; res: LineChange[] }
   'fs:writeFile': {
     req: { path: string; content: string; expectedMtimeMs: number | null }
     res: FileWriteResult

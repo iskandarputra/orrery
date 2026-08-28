@@ -8,6 +8,7 @@ import type { EmbeddingService } from '../services/embeddings'
 import type { ExportService } from '../services/exporter'
 import type { HistoryService } from '../services/history'
 import type { FileSystemService } from '../services/file-system'
+import type { GitService } from '../services/git'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -25,6 +26,7 @@ export interface HandlerDeps {
   ai: AiService
   embeddings: EmbeddingService
   history: HistoryService
+  git: GitService
 }
 
 const pathReq = z.object({ path: z.string().min(1) })
@@ -36,7 +38,7 @@ const MARKDOWN_FILTERS = [
 
 /** Bind every contract channel to its service. All channels registered here. */
 export function registerIpcHandlers(deps: HandlerDeps): void {
-  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history } = deps
+  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history, git } = deps
 
   // --- dialogs -------------------------------------------------------------
   handle('dialog:openFile', null, async () => {
@@ -87,6 +89,9 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   // --- file system ---------------------------------------------------------
   handle('fs:readFile', pathReq, (_e, req) => fs.readFile(req.path))
+
+  // --- git ------------------------------------------------------------------
+  handle('git:fileChanges', pathReq, (_e, req) => git.fileChanges(req.path))
 
   handle(
     'fs:writeFile',

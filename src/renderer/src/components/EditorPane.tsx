@@ -6,6 +6,7 @@ import { refreshStatsNow } from '@/state/editor-stats'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { settingsCompartment, settingsExtensions } from '@/editor/create-state'
 import { ensureLanguage } from '@/editor/code-language'
+import { refreshGitGutter } from '@/editor/git-gutter'
 import { lineWidthCss } from '@/editor/line-width'
 import { useStore } from '@/state/store'
 import { CanvasEditor } from './CanvasEditor'
@@ -33,6 +34,7 @@ function Pane({
   const shownIdRef = useRef<string | null>(null)
   const settings = useStore((s) => s.settings)
   const kind = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind : undefined))
+  const isDirty = useStore((s) => (bufferId ? (s.buffers[bufferId]?.isDirty ?? false) : false))
   const isCanvas = kind === 'canvas'
 
   useEffect(() => {
@@ -93,6 +95,16 @@ function Pane({
     // `kind` matters as much as the settings do: it decides whether this buffer
     // gets the markdown machinery or the code one.
   }, [settings, kind])
+
+  // Refresh the change bars whenever the file matches disk again — on open,
+  // and on the dirty flag clearing after a save. Marks are anchored to
+  // positions, so they stay aligned while typing; this is what makes them true
+  // again afterwards.
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || kind !== 'code' || isDirty) return
+    void refreshGitGutter(view)
+  }, [bufferId, kind, isDirty])
 
   // Keep the registry's copy fresh so store actions can read a consistent
   // state for a buffer whose pane isn't focused.

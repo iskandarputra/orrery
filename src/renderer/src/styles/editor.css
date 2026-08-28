@@ -389,6 +389,43 @@
   word-break: normal;
 }
 
+/* Git change bars. A thin column beside the line numbers, present whenever the
+   gutter is — a column that appeared with the first change would shift the whole
+   document sideways on every edit. Non-text marks, so the semantic hues match
+   the toast palette rather than any theme accent. */
+.cm-or-git-gutter {
+  width: 3px;
+  padding: 0;
+  /* The bars butt against the text; the line-number column keeps its own gap. */
+  margin-right: 6px;
+}
+
+.cm-or-git-mark {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.cm-or-git-mark--added {
+  background: #34d399;
+}
+
+.cm-or-git-mark--modified {
+  background: #fbbf24;
+}
+
+/* A removal has no line left to sit beside, so it reads as a wedge under the
+   line the text used to follow rather than as a full-height bar. */
+.cm-or-git-mark--removed {
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #f87171;
+  border-radius: 0;
+  margin-top: auto;
+}
+
 /* Tables — rendered widget (GitHub / Notion style) */
 .cm-or-table {
   padding: 0.5em 2rem;

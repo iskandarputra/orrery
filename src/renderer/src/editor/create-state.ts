@@ -22,6 +22,7 @@ import {
 import type { Settings } from '@shared/settings'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import { languageCompartment } from './code-language'
+import { gitGutter } from './git-gutter'
 import { docPathFacet } from './doc-context'
 import { toggleHighlight } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
@@ -59,6 +60,7 @@ function codeExtensions(settings: Settings): Extension {
     e.wordWrap ? EditorView.lineWrapping : [],
     lineNumbers(),
     highlightActiveLineGutter(),
+    gitGutter(),
     highlightActiveLine(),
     foldGutter(),
     bracketMatching(),
