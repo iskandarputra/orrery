@@ -8,6 +8,8 @@ import { EmbeddingService } from './services/embeddings'
 import { HistoryService } from './services/history'
 import { GitService } from './services/git'
 import { LspService } from './services/lsp'
+import { SidecarClient } from './services/sidecar'
+import { sidecarPath } from './services/sidecar-path'
 import { ExportService } from './services/exporter'
 import { FileSystemService } from './services/file-system'
 import { LinkScanner } from './services/link-scanner'
@@ -53,7 +55,13 @@ if (!gotLock) {
   })
 
   const fs = new FileSystemService()
-  const links = new LinkScanner()
+  // Opt-in while the Rust sidecar is being evaluated: an env var rather than a
+  // setting, so it needs no schema change and flows into the Playwright launches
+  // that already pass `process.env` through. Off by default; when off, or when
+  // the binary is absent, LinkScanner runs its TypeScript search exactly as before.
+  const sidecar =
+    process.env['ORRERY_RUST_SEARCH'] === '1' ? new SidecarClient(sidecarPath()) : null
+  const links = new LinkScanner(sidecar)
   const exporter = new ExportService()
   const ai = new AiService(() => settings.get())
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
@@ -66,7 +74,10 @@ if (!gotLock) {
 
   // Language servers are children of this process; leaving them running
   // after a quit would leak one per session.
-  app.on('will-quit', () => lsp.shutdown())
+  app.on('will-quit', () => {
+    lsp.shutdown()
+    sidecar?.shutdown()
+  })
 
   app.on('second-instance', () => {
     const win = windows.window

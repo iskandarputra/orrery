@@ -8,6 +8,13 @@ files:
   - out/**
   - '!**/*.map'
 asar: true
+# The sidecar is an executable, so it cannot live inside the asar — it is copied
+# alongside it and found through process.resourcesPath. Absent when the Rust
+# toolchain was not available at build time; the app falls back to TypeScript.
+extraResources:
+  - from: resources/sidecar
+    to: sidecar
+    filter: ['**/*']
 linux:
   target:
     - AppImage

@@ -3,3 +3,4 @@ out/
 dist/
 coverage/
 package-lock.json
+native/

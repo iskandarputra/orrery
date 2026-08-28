@@ -23,7 +23,8 @@
     "e2e": "npm run build && playwright test",
     "e2e:run": "playwright test",
     "dist": "bash scripts/package.sh",
-    "dist:deb": "bash scripts/package.sh deb"
+    "dist:deb": "bash scripts/package.sh deb",
+    "build:native": "bash scripts/build-native.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
