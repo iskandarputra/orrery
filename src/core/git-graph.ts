@@ -19,6 +19,14 @@ export interface Commit {
   /** Branch and tag names pointing here, already split. */
   refs: string[]
   subject: string
+  /**
+   * The message below the subject, trimmed. Usually empty.
+   *
+   * Carried on every commit so that hovering a row can show the whole message
+   * without asking git a second time. The alternative is a request per hover,
+   * which is a request per row the pointer crosses on the way.
+   */
+  body: string
 }
 
 export interface GraphCommit extends Commit {
@@ -38,7 +46,7 @@ export function parseGitLog(stdout: string): Commit[] {
     .split('\0')
     .filter((entry) => entry.trim().length > 0)
     .flatMap((entry) => {
-      const [hash, parents, author, date, refs, subject] = entry.split(FIELD)
+      const [hash, parents, author, date, refs, subject, body] = entry.split(FIELD)
       if (!hash) return []
       return [
         {
@@ -50,7 +58,8 @@ export function parseGitLog(stdout: string): Commit[] {
             .split(',')
             .map((r) => r.trim())
             .filter(Boolean),
-          subject: subject ?? ''
+          subject: subject ?? '',
+          body: (body ?? '').trim()
         }
       ]
     })

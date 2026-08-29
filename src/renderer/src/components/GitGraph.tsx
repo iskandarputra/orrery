@@ -28,6 +28,18 @@ const LANE_COLOURS = ['#7c93ff', '#3fb950', '#d29922', '#f85149', '#bd93f9', '#3
 const laneColour = (lane: number): string => LANE_COLOURS[lane % LANE_COLOURS.length]!
 
 /**
+ * Everything textual about a commit, for the row's hover.
+ *
+ * The full message rather than the truncated subject the row can fit, plus who
+ * and when and the whole hash. Reading a commit message should not require
+ * deciding to expand something.
+ */
+function commitTooltip(commit: Commit): string {
+  const message = commit.body ? `${commit.subject}\n\n${commit.body}` : commit.subject
+  return `${message}\n\n${commit.author} · ${commit.date}\n${commit.hash}`
+}
+
+/**
  * The commit graph, drawn beside the history.
  *
  * One SVG per row rather than one for the whole list: rows are a fixed height,
@@ -84,11 +96,11 @@ function Row({ commit, width }: { commit: GraphCommit; width: number }): React.J
 }
 
 /**
- * What one commit did, under the row it belongs to.
+ * Which files one commit touched, under the row it belongs to.
  *
- * The graph alone shows a subject line, which is enough to find a commit and
- * never enough to decide anything about it. Clicking one asks git what it
- * touched, and clicking a file from there opens that commit's diff.
+ * Only the files. The message is on the row's hover, where reading it costs
+ * nothing and does not push the next twenty commits down the panel; expanding a
+ * row is for the part that needs the space and can be clicked.
  */
 function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
@@ -110,7 +122,6 @@ function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
 
   return (
     <div className="commit-detail">
-      {detail.body && <pre className="commit-detail__body">{detail.body}</pre>}
       {detail.files.length === 0 ? (
         <p className="gitgraph__note">This commit changed no files.</p>
       ) : (
@@ -242,7 +253,7 @@ export function GitGraph(): React.JSX.Element {
         <div key={commit.hash}>
           <button
             className={`gitgraph__row${selected === commit.hash ? ' gitgraph__row--selected' : ''}`}
-            title={`${commit.hash}\n${commit.subject}`}
+            title={commitTooltip(commit)}
             aria-expanded={selected === commit.hash}
             onClick={() => setSelected((current) => (current === commit.hash ? null : commit.hash))}
             onContextMenu={(e) => {

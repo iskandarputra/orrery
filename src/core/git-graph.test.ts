@@ -12,13 +12,24 @@ const commit = (hash: string, parents: string[] = []): Commit => ({
   author: 'A',
   date: 'now',
   refs: [],
-  subject: hash
+  subject: hash,
+  body: ''
 })
 
 describe('parseGitLog', () => {
   it('reads every field of a commit', () => {
     const [c] = parseGitLog(
-      z(entry('abc', 'def', 'Ada', '3 days ago', 'HEAD -> main, origin/main', 'a subject'))
+      z(
+        entry(
+          'abc',
+          'def',
+          'Ada',
+          '3 days ago',
+          'HEAD -> main, origin/main',
+          'a subject',
+          'the body\n'
+        )
+      )
     )
     expect(c).toEqual({
       hash: 'abc',
@@ -26,7 +37,8 @@ describe('parseGitLog', () => {
       author: 'Ada',
       date: '3 days ago',
       refs: ['HEAD -> main', 'origin/main'],
-      subject: 'a subject'
+      subject: 'a subject',
+      body: 'the body'
     })
   })
 
@@ -149,5 +161,23 @@ describe('layoutGraph: robustness', () => {
   it('places an octopus merge parents in distinct lanes', () => {
     const rows = layoutGraph([commit('m', ['a', 'b', 'c']), commit('a'), commit('b'), commit('c')])
     expect(new Set(rows[0]!.parentLanes).size).toBe(3)
+  })
+})
+
+describe('the message body', () => {
+  it('keeps a body that runs to several lines', () => {
+    // `%b` is last in the format precisely because it is the only field that
+    // can contain a newline.
+    const [c] = parseGitLog(z(entry('h', '', 'A', 'now', '', 'subject', 'line one\nline two\n')))
+    expect(c!.body).toBe('line one\nline two')
+  })
+
+  it('is empty for a commit with only a subject', () => {
+    expect(parseGitLog(z(entry('h', '', 'A', 'now', '', 'subject', '')))[0]!.body).toBe('')
+  })
+
+  it('is empty when the field is absent entirely', () => {
+    // Older output, or a truncated record: a missing body is not a crash.
+    expect(parseGitLog(z(entry('h', '', 'A', 'now', '', 'subject')))[0]!.body).toBe('')
   })
 })

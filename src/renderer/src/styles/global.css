@@ -5074,18 +5074,6 @@ kbd {
   padding: 2px 0 8px 1.6rem;
 }
 
-.commit-detail__body {
-  margin: 0 0 6px;
-  padding: 6px 8px;
-  border-radius: var(--or-radius-sm);
-  background: var(--or-code-bg);
-  color: var(--or-fg-muted);
-  font-family: var(--or-mono-font);
-  font-size: 11.5px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .commit-detail__files {
   list-style: none;
   margin: 0;

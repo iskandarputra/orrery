@@ -175,7 +175,8 @@ export class GitService {
    * so a subject containing any ordinary punctuation survives intact.
    */
   async log(rootPath: string, limit: number): Promise<Commit[]> {
-    const format = ['%H', '%P', '%an', '%ar', '%D', '%s'].join('%x1f')
+    // `%b` last, because a body is multi-line and every other field is not.
+    const format = ['%H', '%P', '%an', '%ar', '%D', '%s', '%b'].join('%x1f')
     try {
       const stdout = await this.git(rootPath, [
         'log',

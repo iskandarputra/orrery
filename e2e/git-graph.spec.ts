@@ -62,12 +62,23 @@ test.afterAll(async () => {
   rmSync(vault, { recursive: true, force: true })
 })
 
-test('clicking a commit reveals what it did', async () => {
+test('the whole message is on the hover, without expanding anything', async () => {
+  // Reading a commit message should not require deciding to expand something,
+  // and an expanded body would push the rest of the history down the panel.
+  await openGraph()
+  const tooltip = await rowFor('second commit').getAttribute('title')
+  expect(tooltip).toContain('second commit with a body')
+  expect(tooltip).toContain('the reason it happened')
+  expect(tooltip).toContain('Grapher')
+  expect(tooltip).toContain(git('rev-parse', 'HEAD'))
+})
+
+test('clicking a commit reveals which files it touched', async () => {
   await openGraph()
   await rowFor('second commit').click()
 
-  // The message body, which the row has never shown.
-  await expect(page.locator('.commit-detail__body')).toContainText('the reason it happened')
+  // The files, and only the files: the message lives on the hover.
+  await expect(page.locator('.commit-detail__body')).toHaveCount(0)
 
   // Every file it touched, with the status git reports for each.
   const files = page.locator('.commit-detail__file')
