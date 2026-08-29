@@ -120,12 +120,22 @@ test('clicking a file shows its diff', async () => {
   await expect(diff.locator('.diff__path')).toHaveText('Diffme.md')
 
   // One inserted line, nothing removed, and the counts agree with the lines.
-  await expect(diff.locator('.diff__cell--added')).toHaveCount(1)
-  await expect(diff.locator('.diff__cell--added')).toContainText('an added line')
   await expect(diff.locator('.diff__stat--added')).toHaveText('+1')
   await expect(diff.locator('.diff__stat--removed')).toHaveText('-0')
-  // Context lines carry both line numbers; an addition only carries the new one.
-  await expect(diff.locator('.diff__cell--context').first()).toContainText('alpha')
+  await expect(diff.locator('.cm-or-diff-line--new')).toHaveCount(1)
+  await expect(diff.locator('.cm-or-diff-line--new')).toContainText('an added line')
+  await expect(diff.locator('.cm-or-diff-line--old')).toHaveCount(0)
+
+  // Both sides show the whole file, not only the changed region — that is what
+  // lets the panes be read past the first hunk.
+  await expect(diff.locator('.diff__pane').first().locator('.cm-line')).toContainText([
+    'alpha',
+    'beta'
+  ])
+
+  // And the shorter side is padded so the two stay level: the old file is one
+  // line short, so it gets exactly one filler.
+  await expect(diff.locator('.diff__pane').first().locator('.cm-or-diff-filler')).toHaveCount(1)
 
   // It is a tab, so it appears in the tab bar and closes like any other.
   await expect(page.locator('.tab--active')).toContainText('Diffme.md (diff)')
@@ -145,20 +155,27 @@ test('the working-tree column is editable and writes to the file', async () => {
   await page.locator('.scm-row__name').filter({ hasText: 'Editable.md' }).click()
   await expect(page.locator('.diff')).toBeVisible({ timeout: 10_000 })
 
-  // Edit the right column in place, as VS Code lets you edit its right pane.
-  const line = page.locator('.diff__cell--added .diff__text--editable').first()
-  await expect(line).toBeVisible()
-  await line.click()
-  await page.keyboard.press('Control+a')
-  await page.keyboard.type('rewritten from the diff')
-  await page.keyboard.press('Enter')
+  // The right pane is a real editor, so this is ordinary editing: put the
+  // cursor at the end of the document and type a line, newline included. The
+  // old per-line contentEditable cells could do none of that — Enter committed
+  // instead of inserting, and only already-changed lines could be touched.
+  const right = page.locator('.diff__pane--new .cm-content')
+  await right.click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type('\nrewritten from the diff')
+
+  // Nothing is written until it is saved, which is how an editor behaves.
+  expect(readFileSync(join(vault, 'Editable.md'), 'utf-8')).not.toContain('rewritten')
+  await page.keyboard.press('Control+s')
 
   // The file on disk carries the edit...
   await expect
     .poll(() => readFileSync(join(vault, 'Editable.md'), 'utf-8'), { timeout: 10_000 })
     .toContain('rewritten from the diff')
-  // ...and the diff re-reads itself to show it.
-  await expect(page.locator('.diff__cell--added')).toContainText('rewritten from the diff')
+  // ...and the diff re-reads itself, so the new line shows as an addition.
+  await expect(
+    page.locator('.cm-or-diff-line--new', { hasText: 'rewritten from the diff' })
+  ).toHaveCount(1)
 
   await page.locator('.diff button[aria-label="Close"]').click()
 })
@@ -173,7 +190,12 @@ test('the staged column is read-only', async () => {
   await page.locator('.scm-row__name').filter({ hasText: 'Stagedonly.md' }).first().click()
   await expect(page.locator('.diff')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.diff__heads')).toContainText('read-only')
-  await expect(page.locator('.diff__text--editable')).toHaveCount(0)
+  // Not merely undecorated: the pane refuses the keystroke.
+  const before = await page.locator('.diff__pane--new .cm-content').textContent()
+  await page.locator('.diff__pane--new .cm-content').click()
+  await page.keyboard.type('nope')
+  expect(await page.locator('.diff__pane--new .cm-content').textContent()).toBe(before)
+  await expect(page.locator('.diff__edit', { hasText: 'Save' })).toHaveCount(0)
 
   await page.locator('.diff button[aria-label="Close"]').click()
   git('restore', '--staged', 'Stagedonly.md')
@@ -190,7 +212,7 @@ test('an untracked file diffs as all additions', async () => {
   await expect(diff).toBeVisible({ timeout: 10_000 })
   // Nothing in git to compare against, so every line is new.
   await expect(diff.locator('.diff__stat--added')).toHaveText('+2')
-  await expect(diff.locator('.diff__cell--removed')).toHaveCount(0)
+  await expect(diff.locator('.cm-or-diff-line--old')).toHaveCount(0)
 
   await page.locator('.diff button[aria-label="Close"]').click()
   rmSync(join(vault, 'Fresh.md'))

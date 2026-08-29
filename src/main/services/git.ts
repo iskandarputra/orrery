@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { parseDiffHunks, type LineChange } from '@core/git-diff'
 import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
@@ -77,6 +78,41 @@ export class GitService {
    * file. That command exits 1 when there is a difference, which is the normal
    * case here, so its failure carries the output we want.
    */
+  /**
+   * The two sides of a diff, in full.
+   *
+   * A hunk only describes what changed, which is not enough to put two files
+   * side by side — the unchanged stretches have to be rendered too. So the
+   * whole of each side is read: for a staged diff that is HEAD against the
+   * index, and for a working-tree diff the index against the file on disk.
+   *
+   * A missing side is empty rather than an error: that is exactly what an added
+   * or deleted file looks like, and it is the common case, not a fault.
+   */
+  async fileContents(
+    rootPath: string,
+    path: string,
+    staged: boolean
+  ): Promise<{ old: string; new: string }> {
+    const show = async (rev: string): Promise<string> => {
+      try {
+        return await this.git(rootPath, ['show', `${rev}:${path}`])
+      } catch {
+        return '' // not in that revision — an addition
+      }
+    }
+    const worktree = async (): Promise<string> => {
+      try {
+        return await readFile(join(rootPath, path), 'utf8')
+      } catch {
+        return '' // deleted from the working tree
+      }
+    }
+    return staged
+      ? { old: await show('HEAD'), new: await show('') }
+      : { old: await show(''), new: await worktree() }
+  }
+
   async fileDiff(rootPath: string, path: string, staged: boolean): Promise<FileDiff> {
     const common = ['diff', '--no-color', '--no-ext-diff']
     try {

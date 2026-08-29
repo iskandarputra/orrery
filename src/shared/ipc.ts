@@ -61,6 +61,14 @@ export interface IpcInvokeContract {
   'git:log': { req: { rootPath: string; limit: number }; res: Commit[] }
   /** Absolute path for a repo-relative one, so the editor can open it. */
   'git:absolutePath': { req: { rootPath: string; path: string }; res: string }
+  /**
+   * Both sides of a diff in full, for the side-by-side editor. A hunk alone
+   * cannot render the unchanged stretches between changes.
+   */
+  'git:fileContents': {
+    req: { rootPath: string; path: string; staged: boolean }
+    res: { old: string; new: string }
+  }
   /** One file's diff; `staged` picks index-vs-HEAD over worktree-vs-index. */
   'git:fileDiff': {
     req: { rootPath: string; path: string; staged: boolean }

@@ -1,144 +1,232 @@
-import { useEffect, useState } from 'react'
-import { EMPTY_DIFF, alignHunk, type DiffLine, type FileDiff } from '@core/unified-diff'
+import { useEffect, useRef, useState } from 'react'
+import { EditorState, Prec, type Extension } from '@codemirror/state'
+import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view'
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language'
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
+import { searchKeymap } from '@codemirror/search'
+import { alignFile, changedLines, padding } from '@core/diff-align'
+import { EMPTY_DIFF, type FileDiff } from '@core/unified-diff'
+import { languageCompartment, findLanguage } from '@/editor/code-language'
+import { diffMarks, setDiffMarks } from '@/editor/diff-decorations'
+import { minimap } from '@/editor/minimap'
+import { markdownHighlight, orreryEditorTheme } from '@/editor/theme'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 
-/**
- * One side of a row. An empty cell is padding that keeps the columns aligned.
- *
- * The right column is the working tree, so its lines are editable — that is the
- * copy on disk. The left column never is: it is either HEAD or the index, and
- * neither is a file you can write through. A removed line has no counterpart in
- * the working tree, so it is not editable even on the right.
- */
-function Cell({
-  line,
-  side,
-  editable,
-  onEdit
-}: {
-  line: DiffLine | null
-  side: 'left' | 'right'
-  editable: boolean
-  onEdit: (lineNumber: number, text: string) => void
-}): React.JSX.Element {
-  if (!line) return <div className="diff__cell diff__cell--empty" />
-  const number = side === 'left' ? line.oldLine : line.newLine
-  const canEdit = editable && side === 'right' && line.newLine !== null
+/** The minimap's change strip. Matches the line tint, at full strength. */
+const ADDED_MARK = '#3fb950'
 
-  return (
-    <div className={`diff__cell diff__cell--${line.kind}`}>
-      <span className="diff__num">{number ?? ''}</span>
-      <span className="diff__sign">
-        {line.kind === 'added' ? '+' : line.kind === 'removed' ? '-' : ' '}
-      </span>
-      {/* Rendered as text, never as markup: this is file content. */}
-      <span
-        className={`diff__text${canEdit ? ' diff__text--editable' : ''}`}
-        contentEditable={canEdit}
-        suppressContentEditableWarning
-        spellCheck={false}
-        role={canEdit ? 'textbox' : undefined}
-        aria-label={canEdit ? `Line ${line.newLine}` : undefined}
-        onBlur={(e) => {
-          if (canEdit) onEdit(line.newLine!, e.currentTarget.textContent ?? '')
-        }}
-        onKeyDown={(e) => {
-          // Enter commits the line rather than inserting a paragraph; Escape
-          // puts back what was there.
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            e.currentTarget.blur()
-          } else if (e.key === 'Escape') {
-            e.currentTarget.textContent = line.text
-            e.currentTarget.blur()
-          }
-        }}
-      >
-        {line.text || ' '}
-      </span>
-    </div>
-  )
+/** Lines in a string, counting the way a file does. */
+const lineCount = (text: string): number => (text === '' ? 0 : text.split('\n').length)
+
+/**
+ * One pane of the diff: a real editor, not a rendering of one.
+ *
+ * This is the whole point of the rewrite. The panes used to be a stack of
+ * one-line `contentEditable` spans, which meant no syntax highlighting, no
+ * selection across lines, no undo, Enter committing instead of inserting, and
+ * nothing editable except the lines that had already changed. An editor gives
+ * all of that back for free, and gives it back identically to the editor the
+ * rest of the app uses, because it is the same one.
+ */
+function paneExtensions(editable: boolean, mini: Extension = []): Extension {
+  return [
+    mini,
+    lineNumbers(),
+    history(),
+    diffMarks,
+    syntaxHighlighting(markdownHighlight, { fallback: true }),
+    orreryEditorTheme(),
+    languageCompartment.of([]),
+    editable ? [bracketMatching(), closeBrackets(), indentOnInput(), highlightActiveLine()] : [],
+    keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+    EditorView.editable.of(editable),
+    EditorState.readOnly.of(!editable),
+    EditorView.theme({ '&': { height: '100%' } })
+  ]
 }
 
 /**
  * What changed in one file, side by side.
  *
- * The old file on the left, the working tree on the right, aligned so a
- * replaced line sits opposite the line that replaced it. "Edit" opens the file
- * in the editor, where the full editing machinery already lives — putting a
- * second editor inside the diff would mean two places holding unsaved changes
- * to one file.
+ * Old on the left, new on the right, held level by blank space where one file
+ * has lines the other does not. The right pane is the working tree and is
+ * editable; the left is HEAD or the index, and neither of those is a file you
+ * can write through. A staged diff is read-only on both sides for the same
+ * reason — git cannot round-trip an edit back into the index from here.
  */
 export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element | null {
   const target = useStore((s) => s.buffers[bufferId]?.diff ?? null)
   const closeTab = useStore((s) => s.closeTab)
+  const setDirty = useStore((s) => s.setDirty)
   const rootPath = useStore((s) => s.rootPath)
+  const showMinimap = useStore((s) => s.settings.editor.minimap)
   const close = (): void => void closeTab(bufferId)
-  /** null while the diff for the current target is still being read. */
-  const [diff, setDiff] = useState<FileDiff | null>(null)
 
-  // Reset during render rather than in the effect: opening a different file
-  // must not show the previous file's diff for a frame, and setting state
-  // synchronously inside an effect costs a second render pass.
+  const [diff, setDiff] = useState<FileDiff | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
+  const [dirty, setLocalDirty] = useState(false)
   const [shown, setShown] = useState(target)
+
+  const leftHost = useRef<HTMLDivElement>(null)
+  const rightHost = useRef<HTMLDivElement>(null)
+  const leftView = useRef<EditorView | null>(null)
+  const rightView = useRef<EditorView | null>(null)
+  /** mtime the working tree was read at, so a save cannot clobber a newer one. */
+  const mtimeRef = useRef<number | null>(null)
+  const savingRef = useRef(false)
+
   if (target !== shown) {
     setShown(target)
     setDiff(null)
   }
 
+  const editable = !!target && !target.staged
+
+  /** Write the right pane back to disk. */
+  const save = async (): Promise<void> => {
+    const view = rightView.current
+    if (!view || !rootPath || !target || savingRef.current) return
+    savingRef.current = true
+    try {
+      const absolute = await invoke('git:absolutePath', { rootPath, path: target.path })
+      await invoke('fs:writeFile', {
+        path: absolute,
+        content: view.state.doc.toString(),
+        expectedMtimeMs: mtimeRef.current
+      })
+      setLocalDirty(false)
+      setDirty(bufferId, false)
+      // Re-read so the marks describe what is now on disk rather than what was.
+      setReloadToken((n) => n + 1)
+    } catch {
+      useStore.getState().showToast('Could not save — the file changed on disk', 'error')
+    } finally {
+      savingRef.current = false
+    }
+  }
+  // Held in a ref, and updated after render rather than during it: the save
+  // keymap is installed once when the panes are built, but it has to call the
+  // current save, which closes over state that changes.
+  const saveRef = useRef(save)
+  useEffect(() => {
+    saveRef.current = save
+  })
+
+  // Build both panes whenever the target file or its content changes.
   useEffect(() => {
     if (!target || !rootPath) return
     let live = true
-    void invoke('git:fileDiff', { rootPath, path: target.path, staged: target.staged })
-      .then((result) => live && setDiff(result))
-      .catch(() => live && setDiff(EMPTY_DIFF))
+
+    void (async () => {
+      const [contents, parsed] = await Promise.all([
+        invoke('git:fileContents', { rootPath, path: target.path, staged: target.staged }),
+        invoke('git:fileDiff', { rootPath, path: target.path, staged: target.staged }).catch(
+          () => EMPTY_DIFF
+        )
+      ])
+      if (!live || !leftHost.current || !rightHost.current) return
+      setDiff(parsed)
+
+      // The mtime the edit is checked against. Read after the content so a save
+      // is compared with the same revision the pane was filled from.
+      if (!target.staged) {
+        try {
+          const absolute = await invoke('git:absolutePath', { rootPath, path: target.path })
+          mtimeRef.current = (await invoke('fs:readFile', { path: absolute })).mtimeMs
+        } catch {
+          mtimeRef.current = null
+        }
+      }
+      if (!live) return
+
+      const rows = alignFile(parsed, lineCount(contents.old), lineCount(contents.new))
+      const pads = padding(rows, lineCount(contents.old), lineCount(contents.new))
+      const changed = changedLines(rows)
+
+      leftView.current?.destroy()
+      rightView.current?.destroy()
+
+      const left = new EditorView({
+        state: EditorState.create({
+          doc: contents.old,
+          extensions: paneExtensions(false)
+        }),
+        parent: leftHost.current
+      })
+      const right = new EditorView({
+        state: EditorState.create({
+          doc: contents.new,
+          extensions: [
+            // One minimap, on the working-tree side, as VS Code's diff editor
+            // has: two in half-width panes would cost a quarter of the view to
+            // say the same thing twice. Its gutter marks the changed lines, so
+            // the shape of the edit is visible without scrolling the file.
+            paneExtensions(
+              editable,
+              minimap(showMinimap, {
+                gutter: Object.fromEntries(changed.added.map((n) => [n, ADDED_MARK]))
+              })
+            ),
+            // Ahead of the default keymap so Mod-s is a save and never a browser
+            // save dialog or an insertion.
+            Prec.high(
+              keymap.of([
+                {
+                  key: 'Mod-s',
+                  run: () => {
+                    void saveRef.current()
+                    return true
+                  }
+                }
+              ])
+            ),
+            EditorView.updateListener.of((u) => {
+              if (!u.docChanged) return
+              setLocalDirty(true)
+              setDirty(bufferId, true)
+            })
+          ]
+        }),
+        parent: rightHost.current
+      })
+
+      left.dispatch({
+        effects: setDiffMarks.of({ changed: changed.removed, padding: pads.left, side: 'old' })
+      })
+      right.dispatch({
+        effects: setDiffMarks.of({ changed: changed.added, padding: pads.right, side: 'new' })
+      })
+
+      // Syntax highlighting for whatever language the file is, loaded lazily so
+      // the grammar is not in the bundle for files that never open.
+      const desc = findLanguage(target.path)
+      if (desc) {
+        void desc.load().then((support) => {
+          if (!live) return
+          left.dispatch({ effects: languageCompartment.reconfigure(support) })
+          right.dispatch({ effects: languageCompartment.reconfigure(support) })
+        })
+      }
+
+      leftView.current = left
+      rightView.current = right
+      setLocalDirty(false)
+      syncScroll(left, right)
+    })()
+
     return () => {
       live = false
+      leftView.current?.destroy()
+      rightView.current?.destroy()
+      leftView.current = null
+      rightView.current = null
     }
-  }, [target, rootPath, reloadToken])
+  }, [target, rootPath, reloadToken, editable, bufferId, setDirty, showMinimap])
 
   if (!target) return null
-
-  /**
-   * Open the file for editing. The right column is the working tree, so that is
-   * the copy the editor gets; a staged snapshot is not something git can
-   * round-trip an edit through.
-   */
-  /**
-   * Write one edited line back to the file on disk.
-   *
-   * Whole lines only, and only lines the working tree has — this edits the
-   * file, it does not reconstruct one from the diff, which describes changed
-   * regions and nothing else.
-   *
-   * The read supplies the mtime the write is checked against, so a line edited
-   * here cannot silently clobber a change made in the editor a moment earlier.
-   */
-  const editLine = (lineNumber: number, text: string): void => {
-    if (!rootPath) return
-    void (async () => {
-      const absolute = await invoke('git:absolutePath', { rootPath, path: target.path })
-      try {
-        const file = await invoke('fs:readFile', { path: absolute })
-        const lines = file.content.split('\n')
-        if (lines[lineNumber - 1] === text) return // nothing actually changed
-        lines[lineNumber - 1] = text
-        await invoke('fs:writeFile', {
-          path: absolute,
-          content: lines.join('\n'),
-          expectedMtimeMs: file.mtimeMs
-        })
-      } catch {
-        useStore
-          .getState()
-          .showToast('Could not save that line — the file changed on disk', 'error')
-      }
-      setReloadToken((n) => n + 1)
-    })()
-  }
 
   const openInEditor = async (): Promise<void> => {
     if (!rootPath) return
@@ -156,12 +244,22 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
         <span className="diff__side">{target.staged ? 'staged' : 'working tree'}</span>
         <span className="diff__stat diff__stat--added">+{diff?.added ?? 0}</span>
         <span className="diff__stat diff__stat--removed">-{diff?.removed ?? 0}</span>
+        {editable && (
+          <button
+            className="diff__edit"
+            title="Save changes (Ctrl+S)"
+            disabled={!dirty}
+            onClick={() => void saveRef.current()}
+          >
+            <Icon name="download" size={13} /> {dirty ? 'Save' : 'Saved'}
+          </button>
+        )}
         <button
           className="diff__edit"
           title="Open this file in the editor"
           onClick={() => void openInEditor()}
         >
-          <Icon name="pencil" size={13} /> Edit
+          <Icon name="pencil" size={13} /> Open
         </button>
         <button className="icon-btn" aria-label="Close" title="Close this tab" onClick={close}>
           <Icon name="x" size={15} />
@@ -178,27 +276,42 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
         </span>
       </div>
 
-      <div className="diff__body">
-        {diff === null ? (
-          <p className="diff__note">Reading the diff…</p>
-        ) : diff.binary ? (
-          <p className="diff__note">Binary file — there is nothing to show line by line.</p>
-        ) : diff.hunks.length === 0 ? (
-          <p className="diff__note">No changes in this file.</p>
-        ) : (
-          diff.hunks.map((hunk, h) => (
-            <div className="diff__hunk" key={h}>
-              <div className="diff__hunk-head">{hunk.header}</div>
-              {alignHunk(hunk).map((row, i) => (
-                <div className="diff__row" key={i}>
-                  <Cell line={row.left} side="left" editable={false} onEdit={editLine} />
-                  <Cell line={row.right} side="right" editable={!target.staged} onEdit={editLine} />
-                </div>
-              ))}
-            </div>
-          ))
-        )}
+      <div className="diff__panes">
+        <div className="diff__pane" ref={leftHost} />
+        <div className="diff__pane diff__pane--new" ref={rightHost} />
       </div>
+
+      {diff?.binary && (
+        <p className="diff__note">Binary file — there is nothing to show line by line.</p>
+      )}
     </div>
   )
+}
+
+/**
+ * Keep the two panes level.
+ *
+ * A guard flag rather than a comparison: setting one pane's scrollTop fires its
+ * own scroll event, and without the flag each pane would chase the other for as
+ * long as the momentum lasted.
+ */
+function syncScroll(left: EditorView, right: EditorView): void {
+  let echo = false
+  const link = (from: EditorView, to: EditorView): void => {
+    from.scrollDOM.addEventListener(
+      'scroll',
+      () => {
+        if (echo) return
+        echo = true
+        to.scrollDOM.scrollTop = from.scrollDOM.scrollTop
+        to.scrollDOM.scrollLeft = from.scrollDOM.scrollLeft
+        requestAnimationFrame(() => {
+          echo = false
+        })
+      },
+      { passive: true }
+    )
+  }
+  link(left, right)
+  link(right, left)
 }

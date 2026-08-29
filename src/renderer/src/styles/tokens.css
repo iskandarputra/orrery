@@ -16,6 +16,12 @@
     'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   --or-ui-font: var(--or-prose-font);
 
+  /* Added and removed. Fixed across themes on purpose, like the graph's lane
+     colours: green-is-added is a convention read from outside the app, and
+     rehueing it per palette would make each theme mean something different. */
+  --or-diff-add: #3fb950;
+  --or-diff-del: #f85149;
+
   --or-editor-font-size: 16px;
   --or-editor-line-height: 1.7;
   --or-editor-font-family: var(--or-prose-font);
