@@ -45,7 +45,13 @@ export const settingsSchema = z.object({
       /** Keep the caret line vertically centered while typing. */
       typewriter: z.boolean().default(false),
       /** Dim everything except the paragraph being edited. */
-      focusMode: z.boolean().default(false)
+      focusMode: z.boolean().default(false),
+      /**
+       * The scaled-down preview of the whole document beside the scrollbar.
+       * On for code, where a file is long enough to get lost in; off for prose,
+       * which is read by its headings and has the outline panel for that.
+       */
+      minimap: z.boolean().default(true)
     })
     .prefault({}),
   markdown: z

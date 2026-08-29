@@ -146,6 +146,12 @@ export function EditorSection(): React.JSX.Element {
           onChange={(highlightActiveLine) => update({ editor: { ...e, highlightActiveLine } })}
         />
       </SettingRow>
+      <SettingRow
+        label="Minimap"
+        description="Scaled-down preview of the whole file beside the scrollbar, in code files"
+      >
+        <Toggle checked={e.minimap} onChange={(minimap) => update({ editor: { ...e, minimap } })} />
+      </SettingRow>
       <SettingRow label="Tab size">
         <NumberField
           value={e.tabSize}

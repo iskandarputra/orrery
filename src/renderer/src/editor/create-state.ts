@@ -32,6 +32,7 @@ import type { Settings } from '@shared/settings'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import { languageCompartment } from './code-language'
 import { gitGutter } from './git-gutter'
+import { minimap } from './minimap'
 import { changeDocument } from './lsp-session'
 import { goToDefinition } from './lsp-definition'
 import { lspHover } from './lsp-hover'
@@ -74,6 +75,7 @@ function codeExtensions(settings: Settings): Extension {
     lineNumbers(),
     highlightActiveLineGutter(),
     gitGutter(),
+    minimap(e.minimap),
     // Draws whatever a language server reports; harmless when none is installed.
     lintGutter(),
     lspHover(),

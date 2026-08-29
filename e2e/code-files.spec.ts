@@ -106,8 +106,14 @@ test('code uses the full width, prose keeps its column', async () => {
       gapAfterGutter: Math.round(
         content.getBoundingClientRect().left - gutter.getBoundingClientRect().right
       ),
+      // Measured against the minimap rather than the scroller: the minimap is
+      // a legitimate occupant of the right edge, not space the code failed to
+      // use. Asserted below to exist, so this cannot quietly become a blanket
+      // exemption if the minimap ever stops rendering.
+      hasMinimap: !!document.querySelector('.cm-minimap-gutter'),
       unusedRight: Math.round(
-        scroller.getBoundingClientRect().right - content.getBoundingClientRect().right
+        (document.querySelector('.cm-minimap-gutter')?.getBoundingClientRect().left ??
+          scroller.getBoundingClientRect().right) - content.getBoundingClientRect().right
       ),
       // The per-line inset, which is what actually holds the text away from
       // the gutter — it is padding inside the line, not on the content box.
@@ -116,7 +122,8 @@ test('code uses the full width, prose keeps its column', async () => {
   })
   expect(code.maxWidth, 'code is not held to a reading column').toBe('none')
   expect(code.gapAfterGutter, 'code starts at the gutter').toBeLessThanOrEqual(2)
-  expect(code.unusedRight, 'code runs to the edge of the pane').toBeLessThanOrEqual(2)
+  expect(code.hasMinimap, 'a code file gets a minimap').toBe(true)
+  expect(code.unusedRight, 'code runs up to the minimap').toBeLessThanOrEqual(2)
   expect(code.linePad, 'code is not inset like prose').toBeLessThan(20)
 
   await open('Note.md')
