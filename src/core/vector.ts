@@ -13,11 +13,16 @@ export function cosineSimilarity(a: readonly number[], b: readonly number[]): nu
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
-/** Indices of the top-k entries by score, highest first. */
+/**
+ * The top-k entries by score, highest first.
+ *
+ * `k` is clamped at zero: `slice(0, -1)` means "all but the last", so a negative
+ * count would quietly return almost everything instead of nothing.
+ */
 export function topK<T>(items: readonly T[], score: (item: T) => number, k: number): T[] {
   return items
     .map((item) => ({ item, s: score(item) }))
     .sort((a, b) => b.s - a.s)
-    .slice(0, k)
+    .slice(0, Math.max(0, k))
     .map((r) => r.item)
 }
