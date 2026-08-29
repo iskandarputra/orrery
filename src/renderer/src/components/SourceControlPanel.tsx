@@ -10,6 +10,7 @@ import { basename } from '@core/paths'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { EmptyState } from './PanelBits'
+import { GitGraph } from './GitGraph'
 import { Icon } from './Icon'
 
 /** One letter per state, as git and every git UI spell them. */
@@ -41,10 +42,7 @@ function Row({
     <div className="scm-row" title={change.from ? `${change.from} → ${change.path}` : change.path}>
       {/* Clicking the name shows the diff, as it does in VS Code — opening the
           file is what the file tree is for, and the question here is what changed. */}
-      <button
-        className="scm-row__name"
-        onClick={() => openDiff(change.path, side === 'staged')}
-      >
+      <button className="scm-row__name" onClick={() => openDiff(change.path, side === 'staged')}>
         <span className="scm-row__file">{basename(change.path)}</span>
         <span className="scm-row__dir">{change.path.includes('/') ? change.path : ''}</span>
       </button>
@@ -89,6 +87,8 @@ export function SourceControlPanel(): React.JSX.Element {
   const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS)
   const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
+  /** Which section is open. Both can be, but the panel is narrow. */
+  const [showGraph, setShowGraph] = useState(false)
   const [busy, setBusy] = useState(false)
 
   /** Bumped to re-read status; the reading itself belongs in the effect. */
@@ -208,57 +208,77 @@ export function SourceControlPanel(): React.JSX.Element {
         </button>
       </div>
 
-      {clean ? (
-        <EmptyState icon="check">No changes — the working tree is clean.</EmptyState>
-      ) : (
-        <>
-          {staged.length > 0 && (
-            <>
-              <div className="scm__group">
-                <span className="scm__group-label">Staged</span>
-                <span className="rpanel-count__badge">{staged.length}</span>
-                <button
-                  className="scm__group-act"
-                  onClick={() => void unstage(staged.map((c) => c.path))}
-                >
-                  Unstage all
-                </button>
-              </div>
-              {staged.map((c) => (
-                <Row
-                  key={`s-${c.path}`}
-                  change={c}
-                  side="staged"
-                  onPrimary={(x) => void unstage([x.path])}
-                />
-              ))}
-            </>
-          )}
-          {unstaged.length > 0 && (
-            <>
-              <div className="scm__group">
-                <span className="scm__group-label">Changes</span>
-                <span className="rpanel-count__badge">{unstaged.length}</span>
-                <button
-                  className="scm__group-act"
-                  onClick={() => void stage(unstaged.map((c) => c.path))}
-                >
-                  Stage all
-                </button>
-              </div>
-              {unstaged.map((c) => (
-                <Row
-                  key={`u-${c.path}`}
-                  change={c}
-                  side="unstaged"
-                  onPrimary={(x) => void stage([x.path])}
-                  onDiscard={(x) => void discard(x)}
-                />
-              ))}
-            </>
-          )}
-        </>
-      )}
+      <button
+        className={`scm__section${showGraph ? '' : ' scm__section--open'}`}
+        aria-expanded={!showGraph}
+        onClick={() => setShowGraph(false)}
+      >
+        <Icon name={showGraph ? 'chevron-right' : 'chevron-down'} size={12} />
+        Changes
+      </button>
+
+      {!showGraph &&
+        (clean ? (
+          <EmptyState icon="check">No changes — the working tree is clean.</EmptyState>
+        ) : (
+          <>
+            {staged.length > 0 && (
+              <>
+                <div className="scm__group">
+                  <span className="scm__group-label">Staged</span>
+                  <span className="rpanel-count__badge">{staged.length}</span>
+                  <button
+                    className="scm__group-act"
+                    onClick={() => void unstage(staged.map((c) => c.path))}
+                  >
+                    Unstage all
+                  </button>
+                </div>
+                {staged.map((c) => (
+                  <Row
+                    key={`s-${c.path}`}
+                    change={c}
+                    side="staged"
+                    onPrimary={(x) => void unstage([x.path])}
+                  />
+                ))}
+              </>
+            )}
+            {unstaged.length > 0 && (
+              <>
+                <div className="scm__group">
+                  <span className="scm__group-label">Unstaged</span>
+                  <span className="rpanel-count__badge">{unstaged.length}</span>
+                  <button
+                    className="scm__group-act"
+                    onClick={() => void stage(unstaged.map((c) => c.path))}
+                  >
+                    Stage all
+                  </button>
+                </div>
+                {unstaged.map((c) => (
+                  <Row
+                    key={`u-${c.path}`}
+                    change={c}
+                    side="unstaged"
+                    onPrimary={(x) => void stage([x.path])}
+                    onDiscard={(x) => void discard(x)}
+                  />
+                ))}
+              </>
+            )}
+          </>
+        ))}
+
+      <button
+        className={`scm__section${showGraph ? ' scm__section--open' : ''}`}
+        aria-expanded={showGraph}
+        onClick={() => setShowGraph(true)}
+      >
+        <Icon name={showGraph ? 'chevron-down' : 'chevron-right'} size={12} />
+        Graph
+      </button>
+      {showGraph && <GitGraph />}
     </div>
   )
 }

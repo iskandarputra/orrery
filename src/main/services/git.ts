@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 import { parseDiffHunks, type LineChange } from '@core/git-diff'
 import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
 import { EMPTY_DIFF, parseUnifiedDiff, type FileDiff } from '@core/unified-diff'
+import { parseGitLog, type Commit } from '@core/git-graph'
 
 const run = promisify(execFile)
 
@@ -107,6 +108,30 @@ export class GitService {
     } catch (err) {
       const stdout = (err as { stdout?: string }).stdout
       return stdout ? parseUnifiedDiff(stdout) : EMPTY_DIFF
+    }
+  }
+
+  /**
+   * Recent commits across every branch, for the graph.
+   *
+   * Capped rather than unbounded: the graph is a view of where you are, and a
+   * vault with years of history would otherwise pay to lay out thousands of
+   * rows nobody scrolls to. Fields are separated by U+001F and commits by NUL,
+   * so a subject containing any ordinary punctuation survives intact.
+   */
+  async log(rootPath: string, limit: number): Promise<Commit[]> {
+    const format = ['%H', '%P', '%an', '%ar', '%D', '%s'].join('%x1f')
+    try {
+      const stdout = await this.git(rootPath, [
+        'log',
+        '--all',
+        '-z',
+        `--max-count=${limit}`,
+        `--pretty=format:${format}`
+      ])
+      return parseGitLog(stdout)
+    } catch {
+      return []
     }
   }
 

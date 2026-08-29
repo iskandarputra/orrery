@@ -211,6 +211,66 @@ describe('fileDiff', () => {
   })
 })
 
+describe('log', () => {
+  it('reads the commits, newest first', async () => {
+    write('second.md', 'x\n')
+    run('add', '.')
+    run('commit', '-qm', 'second commit')
+    const log = await git.log(repo, 10)
+    expect(log.map((c) => c.subject)).toEqual(['second commit', 'base'])
+  })
+
+  it('records the parent, so the graph can be laid out', async () => {
+    write('second.md', 'x\n')
+    run('add', '.')
+    run('commit', '-qm', 'second')
+    const log = await git.log(repo, 10)
+    expect(log[0]!.parents).toEqual([log[1]!.hash])
+    expect(log[1]!.parents).toEqual([]) // the root commit
+  })
+
+  it('keeps a subject with punctuation intact', async () => {
+    // The fields are separated by a control character precisely so a subject
+    // full of commas, pipes and dashes survives.
+    const subject = 'fix: a, b | c - and more'
+    write('third.md', 'x\n')
+    run('add', '.')
+    run('commit', '-qm', subject)
+    expect((await git.log(repo, 1))[0]!.subject).toBe(subject)
+  })
+
+  it('reports the refs pointing at a commit', async () => {
+    const log = await git.log(repo, 1)
+    expect(log[0]!.refs.join(' ')).toMatch(/HEAD|main|master/)
+  })
+
+  it('honours the limit', async () => {
+    write('a.md', '1\n')
+    run('add', '.')
+    run('commit', '-qm', 'one')
+    write('b.md', '2\n')
+    run('add', '.')
+    run('commit', '-qm', 'two')
+    expect(await git.log(repo, 2)).toHaveLength(2)
+  })
+
+  it('sees commits on other branches, not just the current one', async () => {
+    run('checkout', '-qb', 'side')
+    write('side.md', 'x\n')
+    run('add', '.')
+    run('commit', '-qm', 'on the side branch')
+    run('checkout', '-q', '-')
+    const subjects = (await git.log(repo, 20)).map((c) => c.subject)
+    expect(subjects).toContain('on the side branch')
+  })
+
+  it('returns nothing outside a repository', async () => {
+    const plain = mkdtempSync(join(tmpdir(), 'orrery-plain-'))
+    expect(await git.log(plain, 10)).toEqual([])
+    rmSync(plain, { recursive: true, force: true })
+  })
+})
+
 describe('discard', () => {
   it('restores a tracked file', async () => {
     write('base.md', 'changed\n')

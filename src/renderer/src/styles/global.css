@@ -3199,6 +3199,98 @@ textarea {
   color: #f85149;
 }
 
+/* Source control sections. VS Code's source control container holds several
+   views; this is the same idea at panel scale — the change list and the graph
+   are different questions, and a narrow panel cannot answer both at once. */
+.scm__section {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border-top: 1px solid var(--or-border);
+  color: var(--or-fg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.scm__section:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.scm__section--open {
+  color: var(--or-fg);
+}
+
+/* Commit graph. */
+.gitgraph {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.gitgraph__note {
+  padding: 1rem 0.7rem;
+  color: var(--or-fg-muted);
+  font-size: 12px;
+}
+
+.gitgraph__row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding-left: 0.5rem;
+  min-height: 34px;
+}
+
+.gitgraph__row:hover {
+  background: var(--or-hover-bg);
+}
+
+/* The lanes must not shrink, or the dots stop lining up with the lines. */
+.gitgraph__lanes {
+  flex: 0 0 auto;
+}
+
+.gitgraph__meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding-right: 0.6rem;
+}
+
+.gitgraph__subject {
+  font-size: 12px;
+  color: var(--or-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gitgraph__ref {
+  display: inline-block;
+  margin-right: 0.3rem;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--or-accent) 30%, transparent);
+  border-radius: var(--or-radius-full);
+  background: var(--or-accent-soft);
+  color: var(--or-accent-text);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.gitgraph__by {
+  font-size: 10px;
+  color: var(--or-fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Language-server detection pills. Not bundling servers means a language can
    have none, so the state has to be legible rather than silent. */
 .lsp-pill {

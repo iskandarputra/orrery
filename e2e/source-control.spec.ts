@@ -63,7 +63,7 @@ test('lists an edit, stages it, and commits it', async () => {
   await refresh()
 
   // Appears as an unstaged change.
-  await expect(page.locator('.scm__group-label').filter({ hasText: 'Changes' })).toBeVisible()
+  await expect(page.locator('.scm__group-label').filter({ hasText: 'Unstaged' })).toBeVisible()
   await expect(page.locator('.scm-row__file')).toHaveText('Index.md')
 
   await page.locator('button[aria-label="Stage Index.md"]').click()
@@ -94,7 +94,7 @@ test('an untracked file shows, and unstaging returns it', async () => {
   })
 
   await page.locator('button[aria-label="Unstage brand new.md"]').click()
-  await expect(page.locator('.scm__group-label').filter({ hasText: 'Changes' })).toBeVisible({
+  await expect(page.locator('.scm__group-label').filter({ hasText: 'Unstaged' })).toBeVisible({
     timeout: 10_000
   })
   // Still on disk — unstaging must never touch the working tree.
@@ -194,6 +194,53 @@ test('an untracked file diffs as all additions', async () => {
 
   await page.locator('.diff button[aria-label="Close"]').click()
   rmSync(join(vault, 'Fresh.md'))
+})
+
+test('the graph section shows the history', async () => {
+  await openPanel()
+  await page.locator('.scm__section').filter({ hasText: 'Graph' }).click()
+
+  const graph = page.locator('.gitgraph')
+  await expect(graph).toBeVisible({ timeout: 10_000 })
+  // Every commit made by this spec so far, each with a lane drawn beside it.
+  await expect(graph.locator('.gitgraph__row').first()).toBeVisible()
+  await expect(graph.locator('.gitgraph__lanes').first()).toBeVisible()
+  await expect(graph).toContainText('base')
+  // The branch name is shown as a ref chip on the commit it points at.
+  await expect(graph.locator('.gitgraph__ref').first()).toBeVisible()
+
+  // Switching back hides the graph and shows the changes again.
+  await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
+  await expect(graph).toBeHidden()
+})
+
+test('a branch is drawn in its own lane', async () => {
+  // A branch that is merely ahead is still one line of development. Both sides
+  // need a commit the other lacks before the graph has two lanes to draw.
+  git('checkout', '-qb', 'a-side-branch')
+  writeFileSync(join(vault, 'Sidework.md'), 'side\n')
+  git('add', 'Sidework.md')
+  git('commit', '-qm', 'work on the side')
+  git('checkout', '-q', '-')
+  writeFileSync(join(vault, 'Mainwork.md'), 'main\n')
+  git('add', 'Mainwork.md')
+  git('commit', '-qm', 'work on main')
+
+  await openPanel()
+  await page.locator('.scm__section').filter({ hasText: 'Graph' }).click()
+  await expect(page.locator('.gitgraph')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.gitgraph')).toContainText('work on the side')
+
+  // Two lines of development means the lane column is wider than one lane.
+  // Two diverged lines of development, so the lane column is two lanes wide.
+  const width = await page
+    .locator('.gitgraph__lanes')
+    .first()
+    .evaluate((el) => Number(el.getAttribute('width')))
+  expect(width).toBeGreaterThan(12)
+  await expect(page.locator('.gitgraph')).toContainText('work on main')
+
+  await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
 })
 
 test('commit is refused without a message or staged work', async () => {

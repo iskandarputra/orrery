@@ -13,6 +13,7 @@ import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
 import type { GitStatus } from '@core/git-status'
 import type { FileDiff } from '@core/unified-diff'
+import type { Commit } from '@core/git-graph'
 
 /**
  * Single source of truth for renderer -> main request/response channels.
@@ -46,6 +47,8 @@ export interface IpcInvokeContract {
   }
   /** Null when git refused — nothing staged, no identity, a hook. */
   'git:commit': { req: { rootPath: string; message: string }; res: string | null }
+  /** Recent commits across all branches, newest first, for the graph. */
+  'git:log': { req: { rootPath: string; limit: number }; res: Commit[] }
   /** Absolute path for a repo-relative one, so the editor can open it. */
   'git:absolutePath': { req: { rootPath: string; path: string }; res: string }
   /** One file's diff; `staged` picks index-vs-HEAD over worktree-vs-index. */

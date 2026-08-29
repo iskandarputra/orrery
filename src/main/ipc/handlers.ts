@@ -105,6 +105,9 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     rootPathsReq.extend({ untracked: z.array(z.string()) }),
     (_e, req) => git.discard(req.rootPath, req.paths, req.untracked)
   )
+  handle('git:log', rootReq.extend({ limit: z.number().int().min(1).max(1000) }), (_e, req) =>
+    git.log(req.rootPath, req.limit)
+  )
   handle('git:absolutePath', rootReq.extend({ path: z.string().min(1) }), (_e, req) =>
     path.join(req.rootPath, req.path)
   )
