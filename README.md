@@ -65,14 +65,30 @@ Rendered inline, reverting to source when the cursor enters — the live-preview
 
 ## Development
 
+`./orrery.sh` is the entry point for everything; run it with no arguments for
+the full list.
+
 ```bash
-npm install
-npm run dev        # start with HMR
-npm test           # unit tests (vitest) — 94 tests
+./orrery.sh setup    # system packages, node modules, and the Rust toolchain
+./orrery.sh doctor   # report what is present and what is missing
+./orrery.sh dev      # start with HMR
+./orrery.sh check    # lint + typecheck + unit tests (what CI runs first)
+./orrery.sh e2e      # build, then Playwright against the built app
+```
+
+The underlying npm scripts still work if you prefer them:
+
+```bash
+npm run dev
+npm test           # unit tests (vitest)
 npm run e2e        # build + Playwright e2e against the packaged app
 npm run typecheck  # strict TS across main + renderer
 npm run lint
 ```
+
+Electron needs a display. Where there is none — over SSH, or in CI — `orrery.sh`
+runs the e2e suite under `xvfb` automatically. Set `ORRERY_XVFB=1` to force that
+path on a desktop, which is how you reproduce a CI failure locally.
 
 > **Linux dev note:** if Electron aborts with a SUID sandbox error, either
 > `sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox`
@@ -93,6 +109,23 @@ npm run lint
 npm run dist        # → scripts/package.sh
 npm run dist:deb    # → scripts/package.sh deb
 ```
+
+### The Rust search sidecar (optional)
+
+Vault-wide search has a Rust implementation in `native/`, spoken to over the
+same framed JSON-RPC the app already uses for language servers. On a 3,000-note
+vault it takes ~34ms against ~543ms for the TypeScript path.
+
+It is entirely optional. Without a Rust toolchain, without the binary, or if it
+crashes, `LinkScanner` runs its TypeScript search and nothing else changes.
+
+```bash
+./orrery.sh native      # build the sidecar
+./orrery.sh e2e:rust    # run the e2e suite against it
+ORRERY_RUST_SEARCH=1 npm run dev   # enable it in a dev run
+```
+
+It is off by default while it is being evaluated.
 
 Artifacts land in `./dist` (e.g. `orrery_0.1.0_amd64.deb`, `orrery-0.1.0.AppImage`). The app icon lives at `build/icon.png`. macOS/Windows targets (`npm run package:mac` / `package:win`) must be built on the matching OS — cross-building from Linux isn't supported here.
 
