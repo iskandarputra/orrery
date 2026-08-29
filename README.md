@@ -10,6 +10,8 @@ modern, testable architecture.
 
 **Stack:** Electron · React 19 · TypeScript (strict) · CodeMirror 6 · Zustand · zod
 
+**Contributing?** [ARCHITECTURE.md](ARCHITECTURE.md) is the short version: what the layers are, where new code goes, and which rules are enforced by a test rather than by convention.
+
 ## The editing experience
 
 orrery uses a **live-preview hybrid** (Typora/Obsidian style): you always edit real markdown source, but formatting renders inline — headings size up, bold is bold, links show their label, task checkboxes are clickable — and syntax markers reappear precisely where your cursor is. The document is never converted to and from a rich-text model, so what's on disk is exactly what you wrote.

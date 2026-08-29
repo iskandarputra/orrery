@@ -1,12 +1,12 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { appState } from '@/state/app-state-access'
 import { languages } from '@codemirror/language-data'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { resolveNote } from '@core/notes'
 import { wikilinks } from '@/plugins/wikilinks/extension'
-import { useStore } from '@/state/store'
 import { HighlightExtension } from './markdown/highlight-extension'
-import { livePreview } from './live-preview'
+import { composeLivePreview } from './live-preview/compose'
 import { orreryEditorTheme } from './theme'
 
 /**
@@ -29,14 +29,14 @@ export function mountPreview(parent: HTMLElement, text: string): EditorView {
         }),
         orreryEditorTheme(),
         EditorView.lineWrapping,
-        livePreview({ reveal: false }),
+        composeLivePreview({ reveal: false }),
         // Wikilinks render here too: an embedded note showing `[[Other]]` as
         // raw brackets would look unfinished beside the same note in the editor.
         wikilinks(
           {
-            getIndex: () => useStore.getState().noteIndex,
+            getIndex: () => appState().noteIndex,
             openTarget: (target) => {
-              const state = useStore.getState()
+              const state = appState()
               const note = resolveNote(state.noteIndex, target)
               if (note) void state.openPaths([note.path])
             }
