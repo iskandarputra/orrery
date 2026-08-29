@@ -1,7 +1,7 @@
 import { seedCanvasFromNotes, serializeCanvas } from '@core/canvas'
 import { buildMocSkeleton, mocPrompt } from '@core/moc'
+import { appState } from '@/state/app-state-access'
 import { invoke, parseIpcError } from '@/services/client'
-import { useStore } from '@/state/store'
 
 /** Filesystem-safe note name. */
 function safeName(name: string): string {
@@ -14,7 +14,7 @@ export async function createInVault(
   ext: string,
   content: string
 ): Promise<string | null> {
-  const { rootPath, showToast } = useStore.getState()
+  const { rootPath, showToast } = appState()
   if (!rootPath) {
     showToast('Open a folder first', 'warning')
     return null
@@ -38,7 +38,7 @@ export async function createInVault(
 export async function newCanvas(): Promise<void> {
   const path = await createInVault('Canvas', 'canvas', serializeCanvas({ nodes: [], edges: [] }))
   if (!path) return
-  const store = useStore.getState()
+  const store = appState()
   void store.refreshTree()
   await store.openPaths([path])
 }
@@ -49,7 +49,7 @@ export async function newCanvas(): Promise<void> {
  * knows which notes belong together, so the board starts from real structure.
  */
 export async function canvasFromCluster(): Promise<void> {
-  const store = useStore.getState()
+  const store = appState()
   const { rootPath, activeId, buffers, showToast } = store
   const activePath = activeId ? (buffers[activeId]?.filePath ?? null) : null
   if (!rootPath || !activePath) {
@@ -97,7 +97,7 @@ export async function canvasFromCluster(): Promise<void> {
  * than to nothing.
  */
 export async function clusterMoc(): Promise<void> {
-  const store = useStore.getState()
+  const store = appState()
   const { rootPath, activeId, buffers, settings, showToast } = store
   const activePath = activeId ? (buffers[activeId]?.filePath ?? null) : null
   if (!rootPath || !activePath) {

@@ -1,8 +1,8 @@
 import { formatDate, renderTemplate } from '@core/template'
 import { stem } from '@core/paths'
 import { getActiveView } from '@/editor/active-view'
+import { appState } from '@/state/app-state-access'
 import { invoke, parseIpcError } from '@/services/client'
-import { useStore } from '@/state/store'
 
 /**
  * Vault-relative segments joined for IPC. Forward slashes are accepted by the
@@ -30,7 +30,7 @@ async function readTemplate(root: string, relativePath: string): Promise<string>
  * you wrote.
  */
 export async function openDailyNote(date = new Date()): Promise<void> {
-  const { rootPath, settings, openPaths, showToast, refreshTree } = useStore.getState()
+  const { rootPath, settings, openPaths, showToast, refreshTree } = appState()
   if (!rootPath) {
     showToast('Open a folder first', 'warning')
     return
@@ -61,7 +61,7 @@ export async function openDailyNote(date = new Date()): Promise<void> {
 
 /** Render a template file and drop it in at the cursor. */
 export async function insertTemplate(templatePath: string): Promise<void> {
-  const { rootPath, settings, showToast } = useStore.getState()
+  const { rootPath, settings, showToast } = appState()
   const view = getActiveView()
   if (!rootPath || !view) return
 
@@ -73,8 +73,8 @@ export async function insertTemplate(templatePath: string): Promise<void> {
     return
   }
 
-  const active = useStore.getState().activeId
-  const title = active ? stem(useStore.getState().buffers[active]?.fileName ?? '') : ''
+  const active = appState().activeId
+  const title = active ? stem(appState().buffers[active]?.fileName ?? '') : ''
   const rendered = renderTemplate(source, {
     now: new Date(),
     title,

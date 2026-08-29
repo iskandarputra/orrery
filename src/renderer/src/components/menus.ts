@@ -1,12 +1,12 @@
 import type { FileNode } from '@shared/types'
+import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
-import { useStore } from '@/state/store'
 import type { MenuItem } from './context-menu/context-menu'
 import { closeBuffersUnder, editNameOf } from './TreeEditInput'
 
 /** Context menu for a tab. */
 export function buildTabMenu(bufferId: string): MenuItem[] {
-  const state = useStore.getState()
+  const state = appState()
   const buffer = state.buffers[bufferId]
   if (!buffer) return []
   const order = state.tabOrder
@@ -42,7 +42,7 @@ export function buildTabMenu(bufferId: string): MenuItem[] {
 
 /** Context menu for a file-tree node. */
 export function buildTreeMenu(node: FileNode): MenuItem[] {
-  const state = useStore.getState()
+  const state = appState()
   const isDir = node.kind === 'directory'
 
   const shared: MenuItem[] = [

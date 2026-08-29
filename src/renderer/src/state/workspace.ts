@@ -3,7 +3,7 @@ import type { FileNode, FsEvent } from '@shared/types'
 import { buildNoteIndex, type NoteRef } from '@core/notes'
 import { pushRecent } from '@core/recent'
 import { invoke, parseIpcError } from '@/services/client'
-import type { AppState } from './store'
+import type { AppState } from './app-state'
 
 export interface WorkspaceSlice {
   rootPath: string | null

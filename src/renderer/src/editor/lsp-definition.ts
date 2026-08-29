@@ -1,7 +1,7 @@
 import type { EditorView } from '@codemirror/view'
 import { serverForFile } from '@core/lsp-servers'
+import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
-import { useStore } from '@/state/store'
 import { docPathFacet } from './doc-context'
 import { offsetToPosition, positionToOffset } from './lsp-position'
 import { viewForBuffer } from './active-view'
@@ -31,9 +31,9 @@ export async function goToDefinition(view: EditorView): Promise<boolean> {
     return true
   }
 
-  const store = useStore.getState()
+  const store = appState()
   await store.openPaths([target.path])
-  const bufferId = Object.values(useStore.getState().buffers).find(
+  const bufferId = Object.values(appState().buffers).find(
     (b) => b.filePath === target.path
   )?.id
   if (!bufferId) return false

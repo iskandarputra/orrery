@@ -1,8 +1,8 @@
 import { selectAll } from '@codemirror/commands'
 import { applyInlineFormat, insertSnippet } from '@/editor/format-helpers'
 import { getActiveView } from '@/editor/active-view'
+import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
-import { useStore } from '@/state/store'
 import type { EditorMenuActions } from './editor-menu'
 
 /**
@@ -32,7 +32,7 @@ export function editorMenuActions(): EditorMenuActions {
       // Caret lands inside the target, which is what you still have to fill in.
       insertSnippet(`[${selected}]()`, selected.length + 3)
     },
-    searchVault: (query) => useStore.getState().searchVaultFor(query),
+    searchVault: (query) => appState().searchVaultFor(query),
     correctSpelling: (word) => void invoke('editor:replaceMisspelling', { word })
   }
 }

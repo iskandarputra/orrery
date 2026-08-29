@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import type { GraphAnalysis } from '@shared/types'
 import { invoke } from '@/services/client'
-import type { AppState } from './store'
+import type { AppState } from './app-state'
 
 export interface GraphSlice {
   /** Last analysis of the workspace, or null before the first scan. */

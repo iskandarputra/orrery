@@ -1,6 +1,6 @@
 import type { Command } from '@/commands/registry'
+import { appState } from '@/state/app-state-access'
 import { createInVault } from '@/notes/canvas-commands'
-import { useStore } from '@/state/store'
 import { allDocumentSurfaces } from './registry'
 
 /**
@@ -21,7 +21,7 @@ export function surfaceCreateCommands(): Command[] {
         run: async () => {
           const path = await createInVault(create.baseName, create.extension, create.template)
           if (!path) return
-          const store = useStore.getState()
+          const store = appState()
           void store.refreshTree()
           await store.openPaths([path])
         }

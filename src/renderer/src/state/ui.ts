@@ -2,7 +2,7 @@ import type { StateCreator } from 'zustand'
 import { defaultSettings, type Settings } from '@shared/settings'
 import { getTheme } from '@/themes/themes'
 import { invoke } from '@/services/client'
-import type { AppState } from './store'
+import type { AppState } from './app-state'
 
 /** Inline editing state in the file tree (create/rename inputs). */
 export interface TreeEdit {

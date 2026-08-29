@@ -1,5 +1,5 @@
-import { useStore } from '@/state/store'
 import { MEDIA_NOUN, type MediaViewerTarget } from '@/state/ui'
+import { appState } from '@/state/app-state-access'
 
 /** The `maximize` icon from the app's set, as markup a plain widget can use. */
 const ICON =
@@ -33,7 +33,7 @@ export function expandButton(target: MediaViewerTarget): HTMLButtonElement {
   btn.addEventListener('click', (event) => {
     event.preventDefault()
     event.stopPropagation()
-    useStore.getState().openMediaViewer(target)
+    appState().openMediaViewer(target)
   })
   return btn
 }

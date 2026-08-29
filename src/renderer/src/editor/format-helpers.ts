@@ -1,6 +1,6 @@
 import { EditorSelection, type ChangeSpec, type EditorState } from '@codemirror/state'
+import { appState } from '@/state/app-state-access'
 import { unwrapParagraphs } from '@core/reflow'
-import { useStore } from '@/state/store'
 import { getActiveView } from './active-view'
 import { toggleInlineMarkSpec } from './inline-format'
 
@@ -19,9 +19,9 @@ export function formatAndUnwrapNote(): void {
       userEvent: 'input'
     })
     view.focus()
-    useStore.getState().showToast('Paragraphs formatted and unwrapped', 'success')
+    appState().showToast('Paragraphs formatted and unwrapped', 'success')
   } else {
-    useStore.getState().showToast('Paragraphs are already formatted', 'info')
+    appState().showToast('Paragraphs are already formatted', 'info')
   }
 }
 

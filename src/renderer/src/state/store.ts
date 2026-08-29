@@ -1,10 +1,12 @@
 import { create } from 'zustand'
-import { createDocumentsSlice, type DocumentsSlice } from './documents'
-import { createGraphSlice, type GraphSlice } from './graph'
-import { createUiSlice, type UiSlice } from './ui'
-import { createWorkspaceSlice, type WorkspaceSlice } from './workspace'
+import { createDocumentsSlice } from './documents'
+import { createGraphSlice } from './graph'
+import { createUiSlice } from './ui'
+import { createWorkspaceSlice } from './workspace'
+import type { AppState } from './app-state'
+import { provideAppState } from './app-state-access'
 
-export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice & GraphSlice
+export type { AppState }
 
 /**
  * Single store, three slices. Store logic is plain functions over the typed
@@ -17,3 +19,7 @@ export const useStore = create<AppState>()((...args) => ({
   ...createUiSlice(...args),
   ...createGraphSlice(...args)
 }))
+
+// Handed over once, here, so the modules the slices pull in can reach the store
+// without importing it — see app-state-access.ts.
+provideAppState(() => useStore.getState())

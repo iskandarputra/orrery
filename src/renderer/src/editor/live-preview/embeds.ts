@@ -4,8 +4,8 @@ import type { EditorView as EditorViewType } from '@codemirror/view'
 import { extractSection } from '@core/section'
 import { findWikilinks } from '@core/wikilinks'
 import { mountPreview } from '@/editor/preview-view'
+import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
-import { useStore } from '@/state/store'
 
 /** Longest embedded excerpt shown before it is cut off. */
 const MAX_EMBED_CHARS = 1200
@@ -16,7 +16,7 @@ const cache = new Map<string, string>()
 const mounted = new WeakMap<HTMLElement, EditorViewType>()
 
 function resolveNotePath(target: string): string | null {
-  const { noteIndex } = useStore.getState()
+  const { noteIndex } = appState()
   const wanted = target.trim().toLowerCase()
   return noteIndex.find((note) => note.stem.toLowerCase() === wanted)?.path ?? null
 }

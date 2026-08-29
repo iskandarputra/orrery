@@ -1,10 +1,10 @@
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
-import { useStore } from '@/state/store'
+import { appState } from '@/state/app-state-access'
 
 /** Tags already used in the vault, most used first. */
 function knownTags(): { tag: string; notes: number }[] {
   const counts = new Map<string, number>()
-  for (const node of useStore.getState().graph?.nodes ?? []) {
+  for (const node of appState().graph?.nodes ?? []) {
     for (const tag of node.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
   }
   return [...counts.entries()]

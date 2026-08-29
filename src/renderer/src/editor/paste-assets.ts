@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
+import { appState } from '@/state/app-state-access'
 import { invoke, parseIpcError } from '@/services/client'
-import { useStore } from '@/state/store'
 import { assetFileName, assetMarkdown } from './assets'
 
 /** Read a File as base64, without the data-URL prefix. */
@@ -15,7 +15,7 @@ async function toBase64(file: File): Promise<string> {
 
 /** Save one image into the vault and return the markdown that embeds it. */
 async function fileAsset(file: File): Promise<string | null> {
-  const { rootPath, settings, showToast } = useStore.getState()
+  const { rootPath, settings, showToast } = appState()
   if (!rootPath) {
     showToast('Open a folder before adding images', 'warning')
     return null
@@ -26,7 +26,7 @@ async function fileAsset(file: File): Promise<string | null> {
       name: assetFileName(file.name, Date.now()),
       base64: await toBase64(file)
     })
-    void useStore.getState().refreshTree()
+    void appState().refreshTree()
     return assetMarkdown(path, rootPath)
   } catch (err) {
     showToast(parseIpcError(err).message, 'error')
@@ -90,7 +90,7 @@ export function pasteAssets(): Extension {
       const notes = files.filter((f) => /\.(md|markdown|mdown|mkd)$/i.test(f.name))
       for (const note of notes) {
         const dropped = note as File & { path?: string }
-        if (dropped.path) void useStore.getState().openPaths([dropped.path])
+        if (dropped.path) void appState().openPaths([dropped.path])
       }
       void handleFiles(view, files)
       return true
