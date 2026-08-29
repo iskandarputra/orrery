@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "A markdown editor and knowledge base that reads the shape of what you write",
   "main": "./out/main/index.js",
-  "author": "orrery contributors",
+  "author": "Iskandar Putra",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -81,15 +81,27 @@
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
-  "homepage": "https://github.com/orrery/orrery",
+  "homepage": "https://github.com/iskandarputra/orrery#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/orrery/orrery.git"
+    "url": "git+https://github.com/iskandarputra/orrery.git"
   },
   "allowScripts": {
     "node-pty@1.1.0": true
   },
   "optionalDependencies": {
     "node-pty": "^1.1.0"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/iskandarputra/orrery/issues"
+  },
+  "keywords": [
+    "markdown",
+    "notes",
+    "knowledge-base",
+    "editor",
+    "electron",
+    "codemirror",
+    "wikilinks"
+  ]
 }

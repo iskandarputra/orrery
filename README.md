@@ -174,6 +174,15 @@ Delivered: themes, live tables, math, mermaid, highlights, wikilinks, backlinks,
 
 Still open (nice-to-haves): plugin marketplace, collaborative editing, mobile/web build.
 
-## License
+## Licence
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+Orrery bundles fonts and libraries under their own terms, all of them permissive
+and none copyleft; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists them
+with their copyright notices, and the full texts are in [`licenses/`](licenses/).
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to run it and what the code expects;
+[ARCHITECTURE.md](ARCHITECTURE.md) for where things go.
