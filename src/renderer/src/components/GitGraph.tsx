@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
 import { graphWidth, layoutGraph, type Commit, type GraphCommit } from '@core/git-graph'
-import { invoke } from '@/services/client'
+import {
+  EMPTY_COMMIT_DETAIL,
+  statusLetter,
+  type CommitDetail,
+  type CommitFile
+} from '@core/commit-detail'
+import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
+import { openContextMenu, type MenuItem } from './context-menu/context-menu'
+import { Icon } from './Icon'
 
 /** How much history to draw. Enough to see where you are, not an archive. */
 const LIMIT = 120
@@ -75,9 +83,141 @@ function Row({ commit, width }: { commit: GraphCommit; width: number }): React.J
   )
 }
 
+/**
+ * What one commit did, under the row it belongs to.
+ *
+ * The graph alone shows a subject line, which is enough to find a commit and
+ * never enough to decide anything about it. Clicking one asks git what it
+ * touched, and clicking a file from there opens that commit's diff.
+ */
+function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
+  const rootPath = useStore((s) => s.rootPath)
+  const openDiff = useStore((s) => s.openDiff)
+  const [detail, setDetail] = useState<CommitDetail | null>(null)
+
+  useEffect(() => {
+    if (!rootPath) return
+    let live = true
+    void invoke('git:commitDetail', { rootPath, hash })
+      .then((result) => live && setDetail(result))
+      .catch(() => live && setDetail(EMPTY_COMMIT_DETAIL))
+    return () => {
+      live = false
+    }
+  }, [rootPath, hash])
+
+  if (!detail) return <p className="gitgraph__note">Reading the commit…</p>
+
+  return (
+    <div className="commit-detail">
+      {detail.body && <pre className="commit-detail__body">{detail.body}</pre>}
+      {detail.files.length === 0 ? (
+        <p className="gitgraph__note">This commit changed no files.</p>
+      ) : (
+        <ul className="commit-detail__files">
+          {detail.files.map((file: CommitFile) => (
+            <li key={file.path}>
+              <button
+                className="commit-detail__file"
+                title={file.from ? `${file.from} → ${file.path}` : file.path}
+                onClick={() => openDiff(file.path, false, hash)}
+              >
+                <span className={`commit-detail__status commit-detail__status--${file.status}`}>
+                  {statusLetter(file.status)}
+                </span>
+                <span className="commit-detail__path">{file.path}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function GitGraph(): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
+  const showToast = useStore((s) => s.showToast)
   const [commits, setCommits] = useState<Commit[] | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  /**
+   * The commit a new branch is being named for.
+   *
+   * An inline row rather than `window.prompt`, which Electron does not
+   * implement at all: it throws "prompt() is not supported", so the menu item
+   * would have done nothing but log an error.
+   */
+  const [branchingFrom, setBranchingFrom] = useState<string | null>(null)
+
+  /**
+   * Run a git command that changes the repository, then reload.
+   *
+   * The error is shown rather than swallowed: unlike reading status, these are
+   * things the user asked for, and git refusing to check out over uncommitted
+   * work is the most useful thing it can say.
+   */
+  const perform = (label: string, work: Promise<void>): void => {
+    void work
+      .then(() => {
+        showToast(label, 'success')
+        setReloadToken((n) => n + 1)
+      })
+      .catch((err) => showToast(parseIpcError(err).message, 'error'))
+  }
+
+  const menuFor = (commit: Commit): MenuItem[] => {
+    const short = commit.hash.slice(0, 7)
+    if (!rootPath) return []
+    return [
+      {
+        label: 'Copy commit hash',
+        icon: 'copy',
+        onSelect: () => void navigator.clipboard.writeText(commit.hash)
+      },
+      {
+        label: `Copy short hash (${short})`,
+        icon: 'copy',
+        onSelect: () => void navigator.clipboard.writeText(short)
+      },
+      {
+        label: 'Copy message',
+        icon: 'copy',
+        onSelect: () => void navigator.clipboard.writeText(commit.subject)
+      },
+      { separator: true },
+      {
+        label: `Check out ${short}`,
+        icon: 'git-branch',
+        onSelect: () =>
+          perform(`Checked out ${short}`, invoke('git:checkout', { rootPath, ref: commit.hash }))
+      },
+      {
+        label: 'Create branch here…',
+        icon: 'git-branch',
+        onSelect: () => {
+          setSelected(commit.hash)
+          setBranchingFrom(commit.hash)
+        }
+      },
+      { separator: true },
+      {
+        label: 'Revert this commit',
+        icon: 'undo',
+        onSelect: () =>
+          perform(`Reverted ${short}`, invoke('git:revert', { rootPath, hash: commit.hash }))
+      },
+      {
+        label: 'Cherry-pick onto this branch',
+        icon: 'git-branch',
+        onSelect: () =>
+          perform(
+            `Cherry-picked ${short}`,
+            invoke('git:cherryPick', { rootPath, hash: commit.hash })
+          )
+      }
+    ]
+  }
 
   useEffect(() => {
     if (!rootPath) return
@@ -88,7 +228,7 @@ export function GitGraph(): React.JSX.Element {
     return () => {
       live = false
     }
-  }, [rootPath])
+  }, [rootPath, reloadToken])
 
   if (commits === null) return <p className="gitgraph__note">Reading history…</p>
   if (commits.length === 0) return <p className="gitgraph__note">No commits yet.</p>
@@ -99,25 +239,67 @@ export function GitGraph(): React.JSX.Element {
   return (
     <div className="gitgraph">
       {rows.map((commit) => (
-        <div
-          className="gitgraph__row"
-          key={commit.hash}
-          title={`${commit.hash}\n${commit.subject}`}
-        >
-          <Row commit={commit} width={width} />
-          <div className="gitgraph__meta">
-            <div className="gitgraph__subject">
-              {commit.refs.map((ref) => (
-                <span className="gitgraph__ref" key={ref}>
-                  {ref.replace('HEAD -> ', '')}
-                </span>
-              ))}
-              {commit.subject}
+        <div key={commit.hash}>
+          <button
+            className={`gitgraph__row${selected === commit.hash ? ' gitgraph__row--selected' : ''}`}
+            title={`${commit.hash}\n${commit.subject}`}
+            aria-expanded={selected === commit.hash}
+            onClick={() => setSelected((current) => (current === commit.hash ? null : commit.hash))}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setSelected(commit.hash)
+              openContextMenu(e, menuFor(commit))
+            }}
+          >
+            <Row commit={commit} width={width} />
+            <div className="gitgraph__meta">
+              <div className="gitgraph__subject">
+                {commit.refs.map((ref) => (
+                  <span className="gitgraph__ref" key={ref}>
+                    {ref.replace('HEAD -> ', '')}
+                  </span>
+                ))}
+                {commit.subject}
+              </div>
+              <div className="gitgraph__by">
+                {commit.author} · {commit.date} · {commit.hash.slice(0, 7)}
+              </div>
             </div>
-            <div className="gitgraph__by">
-              {commit.author} · {commit.date} · {commit.hash.slice(0, 7)}
-            </div>
-          </div>
+            <Icon
+              name={selected === commit.hash ? 'chevron-down' : 'chevron-right'}
+              size={12}
+              className="gitgraph__caret"
+            />
+          </button>
+          {branchingFrom === commit.hash && (
+            <form
+              className="gitgraph__branch"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const name = new FormData(e.currentTarget).get('name')
+                const trimmed = String(name ?? '').trim()
+                setBranchingFrom(null)
+                if (!trimmed || !rootPath) return
+                perform(
+                  `Branch ${trimmed} created`,
+                  invoke('git:createBranch', { rootPath, name: trimmed, at: commit.hash })
+                )
+              }}
+            >
+              <input
+                name="name"
+                className="gitgraph__branch-input"
+                placeholder={`New branch at ${commit.hash.slice(0, 7)}`}
+                aria-label="New branch name"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Escape' && setBranchingFrom(null)}
+              />
+              <button className="gitgraph__branch-go" type="submit">
+                Create
+              </button>
+            </form>
+          )}
+          {selected === commit.hash && <CommitDetailView hash={commit.hash} />}
         </div>
       ))}
     </div>

@@ -35,12 +35,12 @@ export interface DocumentBuffer {
   isDirty: boolean
   kind: DocumentKind
   /** What this tab is a diff of (kind 'diff' only). */
-  diff?: { path: string; staged: boolean }
+  diff?: { path: string; staged: boolean; commit?: string }
 }
 
 export interface DocumentsSlice {
   /** Open a file's diff as a tab, focusing an existing one if it is already open. */
-  openDiff(path: string, staged: boolean): void
+  openDiff(path: string, staged: boolean, commit?: string): void
 
   buffers: Record<string, DocumentBuffer>
   tabOrder: string[]
@@ -177,9 +177,13 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
    * look at beside your work, switch away from and come back to. Reopening the
    * same file's diff focuses the existing tab instead of stacking duplicates.
    */
-  openDiff(path, staged) {
+  openDiff(path, staged, commit) {
     const existing = Object.values(get().buffers).find(
-      (b) => b.kind === 'diff' && b.diff?.path === path && b.diff?.staged === staged
+      (b) =>
+        b.kind === 'diff' &&
+        b.diff?.path === path &&
+        b.diff?.staged === staged &&
+        b.diff?.commit === commit
     )
     if (existing) {
       get().setActive(existing.id)
@@ -195,11 +199,13 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         [id]: {
           id,
           filePath: null,
-          fileName: `${basename(path)} (diff)`,
+          fileName: commit
+            ? `${basename(path)} @ ${commit.slice(0, 7)}`
+            : `${basename(path)} (diff)`,
           savedMtimeMs: null,
           isDirty: false,
           kind: 'diff' as const,
-          diff: { path, staged }
+          diff: { path, staged, commit }
         }
       },
       tabOrder: [...s.tabOrder, id],

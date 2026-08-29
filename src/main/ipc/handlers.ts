@@ -140,15 +140,46 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('git:absolutePath', rootReq.extend({ path: z.string().min(1) }), (_e, req) =>
     path.join(req.rootPath, req.path)
   )
+  // A commit-ish, kept to what git can name: hashes, refs, and the `^`/`~`
+  // suffixes. It reaches a command line, so the shape is checked here.
+  const commitish = z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[A-Za-z0-9._/^~-]+$/, 'not a valid git reference')
+
   handle(
     'git:fileContents',
-    rootReq.extend({ path: z.string().min(1), staged: z.boolean() }),
-    (_e, req) => git.fileContents(req.rootPath, req.path, req.staged)
+    rootReq.extend({
+      path: z.string().min(1),
+      staged: z.boolean(),
+      commit: commitish.optional()
+    }),
+    (_e, req) => git.fileContents(req.rootPath, req.path, req.staged, req.commit)
+  )
+  handle('git:commitDetail', rootReq.extend({ hash: commitish }), (_e, req) =>
+    git.commitDetail(req.rootPath, req.hash)
+  )
+  handle('git:checkout', rootReq.extend({ ref: commitish }), (_e, req) =>
+    git.checkout(req.rootPath, req.ref)
+  )
+  handle('git:createBranch', rootReq.extend({ name: commitish, at: commitish }), (_e, req) =>
+    git.createBranch(req.rootPath, req.name, req.at)
+  )
+  handle('git:revert', rootReq.extend({ hash: commitish }), (_e, req) =>
+    git.revert(req.rootPath, req.hash)
+  )
+  handle('git:cherryPick', rootReq.extend({ hash: commitish }), (_e, req) =>
+    git.cherryPick(req.rootPath, req.hash)
   )
   handle(
     'git:fileDiff',
-    rootReq.extend({ path: z.string().min(1), staged: z.boolean() }),
-    (_e, req) => git.fileDiff(req.rootPath, req.path, req.staged)
+    rootReq.extend({
+      path: z.string().min(1),
+      staged: z.boolean(),
+      commit: commitish.optional()
+    }),
+    (_e, req) => git.fileDiff(req.rootPath, req.path, req.staged, req.commit)
   )
   handle('git:commit', rootReq.extend({ message: z.string() }), (_e, req) =>
     git.commit(req.rootPath, req.message)

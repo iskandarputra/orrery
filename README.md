@@ -84,10 +84,16 @@ declaration inside the file you are looking at.
 
 ![A side-by-side diff with a minimap, the source control panel, and the terminal running git](docs/screenshots/diff-terminal.png)
 
-**Git is built in.** Status, stage, unstage, discard, commit, a commit graph,
-and change bars in the editor gutter. A diff opens as a tab holding two real
-editors side by side, with syntax highlighting, undo and selection across lines.
-The working-tree side is editable and saves with `Ctrl+S`.
+**Git is built in.** Status, stage, unstage, discard, commit, and change bars in
+the editor gutter. A diff opens as a tab holding two real editors side by side,
+with syntax highlighting, undo and selection across lines. The working-tree side
+is editable and saves with `Ctrl+S`.
+
+**The commit graph** draws every branch. Click a commit to see its message and
+the files it touched, then click a file to open that commit's diff against its
+parent. Right-click for the rest: copy the hash or the message, check the commit
+out, start a branch from it, revert it, or cherry-pick it onto the branch you
+are on.
 
 **A terminal** on ``Ctrl+` ``, running your own shell in the vault directory.
 

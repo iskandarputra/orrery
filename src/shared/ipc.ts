@@ -12,6 +12,7 @@ import type {
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
 import type { GitStatus } from '@core/git-status'
+import type { CommitDetail } from '@core/commit-detail'
 import type { FileDiff } from '@core/unified-diff'
 import type { Commit } from '@core/git-graph'
 
@@ -66,14 +67,24 @@ export interface IpcInvokeContract {
    * cannot render the unchanged stretches between changes.
    */
   'git:fileContents': {
-    req: { rootPath: string; path: string; staged: boolean }
+    req: { rootPath: string; path: string; staged: boolean; commit?: string }
     res: { old: string; new: string }
   }
   /** One file's diff; `staged` picks index-vs-HEAD over worktree-vs-index. */
   'git:fileDiff': {
-    req: { rootPath: string; path: string; staged: boolean }
+    req: { rootPath: string; path: string; staged: boolean; commit?: string }
     res: FileDiff
   }
+  /** The body of a commit's message and the files it touched. */
+  'git:commitDetail': { req: { rootPath: string; hash: string }; res: CommitDetail }
+  /** Move the working tree to a commit or branch. Rejects on dirty state. */
+  'git:checkout': { req: { rootPath: string; ref: string }; res: void }
+  /** A new branch at a commit, switched to. */
+  'git:createBranch': { req: { rootPath: string; name: string; at: string }; res: void }
+  /** A new commit that undoes an old one. */
+  'git:revert': { req: { rootPath: string; hash: string }; res: void }
+  /** Apply one commit's changes on top of the current branch. */
+  'git:cherryPick': { req: { rootPath: string; hash: string }; res: void }
 
   /**
    * Language-server document sync. Every call is best-effort: a language

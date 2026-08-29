@@ -83,7 +83,8 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
     setDiff(null)
   }
 
-  const editable = !!target && !target.staged
+  // A commit is history: it can be read, and it cannot be written to.
+  const editable = !!target && !target.staged && !target.commit
 
   /** Write the right pane back to disk. */
   const save = async (): Promise<void> => {
@@ -122,17 +123,25 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
 
     void (async () => {
       const [contents, parsed] = await Promise.all([
-        invoke('git:fileContents', { rootPath, path: target.path, staged: target.staged }),
-        invoke('git:fileDiff', { rootPath, path: target.path, staged: target.staged }).catch(
-          () => EMPTY_DIFF
-        )
+        invoke('git:fileContents', {
+          rootPath,
+          path: target.path,
+          staged: target.staged,
+          commit: target.commit
+        }),
+        invoke('git:fileDiff', {
+          rootPath,
+          path: target.path,
+          staged: target.staged,
+          commit: target.commit
+        }).catch(() => EMPTY_DIFF)
       ])
       if (!live || !leftHost.current || !rightHost.current) return
       setDiff(parsed)
 
       // The mtime the edit is checked against. Read after the content so a save
       // is compared with the same revision the pane was filled from.
-      if (!target.staged) {
+      if (!target.staged && !target.commit) {
         try {
           const absolute = await invoke('git:absolutePath', { rootPath, path: target.path })
           mtimeRef.current = (await invoke('fs:readFile', { path: absolute })).mtimeMs
@@ -241,7 +250,9 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
         <span className="diff__path" title={target.path}>
           {target.path}
         </span>
-        <span className="diff__side">{target.staged ? 'staged' : 'working tree'}</span>
+        <span className="diff__side">
+          {target.commit ? target.commit.slice(0, 7) : target.staged ? 'staged' : 'working tree'}
+        </span>
         <span className="diff__stat diff__stat--added">+{diff?.added ?? 0}</span>
         <span className="diff__stat diff__stat--removed">-{diff?.removed ?? 0}</span>
         {editable && (
@@ -267,11 +278,17 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
       </div>
 
       <div className="diff__heads">
-        <span className="diff__head">{target.staged ? 'HEAD' : 'staged'}</span>
         <span className="diff__head">
-          {target.staged ? 'staged' : 'working tree'}
+          {target.commit ? 'parent' : target.staged ? 'HEAD' : 'staged'}
+        </span>
+        <span className="diff__head">
+          {target.commit ? 'this commit' : target.staged ? 'staged' : 'working tree'}
           <span className="diff__head-note">
-            {target.staged ? 'read-only — unstage to edit' : 'editable'}
+            {target.commit
+              ? 'read-only, history'
+              : target.staged
+                ? 'read-only, unstage to edit'
+                : 'editable'}
           </span>
         </span>
       </div>

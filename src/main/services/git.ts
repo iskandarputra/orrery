@@ -6,6 +6,7 @@ import { parseDiffHunks, type LineChange } from '@core/git-diff'
 import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
 import { EMPTY_DIFF, parseUnifiedDiff, type FileDiff } from '@core/unified-diff'
 import { parseGitLog, type Commit } from '@core/git-graph'
+import { EMPTY_COMMIT_DETAIL, parseCommitDetail, type CommitDetail } from '@core/commit-detail'
 
 const run = promisify(execFile)
 
@@ -92,7 +93,8 @@ export class GitService {
   async fileContents(
     rootPath: string,
     path: string,
-    staged: boolean
+    staged: boolean,
+    commit?: string
   ): Promise<{ old: string; new: string }> {
     const show = async (rev: string): Promise<string> => {
       try {
@@ -108,13 +110,30 @@ export class GitService {
         return '' // deleted from the working tree
       }
     }
+    // A commit is read against its own parent, which is what "what this commit
+    // did" means. A root commit has no parent, so the old side is empty.
+    if (commit) return { old: await show(`${commit}^`), new: await show(commit) }
     return staged
       ? { old: await show('HEAD'), new: await show('') }
       : { old: await show(''), new: await worktree() }
   }
 
-  async fileDiff(rootPath: string, path: string, staged: boolean): Promise<FileDiff> {
+  async fileDiff(
+    rootPath: string,
+    path: string,
+    staged: boolean,
+    commit?: string
+  ): Promise<FileDiff> {
     const common = ['diff', '--no-color', '--no-ext-diff']
+    if (commit) {
+      try {
+        return parseUnifiedDiff(
+          await this.git(rootPath, ['show', '--no-color', '--format=', commit, '--', path])
+        )
+      } catch {
+        return EMPTY_DIFF
+      }
+    }
     try {
       const stdout = await this.git(rootPath, [
         ...common,
@@ -169,6 +188,53 @@ export class GitService {
     } catch {
       return []
     }
+  }
+
+  /**
+   * What one commit did: the body of its message, and the files it touched.
+   *
+   * `-z` because a path may contain anything at all, newlines included, and the
+   * newline-delimited form escapes those in a way that has to be undone again.
+   */
+  async commitDetail(rootPath: string, hash: string): Promise<CommitDetail> {
+    try {
+      return parseCommitDetail(
+        await this.git(rootPath, ['show', '--name-status', '-z', '--format=%b', hash])
+      )
+    } catch {
+      return EMPTY_COMMIT_DETAIL
+    }
+  }
+
+  /**
+   * Move the working tree to a commit or branch.
+   *
+   * Git refuses when the move would overwrite uncommitted work, and that
+   * refusal is what protects the user here, so the error is allowed through to
+   * be shown rather than swallowed like a status read.
+   */
+  async checkout(rootPath: string, ref: string): Promise<void> {
+    await this.git(rootPath, ['checkout', ref])
+  }
+
+  /** A new branch at a commit, and switch to it. */
+  async createBranch(rootPath: string, name: string, at: string): Promise<void> {
+    await this.git(rootPath, ['checkout', '-b', name, at])
+  }
+
+  /**
+   * Undo a commit by making another that reverses it.
+   *
+   * `--no-edit` because an editor cannot open from here; the default message
+   * names the commit being reverted, which is what anyone would have written.
+   */
+  async revert(rootPath: string, hash: string): Promise<void> {
+    await this.git(rootPath, ['revert', '--no-edit', hash])
+  }
+
+  /** Apply one commit's changes on top of the current branch. */
+  async cherryPick(rootPath: string, hash: string): Promise<void> {
+    await this.git(rootPath, ['cherry-pick', hash])
   }
 
   /** Whether this directory is inside a git work tree at all. */

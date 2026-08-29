@@ -24,6 +24,9 @@ const write = (rel: string, body: string): void => {
   writeFileSync(path, body, 'utf-8')
 }
 const pathsOf = (changes: { path: string }[]): string[] => changes.map((c) => c.path).sort()
+/** Like `run`, but for the commands whose answer is the point. */
+const capture = (...args: string[]): string =>
+  execFileSync('git', args, { cwd: repo, encoding: 'utf-8' }).trim()
 
 beforeEach(() => {
   repo = mkdtempSync(join(tmpdir(), 'orrery-git-'))
@@ -289,5 +292,49 @@ describe('discard', () => {
     await git.stage(repo, ['base.md'])
     await git.discard(repo, ['base.md'], [])
     expect((await git.status(repo)).changes[0]).toMatchObject({ staged: 'modified' })
+  })
+})
+
+describe('commitDetail', () => {
+  it('reads the body and the files, from real git output', async () => {
+    // The parser has unit tests over hand-built fixtures, and those fixtures
+    // were wrong once: git separates the message from the file list with a
+    // blank line that arrives attached to the first status field, as "\nA".
+    // Hand-written input agreed with the parser and disagreed with git. This
+    // runs the real command so the format cannot be assumed again.
+    write('kept.md', 'one\n')
+    run('add', '.')
+    run('commit', '-m', 'a subject', '-m', 'the body of it')
+    const first = capture('rev-parse', 'HEAD')
+
+    write('kept.md', 'one\ntwo\n')
+    write('added.md', 'new\n')
+    run('add', '.')
+    run('commit', '-m', 'the second')
+
+    const detail = await git.commitDetail(repo, capture('rev-parse', 'HEAD'))
+    expect(detail.files.map((f) => [f.status, f.path]).sort()).toEqual([
+      ['added', 'added.md'],
+      ['modified', 'kept.md']
+    ])
+
+    const older = await git.commitDetail(repo, first)
+    expect(older.body).toBe('the body of it')
+  })
+
+  it('reads a rename as one file with a source', async () => {
+    write('before.md', 'stable content that will not change at all\n')
+    run('add', '.')
+    run('commit', '-m', 'add it')
+    run('mv', 'before.md', 'after.md')
+    run('commit', '-m', 'rename it')
+
+    const detail = await git.commitDetail(repo, capture('rev-parse', 'HEAD'))
+    expect(detail.files).toHaveLength(1)
+    expect(detail.files[0]).toMatchObject({ path: 'after.md', status: 'renamed' })
+  })
+
+  it('answers with nothing for a hash that does not exist', async () => {
+    expect(await git.commitDetail(repo, 'deadbeef')).toEqual({ body: '', files: [] })
   })
 })
