@@ -4,6 +4,7 @@ import { bufferRegistry } from '@/editor/buffer-registry'
 import { createDocumentState } from '@/editor/create-state'
 import { getActiveView, viewForBuffer } from '@/editor/active-view'
 import { invalidateEmbed } from '@/editor/live-preview/embeds'
+import { refreshGitGutter } from '@/editor/git-gutter'
 import { invoke, parseIpcError } from '@/services/client'
 import { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
@@ -458,6 +459,11 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       if (view) {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: file.content } })
         bufferRegistry.markSaved(buffer.id, view.state.doc)
+        // The reload replaces the whole document, so every change bar is anchored
+        // inside the replaced range and is mapped away. Nothing else re-runs the
+        // gutter for a buffer that neither changed identity nor dirty state, so
+        // without this the bars stay wrong until the tab is switched away and back.
+        void refreshGitGutter(view)
       } else {
         const state = createDocumentState({
           id: buffer.id,

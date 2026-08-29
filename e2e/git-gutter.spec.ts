@@ -53,12 +53,25 @@ test.beforeAll(async () => {
   writeFileSync(join(vault, 'committed.ts'), ORIGINAL + '\n')
   writeFileSync(join(vault, 'loose.ts'), 'const loose = 1\n')
   writeFileSync(join(vault, 'anchor.ts'), ORIGINAL + '\n')
+  writeFileSync(join(vault, 'reloaded.ts'), ORIGINAL + '\n')
 
   git(['init'], vault)
   git(['config', 'user.email', 'test@example.com'], vault)
   git(['config', 'user.name', 'Test'], vault)
-  git(['add', 'committed.ts', 'anchor.ts', 'Note.md'], vault)
+  git(['add', 'committed.ts', 'anchor.ts', 'reloaded.ts', 'Note.md'], vault)
   git(['commit', '-m', 'base'], vault)
+  // Committed clean, then changed on disk before the app ever opens it, so the
+  // tab starts with exactly one bar.
+  writeFileSync(
+    join(vault, 'reloaded.ts'),
+    [
+      'const one = 999',
+      'const two = 1',
+      'const three = 1',
+      'const four = 1',
+      'const five = 1'
+    ].join('\n') + '\n'
+  )
 
   app = await launchApp()
   page = await app.firstWindow()
@@ -157,4 +170,33 @@ test('an untracked file draws no bars, and does not error', async () => {
 test('a note gets no git gutter', async () => {
   await open('Note.md')
   await expect(page.locator('.cm-or-git-gutter')).toHaveCount(0)
+})
+
+/**
+ * A file changed by another program while it is open and in front of you.
+ *
+ * The reload replaces the whole document, and every mark is anchored to a
+ * position inside the range being replaced — so without an explicit refresh the
+ * bars are mapped away and never come back. That is worse than showing nothing:
+ * the gutter goes silent on a file that has just changed underneath the user.
+ */
+test('marks survive the file changing on disk underneath an open tab', async () => {
+  await open('reloaded.ts')
+  await expect.poll(async () => (await marks()).join(','), { timeout: 10_000 }).toBe('modified')
+
+  // The second external edit, while the tab stays in front. No tab switch here:
+  // switching would rebuild the state and hide the bug being tested.
+  writeFileSync(
+    join(vault, 'reloaded.ts'),
+    [
+      'const one = 999',
+      'const two = 999',
+      'const three = 1',
+      'const four = 1',
+      'const five = 1'
+    ].join('\n') + '\n'
+  )
+  await expect
+    .poll(async () => (await marks()).join(','), { timeout: 10_000 })
+    .toBe('modified,modified')
 })
