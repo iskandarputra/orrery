@@ -70,5 +70,5 @@ fix and watch the test go red before you believe it.
 
 ## Commands
 
-`./orrery.sh check` (lint, typecheck, unit) · `ORRERY_XVFB=1 ./orrery.sh e2e` ·
+`./orrery.sh check` (lint, typecheck, unit) · `./orrery.sh e2e` ·
 `./orrery.sh dev` · `./orrery.sh package`

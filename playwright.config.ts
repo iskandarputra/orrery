@@ -6,6 +6,9 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
+  // Stops a bare `npx playwright test` throwing app windows onto a desktop
+  // somebody is working on. See the file for the ways to run it.
+  globalSetup: './e2e/global-setup.ts',
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,

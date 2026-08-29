@@ -141,14 +141,13 @@ cd orrery
 `./orrery.sh doctor` reports what is missing.
 
 ```bash
-./orrery.sh check              # lint, typecheck, unit tests
-ORRERY_XVFB=1 ./orrery.sh e2e  # the built app, driven by Playwright
-./orrery.sh package            # .deb and AppImage into ./dist
+./orrery.sh check     # lint, typecheck, unit tests
+./orrery.sh e2e       # the built app, driven by Playwright
+./orrery.sh package   # .deb and AppImage into ./dist
 ```
 
-Electron needs a display. Over SSH or in CI, `orrery.sh` runs the end-to-end
-suite under `xvfb` by itself. Set `ORRERY_XVFB=1` to force that on a desktop,
-which is how you reproduce a CI failure locally.
+Electron opens real windows, so the end-to-end suite runs on a virtual display
+and never takes your focus. Set `ORRERY_HEADED=1` when watching it is the point.
 
 > **Linux note.** If Electron aborts with a SUID sandbox error, either
 > `sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox`,

@@ -14,12 +14,13 @@ Rust toolchain is only needed if you are changing the sidecar itself.
 ## Before you open a pull request
 
 ```bash
-./orrery.sh check              # lint, typecheck, unit tests
-ORRERY_XVFB=1 ./orrery.sh e2e  # the built app, driven by Playwright
+./orrery.sh check   # lint, typecheck, unit tests
+./orrery.sh e2e     # the built app, driven by Playwright
 ```
 
-Both are what CI runs. `ORRERY_XVFB=1` gives Playwright a virtual display; drop
-it if you would rather watch.
+Both are what CI runs. The e2e suite drives real Electron windows on a virtual
+display, so it will not take your focus while it runs; `ORRERY_HEADED=1` puts
+the windows on screen when watching them is the point.
 
 ## What the code expects of you
 

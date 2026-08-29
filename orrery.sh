@@ -32,19 +32,25 @@ die()  { printf '%serror:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# Electron needs a display. Under SSH or in CI there is none, so wrap in xvfb.
-# ORRERY_XVFB=1 forces the virtual path even on a desktop, which is how you
-# rehearse what CI actually does without pushing.
+# Electron needs a display, and a test suite that takes over yours is a suite
+# you stop running while you work. So the virtual display is the default
+# wherever xvfb exists: the app opens, is driven, and is never seen.
+#
+# ORRERY_HEADED=1 puts the windows back on screen, for when watching them is the
+# point. ORRERY_XVFB=1 is kept because CI and the docs use it, and it now means
+# the same thing as the default.
 run_windowed() {
-  if [[ "${ORRERY_XVFB:-}" == "1" ]]; then
-    have xvfb-run || die "ORRERY_XVFB=1 but xvfb-run is missing. Run './orrery.sh setup'."
-    step "forcing xvfb (as CI does)"
-    xvfb-run -a "$@"
-  elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+  export ORRERY_E2E_WRAPPED=1
+  if [[ "${ORRERY_HEADED:-}" == "1" ]]; then
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || die "ORRERY_HEADED=1 but there is no display."
+    step "on your display (ORRERY_HEADED=1)"
     "$@"
   elif have xvfb-run; then
-    step "no display — running under xvfb"
+    step "virtual display, so nothing steals focus"
     xvfb-run -a "$@"
+  elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    warn "xvfb-run is missing — windows will open on your display"
+    "$@"
   else
     die "no display and no xvfb-run. Run './orrery.sh setup' first."
   fi
@@ -180,8 +186,8 @@ ${BOLD}orrery.sh${RESET} — project tasks
   ${BOLD}package${RESET}    build an installer (deb by default, or: package AppImage)
   ${BOLD}clean${RESET}      remove build output
 
-${DIM}Electron needs a display; where there is none, e2e runs under xvfb.
-Set ORRERY_XVFB=1 to force the virtual display even on a desktop — that is
+${DIM}e2e runs on a virtual display so the windows never take your focus.
+Set ORRERY_HEADED=1 to watch them instead — that is
 exactly what CI does, so it is how you rehearse a CI failure locally.${RESET}
 USAGE
 }
