@@ -18,7 +18,27 @@ export const excalidrawPlugin: OrreryPlugin = {
       // The format Excalidraw itself reads and writes, so a board made here
       // opens on excalidraw.com and one made there opens here.
       claims: (fileName) => /\.excalidraw$/i.test(fileName),
-      Component: ExcalidrawEditor
+      Component: ExcalidrawEditor,
+      create: {
+        label: 'New drawing',
+        baseName: 'Drawing',
+        extension: 'excalidraw',
+        // The empty scene Excalidraw itself writes. `elements: []` alone would
+        // load, but a file without the envelope is not one excalidraw.com will
+        // open, and the format working in both directions is the whole point.
+        template: `${JSON.stringify(
+          {
+            type: 'excalidraw',
+            version: 2,
+            source: 'orrery',
+            elements: [],
+            appState: { gridSize: null, viewBackgroundColor: '#ffffff' },
+            files: {}
+          },
+          null,
+          2
+        )}\n`
+      }
     })
   }
 }

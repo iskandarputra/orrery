@@ -177,3 +177,35 @@ test('the status bar describes a drawing, not a document that is not there', asy
   await expect(bar).toContainText('Markdown')
   await expect(bar).toContainText('words')
 })
+
+test('a plugin surface contributes a way to create one', async () => {
+  // Without this a surface can only open drawings that already exist — the app
+  // could edit them but never start one.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'file.new.excalidraw'
+    })
+  })
+  await expect(page.locator('.excalidraw')).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('.tab--active')).toContainText('Drawing.excalidraw')
+
+  // And what it wrote is a file Excalidraw itself would open, not just one this
+  // app can read back.
+  const created = JSON.parse(readFileSync(join(vault, 'Drawing.excalidraw'), 'utf-8'))
+  expect(created.type).toBe('excalidraw')
+  expect(created.elements).toEqual([])
+})
+
+test('the header offers no prose controls over a drawing', async () => {
+  // "Edit / Hybrid / Read" over a board is worse than useless: each button
+  // changes a setting that does nothing here, and whichever looks active is
+  // describing some other document.
+  await expect(page.locator('.header-viewmode')).toBeHidden()
+  await expect(page.locator('.header-stats-pill')).toBeHidden()
+
+  // Still there for a note, so this hid the right thing.
+  await page.locator('.tree-row--file', { hasText: 'Note.md' }).click()
+  await expect(page.locator('.editor-pane .cm-content')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.header-viewmode')).toBeVisible()
+  await expect(page.locator('.header-stats-pill')).toBeVisible()
+})

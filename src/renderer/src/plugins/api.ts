@@ -35,6 +35,24 @@ export interface DocumentSurface {
    * state, the same way the built-in surfaces do.
    */
   Component: (props: { bufferId: string }) => React.JSX.Element
+  /**
+   * How to make a new one, if that makes sense for the format.
+   *
+   * Without this a surface can only open files that already exist — which,
+   * for a drawing, means the app can edit them but never start one. Registering
+   * it contributes a command, so the surface reaches the palette and the menus
+   * the same way built-in file types do.
+   */
+  create?: {
+    /** Command label, e.g. "New drawing". */
+    label: string
+    /** Base file name, before the extension and any deduplicating suffix. */
+    baseName: string
+    /** Extension, without the dot. */
+    extension: string
+    /** Contents of a blank one. */
+    template: string
+  }
 }
 
 export interface PluginContext {

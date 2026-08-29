@@ -9,7 +9,7 @@ function safeName(name: string): string {
 }
 
 /** First free `<base>.<ext>`, `<base> 2.<ext>`, … in the vault root. */
-async function createCanvasLike(
+export async function createInVault(
   base: string,
   ext: string,
   content: string
@@ -36,7 +36,7 @@ async function createCanvasLike(
 
 /** A blank board. */
 export async function newCanvas(): Promise<void> {
-  const path = await createCanvasLike('Canvas', 'canvas', serializeCanvas({ nodes: [], edges: [] }))
+  const path = await createInVault('Canvas', 'canvas', serializeCanvas({ nodes: [], edges: [] }))
   if (!path) return
   const store = useStore.getState()
   void store.refreshTree()
@@ -76,7 +76,7 @@ export async function canvasFromCluster(): Promise<void> {
     rootPath
   )
   const lead = [...cluster].sort((a, b) => b.pagerank - a.pagerank)[0]
-  const path = await createCanvasLike(
+  const path = await createInVault(
     safeName(`${lead?.label ?? 'Cluster'} map`),
     'canvas',
     serializeCanvas(canvas)
@@ -136,7 +136,7 @@ export async function clusterMoc(): Promise<void> {
   const body = intro
     ? skeleton.markdown.replace(/\n\n/, `\n\n${intro}\n\n`)
     : skeleton.markdown
-  const path = await createCanvasLike(safeName(`${skeleton.title} MOC`), 'md', body)
+  const path = await createInVault(safeName(`${skeleton.title} MOC`), 'md', body)
   if (!path) return
   void store.refreshTree()
   await store.openPaths([path])

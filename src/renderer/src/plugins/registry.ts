@@ -52,6 +52,11 @@ export function getActivePlugins(): readonly OrreryPlugin[] {
   return activePlugins
 }
 
+/** Every registered surface, for building commands and menus from them. */
+export function allDocumentSurfaces(): readonly DocumentSurface[] {
+  return documentSurfaces
+}
+
 /** The surface that claims this file, if any. Consulted before `documentKind`. */
 export function surfaceForFile(fileName: string): DocumentSurface | null {
   return documentSurfaces.find((s) => s.claims(fileName)) ?? null

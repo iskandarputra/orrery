@@ -8,6 +8,7 @@ import { routeDiagnostics } from './editor/lsp-session'
 import type { OrreryPlugin } from './plugins/api'
 import { builtinPlugins } from './plugins/builtins'
 import { activatePlugins } from './plugins/registry'
+import { surfaceCreateCommands } from './plugins/surface-commands'
 import { invoke, on } from './services/client'
 import { useStore } from './state/store'
 
@@ -34,6 +35,9 @@ export function bootstrap(): CommandRegistry {
     registerCommand: (command) => registry.register(command),
     store: useStore
   })
+  // After activation, not during: a surface's create command is derived from
+  // what it registered, so the registry has to be populated first.
+  for (const command of surfaceCreateCommands()) registry.register(command)
 
   // User plugins: <userData>/plugins/*.js — each calls orrery.register({...}).
   // Trusted local code, same model as Obsidian community plugins.
