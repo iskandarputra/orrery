@@ -13,7 +13,7 @@ const EXPORT_CSS = `
   h1, h2 { border-bottom: 1px solid #d9dce0; padding-bottom: 0.3em; }
   a { color: #4f6ef2; }
   code {
-    font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 0.9em;
+    font-family: 'MesloLGL Nerd Font Mono', 'JetBrains Mono', 'Consolas', monospace; font-size: 0.9em;
     background: rgba(99, 110, 123, 0.14); border-radius: 4px; padding: 0.1em 0.3em;
   }
   pre { background: #f3f4f6; border-radius: 8px; padding: 14px 16px; overflow-x: auto; }

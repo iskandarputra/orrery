@@ -147,8 +147,13 @@ function Pane({
           fontSize: `${settings.editor.fontSize}px`,
           ['--or-editor-font-size' as string]: `${settings.editor.fontSize}px`,
           ['--or-editor-line-height' as string]: String(settings.editor.lineHeight),
+          // Prose reads in a proportional face; code does not. A code file set
+          // in the prose font loses the column alignment indentation depends on,
+          // and picks up the ligatures that turn `=>` into a glyph the file does
+          // not contain. An explicit setting still wins for either kind.
           ['--or-editor-font-family' as string]:
-            settings.editor.fontFamily || 'var(--or-prose-font)',
+            settings.editor.fontFamily ||
+            (kind === 'code' ? 'var(--or-mono-font)' : 'var(--or-prose-font)'),
           // A reading column is for prose. Code is read down the left edge
           // against its indentation, so it takes the full pane and sits just
           // clear of the gutter instead of being centred in a 46rem measure.

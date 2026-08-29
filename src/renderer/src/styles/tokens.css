@@ -1,13 +1,19 @@
 /* Font tokens. Color tokens are generated per-theme from themes/themes.ts
    and injected as [data-theme='<id>'] blocks at startup.
-   Inter / JetBrains Mono / Newsreader are bundled (see main.tsx) so typography
-   is identical on every machine regardless of installed system fonts. */
+   Inter / MesloLGL Nerd Font / Newsreader are bundled (see main.tsx and
+   fonts.css) so typography is identical on every machine regardless of installed
+   system fonts. */
 :root {
   --or-prose-font:
     'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
   --or-serif-font: 'Newsreader Variable', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  /* Code and terminal. Meslo leads because it is the Nerd Font: a shell prompt
+     with powerline separators or git glyphs renders as icons rather than tofu,
+     which no plain coding font can do. Kept in one token so the editor, the
+     inline code, the diff and the terminal cannot drift apart. */
   --or-mono-font:
-    'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    'MesloLGL Nerd Font Mono', 'MesloLGS Nerd Font Mono', 'JetBrains Mono Variable',
+    'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   --or-ui-font: var(--or-prose-font);
 
   --or-editor-font-size: 16px;

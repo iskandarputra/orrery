@@ -66,7 +66,7 @@ export function EditorSection(): React.JSX.Element {
       <SettingRow label="Font family" description="Leave empty for the default prose font (Inter)">
         <TextField
           value={e.fontFamily}
-          placeholder="Inter, Newsreader, JetBrains Mono…"
+          placeholder="Inter, Newsreader, MesloLGL Nerd Font Mono…"
           onChange={(fontFamily) => update({ editor: { ...e, fontFamily } })}
         />
       </SettingRow>
@@ -645,6 +645,7 @@ const BINDABLE: { id: string; label: string; dflt: string }[] = [
   { id: 'format.highlight', label: 'Highlight selection', dflt: 'CmdOrCtrl+Shift+H' },
   { id: 'note.extractSelection', label: 'Extract to note', dflt: 'CmdOrCtrl+Alt+N' },
   { id: 'view.toggleSidebar', label: 'Toggle sidebar', dflt: 'CmdOrCtrl+B' },
+  { id: 'view.toggleTerminal', label: 'Toggle terminal', dflt: 'CmdOrCtrl+`' },
   { id: 'view.toggleBacklinks', label: 'Backlinks panel', dflt: 'CmdOrCtrl+Shift+B' },
   { id: 'view.toggleOutline', label: 'Outline panel', dflt: 'CmdOrCtrl+Shift+U' },
   { id: 'view.toggleSearch', label: 'Workspace search', dflt: 'CmdOrCtrl+Shift+F' },

@@ -1,0 +1,39 @@
+/* MesloLGL Nerd Font Mono — the code and terminal face.
+   Bundled rather than relied on from the system for the same reason as Inter and
+   JetBrains Mono: the app must look the same on a machine that has never heard of
+   it. The Nerd Font patch is what makes shell prompts render — powerline
+   separators, git branch marks, file-type icons — instead of tofu, and the *Mono*
+   cut keeps those glyphs single-width so a terminal grid stays aligned.
+   Meslo LG is Apache-2.0 (see ../assets/fonts/LICENSE.txt). */
+
+@font-face {
+  font-family: 'MesloLGL Nerd Font Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/MesloLGLNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'MesloLGL Nerd Font Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/MesloLGLNerdFontMono-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'MesloLGL Nerd Font Mono';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/MesloLGLNerdFontMono-Italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'MesloLGL Nerd Font Mono';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/MesloLGLNerdFontMono-BoldItalic.woff2') format('woff2');
+}
