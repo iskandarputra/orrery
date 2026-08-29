@@ -1,3 +1,4 @@
+import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphEdge } from '@shared/types'
 import { useStore } from '@/state/store'
@@ -21,16 +22,6 @@ type ColorBy = 'none' | 'cluster' | 'folder'
  * hues, which would give two clusters on screen the same colour.
  */
 const VIZ_SLOTS = 8
-
-function rankBySize(values: (string | number)[]): Map<string, number> {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(String(value), (counts.get(String(value)) ?? 0) + 1)
-  return new Map(
-    [...counts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([key], i) => [key, i])
-  )
-}
 
 /** Tunable graph controls — mirrors Obsidian's Filters / Forces / Display panel. */
 interface Controls {
@@ -81,7 +72,9 @@ export function GraphView(): React.JSX.Element | null {
   const close = (): void => useStore.setState({ graphOpen: false })
   const rootPath = useStore((s) => s.rootPath)
   const loadGraph = useStore((s) => s.loadGraph)
-  const activePath = useStore((s) => (s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null))
+  const activePath = useStore((s) =>
+    s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null
+  )
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [status, setStatus] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
@@ -106,81 +99,43 @@ export function GraphView(): React.JSX.Element | null {
   /** Cluster / folder → palette slot, biggest first. */
   const clusterRankRef = useRef<Map<string, number>>(new Map())
   const folderRankRef = useRef<Map<string, number>>(new Map())
-  const zoomControlsRef = useRef<{ zoomIn(): void; zoomOut(): void; resetZoom(): void; fit(): void } | null>(null)
+  const zoomControlsRef = useRef<{
+    zoomIn(): void
+    zoomOut(): void
+    resetZoom(): void
+    fit(): void
+  } | null>(null)
 
   // Derive the visible sub-graph from the current controls, preserving positions.
   const rebuild = useCallback(() => {
     const all = allByIdRef.current
-    const allEdges = allEdgesRef.current
     const c = ctlRef.current
-    const empty = (msg: string): void => {
+    const empty = (message: string): void => {
       workNodesRef.current = []
       workEdgesRef.current = []
       workByIdRef.current = new Map()
-      setStatus(msg)
+      setStatus(message)
     }
     if (all.size === 0) return empty('')
 
-    // Ghost (linked-but-missing) filter.
-    const ids = new Set<string>()
-    for (const [id, n] of all) if (c.ghosts || n.exists) ids.add(id)
-
-    // Local view: BFS out from the active note up to `depth` hops.
-    if (c.local) {
-      const center = activePath && ids.has(activePath) ? activePath : null
-      if (!center) return empty('Open a note to see its local graph')
-      const adj = new Map<string, string[]>()
-      const link = (a: string, b: string): void => {
-        const list = adj.get(a)
-        if (list) list.push(b)
-        else adj.set(a, [b])
-      }
-      for (const e of allEdges) {
-        if (!ids.has(e.from) || !ids.has(e.to)) continue
-        link(e.from, e.to)
-        link(e.to, e.from)
-      }
-      const reached = new Set([center])
-      let frontier = [center]
-      for (let d = 0; d < c.depth; d++) {
-        const next: string[] = []
-        for (const id of frontier)
-          for (const nb of adj.get(id) ?? [])
-            if (!reached.has(nb)) {
-              reached.add(nb)
-              next.push(nb)
-            }
-        frontier = next
-      }
-      ids.forEach((id) => {
-        if (!reached.has(id)) ids.delete(id)
-      })
-    }
-
-    let edges = allEdges.filter((e) => ids.has(e.from) && ids.has(e.to))
-
-    // Orphan (unlinked) filter — after ghost/local pruning removes their edges.
-    if (!c.orphans) {
-      const linked = new Set<string>()
-      for (const e of edges) {
-        linked.add(e.from)
-        linked.add(e.to)
-      }
-      ids.forEach((id) => {
-        if (!linked.has(id)) ids.delete(id)
-      })
-      edges = edges.filter((e) => ids.has(e.from) && ids.has(e.to))
-    }
+    const { ids, edges, needsCenter } = filterGraphView(all, allEdgesRef.current, {
+      ghosts: c.ghosts,
+      orphans: c.orphans,
+      local: c.local,
+      depth: c.depth,
+      center: activePath
+    })
+    if (needsCenter) return empty('Open a note to see its local graph')
 
     const nodes: SimNode[] = []
     const byId = new Map<string, SimNode>()
-    ids.forEach((id) => {
-      const n = all.get(id)
-      if (n) {
-        nodes.push(n)
-        byId.set(id, n)
+    for (const id of ids) {
+      const node = all.get(id)
+      if (node) {
+        nodes.push(node)
+        byId.set(id, node)
       }
-    })
+    }
     workNodesRef.current = nodes
     workEdgesRef.current = edges
     workByIdRef.current = byId
@@ -225,7 +180,10 @@ export function GraphView(): React.JSX.Element | null {
       fit: () => {
         const nodes = workNodesRef.current
         if (nodes.length === 0) return
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+        let minX = Infinity,
+          maxX = -Infinity,
+          minY = Infinity,
+          maxY = -Infinity
         for (const n of nodes) {
           if (n.x < minX) minX = n.x
           if (n.x > maxX) maxX = n.x
@@ -235,8 +193,8 @@ export function GraphView(): React.JSX.Element | null {
         const w = maxX - minX + 100
         const h = maxY - minY + 100
         zoom = Math.min(2, Math.max(0.3, Math.min(canvas.clientWidth / w, canvas.clientHeight / h)))
-        panX = -(minX + maxX) / 2 * zoom
-        panY = -(minY + maxY) / 2 * zoom
+        panX = (-(minX + maxX) / 2) * zoom
+        panY = (-(minY + maxY) / 2) * zoom
       }
     }
 
@@ -419,7 +377,8 @@ export function GraphView(): React.JSX.Element | null {
         if (c.labels && !dimmed && (zoom > 0.6 || n === hover || n.degree >= 2 || isActiveNode)) {
           const isSpecial = n === hover || isActiveNode
           const maxChars = isSpecial ? 28 : Math.max(12, Math.floor(18 * zoom))
-          const displayLabel = n.label.length > maxChars ? `${n.label.slice(0, maxChars - 1)}…` : n.label
+          const displayLabel =
+            n.label.length > maxChars ? `${n.label.slice(0, maxChars - 1)}…` : n.label
 
           ctx.fillStyle = isSpecial ? colors.labelHover : colors.label
           ctx.font = `${isSpecial ? '600 ' : '400 '}${11 / zoom}px sans-serif`
@@ -456,8 +415,8 @@ export function GraphView(): React.JSX.Element | null {
         pagerank: Math.max(0, ...data.nodes.map((n) => n.pagerank)),
         betweenness: Math.max(0, ...data.nodes.map((n) => n.betweenness))
       }
-      clusterRankRef.current = rankBySize(data.nodes.map((n) => n.community))
-      folderRankRef.current = rankBySize(data.nodes.map((n) => n.folder))
+      clusterRankRef.current = rankByFrequency(data.nodes.map((n) => n.community))
+      folderRankRef.current = rankByFrequency(data.nodes.map((n) => n.folder))
       readyRef.current = true
       rebuildRef.current()
       raf = requestAnimationFrame(tick)
@@ -638,7 +597,9 @@ export function GraphView(): React.JSX.Element | null {
                       {hoverNode.node.community + 1}
                     </span>
                   )}
-                  {!hoverNode.node.exists && <span className="graph__hover-ghost">(Uncreated note)</span>}
+                  {!hoverNode.node.exists && (
+                    <span className="graph__hover-ghost">(Uncreated note)</span>
+                  )}
                 </div>
               </div>
             )}
@@ -648,7 +609,11 @@ export function GraphView(): React.JSX.Element | null {
                 <section className="graph__section">
                   <h4 className="graph__section-title">Filters</h4>
                   <Check label="Orphan notes" on={ctl.orphans} set={(v) => up({ orphans: v })} />
-                  <Check label="Ghost (uncreated) notes" on={ctl.ghosts} set={(v) => up({ ghosts: v })} />
+                  <Check
+                    label="Ghost (uncreated) notes"
+                    on={ctl.ghosts}
+                    set={(v) => up({ ghosts: v })}
+                  />
                   <Check label="Local graph mode" on={ctl.local} set={(v) => up({ local: v })} />
                   {ctl.local && (
                     <Range
@@ -663,10 +628,38 @@ export function GraphView(): React.JSX.Element | null {
                 </section>
                 <section className="graph__section">
                   <h4 className="graph__section-title">Forces</h4>
-                  <Range label="Gravity (Center)" value={ctl.center} min={0} max={2} step={0.05} set={(v) => up({ center: v })} />
-                  <Range label="Node Repulsion" value={ctl.repel} min={0} max={2} step={0.05} set={(v) => up({ repel: v })} />
-                  <Range label="Link Elasticity" value={ctl.linkForce} min={0} max={2} step={0.05} set={(v) => up({ linkForce: v })} />
-                  <Range label="Link Distance" value={ctl.linkDistance} min={0.2} max={2.5} step={0.05} set={(v) => up({ linkDistance: v })} />
+                  <Range
+                    label="Gravity (Center)"
+                    value={ctl.center}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    set={(v) => up({ center: v })}
+                  />
+                  <Range
+                    label="Node Repulsion"
+                    value={ctl.repel}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    set={(v) => up({ repel: v })}
+                  />
+                  <Range
+                    label="Link Elasticity"
+                    value={ctl.linkForce}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    set={(v) => up({ linkForce: v })}
+                  />
+                  <Range
+                    label="Link Distance"
+                    value={ctl.linkDistance}
+                    min={0.2}
+                    max={2.5}
+                    step={0.05}
+                    set={(v) => up({ linkDistance: v })}
+                  />
                 </section>
                 <section className="graph__section">
                   <h4 className="graph__section-title">Analysis</h4>
@@ -693,8 +686,16 @@ export function GraphView(): React.JSX.Element | null {
                 </section>
                 <section className="graph__section">
                   <h4 className="graph__section-title">Display</h4>
-                  <Check label="Link direction arrows" on={ctl.arrows} set={(v) => up({ arrows: v })} />
-                  <Check label="Always show note labels" on={ctl.labels} set={(v) => up({ labels: v })} />
+                  <Check
+                    label="Link direction arrows"
+                    on={ctl.arrows}
+                    set={(v) => up({ arrows: v })}
+                  />
+                  <Check
+                    label="Always show note labels"
+                    on={ctl.labels}
+                    set={(v) => up({ labels: v })}
+                  />
                   <Check label="Scale node size" on={ctl.scale} set={(v) => up({ scale: v })} />
                 </section>
                 <button className="graph__reset" onClick={() => setCtl({ ...DEFAULTS })}>
