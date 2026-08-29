@@ -7,8 +7,9 @@ import { invalidateEmbed } from '@/editor/live-preview/embeds'
 import { refreshGitGutter } from '@/editor/git-gutter'
 import { invoke, parseIpcError } from '@/services/client'
 import { EditorState } from '@codemirror/state'
-import type { AppState } from './store'
+import type { AppState } from './app-state'
 import { documentKind, type DocumentKind } from '@core/document-kind'
+import * as tabs from '@core/tab-layout'
 import { surfaceForFile } from '@/plugins/registry'
 import { closeDocument } from '@/editor/lsp-session'
 
@@ -246,42 +247,20 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
 
   setActive(id) {
     if (!get().buffers[id]) return
-    set((s) => {
-      // Already showing in the other pane? Move focus there rather than
-      // opening the same file twice — two editors on one buffer would give it
-      // two diverging histories.
-      const other = s.focusedPane === 0 ? 1 : 0
-      if (s.paneIds[other] === id) return { activeId: id, focusedPane: other as 0 | 1 }
-
-      const paneIds: [string | null, string | null] = [...s.paneIds]
-      paneIds[s.focusedPane] = id
-      return { activeId: id, paneIds }
-    })
+    set((s) => tabs.activate(s, id))
     rememberSession(get())
   },
 
   toggleSplit() {
-    set((s) => {
-      if (s.paneIds[1] !== null) {
-        // Collapsing keeps whichever note you were looking at.
-        const kept = s.paneIds[s.focusedPane] ?? s.paneIds[0]
-        return { paneIds: [kept, null], focusedPane: 0, activeId: kept }
-      }
-      const beside = s.tabOrder.find((id) => id !== s.paneIds[0]) ?? null
-      return { paneIds: [s.paneIds[0], beside] }
-    })
+    set((s) => tabs.toggleSplit(s))
   },
 
   focusPane(pane) {
-    set((s) => {
-      const id = s.paneIds[pane]
-      if (id === null) return {}
-      return { focusedPane: pane, activeId: id }
-    })
+    set((s) => tabs.focusPane(s, pane))
   },
 
   focusOtherPane() {
-    get().focusPane(get().focusedPane === 0 ? 1 : 0)
+    set((s) => tabs.focusOtherPane(s))
   },
 
   setDirty(id, dirty) {
@@ -389,39 +368,20 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     bufferRegistry.remove(id)
     set((s) => {
       const { [id]: _removed, ...rest } = s.buffers
-      const tabOrder = s.tabOrder.filter((t) => t !== id)
-      let activeId = s.activeId
-      if (activeId === id) {
-        const idx = s.tabOrder.indexOf(id)
-        activeId = tabOrder[Math.min(idx, tabOrder.length - 1)] ?? null
-      }
-      const paneIds = s.paneIds.map((paneId) => (paneId === id ? null : paneId)) as [
-        string | null,
-        string | null
-      ]
-      if (paneIds[0] === null && paneIds[1] !== null) {
-        // Never leave a hole on the left; slide the survivor over.
-        paneIds[0] = paneIds[1]
-        paneIds[1] = null
-      }
-      if (activeId && !paneIds.includes(activeId)) paneIds[0] = activeId
-      return { buffers: rest, tabOrder, activeId, paneIds, focusedPane: 0 as 0 | 1 }
+      return { buffers: rest, ...tabs.closeTab(s, id) }
     })
     rememberSession(get())
     return true
   },
 
   async closeOthers(id) {
-    for (const other of [...get().tabOrder].filter((t) => t !== id)) {
+    for (const other of tabs.otherTabs(get(), id)) {
       if (!(await get().closeTab(other))) return
     }
   },
 
   async closeToRight(id) {
-    const order = get().tabOrder
-    const idx = order.indexOf(id)
-    if (idx === -1) return
-    for (const other of order.slice(idx + 1)) {
+    for (const other of tabs.tabsToRight(get(), id)) {
       if (!(await get().closeTab(other))) return
     }
   },
