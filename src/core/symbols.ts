@@ -59,9 +59,59 @@ const DECLARATIONS: RegExp[] = [
 /** Words that look like declarations to the last pattern but are control flow. */
 const NOT_A_NAME = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'else', 'do'])
 
+/**
+ * Lines that are prose, not code.
+ *
+ * Comments and docstrings have to be skipped or the patterns below read them.
+ * A docstring containing the words "function with a flag" was reported as a
+ * declaration named `with`, because that is exactly what the JavaScript pattern
+ * matches. Anything written in a comment is written in prose, and prose
+ * eventually contains every keyword there is.
+ */
+function isProse(line: string, state: { block: boolean; doc: string | null }): boolean {
+  const trimmed = line.trim()
+
+  // Python and friends: a docstring opened on one line and closed on another.
+  if (state.doc) {
+    if (trimmed.includes(state.doc)) state.doc = null
+    return true
+  }
+  for (const quote of ['"""', "'''"]) {
+    if (trimmed.startsWith(quote)) {
+      // Either closed on this line, or left open for the lines that follow.
+      if (!trimmed.slice(quote.length).includes(quote)) state.doc = quote
+      return true
+    }
+  }
+
+  // C-style block comments, including the JSDoc that documents the very
+  // declarations this is looking for.
+  if (state.block) {
+    if (trimmed.includes('*/')) state.block = false
+    return true
+  }
+  if (trimmed.startsWith('/*')) {
+    if (!trimmed.includes('*/')) state.block = true
+    return true
+  }
+
+  // Single-line comments across the languages the editor opens. `#` is a
+  // preprocessor directive in C rather than a comment, and neither of those is
+  // a declaration, so skipping the line is right either way.
+  return (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('#') ||
+    trimmed.startsWith('*') ||
+    trimmed.startsWith('--') ||
+    trimmed.startsWith(';')
+  )
+}
+
 function codeSymbols(text: string): DocSymbol[] {
   const out: DocSymbol[] = []
+  const state = { block: false, doc: null as string | null }
   text.split('\n').forEach((line, i) => {
+    if (isProse(line, state)) return
     for (const pattern of DECLARATIONS) {
       const m = line.match(pattern)
       if (!m?.[1] || NOT_A_NAME.has(m[1])) continue

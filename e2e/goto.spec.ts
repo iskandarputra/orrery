@@ -146,3 +146,23 @@ test('in a note it lists headings, and not the ones inside a fence', async () =>
   // A shell comment in a fenced block is not a heading.
   await expect(page.locator('.palette')).not.toContainText('not a heading')
 })
+
+/**
+ * Quick open, which is asked "where is that file" and has to be able to answer
+ * for any of them.
+ */
+test('Ctrl+P finds a code file, not only notes', async () => {
+  // It shared the index built for wikilink resolution, which is notes only, so
+  // it could not find a single code file in the vault.
+  await openPalette('app.quickOpen', 'lexer')
+  await expect(page.locator('.palette__item').first()).toContainText('lexer.ts')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.tab--active')).toContainText('lexer.ts')
+})
+
+test('quick open keeps the extension, so same-named files are told apart', async () => {
+  await openPalette('app.quickOpen', 'Note')
+  const labels = await page.locator('.palette__item').allTextContents()
+  expect(labels.join(' ')).toContain('Note.md')
+  await page.keyboard.press('Escape')
+})

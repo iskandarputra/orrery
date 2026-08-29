@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fuzzyFilter } from '@core/fuzzy'
 import { buildNoteIndex } from '@core/notes'
+import { fileIcon } from '@core/file-icons'
 import { documentSymbols, parseLineTarget } from '@core/symbols'
 import { getActiveView } from '@/editor/active-view'
 import { insertTemplate } from '@/notes/daily'
@@ -42,7 +43,8 @@ export function Palette(): React.JSX.Element | null {
 
 function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.Element {
   const close = useStore((s) => s.closePalette)
-  const noteIndex = useStore((s) => s.noteIndex)
+  // Every file, not only the notes: quick open is asked where a file is.
+  const fileIndex = useStore((s) => s.fileIndex)
   const openPaths = useStore((s) => s.openPaths)
   const settings = useStore((s) => s.settings)
   const picking = initialMode === 'templates'
@@ -114,12 +116,12 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     }
 
     if (activeTab === 'all' || activeTab === 'files') {
-      noteIndex.forEach((n) => {
+      fileIndex.forEach((n) => {
         list.push({
           id: `file:${n.path}`,
           label: n.stem,
           detail: n.path,
-          icon: 'file-text',
+          icon: fileIcon(n.stem).shape,
           run: () => void openPaths([n.path])
         })
       })
@@ -141,7 +143,16 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     }
 
     return list
-  }, [picking, templates, activeTab, noteIndex, openPaths, settings.keybindings, lineQuery, symbolQuery])
+  }, [
+    picking,
+    templates,
+    activeTab,
+    fileIndex,
+    openPaths,
+    settings.keybindings,
+    lineQuery,
+    symbolQuery
+  ])
 
   const results = useMemo(() => {
     // A line target is already the answer, and a symbol list is filtered by what
@@ -184,10 +195,10 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
               picking
                 ? 'Insert a template…'
                 : activeTab === 'files'
-                ? 'Open note by name…'
-                : activeTab === 'commands'
-                  ? 'Run a command…'
-                  : 'Search notes and commands…'
+                  ? 'Open note by name…'
+                  : activeTab === 'commands'
+                    ? 'Run a command…'
+                    : 'Search notes and commands…'
             }
             value={query}
             onChange={(e) => {
@@ -211,7 +222,9 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
                 pick(results[selected])
               } else if (e.key === 'Tab' && !picking) {
                 e.preventDefault()
-                setActiveTab((t) => (t === 'files' ? 'commands' : t === 'commands' ? 'all' : 'files'))
+                setActiveTab((t) =>
+                  t === 'files' ? 'commands' : t === 'commands' ? 'all' : 'files'
+                )
                 setSelected(0)
               }
             }}

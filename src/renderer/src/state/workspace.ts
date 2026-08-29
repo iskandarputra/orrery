@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import type { FileNode, FsEvent } from '@shared/types'
-import { buildNoteIndex, type NoteRef } from '@core/notes'
+import { buildFileIndex, buildNoteIndex, type NoteRef } from '@core/notes'
 import { pushRecent } from '@core/recent'
 import { invoke, parseIpcError } from '@/services/client'
 import type { AppState } from './app-state'
@@ -11,6 +11,8 @@ export interface WorkspaceSlice {
   watchId: string | null
   /** Markdown notes in the workspace — powers wikilink resolution/completion. */
   noteIndex: NoteRef[]
+  /** Every file, for quick open. Notes only would not find a code file. */
+  fileIndex: NoteRef[]
 
   /** Open a folder as the workspace; no argument shows the folder picker. */
   openFolder(path?: string): Promise<void>
@@ -25,6 +27,7 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
   tree: null,
   watchId: null,
   noteIndex: [],
+  fileIndex: [],
 
   async openFolder(path) {
     const target = path ?? (await invoke('dialog:openFolder', undefined))
@@ -36,7 +39,13 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
     try {
       const tree = await invoke('fs:readTree', { path: target })
       const { watchId } = await invoke('fs:watch', { path: target })
-      set({ rootPath: target, tree, watchId, noteIndex: buildNoteIndex(tree) })
+      set({
+        rootPath: target,
+        tree,
+        watchId,
+        noteIndex: buildNoteIndex(tree),
+        fileIndex: buildFileIndex(tree)
+      })
       get().updateSettings({
         lastOpenedFolder: target,
         recentFolders: pushRecent(get().settings.recentFolders, target)
@@ -55,7 +64,7 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
     if (!root) return
     try {
       const tree = await invoke('fs:readTree', { path: root })
-      set({ tree, noteIndex: buildNoteIndex(tree) })
+      set({ tree, noteIndex: buildNoteIndex(tree), fileIndex: buildFileIndex(tree) })
     } catch {
       // Root folder disappeared — close the workspace.
       set({ rootPath: null, tree: null, watchId: null, noteIndex: [] })

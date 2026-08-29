@@ -84,3 +84,59 @@ describe('parseLineTarget', () => {
     expect(parseLineTarget('5', 0)).toBe(1)
   })
 })
+
+describe('comments and docstrings are prose, not declarations', () => {
+  it('does not read a docstring that mentions a keyword', () => {
+    // Reported from a real file: the docstring line "function with a flag"
+    // matched the JavaScript pattern and produced a symbol called `with`.
+    const src = [
+      'def decide(facts):',
+      '    """Decide.',
+      '',
+      '    The mirror of the other one, and deliberately not the same',
+      '    function with a flag: the two disagree on the location test.',
+      '    """',
+      '    return 1'
+    ].join('\n')
+    expect(names(src, 'a.py')).toEqual(['decide'])
+  })
+
+  it('does not read a JSDoc block that documents a function', () => {
+    // The comment above a declaration talks about the declaration, so it is the
+    // single most likely place for these words to appear.
+    const src = [
+      '/**',
+      ' * A function that takes a class and returns an interface.',
+      ' * export function notReal(): void',
+      ' */',
+      'export function real(): void {}'
+    ].join('\n')
+    expect(names(src, 'a.ts')).toEqual(['real'])
+  })
+
+  it('does not read a line comment', () => {
+    expect(names('// function ghost() {\nfunction real() {}', 'a.ts')).toEqual(['real'])
+    expect(names('# def ghost():\ndef real():', 'a.py')).toEqual(['real'])
+  })
+
+  it('closes a block comment and carries on', () => {
+    const src = '/* def ghost(): */\ndef real():\n'
+    expect(names(src, 'a.py')).toEqual(['real'])
+  })
+
+  it('handles a single-line docstring', () => {
+    const src = 'def a():\n    """One line: function with a flag."""\n    pass\ndef b():\n'
+    expect(names(src, 'a.py')).toEqual(['a', 'b'])
+  })
+
+  it('handles a docstring in single quotes', () => {
+    const src = ['def a():', "    '''function with a flag", "    '''", 'def b():'].join('\n')
+    expect(names(src, 'a.py')).toEqual(['a', 'b'])
+  })
+
+  it('does not swallow the rest of the file on an unclosed comment', () => {
+    // Everything after an unterminated block comment is genuinely inside it, so
+    // finding nothing is correct rather than a failure to parse.
+    expect(names('/*\nfunction ghost() {}', 'a.ts')).toEqual([])
+  })
+})

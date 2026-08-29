@@ -1,5 +1,5 @@
 import type { FileNode } from '@shared/types'
-import { isMarkdownFile, stem } from './paths'
+import { basename, isMarkdownFile, stem } from './paths'
 
 export interface NoteRef {
   path: string
@@ -8,6 +8,27 @@ export interface NoteRef {
 }
 
 /** Flatten a workspace tree into the markdown note index. */
+/**
+ * Every file in the vault, for opening one by name.
+ *
+ * Separate from the note index because the two answer different questions. A
+ * wikilink resolves to a note and should not find a TypeScript file; quick open
+ * is asked "where is that file" and should find anything, which is why it could
+ * not find a single one while it shared an index built for links.
+ */
+export function buildFileIndex(tree: FileNode | null): NoteRef[] {
+  const files: NoteRef[] = []
+  const walk = (node: FileNode): void => {
+    if (node.kind === 'file') {
+      files.push({ path: node.path, stem: basename(node.path) })
+      return
+    }
+    node.children?.forEach(walk)
+  }
+  if (tree) walk(tree)
+  return files
+}
+
 export function buildNoteIndex(tree: FileNode | null): NoteRef[] {
   const notes: NoteRef[] = []
   const walk = (node: FileNode): void => {
