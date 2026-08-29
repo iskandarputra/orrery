@@ -28,15 +28,67 @@ const LANE_COLOURS = ['#7c93ff', '#3fb950', '#d29922', '#f85149', '#bd93f9', '#3
 const laneColour = (lane: number): string => LANE_COLOURS[lane % LANE_COLOURS.length]!
 
 /**
- * Everything textual about a commit, for the row's hover.
+ * The hover: enough to identify a row, and no more.
  *
- * The full message rather than the truncated subject the row can fit, plus who
- * and when and the whole hash. Reading a commit message should not require
- * deciding to expand something.
+ * The subject a narrow panel had to truncate, and the full hash. The message
+ * itself is a right-click away, in something that can be read and selected —
+ * a tooltip is neither.
  */
 function commitTooltip(commit: Commit): string {
-  const message = commit.body ? `${commit.subject}\n\n${commit.body}` : commit.subject
-  return `${message}\n\n${commit.author} · ${commit.date}\n${commit.hash}`
+  return `${commit.subject}\n${commit.hash}`
+}
+
+/**
+ * A commit's message, in full.
+ *
+ * A popup rather than a tooltip or an inline block: a message can run to
+ * paragraphs, and it should be possible to read it slowly, select it and copy
+ * a line out of it. Neither of the others allows that.
+ */
+function CommitMessage({
+  commit,
+  onClose
+}: {
+  commit: Commit
+  onClose: () => void
+}): React.JSX.Element {
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className="commit-message"
+        role="dialog"
+        aria-label={`Message of commit ${commit.hash.slice(0, 7)}`}
+        onKeyDown={(e) => e.key === 'Escape' && onClose()}
+      >
+        <div className="commit-message__head">
+          <Icon name="git-branch" size={15} />
+          <h3 className="commit-message__subject">{commit.subject}</h3>
+          <button className="icon-btn" aria-label="Close" title="Close" onClick={onClose}>
+            <Icon name="x" size={15} />
+          </button>
+        </div>
+        {commit.body && <pre className="commit-message__body">{commit.body}</pre>}
+        <div className="commit-message__meta">
+          <span>{commit.author}</span>
+          <span>·</span>
+          <span>{commit.date}</span>
+        </div>
+        <code className="commit-message__hash">{commit.hash}</code>
+        <div className="commit-message__actions">
+          <button
+            className="commit-message__copy"
+            onClick={() =>
+              void navigator.clipboard.writeText(
+                commit.body ? `${commit.subject}\n\n${commit.body}` : commit.subject
+              )
+            }
+          >
+            <Icon name="copy" size={13} /> Copy message
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -160,6 +212,8 @@ export function GitGraph(): React.JSX.Element {
    * would have done nothing but log an error.
    */
   const [branchingFrom, setBranchingFrom] = useState<string | null>(null)
+  /** The commit whose message is being read, if any. */
+  const [reading, setReading] = useState<Commit | null>(null)
 
   /**
    * Run a git command that changes the repository, then reload.
@@ -181,6 +235,12 @@ export function GitGraph(): React.JSX.Element {
     const short = commit.hash.slice(0, 7)
     if (!rootPath) return []
     return [
+      {
+        label: 'View message',
+        icon: 'file-text',
+        onSelect: () => setReading(commit)
+      },
+      { separator: true },
       {
         label: 'Copy commit hash',
         icon: 'copy',
@@ -249,6 +309,7 @@ export function GitGraph(): React.JSX.Element {
 
   return (
     <div className="gitgraph">
+      {reading && <CommitMessage commit={reading} onClose={() => setReading(null)} />}
       {rows.map((commit) => (
         <div key={commit.hash}>
           <button

@@ -62,15 +62,50 @@ test.afterAll(async () => {
   rmSync(vault, { recursive: true, force: true })
 })
 
-test('the whole message is on the hover, without expanding anything', async () => {
-  // Reading a commit message should not require deciding to expand something,
-  // and an expanded body would push the rest of the history down the panel.
+test('the hover identifies a row and stops there', async () => {
+  // The subject a narrow panel truncates, and the hash. Not the message: a
+  // tooltip cannot be read slowly, selected, or copied from.
   await openGraph()
   const tooltip = await rowFor('second commit').getAttribute('title')
   expect(tooltip).toContain('second commit with a body')
-  expect(tooltip).toContain('the reason it happened')
-  expect(tooltip).toContain('Grapher')
   expect(tooltip).toContain(git('rev-parse', 'HEAD'))
+  expect(tooltip).not.toContain('the reason it happened')
+})
+
+test('the message opens as a popup from the context menu', async () => {
+  await openGraph()
+  await rowFor('second commit').click({ button: 'right' })
+  await page.locator('.ctx-menu').getByText('View message').click()
+
+  const popup = page.locator('.commit-message')
+  await expect(popup).toBeVisible({ timeout: 10_000 })
+  await expect(popup).toContainText('second commit with a body')
+  await expect(popup).toContainText('the reason it happened')
+  await expect(popup).toContainText('Grapher')
+  await expect(popup).toContainText(git('rev-parse', 'HEAD'))
+
+  // Selectable, which is the reason it is a popup and not a tooltip.
+  const selectable = await popup
+    .locator('.commit-message__body')
+    .evaluate((el) => getComputedStyle(el).userSelect)
+  expect(selectable).toBe('text')
+
+  await popup.getByRole('button', { name: 'Close' }).click()
+  await expect(popup).toBeHidden()
+})
+
+test('no commit message appears when a row is expanded', async () => {
+  await openGraph()
+  // Right-clicking also reveals a row, so collapse first if the previous test
+  // left it open: the click below has to be the one that opens it.
+  if (await page.locator('.commit-detail').first().isVisible()) {
+    await rowFor('second commit').click()
+  }
+  await rowFor('second commit').click()
+  await expect(page.locator('.commit-detail__file').first()).toBeVisible()
+  await expect(page.locator('.commit-message')).toHaveCount(0)
+  await expect(page.locator('.commit-detail')).not.toContainText('the reason it happened')
+  await rowFor('second commit').click()
 })
 
 test('clicking a commit reveals which files it touched', async () => {
