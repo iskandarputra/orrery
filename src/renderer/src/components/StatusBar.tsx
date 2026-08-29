@@ -1,6 +1,7 @@
 import { useEditorStats } from '@/state/editor-stats'
 import { useStore } from '@/state/store'
 import { languageLabel } from '@/editor/code-language'
+import { surfaceForKind } from '@/plugins/registry'
 import { getTheme } from '@/themes/themes'
 import { Icon, type IconName } from './Icon'
 
@@ -23,14 +24,11 @@ export function StatusBar(): React.JSX.Element {
   // of. Reporting "Ln 1, Col 1 · 298 words · Markdown" for a board is not a
   // rounding error — every one of those numbers is about a document that is not
   // the one on screen.
-  const isDrawing = active?.kind === 'canvas' || active?.kind === 'excalidraw'
+  const surface = active ? surfaceForKind(active.kind) : null
+  const isDrawing = active?.kind === 'canvas' || surface !== null
   const language = isCode
     ? languageLabel(active.fileName)
-    : active?.kind === 'excalidraw'
-      ? 'Excalidraw'
-      : active?.kind === 'canvas'
-        ? 'Canvas'
-        : 'Markdown'
+    : (surface?.label ?? (active?.kind === 'canvas' ? 'Canvas' : 'Markdown'))
 
   const activeThemeId = mode === 'dark' ? darkTheme : lightTheme
   const activeThemeName = getTheme(activeThemeId).name

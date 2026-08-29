@@ -10,8 +10,8 @@ import { refreshGitGutter } from '@/editor/git-gutter'
 import { openDocument, replayDiagnostics } from '@/editor/lsp-session'
 import { lineWidthCss } from '@/editor/line-width'
 import { useStore } from '@/state/store'
+import { surfaceForKind } from '@/plugins/registry'
 import { CanvasEditor } from './CanvasEditor'
-import { ExcalidrawEditor } from './ExcalidrawEditor'
 import { DiffView } from './DiffView'
 import { EmptyState } from './PanelBits'
 
@@ -39,10 +39,11 @@ function Pane({
   const kind = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind : undefined))
   const isDirty = useStore((s) => (bufferId ? (s.buffers[bufferId]?.isDirty ?? false) : false))
   const isCanvas = kind === 'canvas'
-  const isExcalidraw = kind === 'excalidraw'
   const isDiff = kind === 'diff'
+  // A surface contributed by a plugin, rendered in place of the text editor.
+  const surface = kind ? surfaceForKind(kind) : null
   // Neither surface is a CodeMirror view, so the editor host stays hidden.
-  const isCustom = isCanvas || isExcalidraw || isDiff
+  const isCustom = isCanvas || isDiff || surface !== null
 
   useEffect(() => {
     const view = new EditorView({ parent: containerRef.current! })
@@ -165,7 +166,7 @@ function Pane({
         }}
       />
       {isCanvas && bufferId && <CanvasEditor key={bufferId} bufferId={bufferId} />}
-      {isExcalidraw && bufferId && <ExcalidrawEditor key={bufferId} bufferId={bufferId} />}
+      {surface && bufferId && <surface.Component key={bufferId} bufferId={bufferId} />}
       {isDiff && bufferId && <DiffView key={bufferId} bufferId={bufferId} />}
       {!bufferId && <EmptyState icon="file-text">Open a note in this pane.</EmptyState>}
     </div>

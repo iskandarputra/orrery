@@ -4,13 +4,15 @@ import type { OrderedExcalidrawElement } from '@excalidraw/excalidraw/element/ty
 import { viewForBuffer } from '@/editor/active-view'
 import { useDocVersion } from '@/state/doc-version'
 import { useStore } from '@/state/store'
-import { EmptyState } from './PanelBits'
+import { EmptyState } from '@/components/PanelBits'
 
 /**
  * Excalidraw as a document surface.
  *
- * The proof that the DocumentKind seam is real: a third-party editor becomes a
- * first-class file type without the rest of the app learning anything about it.
+ * Registered through the plugin API rather than wired into the editor pane, so
+ * nothing in the app knows this file type exists. That is the point: the same
+ * route is open to any third-party editor, and this one is only the first to
+ * take it.
  * `.excalidraw` files are the format Excalidraw itself reads and writes, so a
  * drawing made here opens on excalidraw.com and one made there opens here — the
  * integration is the file format, not a private encoding of it.

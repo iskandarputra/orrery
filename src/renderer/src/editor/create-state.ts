@@ -143,6 +143,11 @@ export function settingsExtensions(settings: Settings, kind: DocumentKind = 'mar
   // Code is not prose: none of the markdown machinery below applies to it, and
   // most of it actively misreads it.
   if (kind === 'code') return codeExtensions(settings)
+  // A surface-backed document — a board, a drawing, a diff — is a container the
+  // app never shows as text. Everything below would parse its JSON as markdown,
+  // building live-preview decorations, a mermaid pass and an image pass over a
+  // document nobody reads, on every keystroke the surface commits.
+  if (kind !== 'markdown') return []
   const rendered = e.viewMode !== 'source' // 'live' and 'reading' both render
   const reading = e.viewMode === 'reading' // fully rendered, read-only
   // In Reading mode (pure preview), always render markdown and reflow paragraphs like VS Code.

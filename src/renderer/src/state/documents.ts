@@ -9,9 +9,20 @@ import { invoke, parseIpcError } from '@/services/client'
 import { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
 import { documentKind, type DocumentKind } from '@core/document-kind'
+import { surfaceForFile } from '@/plugins/registry'
 import { closeDocument } from '@/editor/lsp-session'
 
 export type { DocumentKind }
+
+/**
+ * What kind of document a path is.
+ *
+ * A plugin-registered surface is asked first: claiming an extension that would
+ * otherwise be read as code is the whole reason to register one.
+ */
+function kindOf(path: string): DocumentKind {
+  return surfaceForFile(path)?.id ?? documentKind(path)
+}
 
 export interface DocumentBuffer {
   /** Stable tab identity — NOT the path (untitled docs have no path). */
@@ -130,7 +141,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           content: file.content,
           settings: get().settings,
           filePath: path,
-          kind: documentKind(path),
+          kind: kindOf(path),
           onDirtyChange: (dirty) => get().setDirty(id, dirty)
         })
         bufferRegistry.create(id, state, state.doc)
@@ -143,7 +154,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
               fileName: basename(path),
               savedMtimeMs: file.mtimeMs,
               isDirty: false,
-              kind: documentKind(path)
+              kind: kindOf(path)
             }
           },
           tabOrder: [...s.tabOrder, id],
