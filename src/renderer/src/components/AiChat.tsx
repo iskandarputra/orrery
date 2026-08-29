@@ -53,7 +53,10 @@ async function buildContext(question: string): Promise<string> {
           rootPath,
           query: term,
           regex: false,
-          caseSensitive: false
+          caseSensitive: false,
+          wholeWord: false,
+          include: '',
+          exclude: ''
         })
         for (const hit of hits.slice(0, 4)) if (!add(hit)) break
       } catch {
@@ -162,17 +165,14 @@ export function AiChatBody(): React.JSX.Element {
         {turns.length === 0 && (
           <div className="aichat__welcome">
             <p className="aichat__intro">
-              Ask questions about your notes. The active document and relevant vault snippets are provided automatically.
+              Ask questions about your notes. The active document and relevant vault snippets are
+              provided automatically.
             </p>
             <div className="aichat__suggestions">
               <span className="aichat__suggestions-label">Try asking:</span>
               <div className="aichat__chips">
                 {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    className="aichat__chip"
-                    onClick={() => send(s)}
-                  >
+                  <button key={s} className="aichat__chip" onClick={() => send(s)}>
                     <span>{s}</span>
                   </button>
                 ))}
@@ -184,9 +184,7 @@ export function AiChatBody(): React.JSX.Element {
         {turns.map((t, i) => (
           <div key={i} className={`aichat__turn aichat__turn--${t.role}`}>
             <div className="aichat__turn-header">
-              <span className="aichat__turn-role">
-                {t.role === 'user' ? 'You' : 'Assistant'}
-              </span>
+              <span className="aichat__turn-role">{t.role === 'user' ? 'You' : 'Assistant'}</span>
               <button
                 className="aichat__turn-copy"
                 title="Copy message"

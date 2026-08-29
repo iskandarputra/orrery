@@ -2,7 +2,9 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fingerprintVault, type FileStamp } from '@core/fingerprint'
 import { buildGraph, type GraphFile } from '@core/graph'
+import { matchesAnyGlob, parsePatternList } from '@core/glob'
 import { analyzeGraph } from '@core/metrics'
+import { buildSearchMatcher, type SearchOptions } from '@core/search-query'
 import { findLinkLines } from '@core/wikilinks'
 import type { BacklinkHit, GraphAnalysis } from '@shared/types'
 import type { SidecarClient } from './sidecar'
@@ -103,23 +105,29 @@ export class LinkScanner {
     return analysis
   }
 
-  /** Full-text search; plain queries are matched literally, or as a regex. */
+  /**
+   * Full-text search across the vault.
+   *
+   * Every text file, not only markdown: the vault is a folder, and since it can
+   * hold code the search that cannot see it is the wrong search. Binary files
+   * are skipped by looking for a NUL byte rather than by extension, because an
+   * extension list is a guess that is wrong for exactly the files people care
+   * about.
+   */
   async search(
     rootPath: string,
     query: string,
-    useRegex: boolean,
-    caseSensitive: boolean
+    options: SearchOptions & { include: string; exclude: string }
   ): Promise<BacklinkHit[]> {
-    const offloaded = await this.searchViaSidecar(rootPath, query, useRegex, caseSensitive)
+    const offloaded = await this.searchViaSidecar(rootPath, query, options)
     if (offloaded) return offloaded
 
-    let matcher: RegExp
-    try {
-      const source = useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      matcher = new RegExp(source, caseSensitive ? '' : 'i')
-    } catch {
-      return []
-    }
+    const matcher = buildSearchMatcher(query, options)
+    if (!matcher) return []
+
+    const include = parsePatternList(options.include)
+    const exclude = parsePatternList(options.exclude)
+
     const hits: BacklinkHit[] = []
     const visit = async (dir: string): Promise<void> => {
       if (hits.length >= MAX_HITS) return
@@ -133,21 +141,34 @@ export class LinkScanner {
         if (hits.length >= MAX_HITS) return
         if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
         const full = path.join(dir, entry.name)
+        const relative = path.relative(rootPath, full).split(path.sep).join('/')
+
         if (entry.isDirectory()) {
+          // Excluding a directory prunes the walk rather than filtering its
+          // files one by one, which is the difference between skipping `dist`
+          // and reading all of it first.
+          if (exclude.length > 0 && matchesAnyGlob(relative + '/', exclude)) continue
           await visit(full)
-        } else if (entry.isFile() && /\.(md|markdown|mdown|mkd)$/i.test(entry.name)) {
-          try {
-            const stat = await fs.stat(full)
-            if (stat.size > MAX_FILE_BYTES) continue
-            const lines = (await fs.readFile(full, 'utf-8')).split('\n')
-            for (let i = 0; i < lines.length && hits.length < MAX_HITS; i++) {
-              if (matcher.test(lines[i]!)) {
-                hits.push({ path: full, line: i + 1, snippet: lines[i]!.trim().slice(0, 200) })
-              }
+          continue
+        }
+        if (!entry.isFile()) continue
+        if (include.length > 0 && !matchesAnyGlob(relative, include)) continue
+        if (exclude.length > 0 && matchesAnyGlob(relative, exclude)) continue
+
+        try {
+          const stat = await fs.stat(full)
+          if (stat.size > MAX_FILE_BYTES) continue
+          const text = await fs.readFile(full, 'utf-8')
+          if (text.includes('\u0000')) continue // binary
+          const lines = text.split('\n')
+          for (let i = 0; i < lines.length && hits.length < MAX_HITS; i++) {
+            matcher.lastIndex = 0
+            if (matcher.test(lines[i]!)) {
+              hits.push({ path: full, line: i + 1, snippet: lines[i]!.trim().slice(0, 200) })
             }
-          } catch {
-            // unreadable — skip
           }
+        } catch {
+          // unreadable — skip
         }
       }
     }
@@ -165,15 +186,17 @@ export class LinkScanner {
   private async searchViaSidecar(
     rootPath: string,
     query: string,
-    useRegex: boolean,
-    caseSensitive: boolean
+    options: SearchOptions & { include: string; exclude: string }
   ): Promise<BacklinkHit[] | null> {
     if (!this.sidecar?.available) return null
     const result = await this.sidecar.call('search', {
       root_path: rootPath,
       query,
-      use_regex: useRegex,
-      case_sensitive: caseSensitive
+      use_regex: options.regex,
+      case_sensitive: options.caseSensitive,
+      whole_word: options.wholeWord,
+      include: options.include,
+      exclude: options.exclude
     })
     if (!Array.isArray(result)) return null
     const hits = result as BacklinkHit[]

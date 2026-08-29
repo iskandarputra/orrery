@@ -100,7 +100,9 @@ function OutlineBody(): React.JSX.Element {
       </div>
 
       <div className="outline-count-bar">
-        <span>{filtered.length} of {headings.length} headings</span>
+        <span>
+          {filtered.length} of {headings.length} headings
+        </span>
       </div>
 
       <div className="outline">
@@ -131,6 +133,13 @@ function SearchBody(): React.JSX.Element {
   const [query, setQuery] = useState(seed.query)
   const [regex, setRegex] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [wholeWord, setWholeWord] = useState(false)
+  const [include, setInclude] = useState('')
+  const [exclude, setExclude] = useState('')
+  // The filters are collapsed until wanted, and stay open once a filter is set
+  // — hiding a filter that is narrowing the results is how you get a search
+  // that appears to be broken.
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [hits, setHits] = useState<BacklinkHit[] | null>(null)
   const [searched, setSearched] = useState('')
 
@@ -138,11 +147,19 @@ function SearchBody(): React.JSX.Element {
     (term = query): void => {
       if (!rootPath || !term.trim()) return
       setSearched(term)
-      void invoke('workspace:search', { rootPath, query: term, regex, caseSensitive })
+      void invoke('workspace:search', {
+        rootPath,
+        query: term,
+        regex,
+        caseSensitive,
+        wholeWord,
+        include,
+        exclude
+      })
         .then(setHits)
         .catch(() => setHits([]))
     },
-    [rootPath, query, regex, caseSensitive]
+    [rootPath, query, regex, caseSensitive, wholeWord, include, exclude]
   )
 
   // Arriving from "search the vault for this", run it without being asked.
@@ -179,23 +196,67 @@ function SearchBody(): React.JSX.Element {
           Aa
         </button>
         <button
+          className={`gsearch__opt${wholeWord ? ' gsearch__opt--on' : ''}`}
+          title="Match whole word"
+          aria-pressed={wholeWord}
+          aria-label="Match whole word"
+          onClick={() => setWholeWord((v) => !v)}
+        >
+          ab
+        </button>
+        <button
           className={`gsearch__opt${regex ? ' gsearch__opt--on' : ''}`}
           title="Regular expression (Alt+R)"
+          aria-pressed={regex}
+          aria-label="Use regular expression"
           onClick={() => setRegex((v) => !v)}
         >
           .*
         </button>
+        <button
+          className={`gsearch__opt${filtersOpen || include || exclude ? ' gsearch__opt--on' : ''}`}
+          title="Files to include and exclude"
+          aria-expanded={filtersOpen}
+          aria-label="Toggle file filters"
+          onClick={() => setFiltersOpen((v) => !v)}
+        >
+          <Icon name="filter" size={13} />
+        </button>
       </div>
+
+      {(filtersOpen || include || exclude) && (
+        <div className="gsearch__filters">
+          <label className="gsearch__filter">
+            <span className="gsearch__filter-label">include</span>
+            <input
+              className="gsearch__filter-input"
+              placeholder="*.md, src/**"
+              value={include}
+              onChange={(e) => setInclude(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && run()}
+            />
+          </label>
+          <label className="gsearch__filter">
+            <span className="gsearch__filter-label">exclude</span>
+            <input
+              className="gsearch__filter-input"
+              placeholder="**/*.lock, dist"
+              value={exclude}
+              onChange={(e) => setExclude(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && run()}
+            />
+          </label>
+        </div>
+      )}
       {hits === null ? (
-        <EmptyState icon="search">
-          Press Enter to search entire workspace notes.
-        </EmptyState>
+        <EmptyState icon="search">Press Enter to search every text file in the vault.</EmptyState>
       ) : hits.length === 0 ? (
         <EmptyState icon="search">No matches found for “{searched}”.</EmptyState>
       ) : (
         <>
           <div className="rpanel-count">
-            <span className="rpanel-count__badge">{hits.length}</span> matches in {fileCount} note{fileCount === 1 ? '' : 's'}
+            <span className="rpanel-count__badge">{hits.length}</span> matches in {fileCount} file
+            {fileCount === 1 ? '' : 's'}
           </div>
           <ResultGroups hits={hits} onOpen={(path) => void openPaths([path])} />
         </>
@@ -221,7 +282,9 @@ function DocStatsBody(): React.JSX.Element {
       <div className="rpanel-stats__hero">
         <Icon name="file-text" size={24} className="rpanel-stats__hero-icon" />
         <h4 className="rpanel-stats__filename">{buffer.fileName}</h4>
-        <span className="rpanel-stats__status">{buffer.isDirty ? '● Unsaved changes' : '✓ Saved'}</span>
+        <span className="rpanel-stats__status">
+          {buffer.isDirty ? '● Unsaved changes' : '✓ Saved'}
+        </span>
       </div>
 
       <div className="rpanel-stats__grid">

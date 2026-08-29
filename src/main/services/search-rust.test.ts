@@ -8,6 +8,14 @@ import type { BacklinkHit } from '@shared/types'
 
 const BINARY = resolve('native/target/release/orrery-sidecar')
 
+const SEARCH_DEFAULTS = {
+  regex: false,
+  caseSensitive: false,
+  wholeWord: false,
+  include: '',
+  exclude: ''
+}
+
 /**
  * Differential test: the TypeScript implementation is the oracle.
  *
@@ -38,11 +46,21 @@ describe.skipIf(!existsSync(BINARY))('search: Rust sidecar vs TypeScript', () =>
   const bothAgree = async (
     query: string,
     useRegex = false,
-    caseSensitive = false
+    caseSensitive = false,
+    extra: { wholeWord?: boolean; include?: string; exclude?: string } = {}
   ): Promise<BacklinkHit[]> => {
-    const rust = await rustScanner.search(vault, query, useRegex, caseSensitive)
-    const ts = await tsScanner.search(vault, query, useRegex, caseSensitive)
-    expect(norm(rust), `query ${JSON.stringify(query)}`).toEqual(norm(ts))
+    const options = {
+      regex: useRegex,
+      caseSensitive,
+      wholeWord: extra.wholeWord ?? false,
+      include: extra.include ?? '',
+      exclude: extra.exclude ?? ''
+    }
+    const rust = await rustScanner.search(vault, query, options)
+    const ts = await tsScanner.search(vault, query, options)
+    expect(norm(rust), `query ${JSON.stringify(query)} ${JSON.stringify(options)}`).toEqual(
+      norm(ts)
+    )
     return norm(ts)
   }
 
@@ -58,6 +76,10 @@ describe.skipIf(!existsSync(BINARY))('search: Rust sidecar vs TypeScript', () =>
     write('nested/deep/inner.md', 'needle in a nested note')
     write('other.markdown', 'needle in a .markdown file')
     write('third.mdown', 'needle in a .mdown file')
+    // Not markdown: search covers every text file now, so both implementations
+    // have to agree about these too.
+    write('code.ts', 'const needle = 1')
+    write('nested/deep/other.ts', 'a needle in code')
     write('fourth.mkd', 'needle in a .mkd file')
     write('notes.txt', 'needle in a file that is not markdown')
     write('.hidden.md', 'needle in a dotfile')
@@ -101,10 +123,11 @@ describe.skipIf(!existsSync(BINARY))('search: Rust sidecar vs TypeScript', () =>
     expect(await bothAgree('(unclosed', true)).toEqual([])
   })
 
-  it('agrees on which extensions count', async () => {
+  it('agrees that every text file counts, not only markdown', async () => {
+    // Both implementations stopped filtering by extension in the same change:
+    // a vault holds code, and a search that cannot see it is the wrong search.
     const hits = await bothAgree('needle')
-    expect(hits.some((h) => h.path.endsWith('.txt'))).toBe(false)
-    for (const ext of ['.md', '.markdown', '.mdown', '.mkd']) {
+    for (const ext of ['.md', '.markdown', '.mdown', '.mkd', '.txt', '.ts']) {
       expect(
         hits.some((h) => h.path.endsWith(ext)),
         ext
@@ -149,8 +172,8 @@ describe.skipIf(!existsSync(BINARY))('search: Rust sidecar vs TypeScript', () =>
 
   it('agrees on a vault that does not exist', async () => {
     const missing = join(tmpdir(), 'orrery-does-not-exist-at-all')
-    const rust = await rustScanner.search(missing, 'needle', false, false)
-    const ts = await tsScanner.search(missing, 'needle', false, false)
+    const rust = await rustScanner.search(missing, 'needle', SEARCH_DEFAULTS)
+    const ts = await tsScanner.search(missing, 'needle', SEARCH_DEFAULTS)
     expect(rust).toEqual([])
     expect(ts).toEqual([])
   })
@@ -158,8 +181,45 @@ describe.skipIf(!existsSync(BINARY))('search: Rust sidecar vs TypeScript', () =>
   it('falls back to TypeScript when the binary is missing', async () => {
     // The property the whole design rests on: no binary, no behaviour change.
     const absent = new LinkScanner(new SidecarClient(join(tmpdir(), 'orrery-no-such-binary')))
-    expect(norm(await absent.search(vault, 'needle', false, false))).toEqual(
-      norm(await tsScanner.search(vault, 'needle', false, false))
+    expect(norm(await absent.search(vault, 'needle', SEARCH_DEFAULTS))).toEqual(
+      norm(await tsScanner.search(vault, 'needle', SEARCH_DEFAULTS))
     )
+  })
+
+  describe('the filters, where two implementations could most easily diverge', () => {
+    it('agrees on an include glob by extension', async () => {
+      await bothAgree('needle', false, false, { include: '*.md' })
+    })
+
+    it('agrees on an include glob by directory', async () => {
+      await bothAgree('needle', false, false, { include: 'nested/**' })
+    })
+
+    it('agrees on an exclude glob', async () => {
+      await bothAgree('needle', false, false, { exclude: 'nested/**' })
+    })
+
+    it('agrees when include and exclude are combined', async () => {
+      await bothAgree('needle', false, false, { include: '*.md', exclude: 'nested/**' })
+    })
+
+    it('agrees on whole-word matching', async () => {
+      await bothAgree('needle', false, false, { wholeWord: true })
+    })
+
+    it('agrees on whole word around a regex alternation', async () => {
+      // `\\b(?:a|b)\\b` versus `\\ba|b\\b` is exactly the sort of difference that
+      // would give two implementations different answers for one query.
+      await bothAgree('needle|caps', true, false, { wholeWord: true })
+    })
+
+    it('agrees that a glob matching nothing finds nothing', async () => {
+      expect(await bothAgree('needle', false, false, { include: '*.nope' })).toEqual([])
+    })
+
+    it('agrees on files that are not markdown', async () => {
+      // Both implementations stopped being markdown-only in the same change.
+      await bothAgree('needle', false, false, { include: '*.ts' })
+    })
   })
 })

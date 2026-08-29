@@ -27,7 +27,9 @@ interface Neighbour {
  */
 export function NoteAnalysisBody(): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
-  const activePath = useStore((s) => (s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null))
+  const activePath = useStore((s) =>
+    s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null
+  )
   const analysis = useStore((s) => s.graph)
   const loading = useStore((s) => s.graphLoading)
   const loadGraph = useStore((s) => s.loadGraph)
@@ -83,7 +85,9 @@ export function NoteAnalysisBody(): React.JSX.Element {
             className="analytics__swatch"
             style={{
               background:
-                cluster.rank < VIZ_SLOTS ? `var(--or-viz-${cluster.rank + 1})` : 'var(--or-fg-faint)'
+                cluster.rank < VIZ_SLOTS
+                  ? `var(--or-viz-${cluster.rank + 1})`
+                  : 'var(--or-fg-faint)'
             }}
           />
           <span className="analytics__cluster-label">{cluster.label}</span>
@@ -147,7 +151,11 @@ export function NoteAnalysisBody(): React.JSX.Element {
             {suggestions.slice(0, MAX_SUGGESTIONS).map((s) => (
               <li key={s.id}>
                 <div className="note-analysis__suggestion">
-                  <button className="analytics__row" onClick={() => void openPaths([s.id])} title={s.id}>
+                  <button
+                    className="analytics__row"
+                    onClick={() => void openPaths([s.id])}
+                    title={s.id}
+                  >
                     <span className="analytics__row-label">{s.label}</span>
                     <span className="analytics__row-value">
                       {Math.round(s.similarity * 100)}% · {describeDistance(s.hops)}
@@ -172,16 +180,18 @@ export function NoteAnalysisBody(): React.JSX.Element {
           Unlinked mentions
           <span className="analytics__list-count">{mentions.length}</span>
         </h4>
-        <p className="analytics__hint">
-          Notes that say “{stem(activePath)}” without linking it.
-        </p>
+        <p className="analytics__hint">Notes that say “{stem(activePath)}” without linking it.</p>
         {mentions.length === 0 ? (
           <p className="analytics__empty">None — every mention is already a link.</p>
         ) : (
           <ul className="note-analysis__list">
             {mentions.slice(0, MAX_MENTIONS).map((path) => (
               <li key={path}>
-                <button className="analytics__row" onClick={() => void openPaths([path])} title={path}>
+                <button
+                  className="analytics__row"
+                  onClick={() => void openPaths([path])}
+                  title={path}
+                >
                   <span className="analytics__row-label">{stem(path)}</span>
                 </button>
               </li>
@@ -268,14 +278,15 @@ function useUnlinkedMentions(
 
   const scan = useCallback((): void => {
     if (!rootPath || !activePath || !analysis) return
-    const linked = new Set(
-      analysis.edges.filter((e) => e.to === activePath).map((e) => e.from)
-    )
+    const linked = new Set(analysis.edges.filter((e) => e.to === activePath).map((e) => e.from))
     void invoke('workspace:search', {
       rootPath,
       query: stem(activePath),
       regex: false,
-      caseSensitive: false
+      caseSensitive: false,
+      wholeWord: false,
+      include: '',
+      exclude: ''
     })
       .then((hits) => {
         const paths = [...new Set(hits.map((h) => h.path))].filter(

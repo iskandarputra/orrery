@@ -7,10 +7,12 @@
 //!
 //! The one deliberate divergence is ordering — see `MAX_HITS` below.
 
+use crate::glob::{matches_any_glob, parse_pattern_list};
 use ignore::WalkBuilder;
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
 
 /// Matches `MAX_HITS` in link-scanner.ts.
 const MAX_HITS: usize = 200;
@@ -25,6 +27,15 @@ pub struct SearchRequest {
     pub query: String,
     pub use_regex: bool,
     pub case_sensitive: bool,
+    /// Match only where the query is bounded by non-word characters.
+    #[serde(default)]
+    pub whole_word: bool,
+    /// Comma-separated globs. Empty means every file.
+    #[serde(default)]
+    pub include: String,
+    /// Comma-separated globs. Empty means no file is excluded.
+    #[serde(default)]
+    pub exclude: String,
 }
 
 /// Mirrors `BacklinkHit` in `src/shared/types.ts`.
@@ -35,11 +46,12 @@ pub struct Hit {
     pub snippet: String,
 }
 
-fn is_markdown(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    [".md", ".markdown", ".mdown", ".mkd"]
-        .iter()
-        .any(|ext| lower.ends_with(ext))
+/// The vault-relative path, with forward slashes, as the globs are written.
+fn relative_of(root: &str, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 /// The first 200 *characters* of the trimmed line.
@@ -53,10 +65,17 @@ fn snippet_of(line: &str) -> String {
 
 pub fn search(req: &SearchRequest) -> Vec<Hit> {
     // A non-regex query is matched literally, exactly as the TypeScript escapes it.
-    let pattern = if req.use_regex {
+    let source = if req.use_regex {
         req.query.clone()
     } else {
         regex::escape(&req.query)
+    };
+    // Bounding the whole pattern rather than each alternative, as the
+    // TypeScript does — `\b(?:a|b)\b`, never `\ba|b\b`.
+    let pattern = if req.whole_word {
+        format!("\\b(?:{source})\\b")
+    } else {
+        source
     };
     // An invalid regex yields no hits rather than an error — same as the
     // TypeScript `catch { return [] }`.
@@ -68,6 +87,8 @@ pub fn search(req: &SearchRequest) -> Vec<Hit> {
     };
 
     let mut hits: Vec<Hit> = Vec::new();
+    let include = parse_pattern_list(&req.include);
+    let exclude = parse_pattern_list(&req.exclude);
 
     let walker = WalkBuilder::new(&req.root_path)
         .hidden(true) // skip dotfiles, as the TypeScript does
@@ -88,7 +109,11 @@ pub fn search(req: &SearchRequest) -> Vec<Hit> {
         if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
-        if !path.file_name().and_then(|n| n.to_str()).is_some_and(is_markdown) {
+        let relative = relative_of(&req.root_path, path);
+        if !include.is_empty() && !matches_any_glob(&relative, &include) {
+            continue;
+        }
+        if !exclude.is_empty() && matches_any_glob(&relative, &exclude) {
             continue;
         }
         if fs::metadata(path).map(|m| m.len() > MAX_FILE_BYTES).unwrap_or(true) {
@@ -97,6 +122,9 @@ pub fn search(req: &SearchRequest) -> Vec<Hit> {
         let Ok(text) = fs::read_to_string(path) else {
             continue; // not valid UTF-8, or unreadable
         };
+        if text.contains('\0') {
+            continue; // binary, as the TypeScript decides it
+        }
         for (index, line) in text.split('\n').enumerate() {
             if matcher.is_match(line) {
                 hits.push(Hit {
@@ -138,11 +166,26 @@ mod tests {
             fs::write(path, body).unwrap();
         }
         fn find(&self, query: &str, use_regex: bool, case_sensitive: bool) -> Vec<Hit> {
+            self.find_with(query, use_regex, case_sensitive, false, "", "")
+        }
+        #[allow(clippy::too_many_arguments)]
+        fn find_with(
+            &self,
+            query: &str,
+            use_regex: bool,
+            case_sensitive: bool,
+            whole_word: bool,
+            include: &str,
+            exclude: &str,
+        ) -> Vec<Hit> {
             search(&SearchRequest {
                 root_path: self.0.to_string_lossy().into_owned(),
                 query: query.into(),
                 use_regex,
                 case_sensitive,
+                whole_word,
+                include: include.into(),
+                exclude: exclude.into(),
             })
         }
     }
@@ -196,14 +239,51 @@ mod tests {
     }
 
     #[test]
-    fn only_looks_at_markdown() {
+    fn looks_at_every_text_file_not_only_markdown() {
+        // The vault is a folder and it holds code; a search that cannot see it
+        // is the wrong search.
         let v = Vault::new("exts");
-        for (name, _) in [("a.md", 0), ("b.markdown", 0), ("c.mdown", 0), ("d.mkd", 0)] {
-            v.write(name, "needle");
-        }
+        v.write("a.md", "needle");
         v.write("e.txt", "needle");
         v.write("f.rs", "needle");
-        assert_eq!(v.find("needle", false, false).len(), 4);
+        assert_eq!(v.find("needle", false, false).len(), 3);
+    }
+
+    #[test]
+    fn include_narrows_to_matching_files() {
+        let v = Vault::new("include");
+        v.write("a.md", "needle");
+        v.write("src/b.rs", "needle");
+        v.write("src/c.md", "needle");
+        assert_eq!(v.find_with("needle", false, false, false, "*.md", "").len(), 2);
+        assert_eq!(v.find_with("needle", false, false, false, "src/**", "").len(), 2);
+    }
+
+    #[test]
+    fn exclude_removes_matching_files() {
+        let v = Vault::new("exclude");
+        v.write("a.md", "needle");
+        v.write("dist/b.md", "needle");
+        assert_eq!(v.find_with("needle", false, false, false, "", "dist/**").len(), 1);
+    }
+
+    #[test]
+    fn whole_word_does_not_match_inside_a_longer_word() {
+        let v = Vault::new("word");
+        v.write("a.md", "testing");
+        v.write("b.md", "a test here");
+        assert_eq!(v.find("test", false, false).len(), 2);
+        assert_eq!(v.find_with("test", false, false, true, "", "").len(), 1);
+    }
+
+    #[test]
+    fn skips_binary_files() {
+        // Decided by content, not by extension: an extension list is a guess
+        // that is wrong for exactly the files people care about.
+        let v = Vault::new("binary");
+        v.write("a.md", "needle");
+        v.write("b.dat", "needle\u{0}more");
+        assert_eq!(v.find("needle", false, false).len(), 1);
     }
 
     #[test]
@@ -267,6 +347,9 @@ mod tests {
             query: "needle".into(),
             use_regex: false,
             case_sensitive: false,
+            whole_word: false,
+            include: String::new(),
+            exclude: String::new(),
         });
         assert!(hits.is_empty());
     }

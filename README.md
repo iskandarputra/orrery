@@ -56,8 +56,13 @@ Links inside code fences are left alone, because a snippet showing the syntax is
 not a reference.
 
 **Backlinks** (`Ctrl+Shift+B`) show every note pointing at this one, with the
-line each mention sits on. **Search** covers the vault with regex and case
-options. **Tags**, an **outline**, and per-note **analysis** each get a panel.
+line each mention sits on. **Tags**, an **outline**, and per-note **analysis**
+each get a panel.
+
+**Search** covers every text file in the vault, not only the notes — match case,
+whole word, regular expressions, and comma-separated globs for the files to
+include and exclude (`*.md`, `src/**`, `**/*.test.ts`). Binary files are skipped
+by looking inside them rather than by trusting the extension.
 
 ![The knowledge graph, showing 28 notes in four clusters joined by 71 links](docs/screenshots/graph.png)
 

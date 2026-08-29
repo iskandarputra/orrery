@@ -132,9 +132,22 @@ export interface IpcInvokeContract {
     req: { rootPath: string; targetStem: string }
     res: BacklinkHit[]
   }
-  /** Full-text search across workspace markdown files. */
+  /**
+   * Full-text search across every text file in the vault.
+   *
+   * `include` and `exclude` are comma-separated globs over vault-relative
+   * paths; empty means "everything" and "nothing" respectively.
+   */
   'workspace:search': {
-    req: { rootPath: string; query: string; regex: boolean; caseSensitive: boolean }
+    req: {
+      rootPath: string
+      query: string
+      regex: boolean
+      caseSensitive: boolean
+      wholeWord: boolean
+      include: string
+      exclude: string
+    }
     res: BacklinkHit[]
   }
   /** Wikilink graph of the whole vault, with its structural analysis. */

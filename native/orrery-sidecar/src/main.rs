@@ -10,6 +10,7 @@
 //! to its TypeScript implementation whenever this process is missing, slow or
 //! broken, so nothing here is load-bearing for correctness.
 
+mod glob;
 mod rpc;
 mod search;
 

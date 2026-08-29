@@ -42,7 +42,20 @@ const MARKDOWN_FILTERS = [
 
 /** Bind every contract channel to its service. All channels registered here. */
 export function registerIpcHandlers(deps: HandlerDeps): void {
-  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history, git, lsp, terminal } = deps
+  const {
+    fs,
+    watcher,
+    settings,
+    windows,
+    links,
+    exporter,
+    ai,
+    embeddings,
+    history,
+    git,
+    lsp,
+    terminal
+  } = deps
 
   // --- dialogs -------------------------------------------------------------
   handle('dialog:openFile', null, async () => {
@@ -105,10 +118,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('terminal:write', termId.extend({ data: z.string() }), (_e, req) =>
     terminal.write(req.id, req.data)
   )
-  handle(
-    'terminal:resize',
-    termId.extend({ cols: z.number(), rows: z.number() }),
-    (_e, req) => terminal.resize(req.id, req.cols, req.rows)
+  handle('terminal:resize', termId.extend({ cols: z.number(), rows: z.number() }), (_e, req) =>
+    terminal.resize(req.id, req.cols, req.rows)
   )
   handle('terminal:kill', termId, (_e, req) => terminal.kill(req.id))
 
@@ -120,10 +131,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('git:status', rootReq, (_e, req) => git.status(req.rootPath))
   handle('git:stage', rootPathsReq, (_e, req) => git.stage(req.rootPath, req.paths))
   handle('git:unstage', rootPathsReq, (_e, req) => git.unstage(req.rootPath, req.paths))
-  handle(
-    'git:discard',
-    rootPathsReq.extend({ untracked: z.array(z.string()) }),
-    (_e, req) => git.discard(req.rootPath, req.paths, req.untracked)
+  handle('git:discard', rootPathsReq.extend({ untracked: z.array(z.string()) }), (_e, req) =>
+    git.discard(req.rootPath, req.paths, req.untracked)
   )
   handle('git:log', rootReq.extend({ limit: z.number().int().min(1).max(1000) }), (_e, req) =>
     git.log(req.rootPath, req.limit)
@@ -158,9 +167,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   })
   handle('lsp:hover', posReq, (_e, req) => lsp.hover(req.path, req.line, req.character))
   handle('lsp:complete', posReq, (_e, req) => lsp.complete(req.path, req.line, req.character))
-  handle('lsp:definition', posReq, (_e, req) =>
-    lsp.definition(req.path, req.line, req.character)
-  )
+  handle('lsp:definition', posReq, (_e, req) => lsp.definition(req.path, req.line, req.character))
 
   handle(
     'fs:writeFile',
@@ -190,10 +197,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     z.object({ dirPath: z.string().min(1), name: z.string().min(1), base64: z.string() }),
     (_e, req) => fs.writeAsset(req.dirPath, req.name, req.base64)
   )
-  handle(
-    'fs:ensureFile',
-    z.object({ path: z.string().min(1), content: z.string() }),
-    (_e, req) => fs.ensureFile(req.path, req.content)
+  handle('fs:ensureFile', z.object({ path: z.string().min(1), content: z.string() }), (_e, req) =>
+    fs.ensureFile(req.path, req.content)
   )
 
   handle(
@@ -218,9 +223,21 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       rootPath: z.string().min(1),
       query: z.string().min(1),
       regex: z.boolean(),
-      caseSensitive: z.boolean()
+      caseSensitive: z.boolean(),
+      wholeWord: z.boolean(),
+      // Bounded: these become regular expressions, and an unbounded pattern
+      // from the renderer is an unbounded pattern in the walk.
+      include: z.string().max(512),
+      exclude: z.string().max(512)
     }),
-    (_e, req) => links.search(req.rootPath, req.query, req.regex, req.caseSensitive)
+    (_e, req) =>
+      links.search(req.rootPath, req.query, {
+        regex: req.regex,
+        caseSensitive: req.caseSensitive,
+        wholeWord: req.wholeWord,
+        include: req.include,
+        exclude: req.exclude
+      })
   )
 
   handle('workspace:graph', z.object({ rootPath: z.string().min(1) }), (_e, req) =>
@@ -290,10 +307,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   // --- version history -----------------------------------------------------
   handle('history:list', z.object({ path: z.string().min(1) }), (_e, req) => history.list(req.path))
-  handle(
-    'history:read',
-    z.object({ path: z.string().min(1), id: z.string().min(1) }),
-    (_e, req) => history.read(req.path, req.id)
+  handle('history:read', z.object({ path: z.string().min(1), id: z.string().min(1) }), (_e, req) =>
+    history.read(req.path, req.id)
   )
 
   // --- settings ------------------------------------------------------------
