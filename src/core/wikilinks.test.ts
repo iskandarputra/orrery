@@ -87,3 +87,41 @@ describe('embeds', () => {
     expect(match!.embed).toBe(false)
   })
 })
+
+describe('code is not a link', () => {
+  const targets = (text: string): string[] => findWikilinks(text).map((w) => w.target)
+
+  it('ignores a wikilink inside a fenced block', () => {
+    // A mermaid diagram or a snippet showing the syntax would otherwise mint a
+    // note that does not exist and put a ghost in the graph.
+    expect(targets('See [[Real]]\n\n```mermaid\nA --> B[[Fake]]\n```\n')).toEqual(['Real'])
+  })
+
+  it('ignores one inside an inline span', () => {
+    expect(targets('Write `[[Fake]]` to link to [[Real]].')).toEqual(['Real'])
+  })
+
+  it('handles tilde fences', () => {
+    expect(targets('~~~\n[[Fake]]\n~~~\n[[Real]]\n')).toEqual(['Real'])
+  })
+
+  it('does not let a backtick inside a tilde fence close it', () => {
+    expect(targets('~~~\n```\n[[Fake]]\n~~~\n[[Real]]\n')).toEqual(['Real'])
+  })
+
+  it('treats an unclosed fence as running to the end, as a renderer does', () => {
+    expect(targets('[[Real]]\n\n```\n[[Fake]]\n')).toEqual(['Real'])
+  })
+
+  it('still finds links after a fence closes', () => {
+    expect(targets('```\n[[Fake]]\n```\n\nThen [[Real]].')).toEqual(['Real'])
+  })
+
+  it('leaves ordinary links alone', () => {
+    expect(targets('A [[One]] and a [[Two|alias]] and an ![[Three]].')).toEqual([
+      'One',
+      'Two',
+      'Three'
+    ])
+  })
+})
