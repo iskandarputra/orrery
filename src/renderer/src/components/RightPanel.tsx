@@ -261,43 +261,12 @@ const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'git', label: 'Git', icon: 'git-branch' }
 ]
 
-export function RightPanel(): React.JSX.Element | null {
+export function RightPanel(): React.JSX.Element {
   const panel = useStore((s) => s.sidePanel)
   const toggle = useStore((s) => s.toggleSidePanel)
   const width = useStore((s) => s.settings.rightPanel.width)
   const setWidth = useStore((s) => s.setRightPanelWidth)
-  const setSidePanel = useStore((s) => s.setSidePanel)
   const dragging = useRef(false)
-  const activeTabRef = useRef<HTMLButtonElement>(null)
-
-  // Keep the selected tab visible: it can be scrolled out of the row, and a
-  // panel opened by a command or shortcut would otherwise show no active tab.
-  useEffect(() => {
-    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [panel])
-
-  // Which way the row can still travel, so the edge that has more tabs behind
-  // it fades instead of simply ending — a hard cut reads as a clipped label
-  // rather than as something to scroll.
-  const tabsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const row = tabsRef.current
-    if (!row) return
-    const update = (): void => {
-      const more = row.scrollWidth - row.clientWidth
-      const left = row.scrollLeft > 1
-      const right = row.scrollLeft < more - 1
-      row.dataset['overflow'] = left && right ? 'both' : left ? 'left' : right ? 'right' : 'none'
-    }
-    update()
-    row.addEventListener('scroll', update, { passive: true })
-    const observer = new ResizeObserver(update)
-    observer.observe(row)
-    return () => {
-      row.removeEventListener('scroll', update)
-      observer.disconnect()
-    }
-  }, [panel])
 
   const startResize = useCallback(
     (event: React.MouseEvent) => {
@@ -319,50 +288,58 @@ export function RightPanel(): React.JSX.Element | null {
     [setWidth]
   )
 
-  if (!panel) return null
   const active = TABS.find((t) => t.id === panel)
 
   return (
-    <aside className="rpanel" style={{ width }}>
-      <div className="rpanel__resizer" onMouseDown={startResize} />
-      <div className="rpanel__tabs">
-        {/* The tabs scroll on their own so the close button stays put: seven
-            tabs do not fit a panel narrowed to its 220px minimum, and a row
-            that scrolled as a whole would carry the close button off-screen. */}
-        <div className="rpanel__tabs-scroll" role="tablist" ref={tabsRef}>
-          {TABS.map((t) => (
+    <>
+      {panel && (
+        <aside className="rpanel" style={{ width }}>
+          <div className="rpanel__resizer" onMouseDown={startResize} />
+          <div className="rpanel__title-row">
+            {active && <Icon name={active.icon} size={13} className="rpanel__title-icon" />}
+            <span className="rpanel__title">{active?.label}</span>
             <button
-              key={t.id}
-              ref={panel === t.id ? activeTabRef : undefined}
-              role="tab"
-              aria-selected={panel === t.id}
-              title={t.label}
-              className={`rpanel__tab${panel === t.id ? ' rpanel__tab--active' : ''}`}
-              onClick={() => setSidePanel(t.id)}
+              className="icon-btn rpanel__close-btn"
+              title="Close panel"
+              aria-label="Close panel"
+              onClick={() => toggle(panel)}
             >
-              <Icon name={t.icon} size={14} />
-              <span className="rpanel__tab-label">{t.label}</span>
+              <Icon name="x" size={13} />
             </button>
-          ))}
-        </div>
-        <button className="icon-btn rpanel__close-btn" title="Close panel" onClick={() => toggle(panel)}>
-          <Icon name="x" size={13} />
-        </button>
-      </div>
-      <div className="rpanel__title-row">
-        {active && <Icon name={active.icon} size={13} className="rpanel__title-icon" />}
-        <span className="rpanel__title">{active?.label}</span>
-      </div>
-      <div className="rpanel__scroll">
-        {panel === 'outline' && <OutlineBody />}
-        {panel === 'backlinks' && <BacklinksBody />}
-        {panel === 'search' && <SearchBody />}
-        {panel === 'ai' && <AiChatBody />}
-        {panel === 'stats' && <DocStatsBody />}
-        {panel === 'analysis' && <NoteAnalysisBody />}
-        {panel === 'tags' && <TagsBody />}
-        {panel === 'git' && <SourceControlPanel />}
-      </div>
-    </aside>
+          </div>
+          <div className="rpanel__scroll">
+            {panel === 'outline' && <OutlineBody />}
+            {panel === 'backlinks' && <BacklinksBody />}
+            {panel === 'search' && <SearchBody />}
+            {panel === 'ai' && <AiChatBody />}
+            {panel === 'stats' && <DocStatsBody />}
+            {panel === 'analysis' && <NoteAnalysisBody />}
+            {panel === 'tags' && <TagsBody />}
+            {panel === 'git' && <SourceControlPanel />}
+          </div>
+        </aside>
+      )}
+
+      {/* The rail outlives the panel it drives, the way an activity bar does:
+          every view stays one click away instead of needing the panel reopened
+          first to find out what is in it. Vertical because eight tabs have room
+          to be a column and never had room to be a row — the old one scrolled
+          sideways and hid half of itself at the panel's minimum width. */}
+      <nav className="rpanel-rail" role="tablist" aria-label="Side panel">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={panel === t.id}
+            aria-label={t.label}
+            title={t.label}
+            className={`rpanel__tab${panel === t.id ? ' rpanel__tab--active' : ''}`}
+            onClick={() => toggle(t.id)}
+          >
+            <Icon name={t.icon} size={17} />
+          </button>
+        ))}
+      </nav>
+    </>
   )
 }

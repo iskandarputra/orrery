@@ -50,7 +50,7 @@ test('tags render as pills, and code fences are left alone', async () => {
 test('the tag pane counts notes per tag and searches on click', async () => {
   await runCommand('view.toggleBacklinks')
   await page.waitForSelector('.rpanel')
-  await page.locator('.rpanel__tab', { hasText: 'Tags' }).click()
+  await page.locator('.rpanel__tab[aria-label="Tags"]').click()
   await page.waitForSelector('.tags-panel')
 
   // #rust is in two notes, #project in one — most used first.
@@ -65,7 +65,7 @@ test('the tag pane counts notes per tag and searches on click', async () => {
 })
 
 test('filtering the pane narrows the list', async () => {
-  await page.locator('.rpanel__tab', { hasText: 'Tags' }).click()
+  await page.locator('.rpanel__tab[aria-label="Tags"]').click()
   await page.locator('.tags-panel__filter').fill('proj')
   await expect(page.locator('.tags-panel__tag')).toHaveCount(1)
   await expect(page.locator('.tags-panel__name')).toHaveText('#project')

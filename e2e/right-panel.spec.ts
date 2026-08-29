@@ -44,7 +44,7 @@ test.afterAll(async () => {
 
 test('a first run opens on the outline', async () => {
   await expect(page.locator('.rpanel')).toBeVisible()
-  await expect(page.locator('.rpanel__tab--active')).toHaveText('Outline')
+  await expect(page.locator('.rpanel__tab--active')).toHaveAttribute('aria-label', 'Outline')
   // Showing the panel is not the same as showing the note's structure in it:
   // one H1, two H2s and an H3.
   await expect(page.locator('.outline__item')).toHaveCount(4)
@@ -61,7 +61,7 @@ test('closing the panel is remembered across a restart', async () => {
   await expect(page.locator('.rpanel')).toBeHidden()
 })
 
-test('the tab row scrolls sideways instead of squashing its tabs', async () => {
+test('the rail shows every view at once, in a column', async () => {
   // Reopen through the same path a user would.
   await page.evaluate(async () => {
     const current = await window.orrery.invoke('settings:get', undefined)
@@ -74,62 +74,55 @@ test('the tab row scrolls sideways instead of squashing its tabs', async () => {
   await page.waitForSelector('.rpanel', { timeout: 30_000 })
   await page.waitForTimeout(500)
 
-  const row = await page.evaluate(() => {
-    const scroll = document.querySelector('.rpanel__tabs-scroll') as HTMLElement
-    const close = document.querySelector('.rpanel__close-btn') as HTMLElement
+  const rail = await page.evaluate(() => {
+    const nav = document.querySelector('.rpanel-rail') as HTMLElement
     const tabs = Array.from(document.querySelectorAll('.rpanel__tab')) as HTMLElement[]
-    const closeBefore = Math.round(close.getBoundingClientRect().left)
-
-    // Overflow alone proves nothing — a row that simply spills over its
-    // container also reports scrollWidth > clientWidth. What matters is that
-    // it *moves*, which only a scrollable box does.
-    scroll.scrollLeft = scroll.scrollWidth
-    const scrolled = scroll.scrollLeft
-
-    const lastTab = tabs[tabs.length - 1]!.getBoundingClientRect()
-    const box = scroll.getBoundingClientRect()
+    const box = nav.getBoundingClientRect()
     return {
-      overflowing: scroll.scrollWidth > scroll.clientWidth + 1,
-      scrolled,
-      lastTabReachable: lastTab.right <= box.right + 1 && lastTab.left >= box.left - 1,
-      // Every tab keeps its natural width; a squashed row would clip labels.
-      clipped: tabs.filter((t) => t.scrollWidth > t.clientWidth + 1).length,
-      rows: new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top))).size,
-      closeMoved: Math.round(close.getBoundingClientRect().left) !== closeBefore
+      count: tabs.length,
+      // A column, not a row: every tab on its own line.
+      columns: new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().left))).size,
+      lines: new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top))).size,
+      // All of them at once, which is the reason for the change: the old row
+      // could not fit them at this width and scrolled sideways to cope.
+      allInside: tabs.every(
+        (t) =>
+          t.getBoundingClientRect().top >= box.top - 1 &&
+          t.getBoundingClientRect().bottom <= box.bottom + 1
+      ),
+      scrolls: nav.scrollHeight > nav.clientHeight + 1,
+      // WCAG 2.5.8.
+      tooSmall: tabs.filter((t) => {
+        const r = t.getBoundingClientRect()
+        return r.width < 24 || r.height < 24
+      }).length
     }
   })
 
-  expect(row.overflowing, 'seven tabs should not fit a 220px panel').toBe(true)
-  expect(row.scrolled, 'the row should actually scroll, not just overflow').toBeGreaterThan(0)
-  expect(row.lastTabReachable, 'scrolling should reach the last tab').toBe(true)
-  expect(row.clipped, 'tabs keep their own width').toBe(0)
-  expect(row.rows, 'tabs stay on one row').toBe(1)
-  expect(row.closeMoved, 'the close button is pinned, not carried off').toBe(false)
+  expect(rail.count, 'every view has a tab').toBe(8)
+  expect(rail.columns, 'the rail is one column').toBe(1)
+  expect(rail.lines, 'each tab on its own line').toBe(8)
+  expect(rail.allInside, 'all eight fit at the panel minimum width').toBe(true)
+  expect(rail.scrolls, 'a column of eight does not need to scroll').toBe(false)
+  expect(rail.tooSmall, 'each tab is a 24px target').toBe(0)
 })
 
-test('the row fades only the edge it can still travel toward', async () => {
-  const at = async (position: 'start' | 'end'): Promise<string> =>
-    page.evaluate((where) => {
-      const row = document.querySelector('.rpanel__tabs-scroll') as HTMLElement
-      row.scrollLeft = where === 'start' ? 0 : row.scrollWidth
-      row.dispatchEvent(new Event('scroll'))
-      return row.dataset['overflow'] ?? ''
-    }, position)
+/**
+ * The rail is an activity bar, not the panel's own header: closing the panel
+ * must not take the way back with it.
+ */
+test('the rail outlives the panel and reopens it', async () => {
+  await page.locator('.rpanel__close-btn').click()
+  await expect(page.locator('.rpanel')).toBeHidden()
+  await expect(page.locator('.rpanel-rail')).toBeVisible()
 
-  // Fading an edge with nothing behind it would dim a tab for no reason.
-  expect(await at('start')).toBe('right')
-  expect(await at('end')).toBe('left')
-})
+  await page.locator('.rpanel__tab[aria-label="Search"]').click()
+  await expect(page.locator('.rpanel')).toBeVisible()
+  await expect(page.locator('.rpanel__tab--active')).toHaveAttribute('aria-label', 'Search')
 
-test('the selected tab is scrolled into view when it changes', async () => {
-  // Tags is the last tab, off the end of a 220px row.
-  await page.locator('.rpanel__tab', { hasText: 'Tags' }).click()
-  await page.waitForTimeout(300)
-
-  const visible = await page.evaluate(() => {
-    const scroll = document.querySelector('.rpanel__tabs-scroll')!.getBoundingClientRect()
-    const active = document.querySelector('.rpanel__tab--active')!.getBoundingClientRect()
-    return active.left >= scroll.left - 1 && active.right <= scroll.right + 1
-  })
-  expect(visible, 'the active tab should be inside the visible row').toBe(true)
+  // And the same icon closes it again, the way clicking the open view does.
+  await page.locator('.rpanel__tab[aria-label="Search"]').click()
+  await expect(page.locator('.rpanel')).toBeHidden()
+  await page.locator('.rpanel__tab[aria-label="Outline"]').click()
+  await expect(page.locator('.rpanel')).toBeVisible()
 })

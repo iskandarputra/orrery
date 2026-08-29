@@ -35,7 +35,7 @@ const VAULT: Record<string, string> = {
 async function openAnalysisTab(): Promise<void> {
   await runCommand('view.toggleBacklinks') // any tab: only 'backlinks' would close it
   await page.waitForSelector('.rpanel')
-  await page.locator('.rpanel__tab', { hasText: 'Analysis' }).click()
+  await page.locator('.rpanel__tab[aria-label="Analysis"]').click()
   await page.waitForSelector('.note-analysis')
 }
 
