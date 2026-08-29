@@ -31,6 +31,14 @@ export const settingsSchema = z.object({
       lineHeight: z.number().min(1).max(3).default(1.7),
       tabSize: z.number().int().min(1).max(8).default(2),
       wordWrap: z.boolean().default(true),
+      /**
+       * Wrapping in code files, separately from prose.
+       *
+       * Off, because a wrapped line breaks the column alignment that
+       * indentation, indent guides and ASCII tables all depend on. Prose wants
+       * the opposite, which is why one setting could not serve both.
+       */
+      wordWrapCode: z.boolean().default(false),
       lineNumbers: z.boolean().default(false),
       highlightActiveLine: z.boolean().default(true),
       /** Editing canvas width: readable column presets, full-bleed, or custom. */
@@ -51,7 +59,9 @@ export const settingsSchema = z.object({
        * On for code, where a file is long enough to get lost in; off for prose,
        * which is read by its headings and has the outline panel for that.
        */
-      minimap: z.boolean().default(true)
+      minimap: z.boolean().default(true),
+      /** Vertical lines marking indentation depth, in code files. */
+      indentGuides: z.boolean().default(true)
     })
     .prefault({}),
   markdown: z

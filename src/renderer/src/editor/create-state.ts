@@ -32,6 +32,7 @@ import type { Settings } from '@shared/settings'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import { languageCompartment } from './code-language'
 import { gitGutter } from './git-gutter'
+import { indentGuides } from './indent-guides'
 import { minimap } from './minimap'
 import { changeDocument } from './lsp-session'
 import { goToDefinition } from './lsp-definition'
@@ -68,14 +69,15 @@ export const settingsCompartment = new Compartment()
 function codeExtensions(settings: Settings): Extension {
   const e = settings.editor
   return [
-    // Wrapping is off by default for code — a wrapped line breaks the column
-    // alignment that indentation and ASCII tables depend on — but honoured when
-    // the setting is on, since that is what the setting says.
-    e.wordWrap ? EditorView.lineWrapping : [],
+    // Code has its own wrap setting, off by default. It used to follow the
+    // prose one, which defaults on, so every code file wrapped and the column
+    // alignment that indentation and indent guides depend on was lost.
+    e.wordWrapCode ? EditorView.lineWrapping : [],
     lineNumbers(),
     highlightActiveLineGutter(),
     gitGutter(),
     minimap(e.minimap),
+    indentGuides(e.indentGuides),
     // Draws whatever a language server reports; harmless when none is installed.
     lintGutter(),
     lspHover(),

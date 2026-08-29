@@ -108,6 +108,21 @@ export function EditorSection(): React.JSX.Element {
       >
         <Toggle checked={e.minimap} onChange={(minimap) => update({ editor: { ...e, minimap } })} />
       </SettingRow>
+      <SettingRow label="Word wrap in code" description="Off keeps columns aligned">
+        <Toggle
+          checked={e.wordWrapCode}
+          onChange={(wordWrapCode) => update({ editor: { ...e, wordWrapCode } })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Indent guides"
+        description="Vertical lines marking indentation depth, in code files"
+      >
+        <Toggle
+          checked={e.indentGuides}
+          onChange={(indentGuides) => update({ editor: { ...e, indentGuides } })}
+        />
+      </SettingRow>
       <SettingRow label="Tab size">
         <NumberField
           value={e.tabSize}
