@@ -2160,63 +2160,32 @@ textarea {
   background: linear-gradient(to left, transparent, var(--or-accent-soft));
 }
 
-.rpanel__tabs {
+/* The activity rail: a column of icons on the window's outer edge, always
+   present whether or not a panel is open. It replaced a horizontal row that
+   could not fit eight tabs at the panel's minimum width and scrolled sideways
+   to cope — a column has room for all of them at once, which is the point. */
+.rpanel-rail {
+  flex-shrink: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px 8px 0;
-}
-
-/* Seven tabs do not fit a panel at its 220px minimum, so the row scrolls
-   sideways rather than wrapping or squashing the labels. No scrollbar: it
-   would eat a third of the row's height for a few pixels of travel, and the
-   selected tab is scrolled into view whenever it changes. */
-.rpanel__tabs-scroll {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
-}
-
-.rpanel__tabs-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-/* Fade the edge the row can still travel toward. Only that edge: fading a side
-   with nothing behind it would dim a tab for no reason. */
-.rpanel__tabs-scroll[data-overflow='right'] {
-  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-}
-
-.rpanel__tabs-scroll[data-overflow='left'] {
-  mask-image: linear-gradient(to left, #000 calc(100% - 18px), transparent);
-}
-
-.rpanel__tabs-scroll[data-overflow='both'] {
-  mask-image: linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent);
-}
-
-/* Pinned beside the scrolling row, never carried off with it. */
-.rpanel__close-btn {
-  flex: 0 0 auto;
+  width: 44px;
+  padding: 8px 0;
+  background: var(--or-panel-bg);
+  border-left: 1px solid var(--or-border);
 }
 
 .rpanel__tab {
-  display: inline-flex;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  /* Never squashed by the row: they scroll instead. */
-  flex: 0 0 auto;
-  white-space: nowrap;
-  padding: 6px 9px;
+  justify-content: center;
+  /* 2.5.8: a pointer target is at least 24px on a side. */
+  width: 34px;
+  height: 34px;
   border-radius: var(--or-radius-sm);
   color: var(--or-fg-faint);
-  font-size: 12px;
-  font-weight: 500;
   transition:
     background var(--or-transition-fast),
     color var(--or-transition-fast);
@@ -2230,7 +2199,20 @@ textarea {
 .rpanel__tab--active {
   background: var(--or-accent-soft);
   color: var(--or-accent-text);
-  font-weight: 600;
+}
+
+/* The selected view marked on the outer edge, so which one is open reads from
+   the window border rather than from the icon's fill alone. */
+.rpanel__tab--active::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 20px;
+  border-radius: 1px;
+  background: var(--or-accent);
 }
 
 .rpanel__title-row {
@@ -2242,6 +2224,10 @@ textarea {
 
 .rpanel__title-icon {
   color: var(--or-fg-faint);
+}
+
+.rpanel__close-btn {
+  margin-left: auto;
 }
 
 .rpanel__title {
@@ -2849,10 +2835,10 @@ textarea {
 }
 
 .diff__stat--added {
-  color: #3fb950;
+  color: var(--or-diff-add);
 }
 .diff__stat--removed {
-  color: #f85149;
+  color: var(--or-diff-del);
 }
 
 .diff__bar .icon-btn {
@@ -2890,6 +2876,89 @@ textarea {
   display: grid;
   grid-template-columns: 1fr 1fr;
   border-bottom: 1px solid var(--or-border);
+}
+
+.diff__head {
+  padding: 0.25rem 0.9rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--or-fg-muted);
+}
+
+.diff__head + .diff__head {
+  border-left: 1px solid var(--or-border);
+}
+
+.diff__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 26px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  color: var(--or-fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.diff__edit:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+/* Two panes, old on the left and the working tree on the right. Each is a real
+   editor, so all the alignment that used to be done by a CSS grid of one-line
+   cells is done inside them instead — by blank space standing in for the lines
+   the other file does not have. */
+.diff__panes {
+  flex: 1;
+  display: grid;
+  /* minmax(0, …) or a long line makes the pane grow instead of scrolling. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+  background: var(--or-editor-bg);
+}
+
+.diff__pane {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.diff__pane--new {
+  border-left: 1px solid var(--or-border);
+}
+
+.diff__pane .cm-editor {
+  height: 100%;
+}
+
+/* Blank space where the other file has lines this one does not. Hatched rather
+   than plain, so it reads as "nothing here" instead of as an empty line that
+   might be part of the file. */
+.cm-or-diff-filler {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    color-mix(in srgb, var(--or-fg) 6%, transparent) 4px,
+    color-mix(in srgb, var(--or-fg) 6%, transparent) 8px
+  );
+  border-block: 1px solid color-mix(in srgb, var(--or-fg) 8%, transparent);
+}
+
+/* The changed lines themselves. Tinted, not filled: the text has to stay the
+   most legible thing on the line. */
+.cm-or-diff-line--old {
+  background: color-mix(in srgb, var(--or-diff-del) 13%, transparent);
+}
+
+.cm-or-diff-line--new {
+  background: color-mix(in srgb, var(--or-diff-add) 13%, transparent);
 }
 
 .diff__head {
@@ -4857,4 +4926,18 @@ kbd {
   width: 24px;
   height: 24px;
   transform: translate(-50%, -50%);
+}
+
+/* Excalidraw draws its own full-surface UI, so the host's only job is to give
+   it a box with a real height — it measures its canvas from the parent, and a
+   parent sized by its content collapses to nothing. */
+.excalidraw-host {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+}
+
+/* Its toolbars sit above the app's own chrome otherwise. */
+.excalidraw-host .excalidraw {
+  --zIndex-layerUI: 4;
 }

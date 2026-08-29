@@ -6,11 +6,11 @@ import { isMarkdownFile } from './paths'
  * `diff` never comes from a file name — it is opened directly by the source
  * control panel — so `documentKind` below never returns it.
  */
-export type DocumentKind = 'markdown' | 'canvas' | 'code' | 'diff'
+export type DocumentKind = 'markdown' | 'canvas' | 'excalidraw' | 'code' | 'diff'
 
 /**
- * `.canvas` files are JSON boards, markdown extensions are notes, and
- * everything else is code or plain text.
+ * `.canvas` and `.excalidraw` files are JSON drawings, markdown extensions are
+ * notes, and everything else is code or plain text.
  *
  * The third case is not a nicety. Parsing a source file as markdown silently
  * rewrites what you see: `[1, 2, 3]` in a JSON file renders as `1, 2, 3`
@@ -20,5 +20,6 @@ export type DocumentKind = 'markdown' | 'canvas' | 'code' | 'diff'
  */
 export function documentKind(fileName: string): DocumentKind {
   if (/\.canvas$/i.test(fileName)) return 'canvas'
+  if (/\.excalidraw$/i.test(fileName)) return 'excalidraw'
   return isMarkdownFile(fileName) ? 'markdown' : 'code'
 }

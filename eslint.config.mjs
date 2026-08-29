@@ -7,8 +7,9 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Fixture scripts are Node programs run as separate processes, not app code.
-    files: ['e2e/fixtures/**/*.mjs'],
+    // Fixture and build scripts are Node programs run as separate processes,
+    // not app code.
+    files: ['e2e/fixtures/**/*.mjs', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: { Buffer: 'readonly', process: 'readonly', console: 'readonly' }
     }

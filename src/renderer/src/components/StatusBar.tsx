@@ -19,7 +19,18 @@ export function StatusBar(): React.JSX.Element {
   // A word count on a source file is noise, and "Markdown" on a .py file is
   // simply wrong. Both said exactly that before code became its own kind.
   const isCode = active?.kind === 'code'
-  const language = isCode ? languageLabel(active.fileName) : 'Markdown'
+  // A drawing has no cursor, no words, no indentation and no encoding to speak
+  // of. Reporting "Ln 1, Col 1 · 298 words · Markdown" for a board is not a
+  // rounding error — every one of those numbers is about a document that is not
+  // the one on screen.
+  const isDrawing = active?.kind === 'canvas' || active?.kind === 'excalidraw'
+  const language = isCode
+    ? languageLabel(active.fileName)
+    : active?.kind === 'excalidraw'
+      ? 'Excalidraw'
+      : active?.kind === 'canvas'
+        ? 'Canvas'
+        : 'Markdown'
 
   const activeThemeId = mode === 'dark' ? darkTheme : lightTheme
   const activeThemeName = getTheme(activeThemeId).name
@@ -45,15 +56,19 @@ export function StatusBar(): React.JSX.Element {
       <div className="status-bar__right">
         {active && (
           <>
-            {/* Cursor position */}
-            <span className="status-bar__item" title="Current cursor position">
-              Ln {stats.line}, Col {stats.column}
-            </span>
+            {!isDrawing && (
+              <>
+                {/* Cursor position */}
+                <span className="status-bar__item" title="Current cursor position">
+                  Ln {stats.line}, Col {stats.column}
+                </span>
 
-            <span className="status-bar__sep">·</span>
+                <span className="status-bar__sep">·</span>
+              </>
+            )}
 
             {/* Word count metric pill — prose only. */}
-            {!isCode && (
+            {!isCode && !isDrawing && (
               <>
                 <button
                   className="status-bar__stats-btn"
@@ -67,18 +82,22 @@ export function StatusBar(): React.JSX.Element {
               </>
             )}
 
-            {/* Indentation & Encoding */}
-            <span className="status-bar__item" title="Tab indentation width">
-              Spaces: {tabSize}
-            </span>
+            {/* Indentation & Encoding — both are about text. */}
+            {!isDrawing && (
+              <>
+                <span className="status-bar__item" title="Tab indentation width">
+                  Spaces: {tabSize}
+                </span>
 
-            <span className="status-bar__sep">·</span>
+                <span className="status-bar__sep">·</span>
 
-            <span className="status-bar__item" title="File encoding">
-              UTF-8
-            </span>
+                <span className="status-bar__item" title="File encoding">
+                  UTF-8
+                </span>
 
-            <span className="status-bar__sep">·</span>
+                <span className="status-bar__sep">·</span>
+              </>
+            )}
 
             <span className="status-bar__item" title="Language mode">
               {language}

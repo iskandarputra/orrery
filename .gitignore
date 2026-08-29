@@ -14,3 +14,4 @@ playwright-report/
 blob-report/
 native/target/
 resources/sidecar/
+src/renderer/public/
