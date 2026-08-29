@@ -7,9 +7,9 @@
 ./orrery.sh dev
 ```
 
-`./orrery.sh doctor` reports what is missing. The Rust sidecar is optional — the
-app falls back to the TypeScript implementation when it is not built, so you do
-not need a Rust toolchain to work on anything else.
+`./orrery.sh doctor` reports what is missing. The Rust sidecar is optional. When
+it has not been built the app falls back to the TypeScript implementation, so a
+Rust toolchain is only needed if you are changing the sidecar itself.
 
 ## Before you open a pull request
 
@@ -23,9 +23,9 @@ it if you would rather watch.
 
 ## What the code expects of you
 
-[ARCHITECTURE.md](ARCHITECTURE.md) is short and worth reading first — it says
-where new code goes and which rules are checked by a test rather than asked for
-politely. The two that catch people:
+[ARCHITECTURE.md](ARCHITECTURE.md) is short and worth reading first. It says
+where new code goes and which rules a test will hold you to. Two of them catch
+people:
 
 - **Logic belongs in `src/core`.** If a function needs nothing but its
   arguments, it goes there and it gets a unit test. A decision made inside a
@@ -38,9 +38,8 @@ politely. The two that catch people:
 
 A test that cannot fail is worse than no test, because it is credited as
 coverage. When you fix something, break the fix and watch the test go red before
-you believe it — several bugs in this repository were found exactly that way,
-and one test that "passed" turned out to be checking a CSS class that did not
-exist.
+you believe it. Several bugs here were found exactly that way, and one test that
+"passed" turned out to be checking a CSS class that never existed.
 
 New UI needs a `Surface` in `e2e/ui-audit.spec.ts` in the same change. It
 measures contrast and pointer-target size across all 28 themes, and surfaces
