@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BacklinkHit } from '@shared/types'
 import { documentSymbols } from '@core/symbols'
+import { surfaceForKind } from '@/plugins/registry'
 import { getActiveView } from '@/editor/active-view'
 import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
@@ -26,6 +27,11 @@ function OutlineBody(): React.JSX.Element {
   const activeId = useStore((s) => s.activeId)
   const fileName = useStore((s) => (s.activeId ? (s.buffers[s.activeId]?.fileName ?? '') : ''))
   const isCode = useStore((s) => (s.activeId ? s.buffers[s.activeId]?.kind === 'code' : false))
+  // A board, a drawing or a table has no outline to read, and telling someone
+  // to add "# Headings" to a spreadsheet is advice that would corrupt it.
+  const surface = useStore((s) =>
+    s.activeId ? surfaceForKind(s.buffers[s.activeId]?.kind ?? '') : null
+  )
   const [filter, setFilter] = useState('')
   // Re-read when the buffer or the document changes; `stats` ticks on edits.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,6 +57,10 @@ function OutlineBody(): React.JSX.Element {
   }
 
   if (!activeId) return <EmptyState icon="list">Open a file to see its outline.</EmptyState>
+  if (surface)
+    return (
+      <EmptyState icon="list">{`An outline is for text; this is a ${surface.label}.`}</EmptyState>
+    )
   if (symbols.length === 0)
     return (
       <EmptyState icon="list">

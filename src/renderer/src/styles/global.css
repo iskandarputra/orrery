@@ -5163,3 +5163,237 @@ kbd {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* A commit's message, opened from the graph's context menu. Wide enough for a
+   wrapped paragraph, and selectable, which is the reason it is not a tooltip. */
+.commit-message {
+  width: min(560px, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-md);
+  background: var(--or-panel-bg);
+  box-shadow: var(--or-shadow-lg);
+}
+
+.commit-message__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.commit-message__subject {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--or-fg);
+}
+
+.commit-message__body {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--or-radius-sm);
+  background: var(--or-code-bg);
+  color: var(--or-fg-muted);
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.commit-message__meta {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--or-fg-muted);
+}
+
+.commit-message__hash {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--or-mono-font);
+  font-size: 11.5px;
+  color: var(--or-fg-faint);
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
+.commit-message__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.commit-message__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  font-size: 12px;
+  color: var(--or-fg-muted);
+  cursor: pointer;
+}
+
+.commit-message__copy:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+/* The CSV table surface. Fills the pane, scrolls in its own box, and keeps the
+   header row in view while the body scrolls under it. */
+.csv {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--or-editor-bg);
+}
+
+.csv__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--or-border);
+  font-size: 11.5px;
+  color: var(--or-fg-muted);
+}
+
+.csv__shape {
+  font-variant-numeric: tabular-nums;
+}
+
+.csv__delimiter {
+  padding: 1px 6px;
+  border-radius: var(--or-radius-xs);
+  background: var(--or-accent-soft);
+  color: var(--or-accent-text);
+  font-size: 10.5px;
+}
+
+.csv__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.csv__action:last-of-type {
+  margin-right: auto;
+}
+
+.csv__action:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.csv__scroll {
+  overflow: auto;
+  /* minmax(0, …) above plus this is what keeps a wide table scrolling in its
+     own box instead of stretching the pane. */
+  min-width: 0;
+}
+
+.csv__table {
+  border-collapse: collapse;
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+}
+
+.csv__table th,
+.csv__table td {
+  border: 1px solid var(--or-border);
+  padding: 0;
+}
+
+.csv__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--or-panel-bg);
+}
+
+.csv__gutter {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  min-width: 3.4rem;
+  padding: 0 4px;
+  background: var(--or-panel-bg);
+  color: var(--or-fg-faint);
+}
+
+.csv__number {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.csv__input {
+  width: 100%;
+  min-width: 8rem;
+  min-height: 26px;
+  padding: 3px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--or-fg);
+  font: inherit;
+}
+
+.csv__input--head {
+  font-weight: 650;
+  color: var(--or-fg);
+}
+
+.csv__input:focus {
+  outline: 2px solid var(--or-accent);
+  outline-offset: -2px;
+  background: var(--or-editor-bg);
+}
+
+.csv__cell--active {
+  background: var(--or-accent-soft);
+}
+
+/* Shown on hover, so a table of data is not a table of delete buttons. */
+.csv__drop {
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-faint);
+  cursor: pointer;
+}
+
+.csv__head:hover .csv__drop,
+.csv__gutter:hover .csv__drop,
+.csv__drop:focus-visible {
+  opacity: 1;
+}
+
+.csv__drop:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-diff-del);
+}
