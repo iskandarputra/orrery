@@ -35,3 +35,19 @@ const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdown', '.mkd', '.mdw
 export function isMarkdownFile(p: string): boolean {
   return MARKDOWN_EXTENSIONS.has(extname(p).toLowerCase())
 }
+
+/**
+ * Where a path ends up after something above it is renamed.
+ *
+ * Returns null when the rename does not touch it, so a caller can tell "moved
+ * to the same place" from "not affected" without comparing strings.
+ *
+ * The separator in the prefix test is what makes it correct: renaming `notes`
+ * must not drag `notes-archive` along with it, and a `startsWith` on the bare
+ * path would do exactly that.
+ */
+export function retargetPath(filePath: string, oldPath: string, newPath: string): string | null {
+  if (filePath === oldPath) return newPath
+  if (filePath.startsWith(oldPath + '/')) return newPath + filePath.slice(oldPath.length)
+  return null
+}

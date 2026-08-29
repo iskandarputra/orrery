@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import { basename } from '@core/paths'
+import { basename, retargetPath } from '@core/paths'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { createDocumentState } from '@/editor/create-state'
 import { getActiveView, viewForBuffer } from '@/editor/active-view'
@@ -397,12 +397,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     let changed = false
     for (const buffer of Object.values(buffers)) {
       if (!buffer.filePath) continue
-      let next: string | null = null
-      if (buffer.filePath === oldPath) {
-        next = newPath
-      } else if (buffer.filePath.startsWith(oldPath + '/')) {
-        next = newPath + buffer.filePath.slice(oldPath.length)
-      }
+      const next = retargetPath(buffer.filePath, oldPath, newPath)
       if (next) {
         buffers[buffer.id] = { ...buffer, filePath: next, fileName: basename(next) }
         changed = true
