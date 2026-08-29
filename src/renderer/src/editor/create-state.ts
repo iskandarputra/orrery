@@ -33,6 +33,7 @@ import { documentKind, type DocumentKind } from '@core/document-kind'
 import { languageCompartment } from './code-language'
 import { gitGutter } from './git-gutter'
 import { indentGuides } from './indent-guides'
+import { vimMode } from './vim-mode'
 import { minimap } from './minimap'
 import { changeDocument } from './lsp-session'
 import { goToDefinition } from './lsp-definition'
@@ -142,20 +143,24 @@ function scheduleSync(path: string, text: string): void {
 
 export function settingsExtensions(settings: Settings, kind: DocumentKind = 'markdown'): Extension {
   const e = settings.editor
+  // Before the split by kind: someone who edits in vim edits everything in vim,
+  // and a note is not a special case for them.
+  const vim = vimMode(e.vimMode)
   // Code is not prose: none of the markdown machinery below applies to it, and
   // most of it actively misreads it.
-  if (kind === 'code') return codeExtensions(settings)
+  if (kind === 'code') return [vim, codeExtensions(settings)]
   // A surface-backed document — a board, a drawing, a diff — is a container the
   // app never shows as text. Everything below would parse its JSON as markdown,
   // building live-preview decorations, a mermaid pass and an image pass over a
   // document nobody reads, on every keystroke the surface commits.
-  if (kind !== 'markdown') return []
+  if (kind !== 'markdown') return vim
   const rendered = e.viewMode !== 'source' // 'live' and 'reading' both render
   const reading = e.viewMode === 'reading' // fully rendered, read-only
   // In Reading mode (pure preview), always render markdown and reflow paragraphs like VS Code.
   const showLivePreview = reading || (settings.markdown.livePreview && rendered)
   const reflow = reading || (showLivePreview && settings.markdown.reflowParagraphs)
   return [
+    vim,
     e.wordWrap || reflow ? EditorView.lineWrapping : [],
     e.lineNumbers && !reading ? lineNumbers() : [],
     // Handles are for editing; a rendered document has nothing to drag.

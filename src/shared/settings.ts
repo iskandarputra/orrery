@@ -61,7 +61,9 @@ export const settingsSchema = z.object({
        */
       minimap: z.boolean().default(true),
       /** Vertical lines marking indentation depth, in code files. */
-      indentGuides: z.boolean().default(true)
+      indentGuides: z.boolean().default(true),
+      /** Vim keybindings, in prose as well as code. */
+      vimMode: z.boolean().default(false)
     })
     .prefault({}),
   markdown: z

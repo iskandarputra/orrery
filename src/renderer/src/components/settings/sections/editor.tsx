@@ -108,6 +108,9 @@ export function EditorSection(): React.JSX.Element {
       >
         <Toggle checked={e.minimap} onChange={(minimap) => update({ editor: { ...e, minimap } })} />
       </SettingRow>
+      <SettingRow label="Vim mode" description="Vim keybindings, in notes as well as code">
+        <Toggle checked={e.vimMode} onChange={(vimMode) => update({ editor: { ...e, vimMode } })} />
+      </SettingRow>
       <SettingRow label="Word wrap in code" description="Off keeps columns aligned">
         <Toggle
           checked={e.wordWrapCode}

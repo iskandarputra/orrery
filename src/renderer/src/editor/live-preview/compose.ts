@@ -63,7 +63,14 @@ const linkClickHandler = EditorView.domEventHandlers({
  */
 export function composeLivePreview(
   options: LivePreviewOptions = {},
-  embeds: Extension = []
+  embeds: Extension = [],
+  /**
+   * Hovering a link to see the note behind it. Passed in rather than imported,
+   * because the preview it opens is built by this very module: importing it
+   * here would close the cycle, and a preview inside a preview is not wanted
+   * anyway.
+   */
+  linkPreviews: Extension = []
 ): Extension {
   const {
     fancyBullets = true,
@@ -91,6 +98,7 @@ export function composeLivePreview(
     ),
     frontmatterRendering(reveal),
     footnoteRendering(reveal),
+    linkPreviews,
     embeds,
     tableRendering(reveal),
     codeCardRendering(reveal),

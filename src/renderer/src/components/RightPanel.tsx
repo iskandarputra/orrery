@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BacklinkHit } from '@shared/types'
+import { parseSearchQuery } from '@core/search-operators'
 import { documentSymbols } from '@core/symbols'
 import { surfaceForKind } from '@/plugins/registry'
 import { getActiveView } from '@/editor/active-view'
@@ -150,14 +151,25 @@ function SearchBody(): React.JSX.Element {
     (term = query): void => {
       if (!rootPath || !term.trim()) return
       setSearched(term)
+      // Operators are translated in front of the search rather than taught to
+      // it: there are two implementations, and neither has to learn anything.
+      const parsed = parseSearchQuery(term, regex)
+      // Typed filters add to the boxes rather than replacing them, so
+      // `path:src` and an exclude set by hand both apply.
+      const bothIncludes = [include, parsed.include].filter(Boolean).join(', ')
+      const bothExcludes = [exclude, parsed.exclude].filter(Boolean).join(', ')
+      if (!parsed.query && !bothIncludes && !bothExcludes) return
+
       void invoke('workspace:search', {
         rootPath,
-        query: term,
-        regex,
+        // A query of only filters means "show me what is in there", which is a
+        // pattern matching every line rather than a search for empty text.
+        query: parsed.query || '.',
+        regex: parsed.query ? parsed.regex : true,
         caseSensitive,
-        wholeWord,
-        include,
-        exclude
+        wholeWord: parsed.query ? wholeWord : false,
+        include: bothIncludes,
+        exclude: bothExcludes
       })
         .then(setHits)
         .catch(() => setHits([]))
@@ -185,7 +197,7 @@ function SearchBody(): React.JSX.Element {
         <Icon name="search" size={14} className="gsearch__icon" />
         <input
           className="gsearch__input"
-          placeholder="Search vault…"
+          placeholder="Search vault… (path: file: tag:)"
           value={query}
           autoFocus
           onChange={(e) => setQuery(e.target.value)}

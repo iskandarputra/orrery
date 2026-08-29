@@ -1,6 +1,7 @@
 import type { Extension } from '@codemirror/state'
 import { embedRendering } from './embeds'
 import { composeLivePreview, type LivePreviewOptions } from './compose'
+import { linkPreview } from '../link-preview'
 
 export type { LivePreviewOptions }
 
@@ -10,5 +11,5 @@ export type { LivePreviewOptions }
  * feature modules added to the list in `compose.ts`.
  */
 export function livePreview(options: LivePreviewOptions = {}): Extension {
-  return composeLivePreview(options, embedRendering(options.reveal ?? true))
+  return composeLivePreview(options, embedRendering(options.reveal ?? true), linkPreview())
 }
