@@ -1,3 +1,4 @@
+import { fileIcon } from '@core/file-icons'
 import { useStore } from '@/state/store'
 import { openContextMenu } from './context-menu/context-menu'
 import { Icon } from './Icon'
@@ -41,9 +42,13 @@ export function TabBar(): React.JSX.Element | null {
               }}
             >
               <Icon
-                name="file-text"
+                name={fileIcon(buffer.fileName).shape}
                 size={13}
                 className={`tab__icon${isActive ? ' tab__icon--active' : ''}`}
+                {...(() => {
+                  const colour = fileIcon(buffer.fileName).colour
+                  return colour ? { style: { color: colour } } : {}
+                })()}
               />
               <span className="tab__label">{buffer.fileName}</span>
               <button
@@ -58,11 +63,7 @@ export function TabBar(): React.JSX.Element | null {
           )
         })}
       </div>
-      <button
-        className="tab-bar__new-btn"
-        title="New note (Ctrl+N)"
-        onClick={() => newUntitled()}
-      >
+      <button className="tab-bar__new-btn" title="New note (Ctrl+N)" onClick={() => newUntitled()}>
         <Icon name="plus" size={13} />
       </button>
     </div>

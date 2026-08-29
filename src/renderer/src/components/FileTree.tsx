@@ -1,9 +1,10 @@
 import { memo, useMemo } from 'react'
 import type { FileNode } from '@shared/types'
+import { fileIcon } from '@core/file-icons'
 import { isMarkdownFile } from '@core/paths'
 import { useStore } from '@/state/store'
 import { openContextMenu } from './context-menu/context-menu'
-import { Icon, type IconName } from './Icon'
+import { Icon } from './Icon'
 import { buildTreeMenu } from './menus'
 import { TreeEditInput } from './TreeEditInput'
 
@@ -19,15 +20,6 @@ export const INDENT_PX = 15
 /** Row padding inside its level's box: directories lead with a chevron, files don't. */
 const DIR_PAD_PX = 8
 const FILE_PAD_PX = 22
-
-function getFileIcon(fileName: string): IconName {
-  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-  if (isMarkdownFile(fileName)) return 'file-text'
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) return 'image'
-  if (['ts', 'js', 'json', 'py', 'rs', 'go', 'html', 'css', 'yml', 'yaml'].includes(ext))
-    return 'code'
-  return 'file'
-}
 
 /** Filter tree hierarchy: keep node if itself matches or any descendant matches */
 function filterNode(node: FileNode, filter: string): FileNode | null {
@@ -104,7 +96,11 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
               className={`tree-chevron${expanded ? ' tree-chevron--open' : ''}`}
             />
           </span>
-          <Icon name={expanded ? 'folder-open' : 'folder'} size={15} className="tree-icon tree-icon--folder" />
+          <Icon
+            name={expanded ? 'folder-open' : 'folder'}
+            size={15}
+            className="tree-icon tree-icon--folder"
+          />
           <span className="tree-label">{node.name}</span>
           <div className="tree-row__actions" onClick={(e) => e.stopPropagation()}>
             <button
@@ -114,11 +110,7 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
             >
               <Icon name="file-plus" size={13} />
             </button>
-            <button
-              className="tree-row__action-btn"
-              title="More actions"
-              onClick={onMenu}
-            >
+            <button className="tree-row__action-btn" title="More actions" onClick={onMenu}>
               <Icon name="more-horizontal" size={13} />
             </button>
           </div>
@@ -136,7 +128,7 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
   }
 
   const isMd = isMarkdownFile(node.path)
-  const icon = getFileIcon(node.name)
+  const icon = fileIcon(node.name)
 
   return (
     <div
@@ -148,14 +140,17 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
       onClick={() => void openPaths([node.path])}
       onContextMenu={onMenu}
     >
-      <Icon name={icon} size={14} className={`tree-icon${isActive ? ' tree-icon--active' : ''}`} />
+      <Icon
+        name={icon.shape}
+        size={14}
+        className={`tree-icon${isActive ? ' tree-icon--active' : ''}`}
+        // The language's own colour. Left unset for prose and unknown files so
+        // they take the tree's colour and the coloured ones stand out.
+        {...(icon.colour ? { style: { color: icon.colour } } : {})}
+      />
       <span className="tree-label">{node.name}</span>
       <div className="tree-row__actions" onClick={(e) => e.stopPropagation()}>
-        <button
-          className="tree-row__action-btn"
-          title="More actions"
-          onClick={onMenu}
-        >
+        <button className="tree-row__action-btn" title="More actions" onClick={onMenu}>
           <Icon name="more-horizontal" size={13} />
         </button>
       </div>

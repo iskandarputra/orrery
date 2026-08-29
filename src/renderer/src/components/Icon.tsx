@@ -156,6 +156,38 @@ const PATHS = {
       <path d="M12.5 4.5c-.7-.9-2-1.5-3.5-1.5-2.2 0-3.5 1.2-3.5 2.8 0 1.4.9 2.2 2.8 2.6M2 8h12M6.2 11.2c.7.8 1.8 1.3 3.3 1.3 2 0 3.5-.9 3.5-2.5 0-1.2-.7-2-2.5-2.4" />
     </>
   ),
+  /* File-kind glyphs. Drawn here rather than vendored: language logos are
+     trademarks with their own terms, and colour carries the identity anyway. */
+  braces: (
+    <>
+      <path d="M6.2 2.5C4.8 2.5 4.6 3.3 4.6 4.6v1.6c0 1-.5 1.6-1.4 1.8.9.2 1.4.8 1.4 1.8v1.6c0 1.3.2 2.1 1.6 2.1" />
+      <path d="M9.8 2.5c1.4 0 1.6.8 1.6 2.1v1.6c0 1 .5 1.6 1.4 1.8-.9.2-1.4.8-1.4 1.8v1.6c0 1.3-.2 2.1-1.6 2.1" />
+    </>
+  ),
+  angle: (
+    <>
+      <path d="M5.8 4.5 2.5 8l3.3 3.5" />
+      <path d="M10.2 4.5 13.5 8l-3.3 3.5" />
+    </>
+  ),
+  brackets: (
+    <>
+      <path d="M6 2.8H3.6v10.4H6" />
+      <path d="M10 2.8h2.4v10.4H10" />
+    </>
+  ),
+  terminal: (
+    <>
+      <path d="M3 4.5 6.5 8 3 11.5" />
+      <path d="M8 12h5" />
+    </>
+  ),
+  binary: (
+    <>
+      <rect x="2.8" y="2.8" width="10.4" height="10.4" rx="1.6" />
+      <path d="M5.6 8h4.8" />
+    </>
+  ),
   code: <path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5" />,
   quote: (
     <>
@@ -240,12 +272,8 @@ const PATHS = {
       <path d="M8 4.5V8l2.5 1.5" />
     </>
   ),
-  bookmark: (
-    <path d="M3.75 2.75a1 1 0 0 1 1-1h6.5a1 1 0 0 1 1 1v11.5L8 11.5l-4.25 2.75V2.75z" />
-  ),
-  filter: (
-    <path d="M1.75 3h12.5l-5 5.5v4.5l-2.5-1.5v-3z" />
-  ),
+  bookmark: <path d="M3.75 2.75a1 1 0 0 1 1-1h6.5a1 1 0 0 1 1 1v11.5L8 11.5l-4.25 2.75V2.75z" />,
+  filter: <path d="M1.75 3h12.5l-5 5.5v4.5l-2.5-1.5v-3z" />,
   maximize: (
     <>
       <path d="M10 2.5h3.5V6M6 13.5H2.5V10M13.5 2.5L9 7M2.5 13.5L7 9" />
@@ -331,16 +359,20 @@ export type IconName = keyof typeof PATHS
 export function Icon({
   name,
   size = 16,
-  className
+  className,
+  style
 }: {
   name: IconName
   size?: number
   className?: string
+  /** For the few icons that carry their own colour, such as file kinds. */
+  style?: React.CSSProperties
 }): React.JSX.Element {
   return (
     <svg
       width={size}
       height={size}
+      style={style}
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
