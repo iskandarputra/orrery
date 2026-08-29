@@ -1,36 +1,164 @@
-# Orrery
+<h1 align="center">Orrery</h1>
 
-An orrery is a clockwork model of a solar system: it does not just hold the
-bodies, it shows how they move and what they pull on.
+<p align="center">
+  A markdown editor that models the shape of what you write.
+</p>
 
-A markdown editor and knowledge base built the same way — your notes are the
-bodies, and the links between them are modelled, measured and shown back to
-you. Inspired by [MarkText](https://github.com/marktext/marktext), rebuilt on a
-modern, testable architecture.
+<p align="center">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F.svg">
+  <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6.svg">
+  <img alt="tests" src="https://img.shields.io/badge/tests-648%20unit%20%C2%B7%20176%20e2e-success.svg">
+</p>
 
-**Stack:** Electron · React 19 · TypeScript (strict) · CodeMirror 6 · Zustand · zod
+![The editor, showing live preview of headings, wikilinks, a table, a highlight and KaTeX math](docs/screenshots/editor.png)
 
-**Contributing?** [ARCHITECTURE.md](ARCHITECTURE.md) is the short version: what the layers are, where new code goes, and which rules are enforced by a test rather than by convention.
+An orrery is a clockwork model of a solar system. It does not merely hold the
+planets — it shows how they move and what they pull on.
 
-## The editing experience
+This is a markdown editor built on the same idea. Your notes are the bodies and
+the links between them are the forces, so the structure of what you have written
+is something you can see, search and navigate rather than something you have to
+hold in your head.
 
-orrery uses a **live-preview hybrid** (Typora/Obsidian style): you always edit real markdown source, but formatting renders inline — headings size up, bold is bold, links show their label, task checkboxes are clickable — and syntax markers reappear precisely where your cursor is. The document is never converted to and from a rich-text model, so what's on disk is exactly what you wrote.
+It also turns out that a knowledge base which takes its own vault seriously
+needs to be a decent code editor, a git client and a terminal — because that is
+what is in the folder you are pointing it at.
 
-**Three view modes** — a switch in the status bar (or Ctrl+Shift+1/2/3, Ctrl+/ to cycle): **Edit** (raw markdown source), **Hybrid** (live preview — the default), and **Reading** (fully rendered, read-only). **Reflow paragraphs** (on by default) joins soft-wrapped source lines to fill the canvas like a markdown preview, leaving your file's line breaks untouched. Typography is bundled (Inter, JetBrains Mono, Newsreader) so it's identical on every machine.
+## Writing
 
-**Settings** (Ctrl+,) cover General (autosave, startup), Editor (typography, wrap, line numbers), Markdown (live-preview toggles), Appearance, and Keybindings. **28 built-in themes** (17 dark, 11 light — Dracula, Nord, Catppuccin, Gruvbox, Tokyo Night, Rosé Pine, Solarized and more) are defined as small palettes in `src/renderer/src/themes/themes.ts`; the full token set per theme is derived at startup, so adding a theme is ~6 lines.
+**Live preview, not a preview pane.** You are always editing real markdown.
+Formatting renders inline — headings size up, bold is bold, links show their
+label — and the syntax markers reappear exactly where the cursor lands. The
+document is never converted to and from a rich-text model, so the file on disk is
+what you typed.
 
-## Knowledge base
+Three modes on `Ctrl+Shift+1/2/3`: **Edit** (raw source), **Hybrid** (the
+default), **Reading** (fully rendered, read-only).
 
-orrery treats a folder as a vault, Obsidian-style:
+Tables render as tables. `$inline$` and `$$block$$` maths through KaTeX.
+` ```mermaid ` fences render as diagrams. `==Highlights==` get a marker pen.
+Images and diagrams open full-screen. Code fences scroll inside their own card
+rather than dragging the document sideways.
 
-- **`[[Wikilinks]]`** — link notes by name (`[[Note]]`, `[[Note#Heading]]`, `[[Note|alias]]`). Rendered inline with syntax concealed, `[[` triggers note-name autocomplete from the workspace index, Ctrl+click navigates — and creates the note if it doesn't exist yet. Links to missing notes get a dashed style.
-- **Backlinks panel** (Ctrl+Shift+B) — see every note that references the one you're editing, grouped by file with line snippets.
-- **Context menus everywhere** — tabs (close / close others / close to the right / close all, copy path, reveal in file manager) and the file tree (new file/folder, inline rename, delete to trash, copy path, reveal).
+**28 themes**, 17 dark and 11 light, each a six-line palette from which the full
+token set is derived. Every one of them is checked against WCAG AA contrast and
+pointer-target size by a test that runs on every change.
 
-## Plugins
+## A vault, not a pile of files
 
-Features beyond the core are built against a small plugin API (`src/renderer/src/plugins/api.ts`):
+Point Orrery at a folder and it reads the whole thing.
+
+`[[Wikilinks]]` connect notes by name — `[[Note]]`, `[[Note#Heading]]`,
+`[[Note|alias]]`. Typing `[[` completes from the vault index, `Ctrl+click`
+follows, and following a link to a note that does not exist yet creates it.
+Links inside code fences are left alone, because a snippet showing the syntax is
+not a reference.
+
+**Backlinks** (`Ctrl+Shift+B`) show every note pointing at this one, with the
+line each mention sits on. **Search** covers the vault with regex and case
+options. **Tags**, an **outline**, and per-note **analysis** each get a panel.
+
+![The knowledge graph, showing 28 notes in four clusters joined by 71 links](docs/screenshots/graph.png)
+
+The **graph** (`Ctrl+Shift+G`) is the whole vault as a force-directed map: drag
+it, zoom it, hover to spotlight what a note connects to, click to open. Size
+nodes by links, influence or bridging; colour them by cluster or folder. Narrow
+to a local view of what is within _n_ hops of the note you are reading. Notes
+that are linked to but do not exist show as ghosts, so gaps are visible.
+
+## Code, git and a terminal
+
+A vault is a folder, and folders have code in them.
+
+![A side-by-side diff with a minimap, the source control panel, and the integrated terminal running git](docs/screenshots/diff-terminal.png)
+
+**Code files are code**, not markdown that happens to compile — syntax
+highlighting for 143 languages, folding, bracket matching, multiple cursors,
+column selection, and a minimap. Markdown's machinery is kept away from them,
+because reading `[1, 2, 3]` in a JSON file as a link is not a small mistake.
+
+![A TypeScript file with syntax highlighting, a minimap, code folding and git change bars in the gutter](docs/screenshots/code.png)
+
+**Language servers** are used where you already have them installed: hover
+types, completion, diagnostics in the gutter, and go-to-definition on `F12`.
+None are bundled; a language without one still gets highlighting and folding.
+
+**Git** is built in. Status, stage, unstage, discard, commit, a commit graph,
+and change bars in the gutter. The diff opens as a tab with two real editors
+side by side — highlighting, undo, multi-line selection — and the working-tree
+side is editable and saves with `Ctrl+S`.
+
+**A terminal** on ``Ctrl+` ``, running your own shell in the vault directory.
+
+**Drawings** are a first-class file type: `.excalidraw` files open as an
+Excalidraw canvas and are saved in Excalidraw's own format, so a board made here
+opens on excalidraw.com and one made there opens here.
+
+## Getting around
+
+`Ctrl+P` opens any note by fuzzy name. `Ctrl+Shift+P` runs any of 52 commands.
+In the same box, `:` jumps to a line and `@` jumps to a heading or a declaration
+in the file you are looking at.
+
+## AI, if you want it
+
+Optional and off until configured. Point it at the Claude API or a local Ollama
+model in **Settings → AI**. Answers are grounded in the note you have open plus
+matching passages from the vault, cited as `[file:line]`, and semantic search
+runs over locally computed embeddings. API keys stay in the main process and
+never reach the renderer.
+
+## Install
+
+Prebuilt Linux packages (`.deb`, AppImage) are on the
+[releases page](https://github.com/iskandarputra/orrery/releases). macOS and
+Windows have to be built on those platforms for now.
+
+### From source
+
+```bash
+git clone https://github.com/iskandarputra/orrery.git
+cd orrery
+./orrery.sh setup     # dependencies, Playwright browsers, Rust if present
+./orrery.sh dev
+```
+
+`./orrery.sh` with no arguments lists everything it can do; `./orrery.sh doctor`
+reports what is missing.
+
+```bash
+./orrery.sh check              # lint, typecheck, unit tests
+ORRERY_XVFB=1 ./orrery.sh e2e  # the built app, driven by Playwright
+./orrery.sh package            # .deb and AppImage into ./dist
+```
+
+Electron needs a display. Over SSH or in CI, `orrery.sh` runs the end-to-end
+suite under `xvfb` on its own; `ORRERY_XVFB=1` forces that path on a desktop,
+which is how you reproduce a CI failure locally.
+
+> **Linux note.** If Electron aborts with a SUID sandbox error, either
+> `sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox`,
+> or run with `ELECTRON_DISABLE_SANDBOX=1`. Packaged builds are unaffected.
+
+### The Rust sidecar (optional)
+
+Vault-wide search has a Rust implementation in `native/`, spoken to over the
+same framed JSON-RPC the app uses for language servers. On a 3,000-note vault it
+answers in about 34 ms against roughly 543 ms for the TypeScript path.
+
+It is entirely optional and off by default. Without a toolchain, without the
+binary, or if it crashes, the TypeScript search runs and nothing else changes.
+
+```bash
+./orrery.sh native                 # build it
+ORRERY_RUST_SEARCH=1 npm run dev   # use it
+```
+
+## Extending it
+
+Commands, editor extensions and whole document surfaces are contributed through
+one small API:
 
 ```ts
 export const myPlugin: OrreryPlugin = {
@@ -39,150 +167,56 @@ export const myPlugin: OrreryPlugin = {
   activate(ctx) {
     ctx.registerCommand({ id: 'my.command', title: 'Do Thing', run: ({ store }) => … })
     ctx.addEditorExtension((settings) => myCodeMirrorExtension(settings))
+    ctx.registerDocumentSurface({
+      id: 'drawio',
+      label: 'diagrams.net',
+      claims: (name) => name.endsWith('.drawio'),
+      Component: DrawioEditor
+    })
   }
 }
 ```
 
-Wikilinks itself is a built-in plugin (`plugins/wikilinks/`) — proof the extension points are real. **External plugins** load from `<userData>/plugins/*.js` at startup: each file receives a `orrery` object and calls `orrery.register({...})` against the same API (trusted local code, Obsidian-style).
+Wikilinks and the Excalidraw canvas are both built-ins written against exactly
+this API, using nothing a third-party plugin could not. External plugins load
+from `<userData>/plugins/*.js` at startup and call `orrery.register({...})`
+against the same surface — trusted local code, in the Obsidian sense.
 
-## Rich rendering
+## How it is built
 
-Rendered inline, reverting to source when the cursor enters — the live-preview pattern applied everywhere:
-
-- **Tables** render as real GitHub-styled tables (alignment, zebra rows, formatted cells).
-- **Math** — `$inline$` and `$$block$$` via KaTeX.
-- **Diagrams** — ` ```mermaid ` fences render as diagrams (mermaid lazy-loaded so startup stays fast), theme-aware.
-- **Highlights** — `==marked text==` renders as a theme-tinted marker pen.
-
-## More
-
-- **Command palette** (Ctrl+Shift+P) fuzzy-runs any command; **Quick Open** (Ctrl+P) fuzzy-opens any note. Every plugin command appears automatically.
-- **Outline / Global search** — the right panel tabs between Outline (TOC), Backlinks, Search (regex + case, whole vault), and **AI**.
-- **AI chat** (Ctrl+Shift+A) — provider-agnostic (Claude API or a local Ollama model, configured in Settings → AI; keys stay in the main process and never touch the renderer). Answers are grounded in your active note plus matching vault snippets, cited as `[file:line]`.
-- **Graph view** (Ctrl+Shift+G) — force-directed vault link graph on canvas: drag, zoom, hover to spotlight connections, click to open. Missing link targets show as ghost nodes.
-- **Extract to Note** (Ctrl+Alt+N) — turn a selection into a new note, replacing it with a wikilink (Zettelkasten refactor).
-- **Unwrap Paragraphs** — safely reflow hard-wrapped imported text (skips code, tables, lists, quotes).
-- **Export** — standalone HTML (embedded GitHub-style CSS) or PDF (via Electron's print pipeline).
-- **Custom keybindings** — override any shortcut in Settings → Keybindings; the native menu rebuilds live.
-
-## Development
-
-`./orrery.sh` is the entry point for everything; run it with no arguments for
-the full list.
-
-```bash
-./orrery.sh setup    # system packages, node modules, and the Rust toolchain
-./orrery.sh doctor   # report what is present and what is missing
-./orrery.sh dev      # start with HMR
-./orrery.sh check    # lint + typecheck + unit tests (what CI runs first)
-./orrery.sh e2e      # build, then Playwright against the built app
-```
-
-The underlying npm scripts still work if you prefer them:
-
-```bash
-npm run dev
-npm test           # unit tests (vitest)
-npm run e2e        # build + Playwright e2e against the packaged app
-npm run typecheck  # strict TS across main + renderer
-npm run lint
-```
-
-Electron needs a display. Where there is none — over SSH, or in CI — `orrery.sh`
-runs the e2e suite under `xvfb` automatically. Set `ORRERY_XVFB=1` to force that
-path on a desktop, which is how you reproduce a CI failure locally.
-
-> **Linux dev note:** if Electron aborts with a SUID sandbox error, either
-> `sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox`
-> or run dev with `ELECTRON_DISABLE_SANDBOX=1`. Packaged builds are unaffected.
-
-## Building & packaging
-
-```bash
-./scripts/build.sh              # compile to ./out (typecheck + electron-vite)
-./scripts/build.sh --fast       # skip typecheck
-
-./scripts/package.sh            # Linux .deb + AppImage → ./dist
-./scripts/package.sh deb        # only .deb
-./scripts/package.sh appimage   # only AppImage
-./scripts/package.sh --skip-checks   # skip lint/typecheck/tests
-
-# equivalents also wired as npm scripts:
-npm run dist        # → scripts/package.sh
-npm run dist:deb    # → scripts/package.sh deb
-```
-
-### The Rust search sidecar (optional)
-
-Vault-wide search has a Rust implementation in `native/`, spoken to over the
-same framed JSON-RPC the app already uses for language servers. On a 3,000-note
-vault it takes ~34ms against ~543ms for the TypeScript path.
-
-It is entirely optional. Without a Rust toolchain, without the binary, or if it
-crashes, `LinkScanner` runs its TypeScript search and nothing else changes.
-
-```bash
-./orrery.sh native      # build the sidecar
-./orrery.sh e2e:rust    # run the e2e suite against it
-ORRERY_RUST_SEARCH=1 npm run dev   # enable it in a dev run
-```
-
-It is off by default while it is being evaluated.
-
-Artifacts land in `./dist` (e.g. `orrery_0.1.0_amd64.deb`, `orrery-0.1.0.AppImage`). The app icon lives at `build/icon.png`. macOS/Windows targets (`npm run package:mac` / `package:win`) must be built on the matching OS — cross-building from Linux isn't supported here.
-
-## Architecture
+Electron · React 19 · TypeScript (strict) · CodeMirror 6 · Zustand · zod.
 
 ```
-src/
-├── shared/     IPC contract + zod settings schema — the single source of truth
-│               both processes compile against (ipc.ts, settings.ts, types.ts)
-├── core/       Pure domain logic. No Electron, no React, no DOM. (paths, recent-list)
-├── main/       Electron main process
-│   ├── ipc/        typed handler registry: impossible to register a channel
-│   │               that's not in the contract; zod-validates untrusted payloads
-│   ├── services/   FileSystemService (atomic writes + mtime conflict detection),
-│   │               WatcherService (chokidar, debounced batches), SettingsStore
-│   │               (zod-validated JSON, corrupt file → defaults, never crashes)
-│   ├── windows.ts  window factory/manager — security posture lives here only
-│   └── menu.ts     declarative menu; items dispatch command ids, zero behavior
-├── preload/    the one bridge (window.orrery) — thin, typed, whitelisted
-└── renderer/
-    └── src/
-        ├── state/      Zustand slices: documents (tabs/buffers), workspace
-        │               (tree + watching), ui (settings mirror)
-        ├── commands/   command registry — menus, shortcuts and the future
-        │               command palette are dispatchers over one behavior table
-        ├── components/ React shell: Sidebar, FileTree, TabBar, StatusBar, EditorPane
-        ├── editor/     CM6 engine
-        │   └── live-preview/  one module per markdown feature (headings,
-        │                      emphasis, links, lists, blockquote, hr, code)
-        └── styles/     design tokens as CSS custom properties; one token set
-                        drives both the shell and the editor theme (light/dark)
+src/core/      pure logic — no Electron, no DOM, no editor. 34 modules, 34 tested
+src/shared/    the IPC contract both processes compile against
+src/main/      files, git, language servers, terminal, embeddings
+src/preload/   the one bridge
+src/renderer/  React, CodeMirror, the whole interface
 ```
 
-### Key decisions
+Nothing points back up that list, and `src/architecture.test.ts` enforces it:
+layer crossings and runtime import cycles fail the test rather than the app.
+Document text lives in CodeMirror state rather than React, so no large string
+travels through a re-render on a keystroke. Every IPC channel is declared once
+and validated with zod at the boundary. Saves are atomic and check the file's
+mtime, so a write cannot silently discard a change made outside the editor.
 
-- **Document text lives in CodeMirror state, not React state.** The store holds tab metadata only; background tabs keep detached `EditorState`s (undo history, selection and scroll survive tab switches for free). No large strings flow through React on keystrokes.
-- **Typed IPC contract** (`src/shared/ipc.ts`): every channel's request/response type is declared once; preload, main handlers and the renderer client all type-check against it. Renderer payloads are zod-validated at the main boundary.
-- **Hexagonal seams for testability**: the renderer talks to `services/client.ts` (swappable `OrreryApi` fake), so the whole open/save/close/dirty/conflict lifecycle unit-tests in Node without Electron. The live-preview decoration builder is a pure function over `(EditorState, ranges)` and is tested without a DOM view.
-- **Safety**: atomic writes (temp + rename), optimistic-concurrency saves (external modification → conflict prompt), unsaved-changes interception on window close, `contextIsolation` + `sandbox` + CSP + deny-all navigation.
+[ARCHITECTURE.md](ARCHITECTURE.md) is the fuller version: what the layers are,
+where new code goes, and which rules are checked by a test rather than asked for
+politely.
 
-### Roadmap
+## Contributing
 
-Delivered: themes, live tables, math, mermaid, highlights, wikilinks, backlinks, graph view, command palette, quick open, global search, outline, atomic notes, export, plugins, custom keybindings, AI chat, **source-mode toggle**, **inline images** (via the sandboxed `orrery-asset://` protocol), **typewriter & focus modes**, **AI semantic search** (vault embeddings via a local Ollama model).
-
-Still open (nice-to-haves): plugin marketplace, collaborative editing, mobile/web build.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers running it and what the code expects.
+Bug reports and pull requests are welcome.
 
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
 
 Orrery bundles fonts and libraries under their own terms, all of them permissive
-and none copyleft; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists them
-with their copyright notices, and the full texts are in [`licenses/`](licenses/).
+and none copyleft. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every
+one with its copyright holder; the full texts are in [`licenses/`](licenses/).
 
-## Contributing
-
-[CONTRIBUTING.md](CONTRIBUTING.md) for how to run it and what the code expects;
-[ARCHITECTURE.md](ARCHITECTURE.md) for where things go.
+Inspired by [MarkText](https://github.com/marktext/marktext), and by Obsidian's
+idea that a folder of plain files is a good enough database.
