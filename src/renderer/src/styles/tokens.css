@@ -16,11 +16,14 @@
     'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   --or-ui-font: var(--or-prose-font);
 
-  /* Added and removed. Fixed across themes on purpose, like the graph's lane
-     colours: green-is-added is a convention read from outside the app, and
-     rehueing it per palette would make each theme mean something different. */
+  /* Added, removed and modified. The hue is fixed across themes on purpose —
+     green-is-added is a convention read from outside the app — but each theme
+     overrides these with the same hue deepened until it clears AA against its
+     own surfaces (see diffTokens in themes/themes.ts). These are the fallback
+     for the moment before a theme is applied. */
   --or-diff-add: #3fb950;
   --or-diff-del: #f85149;
+  --or-diff-mod: #d29922;
 
   --or-editor-font-size: 16px;
   --or-editor-line-height: 1.7;

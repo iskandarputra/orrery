@@ -2952,13 +2952,16 @@ textarea {
 }
 
 /* The changed lines themselves. Tinted, not filled: the text has to stay the
-   most legible thing on the line. */
+   most legible thing on the line, and syntax highlighting is already the
+   lowest-contrast text in the app — a tint heavy enough to be unmissable took
+   a comment in Monokai from 4.34:1 to 2.88:1. Light enough to read the line
+   through, strong enough to see which side of the diff it belongs to. */
 .cm-or-diff-line--old {
-  background: color-mix(in srgb, var(--or-diff-del) 13%, transparent);
+  background: color-mix(in srgb, var(--or-diff-del) 8%, transparent);
 }
 
 .cm-or-diff-line--new {
-  background: color-mix(in srgb, var(--or-diff-add) 13%, transparent);
+  background: color-mix(in srgb, var(--or-diff-add) 8%, transparent);
 }
 
 .diff__head {
@@ -3179,7 +3182,14 @@ textarea {
   color: var(--or-fg-muted);
 }
 
+/* 2.5.8: a pointer target is at least 24px on a side. These read as links, so
+   the height comes from padding rather than a box — the control grows, its
+   appearance does not. */
 .scm__group-act {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 0.2rem;
   margin-left: auto;
   font-size: 11px;
   color: var(--or-accent-text);
@@ -3208,6 +3218,11 @@ textarea {
   gap: 0.4rem;
   min-width: 0;
   flex: 1;
+  /* 2.5.8. The row is already 26px tall; the button inside it was not, so the
+     target was the text rather than the row it fills. */
+  min-height: 24px;
+  align-content: center;
+  flex-wrap: wrap;
   text-align: left;
   cursor: pointer;
 }
@@ -3255,17 +3270,17 @@ textarea {
 }
 
 .scm-row__state--modified {
-  color: #d29922;
+  color: var(--or-diff-mod);
 }
 .scm-row__state--added,
 .scm-row__state--untracked {
-  color: #3fb950;
+  color: var(--or-diff-add);
 }
 .scm-row__state--deleted {
-  color: #f85149;
+  color: var(--or-diff-del);
 }
 .scm-row__state--conflicted {
-  color: #f85149;
+  color: var(--or-diff-del);
 }
 
 /* Integrated terminal. Along the bottom of the editor column, sharing its

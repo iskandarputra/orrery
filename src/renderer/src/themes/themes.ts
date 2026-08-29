@@ -244,6 +244,26 @@ export function highContrastCodeTokens(spec: ThemeSpec): Record<string, string> 
 }
 
 /** One stylesheet with a `[data-theme='<id>']` block per theme. */
+/**
+ * Added / modified / removed, deepened until they can be read.
+ *
+ * The hues are fixed on purpose — green-is-added is a convention read from
+ * outside the app, and rehueing it per palette would make each theme mean
+ * something different. But a hue chosen for a dark background sits at 2.3:1 on
+ * a light one, and a status letter nobody can read conveys nothing at all. So
+ * the hue is kept and only its depth moves, and only as far as AA requires.
+ */
+function diffTokens(spec: ThemeSpec, resolved: ResolvedTheme): Record<string, string> {
+  const surfaces = [resolved.bg, resolved['panel-bg'], resolved['editor-bg']]
+  const toward = spec.appearance === 'light' ? '#000000' : '#ffffff'
+  const deepen = (hue: string): string => reinforce(hue, toward, surfaces, 4.5)
+  return {
+    'diff-add': deepen('#3fb950'),
+    'diff-del': deepen('#f85149'),
+    'diff-mod': deepen('#d29922')
+  }
+}
+
 export function generateThemeCss(): string {
   return THEMES.map((spec) => {
     const resolved = resolveTheme(spec)
@@ -251,7 +271,10 @@ export function generateThemeCss(): string {
       .filter((k) => k !== 'appearance')
       .map((k) => `  --or-${k}: ${resolved[k as TokenName]};`)
       .join('\n')
-    const base = `:root[data-theme='${spec.id}'] {\n  color-scheme: ${spec.appearance};\n${vars}\n}`
+    const diff = Object.entries(diffTokens(spec, resolved))
+      .map(([k, v]) => `  --or-${k}: ${v};`)
+      .join('\n')
+    const base = `:root[data-theme='${spec.id}'] {\n  color-scheme: ${spec.appearance};\n${vars}\n${diff}\n}`
 
     const hc = Object.entries(highContrastCodeTokens(spec))
       .map(([k, v]) => `  --or-${k}: ${v};`)
