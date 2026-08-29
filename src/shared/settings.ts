@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { McpServerConfig } from '@core/mcp-config'
 
 /**
  * Persisted user settings. The zod schema is the single source of truth:
@@ -22,7 +23,36 @@ export const sidePanelSchema = z.enum([
   'stats',
   'analysis',
   'tags',
-  'git'
+  'git',
+  'mcp'
+])
+
+/**
+ * One MCP server, as it is written to disk.
+ *
+ * Typed against `McpServerConfig` from `core/` rather than inferred back out of
+ * zod: the shape is a decision the pure module owns, and this is the boundary
+ * that has to prove a file on disk still matches it.
+ */
+export const mcpServerSchema: z.ZodType<McpServerConfig> = z.union([
+  z.object({
+    id: z.string().min(1),
+    name: z.string(),
+    enabled: z.boolean().default(true),
+    transport: z.literal('stdio'),
+    command: z.string(),
+    args: z.array(z.string()).default([]),
+    env: z.record(z.string(), z.string()).default({}),
+    cwd: z.string().default('')
+  }),
+  z.object({
+    id: z.string().min(1),
+    name: z.string(),
+    enabled: z.boolean().default(true),
+    transport: z.literal('http'),
+    url: z.string(),
+    headers: z.record(z.string(), z.string()).default({})
+  })
 ])
 
 export const settingsSchema = z.object({
@@ -184,6 +214,30 @@ export const settingsSchema = z.object({
        * the most useful thing to see beside it on a first run.
        */
       panel: sidePanelSchema.nullable().default('outline')
+    })
+    .prefault({}),
+  /**
+   * Model Context Protocol: the servers Orrery talks to, and what they may do.
+   *
+   * Permissions are remembered per tool per server. They live here rather than
+   * beside the server so that removing a server and adding it back does not
+   * quietly restore what it was once allowed to do — `forgetServer` clears them
+   * on removal, deliberately and visibly.
+   */
+  mcp: z
+    .object({
+      servers: z.array(mcpServerSchema).default([]),
+      permissions: z
+        .object({
+          remembered: z.record(z.string(), z.enum(['allow', 'deny'])).default({})
+        })
+        .prefault({}),
+      /** Tools switched off by the user, by `serverId/toolName`. */
+      disabledTools: z.array(z.string()).default([]),
+      /** How long to wait for a server before giving up on one call. */
+      timeoutMs: z.number().int().min(1000).max(300_000).default(30_000),
+      /** A tool result longer than this is trimmed before a model sees it. */
+      maxResultChars: z.number().int().min(500).max(200_000).default(20_000)
     })
     .prefault({}),
   window: z

@@ -69,6 +69,7 @@
     "@lezer/common": "^1.5.2",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.6.4",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@replit/codemirror-indentation-markers": "^6.5.3",
     "@replit/codemirror-minimap": "^0.5.2",
     "@replit/codemirror-vim": "^6.4.0",

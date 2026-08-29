@@ -1,5 +1,6 @@
 import type { DocumentsSlice } from './documents'
 import type { GraphSlice } from './graph'
+import type { McpSlice } from './mcp'
 import type { UiSlice } from './ui'
 import type { WorkspaceSlice } from './workspace'
 
@@ -12,4 +13,4 @@ import type { WorkspaceSlice } from './workspace'
  * before they could do any harm at runtime, but a dependency graph that reports
  * cycles is one nobody reads, and the next cycle would be a real one.
  */
-export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice & GraphSlice
+export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice & GraphSlice & McpSlice

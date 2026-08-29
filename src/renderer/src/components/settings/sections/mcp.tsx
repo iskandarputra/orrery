@@ -1,0 +1,332 @@
+import { useState } from 'react'
+import {
+  configErrors,
+  describeServer,
+  importServers,
+  serverId,
+  type McpServerConfig
+} from '@core/mcp-config'
+import { grants } from '@core/mcp-permissions'
+import { useStore } from '@/state/store'
+import { Icon } from '@/components/Icon'
+import { NumberField, SettingRow, TextField, Toggle } from '../controls'
+
+/**
+ * The servers Orrery talks to, and what they are allowed to do.
+ *
+ * Two ways in, because there are two kinds of person here: someone who already
+ * has MCP servers configured for another client and wants them to work, and
+ * someone adding their first one by hand. The first path is a paste box, and it
+ * is deliberately the one at the top.
+ */
+export function McpSection(): React.JSX.Element {
+  const settings = useStore((s) => s.settings)
+  const update = useStore((s) => s.updateSettings)
+  const save = useStore((s) => s.saveMcpServer)
+  const remove = useStore((s) => s.removeMcpServer)
+  const servers = settings.mcp.servers
+
+  const [paste, setPaste] = useState('')
+  const [importErrors, setImportErrors] = useState<string[]>([])
+  const [draft, setDraft] = useState<McpServerConfig | null>(null)
+
+  const runImport = (): void => {
+    const { servers: found, errors } = importServers(
+      paste,
+      servers.map((s) => s.id)
+    )
+    setImportErrors(errors)
+    if (found.length === 0) return
+    update({ mcp: { ...settings.mcp, servers: [...servers, ...found] } })
+    for (const server of found) if (server.enabled) void save(server)
+    setPaste('')
+  }
+
+  const blank = (): McpServerConfig => ({
+    id: serverId(
+      'new server',
+      servers.map((s) => s.id)
+    ),
+    name: '',
+    enabled: true,
+    transport: 'stdio',
+    command: '',
+    args: [],
+    env: {},
+    cwd: ''
+  })
+
+  return (
+    <>
+      <h3 className="set-group">Servers</h3>
+      <p className="set-note">
+        An MCP server is a program that offers tools, resources and prompts. Orrery runs the ones
+        listed here on your machine, or connects to them over HTTP, and asks before any tool of
+        theirs is allowed to run.
+      </p>
+
+      {servers.length === 0 && <p className="set-note">Nothing configured yet.</p>}
+
+      {servers.map((server) => (
+        <SettingRow key={server.id} label={server.name} description={describeServer(server)}>
+          <div className="mcp-set__row-actions">
+            <Toggle
+              checked={server.enabled}
+              onChange={(enabled) => void save({ ...server, enabled })}
+            />
+            <button
+              className="btn"
+              aria-label={`Edit ${server.name}`}
+              onClick={() => setDraft(server)}
+            >
+              <Icon name="pencil" size={13} />
+            </button>
+            <button
+              className="btn"
+              aria-label={`Remove ${server.name}`}
+              onClick={() => void remove(server.id)}
+            >
+              <Icon name="trash" size={13} />
+            </button>
+          </div>
+        </SettingRow>
+      ))}
+
+      <SettingRow label="Add a server" description="By hand, one field at a time">
+        <button className="btn" onClick={() => setDraft(blank())}>
+          <Icon name="plus" size={13} />
+          New server
+        </button>
+      </SettingRow>
+
+      {draft && (
+        <ServerEditor
+          draft={draft}
+          onChange={setDraft}
+          onCancel={() => setDraft(null)}
+          onSave={() => {
+            void save(draft)
+            setDraft(null)
+          }}
+        />
+      )}
+
+      <h3 className="set-group">Import</h3>
+      <p className="set-note">
+        Paste the <code>mcpServers</code> block from Claude Desktop, Claude Code or VS Code. Servers
+        that cannot be read are named rather than skipped silently.
+      </p>
+      <textarea
+        className="set-textarea"
+        rows={5}
+        spellCheck={false}
+        placeholder={
+          '{\n  "mcpServers": {\n    "filesystem": { "command": "npx", "args": ["-y", "…"] }\n  }\n}'
+        }
+        value={paste}
+        onChange={(e) => setPaste(e.target.value)}
+      />
+      <SettingRow label="Import" description="Adds every server the block describes">
+        <button className="btn btn--primary" disabled={!paste.trim()} onClick={runImport}>
+          Import
+        </button>
+      </SettingRow>
+      {importErrors.length > 0 && (
+        <ul className="mcp-set__errors">
+          {importErrors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
+
+      <h3 className="set-group">Permissions</h3>
+      <p className="set-note">
+        Answers you asked Orrery to remember. A tool a server calls destructive asks every time
+        whatever is remembered here, and a refusal stays until you revoke it.
+      </p>
+      {grants({ remembered: settings.mcp.permissions.remembered, alwaysAsk: [] }).map((grant) => (
+        <SettingRow
+          key={grant.key}
+          label={grant.key}
+          description={grant.decision === 'allow' ? 'Allowed without asking' : 'Always refused'}
+        >
+          <button
+            className="btn"
+            onClick={() => {
+              const remembered = { ...settings.mcp.permissions.remembered }
+              delete remembered[grant.key]
+              update({ mcp: { ...settings.mcp, permissions: { remembered } } })
+            }}
+          >
+            Revoke
+          </button>
+        </SettingRow>
+      ))}
+      {Object.keys(settings.mcp.permissions.remembered).length === 0 && (
+        <p className="set-note">Nothing remembered; every tool asks.</p>
+      )}
+
+      <h3 className="set-group">Limits</h3>
+      <SettingRow label="Call timeout" description="Milliseconds before a tool call is abandoned">
+        <NumberField
+          value={settings.mcp.timeoutMs}
+          min={1000}
+          max={300_000}
+          step={1000}
+          onChange={(timeoutMs) => update({ mcp: { ...settings.mcp, timeoutMs } })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Result size"
+        description="Characters kept from a tool result before it is trimmed"
+      >
+        <NumberField
+          value={settings.mcp.maxResultChars}
+          min={500}
+          max={200_000}
+          step={500}
+          onChange={(maxResultChars) => update({ mcp: { ...settings.mcp, maxResultChars } })}
+        />
+      </SettingRow>
+    </>
+  )
+}
+
+function ServerEditor({
+  draft,
+  onChange,
+  onSave,
+  onCancel
+}: {
+  draft: McpServerConfig
+  onChange(next: McpServerConfig): void
+  onSave(): void
+  onCancel(): void
+}): React.JSX.Element {
+  const errors = configErrors(draft)
+
+  return (
+    <div className="mcp-set__editor">
+      <SettingRow label="Name" description="How it appears in the panel">
+        <TextField
+          value={draft.name}
+          placeholder="filesystem"
+          onChange={(name) =>
+            onChange({ ...draft, name, id: draft.name ? draft.id : serverId(name) })
+          }
+        />
+      </SettingRow>
+
+      <SettingRow label="Connection" description="A program on this machine, or a URL">
+        <div className="mcp-set__row-actions">
+          <button
+            className={`btn${draft.transport === 'stdio' ? ' btn--primary' : ''}`}
+            onClick={() =>
+              onChange({
+                id: draft.id,
+                name: draft.name,
+                enabled: draft.enabled,
+                transport: 'stdio',
+                command: '',
+                args: [],
+                env: {},
+                cwd: ''
+              })
+            }
+          >
+            Command
+          </button>
+          <button
+            className={`btn${draft.transport === 'http' ? ' btn--primary' : ''}`}
+            onClick={() =>
+              onChange({
+                id: draft.id,
+                name: draft.name,
+                enabled: draft.enabled,
+                transport: 'http',
+                url: '',
+                headers: {}
+              })
+            }
+          >
+            URL
+          </button>
+        </div>
+      </SettingRow>
+
+      {draft.transport === 'stdio' ? (
+        <>
+          <SettingRow label="Command" description="The executable alone, with no arguments">
+            <TextField
+              value={draft.command}
+              placeholder="npx"
+              onChange={(command) => onChange({ ...draft, command })}
+            />
+          </SettingRow>
+          <SettingRow label="Arguments" description="Separated by spaces">
+            <TextField
+              value={draft.args.join(' ')}
+              placeholder="-y @modelcontextprotocol/server-filesystem /home/me/notes"
+              onChange={(text) => onChange({ ...draft, args: text.split(/\s+/).filter(Boolean) })}
+            />
+          </SettingRow>
+          <SettingRow
+            label="Environment"
+            description="KEY=value, separated by commas. ${VAR} reads your own environment."
+          >
+            <TextField
+              value={Object.entries(draft.env)
+                .map(([key, value]) => `${key}=${value}`)
+                .join(', ')}
+              placeholder="GITHUB_TOKEN=${GITHUB_TOKEN}"
+              onChange={(text) =>
+                onChange({
+                  ...draft,
+                  env: Object.fromEntries(
+                    text
+                      .split(',')
+                      .map((pair) => pair.trim())
+                      .filter(Boolean)
+                      .map((pair) => {
+                        const at = pair.indexOf('=')
+                        return at === -1
+                          ? [pair, '']
+                          : [pair.slice(0, at).trim(), pair.slice(at + 1).trim()]
+                      })
+                  )
+                })
+              }
+            />
+          </SettingRow>
+        </>
+      ) : (
+        <SettingRow label="URL" description="The server's MCP endpoint">
+          <TextField
+            value={draft.url}
+            placeholder="https://mcp.example.com/mcp"
+            onChange={(url) => onChange({ ...draft, url })}
+          />
+        </SettingRow>
+      )}
+
+      {errors.length > 0 && (
+        <ul className="mcp-set__errors">
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
+
+      <SettingRow label="" description="">
+        <div className="mcp-set__row-actions">
+          <button className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn btn--primary" disabled={errors.length > 0} onClick={onSave}>
+            Save server
+          </button>
+        </div>
+      </SettingRow>
+    </div>
+  )
+}

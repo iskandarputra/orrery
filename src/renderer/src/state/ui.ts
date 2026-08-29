@@ -42,6 +42,7 @@ export type SidePanel =
   | 'stats'
   | 'analysis'
   | 'tags'
+  | 'mcp'
 
 /** One run of code sharing a colour, as already worked out by the renderer. */
 export interface CodeSpan {

@@ -10,6 +10,9 @@ import type { HistoryService } from '../services/history'
 import type { FileSystemService } from '../services/file-system'
 import type { GitService } from '../services/git'
 import type { LspService } from '../services/lsp'
+import type { AskUser } from '../services/ask-user'
+import type { McpAudit } from '../services/mcp-audit'
+import type { McpClientService } from '../services/mcp-client'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
@@ -31,6 +34,9 @@ export interface HandlerDeps {
   git: GitService
   lsp: LspService
   terminal: TerminalService
+  mcp: McpClientService
+  mcpAudit: McpAudit
+  askUser: AskUser
 }
 
 const pathReq = z.object({ path: z.string().min(1) })
@@ -54,7 +60,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     history,
     git,
     lsp,
-    terminal
+    terminal,
+    mcp,
+    mcpAudit,
+    askUser
   } = deps
 
   // --- dialogs -------------------------------------------------------------
@@ -288,6 +297,38 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       return []
     }
   })
+
+  // --- MCP ------------------------------------------------------------------
+  const serverId = z.object({ id: z.string().min(1) })
+
+  handle('mcp:status', null, () => mcp.statuses())
+  handle('mcp:connect', serverId, (_e, req) => mcp.connect(req.id))
+  handle('mcp:disconnect', serverId, (_e, req) => mcp.disconnect(req.id))
+  handle('mcp:refresh', serverId, (_e, req) => mcp.refresh(req.id))
+  handle(
+    'mcp:callTool',
+    serverId.extend({ tool: z.string().min(1), args: z.record(z.string(), z.unknown()) }),
+    // `user`: this path is only reached by someone clicking run. The model's
+    // calls go through the service directly, and are labelled as such.
+    (_e, req) => mcp.callTool(req.id, req.tool, req.args, 'user')
+  )
+  handle('mcp:readResource', serverId.extend({ uri: z.string().min(1) }), (_e, req) =>
+    mcp.readResource(req.id, req.uri)
+  )
+  handle(
+    'mcp:getPrompt',
+    serverId.extend({
+      name: z.string().min(1),
+      args: z.record(z.string(), z.string()).optional()
+    }),
+    (_e, req) => mcp.getPrompt(req.id, req.name, req.args ?? {})
+  )
+  handle('mcp:answer', z.object({ id: z.string().min(1), value: z.unknown() }), (_e, req) => {
+    askUser.answer(req.id, req.value)
+  })
+  handle('mcp:audit', z.object({ limit: z.number().int().min(1).max(500) }), (_e, req) =>
+    mcpAudit.recent(req.limit)
+  )
 
   handle(
     'ai:chat',

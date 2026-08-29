@@ -229,6 +229,11 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().toggleHistory()
   },
   {
+    id: 'view.toggleMcp',
+    title: 'Toggle MCP Tools Panel',
+    run: ({ store }) => store().toggleSidePanel('mcp')
+  },
+  {
     id: 'view.toggleBookmarks',
     title: 'Toggle Bookmarks Panel',
     run: ({ store }) => store().toggleSidePanel('bookmarks')

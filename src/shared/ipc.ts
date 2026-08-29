@@ -9,6 +9,7 @@ import type {
   GraphAnalysis,
   LinkSuggestion
 } from './types'
+import type { McpAskRequest, McpAuditEntry, McpServerStatus, McpToolResult } from './types'
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
 import type { GitStatus } from '@core/git-status'
@@ -189,6 +190,36 @@ export interface IpcInvokeContract {
     res: string
   }
 
+  /**
+   * Model Context Protocol.
+   *
+   * Connecting is explicit rather than implicit in every call: a server takes a
+   * second or two to start, and a panel that shows what is happening beats one
+   * that appears to hang the first time a tool is used.
+   */
+  'mcp:status': { req: void; res: McpServerStatus[] }
+  'mcp:connect': { req: { id: string }; res: McpServerStatus }
+  'mcp:disconnect': { req: { id: string }; res: void }
+  /** Re-read a server's tools, resources and prompts. */
+  'mcp:refresh': { req: { id: string }; res: McpServerStatus }
+  /**
+   * Run a tool. Asks the user first unless the answer is remembered, so this
+   * can take as long as someone takes to read a dialog.
+   */
+  'mcp:callTool': {
+    req: { id: string; tool: string; args: Record<string, unknown> }
+    res: McpToolResult
+  }
+  'mcp:readResource': { req: { id: string; uri: string }; res: string }
+  'mcp:getPrompt': {
+    req: { id: string; name: string; args?: Record<string, string> }
+    res: string
+  }
+  /** The renderer's answer to an `mcp:ask` event. */
+  'mcp:answer': { req: { id: string; value: unknown }; res: void }
+  /** Recent tool calls, newest first. */
+  'mcp:audit': { req: { limit: number }; res: McpAuditEntry[] }
+
   /** Export the given markdown; resolves to the saved path or null on cancel. */
   'export:html': { req: { title: string; markdown: string }; res: string | null }
   'export:pdf': { req: { title: string; markdown: string }; res: string | null }
@@ -226,6 +257,17 @@ export interface IpcEventContract {
   'lsp:diagnostics': DiagnosticsPayload
   /** Native menu item clicked; renderer command registry executes it. */
   'menu:command': { commandId: string }
+  /** A server connected, dropped, or changed what it offers. */
+  'mcp:serverChanged': McpServerStatus
+  /** Something ran; the panel's log is stale. */
+  'mcp:activity': void
+  /**
+   * Main needs an answer before it can go on: may this tool run, fill in this
+   * form, may this server borrow the model. The renderer replies on
+   * `mcp:answer`, and silence is a refusal.
+   */
+  'mcp:ask': McpAskRequest
+
   /** Main intercepted a close; renderer must run the unsaved-changes flow. */
   'window:closeRequested': void
   /** A file was opened via OS (double-click / open-with / CLI arg). */

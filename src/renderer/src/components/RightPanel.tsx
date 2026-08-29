@@ -11,6 +11,7 @@ import type { SidePanel } from '@/state/ui'
 import { AiChatBody } from './AiChat'
 import { BacklinksBody } from './BacklinksPanel'
 import { BookmarksBody } from './BookmarksPanel'
+import { McpBody } from './McpPanel'
 import { OutgoingBody } from './OutgoingPanel'
 import { NoteAnalysisBody } from './NoteAnalysisPanel'
 import { TagsBody } from './TagsPanel'
@@ -339,7 +340,8 @@ const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'stats', label: 'Stats', icon: 'info' },
   { id: 'analysis', label: 'Analysis', icon: 'bar-chart' },
   { id: 'tags', label: 'Tags', icon: 'hash' },
-  { id: 'git', label: 'Git', icon: 'git-branch' }
+  { id: 'git', label: 'Git', icon: 'git-branch' },
+  { id: 'mcp', label: 'Tools', icon: 'zap' }
 ]
 
 export function RightPanel(): React.JSX.Element {
@@ -393,6 +395,7 @@ export function RightPanel(): React.JSX.Element {
             {panel === 'backlinks' && <BacklinksBody />}
             {panel === 'outgoing' && <OutgoingBody />}
             {panel === 'bookmarks' && <BookmarksBody />}
+            {panel === 'mcp' && <McpBody />}
             {panel === 'search' && <SearchBody />}
             {panel === 'ai' && <AiChatBody />}
             {panel === 'stats' && <DocStatsBody />}

@@ -11,7 +11,12 @@ export default tseslint.config(
     // not app code.
     files: ['e2e/fixtures/**/*.mjs', 'scripts/**/*.mjs', 'src/**/__fixtures__/**/*.mjs'],
     languageOptions: {
-      globals: { Buffer: 'readonly', process: 'readonly', console: 'readonly' }
+      globals: {
+        Buffer: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly'
+      }
     }
   },
   {

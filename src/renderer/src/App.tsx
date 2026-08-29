@@ -13,6 +13,7 @@ import { HeaderBar } from '@/components/HeaderBar'
 import { Palette } from '@/components/Palette'
 import { RightPanel } from '@/components/RightPanel'
 import { SettingsModal } from '@/components/settings/SettingsModal'
+import { McpApprovalModal } from '@/components/McpApprovalModal'
 import { Sidebar } from '@/components/Sidebar'
 import { StatusBar } from '@/components/StatusBar'
 import { TabBar } from '@/components/TabBar'
@@ -95,6 +96,8 @@ export function App(): React.JSX.Element {
       <HistoryModal />
       <Palette />
       <SettingsModal />
+      {/* Above everything: a tool call is waiting on the answer. */}
+      <McpApprovalModal />
       <DocStatsModal />
       <MediaViewerModal />
       <ContextMenu />

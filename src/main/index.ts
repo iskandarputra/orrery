@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { app } from 'electron'
 import { handleAssetProtocol, registerAssetScheme } from './asset-protocol'
 import { registerIpcHandlers } from './ipc/handlers'
@@ -8,6 +9,9 @@ import { EmbeddingService } from './services/embeddings'
 import { HistoryService } from './services/history'
 import { GitService } from './services/git'
 import { LspService } from './services/lsp'
+import { AskUser } from './services/ask-user'
+import { McpAudit } from './services/mcp-audit'
+import { McpClientService } from './services/mcp-client'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -83,10 +87,41 @@ if (!gotLock) {
     if (win) send(win, 'lsp:diagnostics', payload)
   })
 
+  // MCP. `askUser` is the one place main asks the renderer a question rather
+  // than answering one: no window means nobody can consent, which `AskUser`
+  // turns into a refusal.
+  const askUser = new AskUser((request) => {
+    const win = windows.window
+    if (!win) return false
+    send(win, 'mcp:ask', request)
+    return true
+  })
+  const mcpAudit = new McpAudit(join(app.getPath('userData'), 'mcp-log'))
+  const mcp = new McpClientService(
+    { get: () => settings.get(), set: (patch) => settings.set(patch) },
+    askUser,
+    mcpAudit,
+    {
+      onServerChanged: (status) => {
+        const win = windows.window
+        if (win) send(win, 'mcp:serverChanged', status)
+      },
+      onActivity: () => {
+        const win = windows.window
+        if (win) send(win, 'mcp:activity', undefined)
+      }
+    },
+    () => settings.get().lastOpenedFolder
+  )
+
   // Language servers are children of this process; leaving them running
   // after a quit would leak one per session.
   app.on('will-quit', () => {
     lsp.shutdown()
+    // Somebody else's programs, started by us: none may outlive the window,
+    // and anything still waiting on a dialog is refused rather than left.
+    askUser.cancelAll()
+    void mcp.shutdown()
     sidecar?.shutdown()
     // Shells are children of this process; none may outlive the window.
     terminal.shutdown()
@@ -115,10 +150,16 @@ if (!gotLock) {
       history,
       git,
       lsp,
-      terminal
+      terminal,
+      mcp,
+      mcpAudit,
+      askUser
     })
     buildAppMenu(settings.get().keybindings)
     windows.createMainWindow()
+    // After the window exists: connecting announces status, and an announcement
+    // with nowhere to go is a status the panel never shows.
+    void mcp.connectAll()
 
     app.on('activate', () => {
       if (windows.window === null) windows.createMainWindow()

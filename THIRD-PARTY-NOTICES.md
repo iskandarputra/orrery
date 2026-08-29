@@ -50,6 +50,7 @@ Full terms for every dependency are in each package under `node_modules`.
 | `@excalidraw/excalidraw`                    | MIT                                           |
 | `@replit/codemirror-minimap`                | MIT                                           |
 | `node-pty`, `@xterm/xterm`                  | MIT                                           |
+| `@modelcontextprotocol/sdk`                 | MIT                                           |
 | `dompurify`                                 | MPL-2.0 OR Apache-2.0 (used under Apache-2.0) |
 | `pako`                                      | MIT AND Zlib                                  |
 

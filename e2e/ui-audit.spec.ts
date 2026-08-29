@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchApp, openVault } from './helpers'
 
@@ -131,12 +131,59 @@ test.beforeAll(async () => {
   await page.keyboard.type('\n\nA second thought, saved.')
   await runCommand('file.save')
   await expect(page.locator('.tab__close--dirty')).toBeHidden({ timeout: 10_000 })
+
+  // One MCP server, connected once here rather than per theme: the panel and
+  // the approval dialog are measured against a real server's tools, and 28
+  // themes do not each need their own child process.
+  await page.evaluate(
+    async ({ command, fixture }) => {
+      const current = await window.orrery.invoke('settings:get', undefined)
+      await window.orrery.invoke('settings:set', {
+        mcp: {
+          ...current.mcp,
+          servers: [
+            {
+              id: 'fixture',
+              name: 'Fixture',
+              enabled: true,
+              transport: 'stdio',
+              command,
+              args: [fixture],
+              env: {},
+              cwd: ''
+            }
+          ]
+        }
+      })
+      await window.orrery.invoke('mcp:connect', { id: 'fixture' })
+    },
+    {
+      command: process.execPath,
+      fixture: resolve(__dirname, '../src/main/services/__fixtures__/mcp-fixture-server.mjs')
+    }
+  )
 })
 
 test.afterAll(async () => {
   await app.close()
   rmSync(vault, { recursive: true, force: true })
 })
+
+/**
+ * Put a disclosure into the state the surface needs.
+ *
+ * Clicking to toggle assumes what it is starting from, and a surface that runs
+ * after another one — or after a reload — cannot assume that. Two of the theme
+ * runs failed on exactly this before the audit asked instead of toggled.
+ */
+async function setExpanded(selector: string, hasText: string, expanded: boolean): Promise<void> {
+  const control = page.locator(selector, { hasText })
+  await expect(control.first()).toBeVisible({ timeout: 15_000 })
+  if ((await control.first().getAttribute('aria-expanded')) !== String(expanded)) {
+    await control.first().click()
+  }
+  await expect(control.first()).toHaveAttribute('aria-expanded', String(expanded))
+}
 
 interface Fail {
   surface: string
@@ -551,6 +598,45 @@ const SURFACES: Surface[] = [
     close: async () => {
       await page.keyboard.press('Escape')
       await expect(page.locator('.palette')).toBeHidden()
+    }
+  },
+  {
+    // Expanded down to a tool's own form: the rows, the status words and the
+    // schema fields are where the small text lives.
+    name: 'mcp panel',
+    root: '.rpanel',
+    open: async () => {
+      await runCommand('view.toggleMcp')
+      await expect(page.locator('.mcp-server__name')).toBeVisible({ timeout: 15_000 })
+      await setExpanded('.mcp-server__toggle', 'Fixture', true)
+      await setExpanded('.mcp-tool__name', 'Echo', true)
+      await expect(page.locator('.schema-form__input').first()).toBeVisible()
+    },
+    close: async () => {
+      await setExpanded('.mcp-tool__name', 'Echo', false)
+      await runCommand('view.toggleOutline')
+      await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
+    // The dialog that stands between a tool and the machine, with a real call
+    // waiting on it. Denied on the way out, so nothing runs.
+    name: 'mcp approval',
+    root: '.mcp-approve',
+    open: async () => {
+      await runCommand('view.toggleMcp')
+      await setExpanded('.mcp-server__toggle', 'Fixture', true)
+      await setExpanded('.mcp-tool__name', 'wipe', true)
+      await page.locator('.mcp-tool__body .mcp-tool__run').click()
+      await expect(page.locator('.mcp-approve')).toBeVisible({ timeout: 15_000 })
+    },
+    close: async () => {
+      await page.locator('.mcp-approve').getByRole('button', { name: 'Deny', exact: true }).click()
+      await expect(page.locator('.mcp-approve')).toHaveCount(0)
+      await setExpanded('.mcp-tool__name', 'wipe', false)
+      await setExpanded('.mcp-server__toggle', 'Fixture', false)
+      await runCommand('view.toggleOutline')
+      await expect(page.locator('.outline-filter__input')).toBeVisible()
     }
   },
   {

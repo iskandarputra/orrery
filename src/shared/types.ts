@@ -168,3 +168,77 @@ export interface DiagnosticsPayload {
   path: string
   diagnostics: LspDiagnostic[]
 }
+
+/** One tool as an MCP server describes it. Mirrors `core/mcp-tools`. */
+export interface McpToolInfo {
+  name: string
+  title?: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+  annotations?: {
+    title?: string
+    readOnlyHint?: boolean
+    destructiveHint?: boolean
+    idempotentHint?: boolean
+    openWorldHint?: boolean
+  }
+}
+
+export interface McpResourceInfo {
+  uri: string
+  name?: string
+  title?: string
+  description?: string
+  mimeType?: string
+}
+
+export interface McpPromptInfo {
+  name: string
+  title?: string
+  description?: string
+  arguments?: { name: string; description?: string; required?: boolean }[]
+}
+
+/** What a server is doing, as the panel shows it. */
+export interface McpServerStatus {
+  id: string
+  name: string
+  enabled: boolean
+  state: 'idle' | 'connecting' | 'ready' | 'failed'
+  /** Empty unless `state` is `failed`. */
+  error: string
+  tools: McpToolInfo[]
+  resources: McpResourceInfo[]
+  prompts: McpPromptInfo[]
+}
+
+export interface McpToolResult {
+  text: string
+  /** The server reported a failure, or the call could not be made. */
+  isError: boolean
+  /** The user refused. Distinct from an error: nothing went wrong. */
+  denied: boolean
+}
+
+/** A question main needs the person at the keyboard to answer. */
+export interface McpAskRequest {
+  id: string
+  kind: 'tool' | 'elicitation' | 'sampling'
+  payload: unknown
+}
+
+/** One tool call, as the log records it and the panel shows it. */
+export interface McpAuditEntry {
+  at: number
+  serverId: string
+  serverName: string
+  tool: string
+  /** What the model or the user asked for, as given to the server. */
+  args: unknown
+  decision: 'allow' | 'ask' | 'deny'
+  /** How it went. `denied` means the user said no; `error` means it failed. */
+  outcome: 'ok' | 'error' | 'denied'
+  ms: number
+  /** First lines of the result or the error, for a list that has to fit. */
+  summary: string
+}
