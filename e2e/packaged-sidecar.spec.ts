@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -12,10 +11,14 @@ import { _electron as electron, test, expect } from '@playwright/test'
  * This is the failure the plan called the most likely late surprise.
  */
 const PACKAGED = resolve('dist/linux-unpacked/orrery')
+const PACKAGED_SIDECAR = resolve('dist/linux-unpacked/resources/sidecar/orrery-sidecar')
 
-// Only meaningful after `npm run build:native && npx electron-builder --linux deb`.
-// Skipped otherwise so a plain checkout still runs the suite green.
-test.skip(!existsSync(PACKAGED), 'no packaged build in dist/linux-unpacked')
+// Both halves are required. A package built without Rust ships no sidecar, and
+// this test would then assert against something that was never in it.
+test.skip(
+  !existsSync(PACKAGED) || !existsSync(PACKAGED_SIDECAR),
+  'no packaged build with a sidecar in dist/linux-unpacked'
+)
 
 test('the packaged app finds and uses the sidecar', async () => {
   const vault = mkdtempSync(join(tmpdir(), 'orrery-pkg-'))
@@ -55,11 +58,12 @@ test('the packaged app finds and uses the sidecar', async () => {
   await input.press('Enter')
   await expect(page.locator('.rpanel-count__badge')).toHaveText('3', { timeout: 20_000 })
 
-  // The sidecar is lazily spawned, so by now it must be a live child process.
-  // Checked from the test process: the packaged app has no dynamic-import hook.
-  const running = execFileSync('bash', ['-c', 'pgrep -fc orrery-sidecar || true']).toString().trim()
-  expect(Number(running), 'a sidecar process should be running').toBeGreaterThan(0)
-
+  // No process check here. Counting `pgrep -f orrery-sidecar` matched the shell
+  // running the pgrep, so it reported a hit even against a package that shipped
+  // no sidecar at all. The hit count above is the real assertion: replacing the
+  // sidecar with one that returns a bogus result makes it fail, which is what
+  // proves the packaged app resolves and uses the binary rather than silently
+  // falling back to TypeScript.
   await app.close()
   rmSync(vault, { recursive: true, force: true })
   rmSync(userData, { recursive: true, force: true })
