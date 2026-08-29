@@ -36,12 +36,13 @@ function OutlineBody(): React.JSX.Element {
     s.activeId ? surfaceForKind(s.buffers[s.activeId]?.kind ?? '') : null
   )
   const [filter, setFilter] = useState('')
-  // Re-read when the buffer or the document changes; `stats` ticks on edits.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const symbols = useMemo(() => {
     const view = getActiveView()
     if (!activeId || !view) return []
     return documentSymbols(view.state.doc.toString(), fileName)
+    // `stats` ticks on every edit and is the trigger rather than an input: the
+    // document it stands for is read imperatively above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, fileName, stats])
   const minDepth = symbols.length ? Math.min(...symbols.map((s) => s.depth)) : 0
 

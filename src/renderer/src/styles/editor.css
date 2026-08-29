@@ -1104,3 +1104,75 @@
   color: var(--or-fg);
   font: inherit;
 }
+
+/* The properties card is editable now, so its cells are inputs. They are styled
+   to read as text until reached for: a note's metadata is content, and boxing
+   every value would make the top of every note look like a form. */
+.cm-or-property-key,
+.cm-or-property-val {
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--or-radius-xs);
+  background: transparent;
+  font: inherit;
+}
+
+.cm-or-property-key:hover:not([readonly]),
+.cm-or-property-val:hover:not([readonly]) {
+  border-color: var(--or-border);
+}
+
+.cm-or-property-key:focus,
+.cm-or-property-val:focus {
+  outline: 2px solid var(--or-accent);
+  outline-offset: -1px;
+  background: var(--or-editor-bg);
+}
+
+.cm-or-property-val[data-list='true'] {
+  font-family: var(--or-mono-font);
+  font-size: 0.92em;
+}
+
+/* Shown on hover, so a note does not open on a column of delete buttons. */
+.cm-or-property-drop,
+.cm-or-property-add {
+  opacity: 0;
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-faint);
+  cursor: pointer;
+  transition: opacity var(--or-transition-fast);
+}
+
+.cm-or-property-drop {
+  min-width: 24px;
+  min-height: 24px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.cm-or-property-add {
+  min-height: 24px;
+  margin-top: 2px;
+  padding: 0 6px;
+  font-size: 11.5px;
+}
+
+.cm-or-properties-card:hover .cm-or-property-drop,
+.cm-or-properties-card:hover .cm-or-property-add,
+.cm-or-property-drop:focus-visible,
+.cm-or-property-add:focus-visible {
+  opacity: 1;
+}
+
+.cm-or-property-drop:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-diff-del);
+}
+
+.cm-or-property-add:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}

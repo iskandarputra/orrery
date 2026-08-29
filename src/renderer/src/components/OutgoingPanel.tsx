@@ -3,7 +3,7 @@ import { basename } from '@core/paths'
 import { resolveNote } from '@core/notes'
 import { findWikilinks } from '@core/wikilinks'
 import { getActiveView } from '@/editor/active-view'
-import { useEditorStats } from '@/state/editor-stats'
+import { useDocVersion } from '@/state/doc-version'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 import { EmptyState } from './PanelBits'
@@ -24,8 +24,10 @@ export function OutgoingBody(): React.JSX.Element {
   const activePath = useStore((s) =>
     s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null
   )
-  // Recomputed as the document changes; `stats` ticks on every edit.
-  const stats = useEditorStats()
+  // Recomputed as the document changes. `useDocVersion` is the signal built for
+  // exactly this: a counter per buffer, bumped on every edit, including one the
+  // panel did not make.
+  const version = useDocVersion((v) => (activeId ? (v[activeId] ?? 0) : 0))
 
   const links = useMemo(() => {
     const view = getActiveView()
@@ -46,8 +48,10 @@ export function OutgoingBody(): React.JSX.Element {
         line: doc.lineAt(link.from).number,
         resolved: resolveNote(noteIndex, link.target)
       }))
+    // `version` is the trigger rather than an input: the document it stands for
+    // is read imperatively through `getActiveView` above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, noteIndex, stats])
+  }, [activeId, noteIndex, version])
 
   if (!activePath) return <EmptyState icon="link">Open a note to see what it links to.</EmptyState>
   if (links.length === 0)

@@ -30,8 +30,10 @@ Body content goes here.
     const card = view.dom.querySelector('.cm-or-properties-card')
     expect(card).not.toBeNull()
 
+    // The card is editable now, so a key is an input rather than a span, and
+    // its text lives in `value`.
     const keys = Array.from(view.dom.querySelectorAll('.cm-or-property-key')).map(
-      (el) => el.textContent
+      (el) => (el as HTMLInputElement).value
     )
     expect(keys).toContain('id')
     expect(keys).toContain('status')
