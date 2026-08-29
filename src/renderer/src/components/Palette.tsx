@@ -48,6 +48,14 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
   const openPaths = useStore((s) => s.openPaths)
   const settings = useStore((s) => s.settings)
   const picking = initialMode === 'templates'
+  const workspacesMode = initialMode === 'workspaces' || initialMode === 'workspacesDelete'
+  const deletingWorkspace = initialMode === 'workspacesDelete'
+  // Only these two lists are the whole palette; everything else shares the box
+  // with notes and commands, and keeps the tabs that switch between them.
+  const oneList = picking || workspacesMode
+  const applyWorkspace = useStore((s) => s.applyWorkspace)
+  const saveWorkspace = useStore((s) => s.saveWorkspace)
+  const deleteWorkspace = useStore((s) => s.deleteWorkspace)
   const [activeTab, setActiveTab] = useState<'all' | 'files' | 'commands'>(
     initialMode === 'files' ? 'files' : 'commands'
   )
@@ -102,6 +110,20 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
       return list
     }
 
+    if (workspacesMode) {
+      for (const [name, workspace] of Object.entries(settings.workspaces)) {
+        const panes = Math.max(1, workspace.panePaths.filter(Boolean).length)
+        list.push({
+          id: `ws:${name}`,
+          label: name,
+          detail: `${workspace.openPaths.length} tabs · ${panes} ${panes === 1 ? 'pane' : 'panes'}`,
+          icon: deletingWorkspace ? 'trash' : 'columns',
+          run: () => (deletingWorkspace ? deleteWorkspace(name) : void applyWorkspace(name))
+        })
+      }
+      return list
+    }
+
     if (picking) {
       templates.forEach((t) => {
         list.push({
@@ -150,8 +172,13 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     fileIndex,
     openPaths,
     settings.keybindings,
+    settings.workspaces,
     lineQuery,
-    symbolQuery
+    symbolQuery,
+    workspacesMode,
+    deletingWorkspace,
+    applyWorkspace,
+    deleteWorkspace
   ])
 
   const results = useMemo(() => {
@@ -159,8 +186,23 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     // follows the `@` rather than by the prefix itself.
     if (lineQuery !== null) return entries
     if (symbolQuery !== null) return fuzzyFilter(symbolQuery, entries, (e) => e.label)
-    return fuzzyFilter(query, entries, (e) => e.label)
-  }, [query, entries, lineQuery, symbolQuery])
+    const matched = fuzzyFilter(query, entries, (e) => e.label)
+
+    // Saving is the same box: type a name that is not there yet and the offer
+    // to save it appears under the ones that are, so switching still wins the
+    // first row when the name already exists.
+    const name = query.trim()
+    if (initialMode === 'workspaces' && name) {
+      matched.push({
+        id: 'ws:save',
+        label: `Save this layout as “${name}”`,
+        detail: 'Workspace',
+        icon: 'plus',
+        run: () => saveWorkspace(name)
+      })
+    }
+    return matched
+  }, [query, entries, lineQuery, symbolQuery, initialMode, saveWorkspace])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -194,11 +236,15 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
             placeholder={
               picking
                 ? 'Insert a template…'
-                : activeTab === 'files'
-                  ? 'Open note by name…'
-                  : activeTab === 'commands'
-                    ? 'Run a command…'
-                    : 'Search notes and commands…'
+                : deletingWorkspace
+                  ? 'Delete a workspace…'
+                  : workspacesMode
+                    ? 'Switch workspace, or type a name to save this layout…'
+                    : activeTab === 'files'
+                      ? 'Open note by name…'
+                      : activeTab === 'commands'
+                        ? 'Run a command…'
+                        : 'Search notes and commands…'
             }
             value={query}
             onChange={(e) => {
@@ -220,7 +266,7 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
                 // newline typed into the document.
                 e.preventDefault()
                 pick(results[selected])
-              } else if (e.key === 'Tab' && !picking) {
+              } else if (e.key === 'Tab' && !oneList) {
                 e.preventDefault()
                 setActiveTab((t) =>
                   t === 'files' ? 'commands' : t === 'commands' ? 'all' : 'files'
@@ -229,7 +275,7 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
               }
             }}
           />
-          <div className="palette__tabs" hidden={picking}>
+          <div className="palette__tabs" hidden={oneList}>
             <button
               className={`palette__tab${activeTab === 'files' ? ' palette__tab--active' : ''}`}
               onClick={() => {
@@ -264,8 +310,18 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
         <div className="palette__list" ref={listRef}>
           {results.length === 0 ? (
             <div className="palette__empty">
-              <Icon name="search" size={24} className="palette__empty-icon" />
-              <p>No matching notes or commands found.</p>
+              <Icon
+                name={workspacesMode ? 'columns' : 'search'}
+                size={24}
+                className="palette__empty-icon"
+              />
+              <p>
+                {deletingWorkspace
+                  ? 'No workspaces saved yet.'
+                  : workspacesMode
+                    ? 'No workspaces yet. Type a name to save the layout in front of you.'
+                    : 'No matching notes or commands found.'}
+              </p>
             </div>
           ) : (
             results.map((entry, i) => (
@@ -291,9 +347,11 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           <span className="palette__hint">
             <kbd>↵</kbd> select
           </span>
-          <span className="palette__hint">
-            <kbd>Tab</kbd> switch tab
-          </span>
+          {!oneList && (
+            <span className="palette__hint">
+              <kbd>Tab</kbd> switch tab
+            </span>
+          )}
           <span className="palette__hint">
             <kbd>Esc</kbd> close
           </span>

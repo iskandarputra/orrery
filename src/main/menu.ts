@@ -213,9 +213,28 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
           click: dispatch('view.toggleSplit')
         },
         {
-          label: 'Focus Other Pane',
-          accelerator: acc('view.focusOtherPane', 'CmdOrCtrl+Alt+\\'),
-          click: dispatch('view.focusOtherPane')
+          label: 'Split Right',
+          accelerator: acc('view.splitRight', 'CmdOrCtrl+Shift+\\'),
+          click: dispatch('view.splitRight')
+        },
+        {
+          label: 'Close Pane',
+          click: dispatch('view.closePane')
+        },
+        {
+          label: 'Focus Next Pane',
+          accelerator: acc('view.focusNextPane', 'CmdOrCtrl+Alt+\\'),
+          click: dispatch('view.focusNextPane')
+        },
+        { type: 'separator' },
+        {
+          label: 'Workspaces…',
+          accelerator: acc('view.workspaces', 'CmdOrCtrl+Alt+W'),
+          click: dispatch('view.workspaces')
+        },
+        {
+          label: 'Delete Workspace…',
+          click: dispatch('view.deleteWorkspace')
         },
         { type: 'separator' },
         { role: 'resetZoom' },

@@ -540,6 +540,20 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    name: 'workspaces palette',
+    root: '.palette',
+    open: async () => {
+      await runCommand('view.workspaces')
+      // With a name typed, so the offer to save is on screen and audited too.
+      await page.locator('.palette__input').fill('audit layout')
+      await expect(page.locator('.palette__item').first()).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.palette')).toBeHidden()
+    }
+  },
+  {
     name: 'document statistics',
     root: '.doc-stats-modal',
     open: async () => {

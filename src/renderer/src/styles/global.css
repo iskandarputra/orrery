@@ -155,16 +155,21 @@ textarea {
   min-height: 0;
 }
 
-.editor-host,
-/* One pane, or two side by side. */
-.editor-panes {
+.editor-host {
   display: flex;
+  height: 100%;
+}
+
+/* One pane, or several side by side. Equal columns from a grid rather than
+   flex: a long unwrapped line in one pane must not steal width from the rest. */
+.editor-panes {
+  display: grid;
+  grid-template-columns: repeat(var(--or-pane-count, 1), minmax(0, 1fr));
   height: 100%;
 }
 
 .editor-pane-host {
   position: relative;
-  flex: 1;
   min-width: 0;
   height: 100%;
   overflow: hidden;

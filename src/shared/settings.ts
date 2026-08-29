@@ -5,6 +5,26 @@ import { z } from 'zod'
  * main validates on load/save, renderer gets the inferred type.
  * Bump `schemaVersion` and add a migration in SettingsStore when changing shape.
  */
+/**
+ * The right-hand panels, by name.
+ *
+ * Here rather than in the renderer's `SidePanel` union because two settings
+ * store one — the panel that is open, and the panel a saved workspace restores
+ * — and a name that reaches disk has to be validated on the way back in.
+ */
+export const sidePanelSchema = z.enum([
+  'outline',
+  'backlinks',
+  'outgoing',
+  'bookmarks',
+  'search',
+  'ai',
+  'stats',
+  'analysis',
+  'tags',
+  'git'
+])
+
 export const settingsSchema = z.object({
   schemaVersion: z.literal(1).default(1),
   /** Appearance mode; the concrete palette comes from lightTheme/darkTheme. */
@@ -92,6 +112,24 @@ export const settingsSchema = z.object({
       activePath: z.string().default('')
     })
     .prefault({}),
+  /**
+   * Named layouts, saved by hand and switched between.
+   *
+   * By path, not by buffer id: ids last a session, a workspace is meant to last
+   * longer. A path that no longer resolves is dropped when it is restored.
+   */
+  workspaces: z
+    .record(
+      z.string(),
+      z.object({
+        openPaths: z.array(z.string()).default([]),
+        panePaths: z.array(z.string()).default([]),
+        activePath: z.string().default(''),
+        focusedPane: z.number().int().min(0).default(0),
+        sidePanel: sidePanelSchema.nullable().default(null)
+      })
+    )
+    .prefault({}),
   /** Daily notes: one dated note per day, optionally from a template. */
   dailyNotes: z
     .object({
@@ -145,21 +183,7 @@ export const settingsSchema = z.object({
        * sticks; the outline is the default because a note's own structure is
        * the most useful thing to see beside it on a first run.
        */
-      panel: z
-        .enum([
-          'outline',
-          'backlinks',
-          'outgoing',
-          'bookmarks',
-          'search',
-          'ai',
-          'stats',
-          'analysis',
-          'tags',
-          'git'
-        ])
-        .nullable()
-        .default('outline')
+      panel: sidePanelSchema.nullable().default('outline')
     })
     .prefault({}),
   window: z

@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -62,7 +57,7 @@ test('each pane edits its own note, and both save', async () => {
   await runCommand('file.save')
   await page.waitForTimeout(400)
   // The focused pane saved; switch focus and save the other.
-  await runCommand('view.focusOtherPane')
+  await runCommand('view.focusNextPane')
   await runCommand('file.save')
   await expect(page.locator('.tab__close--dirty')).toHaveCount(0, { timeout: 10_000 })
 
@@ -89,12 +84,15 @@ test('the split toggle flips both ways and keeps the note you were reading', asy
   // Start from a known state rather than inheriting one.
   if ((await panes.count()) === 2) await runCommand('view.toggleSplit')
   await expect(panes).toHaveCount(1)
-  const before = await panes.first().textContent()
 
   await runCommand('view.toggleSplit')
   await expect(panes).toHaveCount(2)
+  // Splitting puts you in the new pane, which is the one you asked for.
+  await expect(panes.nth(1)).toHaveClass(/editor-pane-host--focused/)
+  const reading = await panes.nth(1).textContent()
+
   await runCommand('view.toggleSplit')
   await expect(panes).toHaveCount(1)
   // Collapsing keeps what you were looking at, rather than jumping elsewhere.
-  expect(await panes.first().textContent()).toBe(before)
+  expect(await panes.first().textContent()).toBe(reading)
 })

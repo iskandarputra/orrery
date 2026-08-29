@@ -10,6 +10,7 @@ import { EditorState } from '@codemirror/state'
 import type { AppState } from './app-state'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import * as tabs from '@core/tab-layout'
+import { captureWorkspace, pathsToOpen, restoreLayout } from '@core/workspaces'
 import { surfaceForFile } from '@/plugins/registry'
 import { closeDocument } from '@/editor/lsp-session'
 
@@ -46,9 +47,9 @@ export interface DocumentsSlice {
   tabOrder: string[]
   /** Buffer in the focused pane — a mirror of `paneIds[focusedPane]`. */
   activeId: string | null
-  /** One entry per pane; the second is null when the editor isn't split. */
-  paneIds: [string | null, string | null]
-  focusedPane: 0 | 1
+  /** One entry per pane, left to right; always at least one. Null is an empty pane. */
+  paneIds: (string | null)[]
+  focusedPane: number
 
   openPaths(paths: string[]): Promise<void>
   openFileDialog(): Promise<void>
@@ -57,8 +58,18 @@ export interface DocumentsSlice {
   /** Open a second pane beside the first, or close it. */
   toggleSplit(): void
   /** Move focus between panes. Notes stay where they are; only focus moves. */
-  focusPane(pane: 0 | 1): void
-  focusOtherPane(): void
+  focusPane(pane: number): void
+  focusNextPane(): void
+  /** A new pane beside the focused one, showing `id` or the first free tab. */
+  splitRight(id?: string): void
+  /** Close one pane, leaving its tab open. */
+  closePane(index: number): void
+
+  /** Save the tabs, panes and side panel under a name. */
+  saveWorkspace(name: string): void
+  /** Reopen a saved workspace, dropping whatever no longer exists. */
+  applyWorkspace(name: string): Promise<void>
+  deleteWorkspace(name: string): void
   setDirty(id: string, dirty: boolean): void
   /** Returns true if the document ended up saved. */
   save(id: string, opts?: { forceSaveAs?: boolean }): Promise<boolean>
@@ -124,7 +135,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   buffers: {},
   tabOrder: [],
   activeId: null,
-  paneIds: [null, null],
+  paneIds: [null],
   focusedPane: 0,
 
   async openPaths(paths) {
@@ -160,7 +171,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           },
           tabOrder: [...s.tabOrder, id],
           activeId: id,
-          paneIds: s.focusedPane === 0 ? [id, s.paneIds[1]] : [s.paneIds[0], id]
+          paneIds: s.paneIds.map((pane, i) => (i === s.focusedPane ? id : pane))
         }))
         void invoke('app:addRecentFile', { path })
       } catch (err) {
@@ -210,7 +221,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       },
       tabOrder: [...s.tabOrder, id],
       activeId: id,
-      paneIds: s.focusedPane === 0 ? [id, s.paneIds[1]] : [s.paneIds[0], id]
+      paneIds: s.paneIds.map((pane, i) => (i === s.focusedPane ? id : pane))
     }))
   },
 
@@ -247,7 +258,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       // tab bar showing the new note while the pane still held the old one, so
       // the pane never swapped buffers and never took focus — the new note
       // looked open but could not be typed into.
-      paneIds: s.focusedPane === 0 ? [id, s.paneIds[1]] : [s.paneIds[0], id]
+      paneIds: s.paneIds.map((pane, i) => (i === s.focusedPane ? id : pane))
     }))
   },
 
@@ -265,8 +276,62 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     set((s) => tabs.focusPane(s, pane))
   },
 
-  focusOtherPane() {
-    set((s) => tabs.focusOtherPane(s))
+  focusNextPane() {
+    set((s) => tabs.focusNextPane(s))
+  },
+
+  splitRight(id) {
+    set((s) => tabs.splitRight(s, id))
+    rememberSession(get())
+  },
+
+  closePane(index) {
+    set((s) => tabs.closePane(s, index))
+    rememberSession(get())
+  },
+
+  saveWorkspace(name) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const state = get()
+    const pathOf = (id: string | null): string | null => (id && state.buffers[id]?.filePath) || null
+
+    const workspace = {
+      ...captureWorkspace({
+        openPaths: state.tabOrder.map((id) => pathOf(id) ?? ''),
+        panePaths: state.paneIds.map(pathOf),
+        activePath: pathOf(state.activeId),
+        focusedPane: state.focusedPane,
+        sidePanel: state.sidePanel
+      }),
+      // Narrower than what `core` hands back: on disk a panel name is one of a
+      // known set, and that is the schema's business rather than the layout's.
+      sidePanel: state.sidePanel
+    }
+    state.updateSettings({ workspaces: { ...state.settings.workspaces, [trimmed]: workspace } })
+  },
+
+  async applyWorkspace(name) {
+    const workspace = get().settings.workspaces[name]
+    if (!workspace) return
+
+    // Open first, arrange second. Opening decides which paths still exist, and
+    // the layout can only be rebuilt once their buffers have ids.
+    await get().openPaths(pathsToOpen(workspace))
+
+    const buffers = get().buffers
+    const idFor = (path: string): string | null =>
+      Object.keys(buffers).find((id) => buffers[id]?.filePath === path) ?? null
+
+    set(restoreLayout(workspace, idFor))
+    get().setSidePanel(workspace.sidePanel)
+    rememberSession(get())
+  },
+
+  deleteWorkspace(name) {
+    const { [name]: removed, ...rest } = get().settings.workspaces
+    if (!removed) return
+    get().updateSettings({ workspaces: rest })
   },
 
   setDirty(id, dirty) {

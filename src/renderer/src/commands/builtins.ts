@@ -283,9 +283,29 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().toggleSplit()
   },
   {
-    id: 'view.focusOtherPane',
-    title: 'Focus Other Pane',
-    run: ({ store }) => store().focusOtherPane()
+    id: 'view.splitRight',
+    title: 'Split Right',
+    run: ({ store }) => store().splitRight()
+  },
+  {
+    id: 'view.closePane',
+    title: 'Close Pane',
+    run: ({ store }) => store().closePane(store().focusedPane)
+  },
+  {
+    id: 'view.workspaces',
+    title: 'Workspaces…',
+    run: ({ store }) => store().openPalette('workspaces')
+  },
+  {
+    id: 'view.deleteWorkspace',
+    title: 'Delete Workspace…',
+    run: ({ store }) => store().openPalette('workspacesDelete')
+  },
+  {
+    id: 'view.focusNextPane',
+    title: 'Focus Next Pane',
+    run: ({ store }) => store().focusNextPane()
   },
   {
     id: 'view.toggleGraph',

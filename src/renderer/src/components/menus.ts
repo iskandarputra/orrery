@@ -1,4 +1,5 @@
 import type { FileNode } from '@shared/types'
+import { MAX_PANES } from '@core/tab-layout'
 import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
 import type { MenuItem } from './context-menu/context-menu'
@@ -20,6 +21,14 @@ export function buildTabMenu(bufferId: string): MenuItem[] {
       icon: 'bookmark',
       disabled: !buffer.filePath,
       onSelect: () => buffer.filePath && state.toggleBookmark(buffer.filePath)
+    },
+    {
+      label: 'Split Right',
+      icon: 'columns',
+      // Off when it is already in a pane: the same buffer in two editors would
+      // be one file with two histories.
+      disabled: state.paneIds.length >= MAX_PANES || state.paneIds.includes(bufferId),
+      onSelect: () => state.splitRight(bufferId)
     },
     { separator: true },
     { label: 'Close', icon: 'x', onSelect: () => void state.closeTab(bufferId) },

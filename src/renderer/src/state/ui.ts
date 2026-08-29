@@ -27,7 +27,8 @@ export interface ToastMessage {
  * searched, and having a command open it primed is only a shortcut to typing
  * the prefix yourself.
  */
-export type PaletteMode = 'files' | 'commands' | 'templates' | 'line' | 'symbol'
+export type PaletteMode =
+  'files' | 'commands' | 'templates' | 'line' | 'symbol' | 'workspaces' | 'workspacesDelete'
 
 /** Tabs of the right side panel. */
 export type SidePanel =

@@ -46,6 +46,18 @@ Tables render as tables. `$inline$` and `$$block$$` maths through KaTeX.
 and diagrams open full screen. A long code fence scrolls inside its own card,
 leaving the rest of the document where it was.
 
+YAML frontmatter renders as a **properties table** you edit in place. Add a
+property, rename one, type a value, and the YAML underneath is rewritten.
+Properties you did not touch are written back exactly as you left them, quoting
+and all, so an editor that understands three kinds of value cannot reformat the
+rest of your file.
+
+**Footnotes** render as small raised markers. Click one and the cursor lands on
+its definition.
+
+**Vim keys**, if you want them: one toggle in **Settings → Editor**, applying to
+prose and code alike.
+
 **28 themes**, 17 dark and 11 light. Each is a six-line palette from which the
 full token set is derived. A test checks every one of them for WCAG AA contrast
 and pointer target size on every change, so an unreadable theme fails the build.
@@ -59,13 +71,20 @@ it. Links inside code fences stay as text, since a snippet showing the syntax is
 documentation rather than a reference.
 
 **Backlinks** (`Ctrl+Shift+B`) list every note pointing at this one, with the
-line each mention sits on. **Tags**, an **outline** and per-note **analysis**
-each get a panel of their own.
+line each mention sits on. **Outgoing links** does the reverse, and names the
+links that lead nowhere yet, which is usually where the next note comes from.
+**Bookmarks** keeps the files you return to. **Tags**, an **outline** and
+per-note **analysis** each get a panel of their own.
+
+Hovering a wikilink shows the note it points at, rendered, without leaving the
+one you are reading.
 
 **Search** covers every text file in the vault, code included. Match case,
 whole word, regular expressions, and comma-separated globs for which files to
-include and exclude: `*.md`, `src/**`, `**/*.test.ts`. Orrery decides a file is
-binary by looking inside it, so an unfamiliar extension still gets searched.
+include and exclude: `*.md`, `src/**`, `**/*.test.ts`. Operators do the same
+work from the search box: `path:src/` and `file:*.ts` narrow it, `tag:draft`
+looks for a tag, and a leading `-` excludes. Orrery decides a file is binary by
+looking inside it, so an unfamiliar extension still gets searched.
 
 ![The knowledge graph: 28 notes in four clusters, joined by 71 links](docs/screenshots/graph.png)
 
@@ -76,9 +95,17 @@ the view to whatever sits within _n_ hops of the note you are reading. A note
 you have linked to but never written appears as a ghost, so the gaps show up
 alongside the structure.
 
-`Ctrl+P` opens any note by fuzzy name and `Ctrl+Shift+P` runs any of 52
+`Ctrl+P` opens any note by fuzzy name and `Ctrl+Shift+P` runs any of 61
 commands. In the same box, `:` jumps to a line and `@` jumps to a heading or a
-declaration inside the file you are looking at.
+declaration inside the file you are looking at. Two of those commands are for
+when you do not know what to open: one picks a note at random, the other makes
+a new one named after the minute you thought of it.
+
+**Up to four panes** side by side. `Ctrl+\` splits, `Ctrl+Shift+\` sends the
+tab you are on into a pane of its own, `Ctrl+Alt+\` moves between them, and no
+file is ever open in two panes at once. A layout worth keeping becomes a
+**workspace**: `Ctrl+Alt+W`, give it a name, and the tabs, panes and side panel
+come back that way whenever you ask for it.
 
 ## Code, git and a terminal
 

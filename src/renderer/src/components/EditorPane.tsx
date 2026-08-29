@@ -178,14 +178,25 @@ export function EditorPane(): React.JSX.Element {
   const paneIds = useStore((s) => s.paneIds)
   const focusedPane = useStore((s) => s.focusedPane)
   const focusPane = useStore((s) => s.focusPane)
-  const split = paneIds[1] !== null
+  const split = paneIds.length > 1
 
   return (
-    <div className={`editor-panes${split ? ' editor-panes--split' : ''}`}>
-      <Pane bufferId={paneIds[0]} focused={focusedPane === 0} onFocus={() => focusPane(0)} />
-      {split && (
-        <Pane bufferId={paneIds[1]} focused={focusedPane === 1} onFocus={() => focusPane(1)} />
-      )}
+    <div
+      className={`editor-panes${split ? ' editor-panes--split' : ''}`}
+      // Equal columns, however many there are. A count in the style rather than
+      // a class per width, because the count is data.
+      style={{ ['--or-pane-count' as string]: String(paneIds.length) }}
+    >
+      {paneIds.map((bufferId, index) => (
+        <Pane
+          // By position: a pane is a slot, and keying by buffer would tear down
+          // the editor whenever a pane was told to show something else.
+          key={index}
+          bufferId={bufferId}
+          focused={focusedPane === index}
+          onFocus={() => focusPane(index)}
+        />
+      ))}
     </div>
   )
 }
