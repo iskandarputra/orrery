@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BacklinkHit } from '@shared/types'
+import { documentSymbols } from '@core/symbols'
 import { getActiveView } from '@/editor/active-view'
 import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
@@ -13,43 +14,33 @@ import { Icon, type IconName } from './Icon'
 import { EmptyState, ResultGroups } from './PanelBits'
 import { SourceControlPanel } from './SourceControlPanel'
 
-interface HeadingItem {
-  level: number
-  text: string
-  line: number
-}
-
-/** Headings of the active document (fence-aware). */
-function collectHeadings(): HeadingItem[] {
-  const view = getActiveView()
-  if (!view) return []
-  const items: HeadingItem[] = []
-  let inFence = false
-  for (let n = 1; n <= view.state.doc.lines; n++) {
-    const text = view.state.doc.line(n).text
-    if (/^\s*(```|~~~)/.test(text)) inFence = !inFence
-    if (inFence) continue
-    const m = text.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/)
-    if (m) items.push({ level: m[1]!.length, text: m[2]!, line: n })
-  }
-  return items
-}
-
+/**
+ * The outline: headings in a note, declarations in a code file.
+ *
+ * Both come from the same reader. A code file has structure too, and the panel
+ * used to answer a request for it by explaining that markdown headings were not
+ * present, which is true and no help at all.
+ */
 function OutlineBody(): React.JSX.Element {
   const stats = useEditorStats()
   const activeId = useStore((s) => s.activeId)
+  const fileName = useStore((s) => (s.activeId ? (s.buffers[s.activeId]?.fileName ?? '') : ''))
   const isCode = useStore((s) => (s.activeId ? s.buffers[s.activeId]?.kind === 'code' : false))
   const [filter, setFilter] = useState('')
-  // Re-collect headings when activeId or stats change as document edits occur
+  // Re-read when the buffer or the document changes; `stats` ticks on edits.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const headings = useMemo(() => (activeId ? collectHeadings() : []), [activeId, stats])
-  const minLevel = headings.length ? Math.min(...headings.map((h) => h.level)) : 1
+  const symbols = useMemo(() => {
+    const view = getActiveView()
+    if (!activeId || !view) return []
+    return documentSymbols(view.state.doc.toString(), fileName)
+  }, [activeId, fileName, stats])
+  const minDepth = symbols.length ? Math.min(...symbols.map((s) => s.depth)) : 0
 
   const filtered = useMemo(() => {
-    if (!filter.trim()) return headings
+    if (!filter.trim()) return symbols
     const q = filter.trim().toLowerCase()
-    return headings.filter((h) => h.text.toLowerCase().includes(q))
-  }, [headings, filter])
+    return symbols.filter((s) => s.name.toLowerCase().includes(q))
+  }, [symbols, filter])
 
   const jump = (line: number): void => {
     const view = getActiveView()
@@ -59,21 +50,19 @@ function OutlineBody(): React.JSX.Element {
     view.focus()
   }
 
-  if (!activeId) return <EmptyState icon="list">Open a note to see its outline.</EmptyState>
-  if (headings.length === 0)
+  if (!activeId) return <EmptyState icon="list">Open a file to see its outline.</EmptyState>
+  if (symbols.length === 0)
     return (
       <EmptyState icon="list">
         {isCode
-          ? // Telling someone to add "# Headings" to a TypeScript file is advice
-            // that would break it.
-            'An outline is built from markdown headings, which a code file has none of.'
+          ? 'Nothing to outline: no functions, classes or types found in this file.'
           : 'No headings found. Add # Headings to create a table of contents.'}
       </EmptyState>
     )
 
   let activeLine = -1
   const caretLine = stats.line
-  for (const h of headings) if (h.line <= caretLine) activeLine = h.line
+  for (const s of symbols) if (s.line <= caretLine) activeLine = s.line
 
   return (
     <div className="outline-container">
@@ -82,7 +71,7 @@ function OutlineBody(): React.JSX.Element {
         <input
           type="text"
           className="outline-filter__input"
-          placeholder="Filter headings…"
+          placeholder={isCode ? 'Filter symbols…' : 'Filter headings…'}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
@@ -101,23 +90,25 @@ function OutlineBody(): React.JSX.Element {
 
       <div className="outline-count-bar">
         <span>
-          {filtered.length} of {headings.length} headings
+          {filtered.length} of {symbols.length} {isCode ? 'symbols' : 'headings'}
         </span>
       </div>
 
       <div className="outline">
-        {filtered.map((h) => (
+        {filtered.map((symbol) => (
           <button
-            key={h.line}
-            className={`outline__item outline__item--l${h.level - minLevel}${
-              h.line === activeLine ? ' outline__item--active' : ''
+            key={`${symbol.line}:${symbol.name}`}
+            className={`outline__item outline__item--l${symbol.depth - minDepth}${
+              symbol.line === activeLine ? ' outline__item--active' : ''
             }`}
-            style={{ paddingLeft: 8 + (h.level - minLevel) * 12 }}
-            onClick={() => jump(h.line)}
-            title={`Line ${h.line}`}
+            style={{ paddingLeft: 8 + (symbol.depth - minDepth) * 12 }}
+            onClick={() => jump(symbol.line)}
+            title={`Line ${symbol.line}`}
           >
-            <span className="outline__level-badge">H{h.level}</span>
-            <span className="outline__label">{h.text}</span>
+            <span className="outline__level-badge">
+              {symbol.kind === 'heading' ? `H${symbol.depth + 1}` : <Icon name="code" size={10} />}
+            </span>
+            <span className="outline__label">{symbol.name}</span>
           </button>
         ))}
       </div>

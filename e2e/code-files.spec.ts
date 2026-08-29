@@ -80,13 +80,14 @@ test('a note is still a note', async () => {
   await expect(page.locator('.status-bar')).toContainText('Markdown')
 })
 
-test('the outline does not tell you to put markdown in a source file', async () => {
+test('a source file outlines by its declarations', async () => {
+  // It used to explain that markdown headings were absent, which is true and no
+  // help at all. A code file has structure; the outline now reads it.
   await open('script.ts')
-  const hint = page.locator('.rpanel-empty')
-  await expect(hint).toBeVisible()
-  // Telling someone to add "# Headings" to a .ts file is advice that breaks it.
-  await expect(hint).not.toContainText('# Headings')
-  await expect(hint).toContainText('code file')
+  await expect(page.locator('.outline__item')).toHaveCount(1)
+  await expect(page.locator('.outline__item').first()).toContainText('add')
+  await expect(page.locator('.outline-count-bar')).toContainText('symbols')
+  await expect(page.locator('.rpanel-empty')).toHaveCount(0)
 })
 
 /**
