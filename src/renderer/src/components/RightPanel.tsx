@@ -11,6 +11,7 @@ import { NoteAnalysisBody } from './NoteAnalysisPanel'
 import { TagsBody } from './TagsPanel'
 import { Icon, type IconName } from './Icon'
 import { EmptyState, ResultGroups } from './PanelBits'
+import { SourceControlPanel } from './SourceControlPanel'
 
 interface HeadingItem {
   level: number
@@ -256,7 +257,8 @@ const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'ai', label: 'AI', icon: 'sparkle' },
   { id: 'stats', label: 'Stats', icon: 'info' },
   { id: 'analysis', label: 'Analysis', icon: 'bar-chart' },
-  { id: 'tags', label: 'Tags', icon: 'hash' }
+  { id: 'tags', label: 'Tags', icon: 'hash' },
+  { id: 'git', label: 'Git', icon: 'git-branch' }
 ]
 
 export function RightPanel(): React.JSX.Element | null {
@@ -359,6 +361,7 @@ export function RightPanel(): React.JSX.Element | null {
         {panel === 'stats' && <DocStatsBody />}
         {panel === 'analysis' && <NoteAnalysisBody />}
         {panel === 'tags' && <TagsBody />}
+        {panel === 'git' && <SourceControlPanel />}
       </div>
     </aside>
   )

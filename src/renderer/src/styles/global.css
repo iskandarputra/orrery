@@ -2803,6 +2803,190 @@ textarea {
   box-shadow: var(--or-shadow-lg);
 }
 
+/* Source control panel. A working-tree view, not a git client: what changed,
+   what is staged, and a commit box. */
+.scm {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.scm__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--or-border);
+}
+
+.scm__branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--or-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scm__ab {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--or-fg-muted);
+}
+
+.scm__bar .icon-btn {
+  margin-left: auto;
+}
+
+.scm__commit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--or-border);
+}
+
+.scm__message {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.4em;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  font-size: 12px;
+  color: var(--or-fg);
+  background: var(--or-editor-bg);
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+}
+
+.scm__message:disabled {
+  color: var(--or-fg-faint);
+}
+
+.scm__commit-btn {
+  align-self: stretch;
+  height: 28px;
+  border-radius: var(--or-radius-sm);
+  background: var(--or-accent-fill);
+  color: var(--or-accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scm__commit-btn:disabled {
+  background: var(--or-hover-bg);
+  color: var(--or-fg-faint);
+  cursor: default;
+}
+
+.scm__group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem 0.25rem;
+}
+
+.scm__group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--or-fg-muted);
+}
+
+.scm__group-act {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--or-accent-text);
+  cursor: pointer;
+}
+
+.scm__group-act:hover {
+  text-decoration: underline;
+}
+
+.scm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  min-height: 26px;
+}
+
+.scm-row:hover {
+  background: var(--or-hover-bg);
+}
+
+.scm-row__name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scm-row__file {
+  font-size: 12px;
+  color: var(--or-fg);
+  white-space: nowrap;
+}
+
+.scm-row__dir {
+  font-size: 11px;
+  color: var(--or-fg-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The row's buttons appear on hover, but stay reachable from the keyboard —
+   and never hover-gate their hit testing, which made an editor control
+   unclickable while its block was being rebuilt. */
+.scm-row__actions {
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+}
+
+.scm-row:hover .scm-row__actions,
+.scm-row__actions:focus-within {
+  opacity: 1;
+}
+
+.scm-row__act {
+  width: 24px;
+  height: 24px;
+}
+
+.scm-row__state {
+  width: 1.2em;
+  text-align: center;
+  font-family: var(--or-mono-font);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--or-fg-muted);
+}
+
+.scm-row__state--modified {
+  color: #d29922;
+}
+.scm-row__state--added,
+.scm-row__state--untracked {
+  color: #3fb950;
+}
+.scm-row__state--deleted {
+  color: #f85149;
+}
+.scm-row__state--conflicted {
+  color: #f85149;
+}
+
 /* Language-server detection pills. Not bundling servers means a language can
    have none, so the state has to be legible rather than silent. */
 .lsp-pill {

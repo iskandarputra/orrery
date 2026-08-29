@@ -128,7 +128,7 @@ export const settingsSchema = z.object({
        * the most useful thing to see beside it on a first run.
        */
       panel: z
-        .enum(['outline', 'backlinks', 'search', 'ai', 'stats', 'analysis', 'tags'])
+        .enum(['outline', 'backlinks', 'search', 'ai', 'stats', 'analysis', 'tags', 'git'])
         .nullable()
         .default('outline')
     })

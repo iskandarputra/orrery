@@ -26,6 +26,7 @@ export type PaletteMode = 'files' | 'commands' | 'templates'
 /** Tabs of the right side panel. */
 export type SidePanel =
   | 'outline'
+  | 'git'
   | 'backlinks'
   | 'search'
   | 'ai'

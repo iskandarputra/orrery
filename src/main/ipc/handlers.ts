@@ -94,6 +94,20 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   // --- git ------------------------------------------------------------------
   handle('git:fileChanges', pathReq, (_e, req) => git.fileChanges(req.path))
+  const rootReq = z.object({ rootPath: z.string().min(1) })
+  const rootPathsReq = rootReq.extend({ paths: z.array(z.string()) })
+  handle('git:isRepository', rootReq, (_e, req) => git.isRepository(req.rootPath))
+  handle('git:status', rootReq, (_e, req) => git.status(req.rootPath))
+  handle('git:stage', rootPathsReq, (_e, req) => git.stage(req.rootPath, req.paths))
+  handle('git:unstage', rootPathsReq, (_e, req) => git.unstage(req.rootPath, req.paths))
+  handle(
+    'git:discard',
+    rootPathsReq.extend({ untracked: z.array(z.string()) }),
+    (_e, req) => git.discard(req.rootPath, req.paths, req.untracked)
+  )
+  handle('git:commit', rootReq.extend({ message: z.string() }), (_e, req) =>
+    git.commit(req.rootPath, req.message)
+  )
 
   // --- language servers -----------------------------------------------------
   const docReq = z.object({ path: z.string().min(1), text: z.string() })

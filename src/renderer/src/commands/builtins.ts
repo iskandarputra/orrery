@@ -95,6 +95,11 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().toggleSidePanel('outline')
   },
   {
+    id: 'view.toggleGit',
+    title: 'Source Control',
+    run: ({ store }) => store().toggleSidePanel('git')
+  },
+  {
     id: 'view.toggleSearch',
     title: 'Search in Workspace',
     run: ({ store }) => store().toggleSidePanel('search')

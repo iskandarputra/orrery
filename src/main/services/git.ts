@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { dirname } from 'node:path'
 import { promisify } from 'node:util'
 import { parseDiffHunks, type LineChange } from '@core/git-diff'
+import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
 
 const run = promisify(execFile)
 
@@ -22,6 +23,94 @@ const TIMEOUT_MS = 5000
  * repository, a file outside the work tree, an untracked file, a timeout.
  */
 export class GitService {
+  /**
+   * Run git inside a working tree.
+   *
+   * Always `execFile` with an argument vector, never a shell: paths and commit
+   * messages are user data, and a vault is full of names with spaces, quotes
+   * and `$` in them.
+   */
+  private async git(cwd: string, args: string[]): Promise<string> {
+    const { stdout } = await run('git', ['--no-pager', ...args], {
+      cwd,
+      timeout: TIMEOUT_MS,
+      maxBuffer: MAX_OUTPUT
+    })
+    return stdout
+  }
+
+  /**
+   * Working-tree status for the whole repository.
+   *
+   * Resolves to an empty status rather than throwing when git cannot answer —
+   * no git installed, not a repository, a timeout. The panel then shows nothing
+   * rather than an error, which is the honest rendering of "there is no
+   * repository here".
+   */
+  async status(rootPath: string): Promise<GitStatus> {
+    try {
+      // -z so paths with newlines or quotes arrive verbatim; --untracked-files=all
+      // so a new folder lists its files rather than just itself.
+      const stdout = await this.git(rootPath, [
+        'status',
+        '--porcelain=v2',
+        '--branch',
+        '-z',
+        '--untracked-files=all'
+      ])
+      return parseGitStatus(stdout)
+    } catch {
+      return EMPTY_STATUS
+    }
+  }
+
+  /** Whether this directory is inside a git work tree at all. */
+  async isRepository(rootPath: string): Promise<boolean> {
+    try {
+      const out = await this.git(rootPath, ['rev-parse', '--is-inside-work-tree'])
+      return out.trim() === 'true'
+    } catch {
+      return false
+    }
+  }
+
+  /** Stage paths. `--` separates them from options, so a file named `-f` is safe. */
+  async stage(rootPath: string, paths: string[]): Promise<void> {
+    if (paths.length === 0) return
+    await this.git(rootPath, ['add', '--', ...paths])
+  }
+
+  /** Unstage paths, leaving the working tree untouched. */
+  async unstage(rootPath: string, paths: string[]): Promise<void> {
+    if (paths.length === 0) return
+    await this.git(rootPath, ['restore', '--staged', '--', ...paths])
+  }
+
+  /**
+   * Throw away working-tree changes.
+   *
+   * Destructive and unrecoverable — git keeps no copy of what was discarded —
+   * so the renderer confirms before calling this. An untracked file is deleted
+   * rather than restored, since there is no version to restore it to.
+   */
+  async discard(rootPath: string, paths: string[], untracked: string[]): Promise<void> {
+    if (paths.length > 0) await this.git(rootPath, ['restore', '--', ...paths])
+    if (untracked.length > 0) await this.git(rootPath, ['clean', '-f', '--', ...untracked])
+  }
+
+  /**
+   * Commit what is staged. Returns the message git printed, or null when it
+   * refused — nothing staged, no identity configured, a hook rejecting it.
+   */
+  async commit(rootPath: string, message: string): Promise<string | null> {
+    try {
+      // The message goes through argv, so it is never interpreted by a shell.
+      return (await this.git(rootPath, ['commit', '-m', message])).trim()
+    } catch {
+      return null
+    }
+  }
+
   async fileChanges(filePath: string): Promise<LineChange[]> {
     try {
       const { stdout } = await run(

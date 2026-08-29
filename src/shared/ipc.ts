@@ -11,6 +11,7 @@ import type {
 } from './types'
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
+import type { GitStatus } from '@core/git-status'
 
 /**
  * Single source of truth for renderer -> main request/response channels.
@@ -31,6 +32,19 @@ export interface IpcInvokeContract {
    * no git installed, an untracked file — so callers need no error path.
    */
   'git:fileChanges': { req: { path: string }; res: LineChange[] }
+  /** Whether the vault is inside a git work tree. */
+  'git:isRepository': { req: { rootPath: string }; res: boolean }
+  /** Working-tree status; empty when git cannot answer. */
+  'git:status': { req: { rootPath: string }; res: GitStatus }
+  'git:stage': { req: { rootPath: string; paths: string[] }; res: void }
+  'git:unstage': { req: { rootPath: string; paths: string[] }; res: void }
+  /** Destructive and unrecoverable; the caller confirms first. */
+  'git:discard': {
+    req: { rootPath: string; paths: string[]; untracked: string[] }
+    res: void
+  }
+  /** Null when git refused — nothing staged, no identity, a hook. */
+  'git:commit': { req: { rootPath: string; message: string }; res: string | null }
 
   /**
    * Language-server document sync. Every call is best-effort: a language
