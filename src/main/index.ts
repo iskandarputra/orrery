@@ -8,6 +8,7 @@ import { EmbeddingService } from './services/embeddings'
 import { HistoryService } from './services/history'
 import { GitService } from './services/git'
 import { LspService } from './services/lsp'
+import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
 import { ExportService } from './services/exporter'
@@ -67,6 +68,16 @@ if (!gotLock) {
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
   const history = new HistoryService(app.getPath('userData'))
   const git = new GitService()
+  const terminal = new TerminalService({
+    onData: (id, data) => {
+      const win = windows.window
+      if (win) send(win, 'terminal:data', { id, data })
+    },
+    onExit: (id, exitCode) => {
+      const win = windows.window
+      if (win) send(win, 'terminal:exit', { id, exitCode })
+    }
+  })
   const lsp = new LspService((payload) => {
     const win = windows.window
     if (win) send(win, 'lsp:diagnostics', payload)
@@ -77,6 +88,8 @@ if (!gotLock) {
   app.on('will-quit', () => {
     lsp.shutdown()
     sidecar?.shutdown()
+    // Shells are children of this process; none may outlive the window.
+    terminal.shutdown()
   })
 
   app.on('second-instance', () => {
@@ -101,7 +114,8 @@ if (!gotLock) {
       embeddings,
       history,
       git,
-      lsp
+      lsp,
+      terminal
     })
     buildAppMenu(settings.get().keybindings)
     windows.createMainWindow()

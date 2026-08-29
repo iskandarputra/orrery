@@ -47,6 +47,16 @@ export interface IpcInvokeContract {
   }
   /** Null when git refused — nothing staged, no identity, a hook. */
   'git:commit': { req: { rootPath: string; message: string }; res: string | null }
+  /** Whether a pseudo-terminal can be started at all (node-pty is optional). */
+  'terminal:available': { req: void; res: boolean }
+  /** Start a shell; null when the terminal is unavailable. */
+  'terminal:create': {
+    req: { cwd: string; cols: number; rows: number }
+    res: string | null
+  }
+  'terminal:write': { req: { id: string; data: string }; res: void }
+  'terminal:resize': { req: { id: string; cols: number; rows: number }; res: void }
+  'terminal:kill': { req: { id: string }; res: void }
   /** Recent commits across all branches, newest first, for the graph. */
   'git:log': { req: { rootPath: string; limit: number }; res: Commit[] }
   /** Absolute path for a repo-relative one, so the editor can open it. */
@@ -176,6 +186,10 @@ export interface IpcInvokeContract {
 /** Main -> renderer push events. */
 export interface IpcEventContract {
   'fs:changed': FsChangedPayload
+  /** Output from a shell, as it arrives. */
+  'terminal:data': { id: string; data: string }
+  /** A shell exited; the panel closes that session. */
+  'terminal:exit': { id: string; exitCode: number }
   /** A language server published diagnostics for a file. */
   'lsp:diagnostics': DiagnosticsPayload
   /** Native menu item clicked; renderer command registry executes it. */

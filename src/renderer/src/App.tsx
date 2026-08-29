@@ -4,6 +4,7 @@ import { useStore } from '@/state/store'
 import { ContextMenu } from '@/components/context-menu/ContextMenu'
 import { DocStatsModal } from '@/components/DocStatsModal'
 import { MediaViewerModal } from '@/components/MediaViewerModal'
+import { TerminalPanel } from '@/components/TerminalPanel'
 import { EditorPane } from '@/components/EditorPane'
 import { AnalyticsView } from './components/AnalyticsView'
 import { HistoryModal } from './components/HistoryModal'
@@ -83,6 +84,9 @@ export function App(): React.JSX.Element {
           </div>
           {!hasTabs && <WelcomeView />}
         </div>
+        {/* Along the bottom of the editor column, so it shares the width of the
+            thing it is a terminal for rather than covering it. */}
+        {!zenMode && <TerminalPanel />}
         {!zenMode && <StatusBar />}
       </main>
       {!zenMode && <RightPanel />}

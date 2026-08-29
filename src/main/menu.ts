@@ -137,6 +137,12 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
           click: dispatch('view.toggleSidebar')
         },
         {
+          label: 'Toggle Terminal',
+          // The shortcut every editor uses for this, so muscle memory works.
+          accelerator: acc('view.toggleTerminal', 'CmdOrCtrl+`'),
+          click: dispatch('view.toggleTerminal')
+        },
+        {
           label: 'View Mode',
           submenu: [
             {

@@ -104,6 +104,8 @@ export interface UiSlice {
   zenMode: boolean
   /** Document statistics drawer/modal. */
   docStatsOpen: boolean
+  /** Integrated terminal panel, along the bottom of the workspace. */
+  terminalOpen: boolean
   /**
    * The block currently open in the full-screen media viewer.
    *
@@ -144,6 +146,8 @@ export interface UiSlice {
   setFileTreeSort(sort: 'name' | 'modified'): void
   toggleZenMode(): void
   setDocStatsOpen(open: boolean): void
+  toggleTerminal(): void
+  closeTerminal(): void
   openMediaViewer(target: MediaViewerTarget): void
   closeMediaViewer(): void
 }
@@ -168,6 +172,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   fileTreeSort: 'name',
   zenMode: false,
   docStatsOpen: false,
+  terminalOpen: false,
   mediaViewer: null,
 
   async loadSettings() {
@@ -312,6 +317,14 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   setDocStatsOpen(open) {
     set({ docStatsOpen: open })
+  },
+
+  toggleTerminal() {
+    set((s) => ({ terminalOpen: !s.terminalOpen }))
+  },
+
+  closeTerminal() {
+    set({ terminalOpen: false })
   },
 
   openMediaViewer(target) {

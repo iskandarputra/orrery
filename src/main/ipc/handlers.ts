@@ -10,6 +10,7 @@ import type { HistoryService } from '../services/history'
 import type { FileSystemService } from '../services/file-system'
 import type { GitService } from '../services/git'
 import type { LspService } from '../services/lsp'
+import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -29,6 +30,7 @@ export interface HandlerDeps {
   history: HistoryService
   git: GitService
   lsp: LspService
+  terminal: TerminalService
 }
 
 const pathReq = z.object({ path: z.string().min(1) })
@@ -40,7 +42,7 @@ const MARKDOWN_FILTERS = [
 
 /** Bind every contract channel to its service. All channels registered here. */
 export function registerIpcHandlers(deps: HandlerDeps): void {
-  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history, git, lsp } = deps
+  const { fs, watcher, settings, windows, links, exporter, ai, embeddings, history, git, lsp, terminal } = deps
 
   // --- dialogs -------------------------------------------------------------
   handle('dialog:openFile', null, async () => {
@@ -91,6 +93,24 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   // --- file system ---------------------------------------------------------
   handle('fs:readFile', pathReq, (_e, req) => fs.readFile(req.path))
+
+  // --- terminal -------------------------------------------------------------
+  const termId = z.object({ id: z.string().min(1) })
+  handle('terminal:available', null, () => terminal.available)
+  handle(
+    'terminal:create',
+    z.object({ cwd: z.string(), cols: z.number(), rows: z.number() }),
+    (_e, req) => terminal.create(req.cwd, req.cols, req.rows)
+  )
+  handle('terminal:write', termId.extend({ data: z.string() }), (_e, req) =>
+    terminal.write(req.id, req.data)
+  )
+  handle(
+    'terminal:resize',
+    termId.extend({ cols: z.number(), rows: z.number() }),
+    (_e, req) => terminal.resize(req.id, req.cols, req.rows)
+  )
+  handle('terminal:kill', termId, (_e, req) => terminal.kill(req.id))
 
   // --- git ------------------------------------------------------------------
   handle('git:fileChanges', pathReq, (_e, req) => git.fileChanges(req.path))

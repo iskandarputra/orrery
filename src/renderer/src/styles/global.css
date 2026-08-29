@@ -3199,6 +3199,60 @@ textarea {
   color: #f85149;
 }
 
+/* Integrated terminal. Along the bottom of the editor column, sharing its
+   width — it is a terminal for the thing above it, not an overlay on top. */
+.term-panel {
+  display: flex;
+  flex-direction: column;
+  height: 34vh;
+  min-height: 120px;
+  border-top: 1px solid var(--or-border);
+  background: var(--or-editor-bg);
+  /* Vertical resize, so it can be given more room without a drag handle. */
+  resize: vertical;
+  overflow: hidden;
+}
+
+.term-panel__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.7rem;
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-panel-bg);
+}
+
+.term-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--or-fg-muted);
+}
+
+.term-panel__note {
+  font-size: 11px;
+  color: #d29922;
+}
+
+.term-panel__bar .icon-btn {
+  margin-left: auto;
+}
+
+.term-panel__host {
+  flex: 1;
+  min-height: 0;
+  padding: 0.3rem 0.5rem;
+}
+
+/* xterm measures itself against this element, so it must fill it exactly. */
+.term-panel__host .xterm {
+  height: 100%;
+}
+
 /* Source control sections. VS Code's source control container holds several
    views; this is the same idea at panel scale — the change list and the graph
    are different questions, and a narrow panel cannot answer both at once. */
