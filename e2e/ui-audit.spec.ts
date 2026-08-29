@@ -638,6 +638,36 @@ const SURFACES: Surface[] = [
     close: closeDiagramNote
   },
   {
+    // Both a resolved link and a missing one, since the missing style is the
+    // one carrying information and the one most likely to be too quiet.
+    name: 'outgoing links',
+    root: '.rpanel',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await runCommand('view.toggleOutgoing')
+      await expect(page.locator('.outgoing__row').first()).toBeVisible({ timeout: 15_000 })
+    },
+    close: async () => {
+      await runCommand('view.toggleOutline')
+      await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
+    name: 'bookmarks',
+    root: '.rpanel',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await runCommand('note.toggleBookmark')
+      await runCommand('view.toggleBookmarks')
+      await expect(page.locator('.bookmarks__row').first()).toBeVisible({ timeout: 15_000 })
+    },
+    close: async () => {
+      await page.locator('.bookmarks__drop').first().click()
+      await runCommand('view.toggleOutline')
+      await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
     // The panel, with a change staged and unstaged, so both groups and the
     // commit box carry text.
     name: 'source control',

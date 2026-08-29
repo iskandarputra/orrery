@@ -99,11 +99,11 @@ test('the rail shows every view at once, in a column', async () => {
     }
   })
 
-  expect(rail.count, 'every view has a tab').toBe(8)
+  expect(rail.count, 'every view has a tab').toBe(10)
   expect(rail.columns, 'the rail is one column').toBe(1)
-  expect(rail.lines, 'each tab on its own line').toBe(8)
-  expect(rail.allInside, 'all eight fit at the panel minimum width').toBe(true)
-  expect(rail.scrolls, 'a column of eight does not need to scroll').toBe(false)
+  expect(rail.lines, 'each tab on its own line').toBe(10)
+  expect(rail.allInside, 'all of them fit at the panel minimum width').toBe(true)
+  expect(rail.scrolls, 'the column does not need to scroll').toBe(false)
   expect(rail.tooSmall, 'each tab is a 24px target').toBe(0)
 })
 

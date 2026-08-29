@@ -9,6 +9,8 @@ import { useStore } from '@/state/store'
 import type { SidePanel } from '@/state/ui'
 import { AiChatBody } from './AiChat'
 import { BacklinksBody } from './BacklinksPanel'
+import { BookmarksBody } from './BookmarksPanel'
+import { OutgoingBody } from './OutgoingPanel'
 import { NoteAnalysisBody } from './NoteAnalysisPanel'
 import { TagsBody } from './TagsPanel'
 import { Icon, type IconName } from './Icon'
@@ -317,6 +319,8 @@ function DocStatsBody(): React.JSX.Element {
 const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'outline', label: 'Outline', icon: 'list' },
   { id: 'backlinks', label: 'Links', icon: 'link' },
+  { id: 'outgoing', label: 'Outgoing', icon: 'external-link' },
+  { id: 'bookmarks', label: 'Bookmarks', icon: 'bookmark' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'ai', label: 'AI', icon: 'sparkle' },
   { id: 'stats', label: 'Stats', icon: 'info' },
@@ -374,6 +378,8 @@ export function RightPanel(): React.JSX.Element {
           <div className="rpanel__scroll">
             {panel === 'outline' && <OutlineBody />}
             {panel === 'backlinks' && <BacklinksBody />}
+            {panel === 'outgoing' && <OutgoingBody />}
+            {panel === 'bookmarks' && <BookmarksBody />}
             {panel === 'search' && <SearchBody />}
             {panel === 'ai' && <AiChatBody />}
             {panel === 'stats' && <DocStatsBody />}

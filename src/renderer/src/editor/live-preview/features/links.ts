@@ -72,6 +72,11 @@ export function links(options: { renderImages: boolean }): Feature {
   return {
     nodes: options.renderImages ? ['Link'] : ['Link', 'Image'],
     enter(node, ctx) {
+      // `[^label]: text` parses as a link reference definition, and concealing
+      // its brackets leaves `^label: text` in a list of footnotes.
+      if (/^\[\^/.test(ctx.state.doc.sliceString(node.from, Math.min(node.to, node.from + 2)))) {
+        return
+      }
       decorate(node.node, ctx, node.name === 'Image')
     }
   }

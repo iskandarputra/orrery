@@ -1,7 +1,13 @@
 import { openSearchPanel, replaceNext } from '@codemirror/search'
 import { moveBlockDown, moveBlockUp } from '@/editor/block-move'
 import { unwrapParagraphs } from '@core/reflow'
-import { canvasFromCluster, clusterMoc, newCanvas } from '@/notes/canvas-commands'
+import {
+  canvasFromCluster,
+  clusterMoc,
+  newCanvas,
+  newUniqueNote,
+  openRandomNote
+} from '@/notes/canvas-commands'
 import { openDailyNote } from '@/notes/daily'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
@@ -82,13 +88,11 @@ export const builtinCommands: Command[] = [
     title: 'Appearance: System',
     run: ({ store }) => store().setThemeMode('system')
   },
-  ...THEMES.map(
-    (t): Command => ({
-      id: `theme.select.${t.id}`,
-      title: `Theme: ${t.name} (${t.appearance})`,
-      run: ({ store }) => store().selectTheme(t.id)
-    })
-  ),
+  ...THEMES.map((t): Command => ({
+    id: `theme.select.${t.id}`,
+    title: `Theme: ${t.name} (${t.appearance})`,
+    run: ({ store }) => store().selectTheme(t.id)
+  })),
   {
     id: 'app.openSettings',
     title: 'Preferences…',
@@ -223,6 +227,35 @@ export const builtinCommands: Command[] = [
     id: 'note.history',
     title: 'Version History',
     run: ({ store }) => store().toggleHistory()
+  },
+  {
+    id: 'view.toggleBookmarks',
+    title: 'Toggle Bookmarks Panel',
+    run: ({ store }) => store().toggleSidePanel('bookmarks')
+  },
+  {
+    id: 'view.toggleOutgoing',
+    title: 'Toggle Outgoing Links Panel',
+    run: ({ store }) => store().toggleSidePanel('outgoing')
+  },
+  {
+    id: 'note.toggleBookmark',
+    title: 'Bookmark This File',
+    run: ({ store }) => {
+      const s = store()
+      const path = s.activeId ? s.buffers[s.activeId]?.filePath : null
+      if (path) s.toggleBookmark(path)
+    }
+  },
+  {
+    id: 'note.newUnique',
+    title: 'New Unique Note (timestamp name)',
+    run: () => void newUniqueNote()
+  },
+  {
+    id: 'note.random',
+    title: 'Open Random Note',
+    run: () => void openRandomNote()
   },
   {
     id: 'canvas.new',

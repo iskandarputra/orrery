@@ -1,5 +1,6 @@
 import { seedCanvasFromNotes, serializeCanvas } from '@core/canvas'
 import { buildMocSkeleton, mocPrompt } from '@core/moc'
+import { noteId, pickRandom } from '@core/note-ids'
 import { appState } from '@/state/app-state-access'
 import { invoke, parseIpcError } from '@/services/client'
 
@@ -87,7 +88,6 @@ export async function canvasFromCluster(): Promise<void> {
   showToast(`Laid out ${canvas.nodes.length} notes`, 'success')
 }
 
-
 /**
  * Write a Map of Content for the open note's cluster.
  *
@@ -133,12 +133,41 @@ export async function clusterMoc(): Promise<void> {
     }
   }
 
-  const body = intro
-    ? skeleton.markdown.replace(/\n\n/, `\n\n${intro}\n\n`)
-    : skeleton.markdown
+  const body = intro ? skeleton.markdown.replace(/\n\n/, `\n\n${intro}\n\n`) : skeleton.markdown
   const path = await createInVault(safeName(`${skeleton.title} MOC`), 'md', body)
   if (!path) return
   void store.refreshTree()
   await store.openPaths([path])
   showToast(`Mapped ${cluster.length} notes`, 'success')
+}
+
+/**
+ * A note named for the minute it was made.
+ *
+ * The Zettelkasten convention: an identifier that is unique without consulting
+ * anything, and sorts chronologically. `createInVault` settles the one
+ * collision that is possible, two notes in the same minute.
+ */
+export async function newUniqueNote(): Promise<void> {
+  const path = await createInVault(noteId(), 'md', '')
+  if (!path) return
+  const store = appState()
+  void store.refreshTree()
+  await store.openPaths([path])
+}
+
+/**
+ * Open a note at random.
+ *
+ * Notes rather than every file: the point is to meet something you wrote and
+ * forgot, and a lockfile is not that.
+ */
+export async function openRandomNote(): Promise<void> {
+  const store = appState()
+  const note = pickRandom(store.noteIndex)
+  if (!note) {
+    store.showToast('No notes to choose from', 'warning')
+    return
+  }
+  await store.openPaths([note.path])
 }

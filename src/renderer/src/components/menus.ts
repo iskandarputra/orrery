@@ -12,7 +12,16 @@ export function buildTabMenu(bufferId: string): MenuItem[] {
   const order = state.tabOrder
   const idx = order.indexOf(bufferId)
 
+  const pinned = buffer.filePath ? state.settings.bookmarks.includes(buffer.filePath) : false
+
   return [
+    {
+      label: pinned ? 'Remove bookmark' : 'Bookmark',
+      icon: 'bookmark',
+      disabled: !buffer.filePath,
+      onSelect: () => buffer.filePath && state.toggleBookmark(buffer.filePath)
+    },
+    { separator: true },
     { label: 'Close', icon: 'x', onSelect: () => void state.closeTab(bufferId) },
     {
       label: 'Close Others',
@@ -46,6 +55,16 @@ export function buildTreeMenu(node: FileNode): MenuItem[] {
   const isDir = node.kind === 'directory'
 
   const shared: MenuItem[] = [
+    ...(isDir
+      ? []
+      : [
+          {
+            label: state.settings.bookmarks.includes(node.path) ? 'Remove bookmark' : 'Bookmark',
+            icon: 'bookmark' as const,
+            onSelect: () => state.toggleBookmark(node.path)
+          },
+          { separator: true } as MenuItem
+        ]),
     {
       label: 'Rename',
       icon: 'type',

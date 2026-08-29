@@ -1,3 +1,4 @@
+import { footnoteRendering } from '../footnotes'
 import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import { blockquote } from './features/blockquote'
@@ -89,6 +90,7 @@ export function composeLivePreview(
       reveal
     ),
     frontmatterRendering(reveal),
+    footnoteRendering(reveal),
     embeds,
     tableRendering(reveal),
     codeCardRendering(reveal),

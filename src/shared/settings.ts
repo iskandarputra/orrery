@@ -144,7 +144,18 @@ export const settingsSchema = z.object({
        * the most useful thing to see beside it on a first run.
        */
       panel: z
-        .enum(['outline', 'backlinks', 'search', 'ai', 'stats', 'analysis', 'tags', 'git'])
+        .enum([
+          'outline',
+          'backlinks',
+          'outgoing',
+          'bookmarks',
+          'search',
+          'ai',
+          'stats',
+          'analysis',
+          'tags',
+          'git'
+        ])
         .nullable()
         .default('outline')
     })
@@ -159,6 +170,8 @@ export const settingsSchema = z.object({
     .prefault({}),
   /** Accelerator overrides by command id (e.g. "file.save": "CmdOrCtrl+S"). */
   keybindings: z.record(z.string(), z.string()).default({}),
+  /** Files pinned by the user, newest first. Absolute paths. */
+  bookmarks: z.array(z.string()).default([]),
   recentFiles: z.array(z.string()).default([]),
   recentFolders: z.array(z.string()).default([]),
   lastOpenedFolder: z.string().nullable().default(null)

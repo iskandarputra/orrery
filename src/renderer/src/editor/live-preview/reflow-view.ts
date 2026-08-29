@@ -35,6 +35,17 @@ function isCalloutTitle(lineText: string): boolean {
   return CALLOUT_RE.test(lineText)
 }
 
+/**
+ * `[^label]: the note` at the foot of a document.
+ *
+ * The parser reads a run of these as one paragraph, so reflow joined them into
+ * a single line and the list of notes became a sentence. Each is its own entry,
+ * the same way a callout title is its own line.
+ */
+function isFootnoteDefinition(lineText: string): boolean {
+  return /^[ \t]{0,3}\[\^[^\]\s]+\]:/.test(lineText)
+}
+
 /** Facet controlling whether paragraph reflow is enabled. */
 export const reflowEnabledFacet = Facet.define<boolean, boolean>({
   combine: (values) => (values.length ? Boolean(values[values.length - 1]) : false)
@@ -55,6 +66,11 @@ function build(state: EditorState): DecorationSet {
       for (let n = first.number; n < last.number; n++) {
         const line = state.doc.line(n)
         if (isHardBreak(line.text) || isCalloutTitle(line.text)) continue
+        // Either side: a definition must not be pulled up into the prose above
+        // it, nor have the next definition pulled onto its own line.
+        if (isFootnoteDefinition(line.text) || isFootnoteDefinition(state.doc.line(n + 1).text)) {
+          continue
+        }
         decos.push(softSpace.range(line.to, line.to + 1))
       }
       return false // paragraphs don't nest

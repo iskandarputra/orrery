@@ -34,6 +34,8 @@ export type SidePanel =
   | 'outline'
   | 'git'
   | 'backlinks'
+  | 'outgoing'
+  | 'bookmarks'
   | 'search'
   | 'ai'
   | 'stats'
@@ -124,6 +126,8 @@ export interface UiSlice {
   loadSettings(): Promise<void>
   /** Optimistic local update, persisted through main. */
   updateSettings(patch: Partial<Settings>): void
+  /** Pin a file, or unpin it if it is already pinned. */
+  toggleBookmark(path: string): void
   openSettings(): void
   closeSettings(): void
   toggleSidePanel(panel: SidePanel): void
@@ -146,7 +150,11 @@ export interface UiSlice {
   toggleDir(path: string): void
   collapseAllDirs(): void
   toggleFormattingToolbar(): void
-  showToast(message: string, type?: 'info' | 'success' | 'warning' | 'error', duration?: number): void
+  showToast(
+    message: string,
+    type?: 'info' | 'success' | 'warning' | 'error',
+    duration?: number
+  ): void
   clearToast(): void
   setFileTreeFilter(filter: string): void
   setFileTreeSort(sort: 'name' | 'modified'): void
@@ -199,6 +207,14 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   updateSettings(patch) {
     set({ settings: { ...get().settings, ...patch } })
     void invoke('settings:set', patch).then((confirmed) => set({ settings: confirmed }))
+  },
+
+  toggleBookmark(path) {
+    const current = get().settings.bookmarks
+    // Newest first, so the list reads as "what I pinned recently" rather than
+    // as whatever order the filesystem happened to hand back.
+    const next = current.includes(path) ? current.filter((p) => p !== path) : [path, ...current]
+    get().updateSettings({ bookmarks: next })
   },
 
   openSettings() {
@@ -339,6 +355,5 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   closeMediaViewer() {
     set({ mediaViewer: null })
-
   }
 })

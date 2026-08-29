@@ -234,7 +234,13 @@
   display: inline-block;
   width: 100%;
   height: 2px;
-  background: linear-gradient(to right, transparent, var(--or-border) 15%, var(--or-border) 85%, transparent);
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--or-border) 15%,
+    var(--or-border) 85%,
+    transparent
+  );
   border-radius: 1px;
   vertical-align: middle;
   margin: 0.8em 0;
@@ -728,9 +734,7 @@
 
 /* A quoted list keeps the quote's inset and adds its own indent on top. */
 .cm-line.cm-or-blockquote.cm-or-li {
-  padding-left: calc(
-    1.1em + var(--or-li-depth, 0) * var(--or-li-step) + var(--or-li-marker)
-  );
+  padding-left: calc(1.1em + var(--or-li-depth, 0) * var(--or-li-step) + var(--or-li-marker));
 }
 
 /* The marker column itself. Every marker — bullet, number, checkbox — occupies
@@ -755,7 +759,7 @@
 }
 
 .cm-or-bullet::before {
-  content: "\2022";
+  content: '\2022';
 }
 
 .cm-or-bullet {
@@ -765,24 +769,23 @@
 
 /* Depth reads at a glance from the glyph, the way a printed outline does. The
    size lives on ::before, never on the box. */
-.cm-or-li[style*="--or-li-depth: 1"] .cm-or-bullet {
+.cm-or-li[style*='--or-li-depth: 1'] .cm-or-bullet {
   color: var(--or-fg-muted);
 }
 
-.cm-or-li[style*="--or-li-depth: 1"] .cm-or-bullet::before {
-  content: "\25E6";
+.cm-or-li[style*='--or-li-depth: 1'] .cm-or-bullet::before {
+  content: '\25E6';
   font-size: 1.3em;
 }
 
-.cm-or-li[style*="--or-li-depth: 2"] .cm-or-bullet {
+.cm-or-li[style*='--or-li-depth: 2'] .cm-or-bullet {
   color: var(--or-fg-muted);
 }
 
-.cm-or-li[style*="--or-li-depth: 2"] .cm-or-bullet::before {
-  content: "\25AA";
+.cm-or-li[style*='--or-li-depth: 2'] .cm-or-bullet::before {
+  content: '\25AA';
   font-size: 1.05em;
 }
-
 
 /* ==========================================================================
    YAML Frontmatter Properties Card / Box (Obsidian / Notion style)
@@ -1015,4 +1018,35 @@
   border-left-color: var(--or-fg-faint);
   color: var(--or-fg-faint);
   font-style: italic;
+}
+
+/* Footnote markers: a raised number where the label was, and the definitions
+   at the foot of the note set apart from the prose above them. */
+.cm-or-footnote {
+  padding: 0 1px;
+  font-size: 0.72em;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--or-accent-text);
+  cursor: pointer;
+  vertical-align: super;
+}
+
+.cm-or-footnote:hover {
+  text-decoration: underline;
+}
+
+/* A marker pointing at nothing is a typo or the next note to write, and either
+   way saying so is more use than rendering it as though it resolved. */
+.cm-or-footnote--missing {
+  color: var(--or-fg-faint);
+  text-decoration: underline dotted;
+  cursor: help;
+}
+
+.cm-or-footnote-def {
+  padding-left: 0.4rem;
+  border-left: 2px solid var(--or-border);
+  color: var(--or-fg-muted);
+  font-size: 0.92em;
 }

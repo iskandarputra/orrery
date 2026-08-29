@@ -5397,3 +5397,120 @@ kbd {
   background: var(--or-hover-bg);
   color: var(--or-diff-del);
 }
+
+/* Outgoing links: what this note points at, missing targets included. */
+.outgoing__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: var(--or-radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.outgoing__row:hover {
+  background: var(--or-hover-bg);
+}
+
+/* A link to a note that does not exist is a typo or the next note to write,
+   so it is shown and marked rather than hidden. */
+.outgoing__row--missing {
+  cursor: default;
+}
+
+.outgoing__row--missing .outgoing__name {
+  color: var(--or-fg-faint);
+  text-decoration: underline dotted;
+}
+
+.outgoing__icon {
+  flex: 0 0 auto;
+  color: var(--or-fg-faint);
+}
+
+.outgoing__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--or-fg);
+}
+
+.outgoing__heading {
+  margin-left: 0.3rem;
+  color: var(--or-fg-faint);
+  font-size: 11px;
+}
+
+.outgoing__meta,
+.outgoing__missing-count {
+  flex: 0 0 auto;
+  color: var(--or-fg-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bookmarks: files pinned on purpose, as against recents the app chose. */
+.bookmarks__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.bookmarks__open {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: var(--or-radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bookmarks__open:hover {
+  background: var(--or-hover-bg);
+}
+
+.bookmarks__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--or-fg);
+}
+
+.bookmarks__dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--or-fg-faint);
+  font-size: 11px;
+}
+
+.bookmarks__drop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 2.5.8: a pointer target is at least 24px on a side. */
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-faint);
+  cursor: pointer;
+}
+
+.bookmarks__drop:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-diff-del);
+}
