@@ -1,7 +1,12 @@
 import { isMarkdownFile } from './paths'
 
-/** Which editor surface a buffer belongs in. */
-export type DocumentKind = 'markdown' | 'canvas' | 'code'
+/**
+ * Which editor surface a buffer belongs in.
+ *
+ * `diff` never comes from a file name — it is opened directly by the source
+ * control panel — so `documentKind` below never returns it.
+ */
+export type DocumentKind = 'markdown' | 'canvas' | 'code' | 'diff'
 
 /**
  * `.canvas` files are JSON boards, markdown extensions are notes, and

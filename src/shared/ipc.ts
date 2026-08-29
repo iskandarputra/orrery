@@ -12,6 +12,7 @@ import type {
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
 import type { GitStatus } from '@core/git-status'
+import type { FileDiff } from '@core/unified-diff'
 
 /**
  * Single source of truth for renderer -> main request/response channels.
@@ -45,6 +46,13 @@ export interface IpcInvokeContract {
   }
   /** Null when git refused — nothing staged, no identity, a hook. */
   'git:commit': { req: { rootPath: string; message: string }; res: string | null }
+  /** Absolute path for a repo-relative one, so the editor can open it. */
+  'git:absolutePath': { req: { rootPath: string; path: string }; res: string }
+  /** One file's diff; `staged` picks index-vs-HEAD over worktree-vs-index. */
+  'git:fileDiff': {
+    req: { rootPath: string; path: string; staged: boolean }
+    res: FileDiff
+  }
 
   /**
    * Language-server document sync. Every call is best-effort: a language

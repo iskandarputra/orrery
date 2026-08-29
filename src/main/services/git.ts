@@ -3,6 +3,7 @@ import { dirname } from 'node:path'
 import { promisify } from 'node:util'
 import { parseDiffHunks, type LineChange } from '@core/git-diff'
 import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
+import { EMPTY_DIFF, parseUnifiedDiff, type FileDiff } from '@core/unified-diff'
 
 const run = promisify(execFile)
 
@@ -61,6 +62,51 @@ export class GitService {
       return parseGitStatus(stdout)
     } catch {
       return EMPTY_STATUS
+    }
+  }
+
+  /**
+   * The diff for one file, as the source-control panel shows it.
+   *
+   * `staged` picks which side to look at: the index against HEAD, or the
+   * working tree against the index — the same split the panel groups by.
+   *
+   * An untracked file has nothing in git to compare against, so it is diffed
+   * against /dev/null with `--no-index`, which renders it as an all-addition
+   * file. That command exits 1 when there is a difference, which is the normal
+   * case here, so its failure carries the output we want.
+   */
+  async fileDiff(rootPath: string, path: string, staged: boolean): Promise<FileDiff> {
+    const common = ['diff', '--no-color', '--no-ext-diff']
+    try {
+      const stdout = await this.git(rootPath, [
+        ...common,
+        ...(staged ? ['--cached'] : []),
+        '--',
+        path
+      ])
+      if (stdout.trim()) return parseUnifiedDiff(stdout)
+    } catch {
+      return EMPTY_DIFF
+    }
+
+    // Empty output means either "tracked and unchanged" or "untracked", and
+    // those need opposite answers: nothing at all, versus the whole file as an
+    // addition. Asking git which it is costs one call and is the difference
+    // between an empty diff and a spurious full-file one.
+    if (staged) return EMPTY_DIFF
+    try {
+      const tracked = await this.git(rootPath, ['ls-files', '--', path])
+      if (tracked.trim()) return EMPTY_DIFF
+    } catch {
+      return EMPTY_DIFF
+    }
+    try {
+      await this.git(rootPath, [...common, '--no-index', '--', '/dev/null', path])
+      return EMPTY_DIFF // identical to nothing: an empty file
+    } catch (err) {
+      const stdout = (err as { stdout?: string }).stdout
+      return stdout ? parseUnifiedDiff(stdout) : EMPTY_DIFF
     }
   }
 

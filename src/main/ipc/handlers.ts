@@ -105,6 +105,14 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     rootPathsReq.extend({ untracked: z.array(z.string()) }),
     (_e, req) => git.discard(req.rootPath, req.paths, req.untracked)
   )
+  handle('git:absolutePath', rootReq.extend({ path: z.string().min(1) }), (_e, req) =>
+    path.join(req.rootPath, req.path)
+  )
+  handle(
+    'git:fileDiff',
+    rootReq.extend({ path: z.string().min(1), staged: z.boolean() }),
+    (_e, req) => git.fileDiff(req.rootPath, req.path, req.staged)
+  )
   handle('git:commit', rootReq.extend({ message: z.string() }), (_e, req) =>
     git.commit(req.rootPath, req.message)
   )

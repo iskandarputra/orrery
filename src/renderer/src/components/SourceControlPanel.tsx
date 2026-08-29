@@ -35,14 +35,15 @@ function Row({
   onDiscard?: (change: GitChange) => void
 }): React.JSX.Element {
   const state = side === 'staged' ? change.staged : change.unstaged
-  const openPaths = useStore((s) => s.openPaths)
-  const rootPath = useStore((s) => s.rootPath)
+  const openDiff = useStore((s) => s.openDiff)
 
   return (
     <div className="scm-row" title={change.from ? `${change.from} → ${change.path}` : change.path}>
+      {/* Clicking the name shows the diff, as it does in VS Code — opening the
+          file is what the file tree is for, and the question here is what changed. */}
       <button
         className="scm-row__name"
-        onClick={() => rootPath && void openPaths([`${rootPath}/${change.path}`])}
+        onClick={() => openDiff(change.path, side === 'staged')}
       >
         <span className="scm-row__file">{basename(change.path)}</span>
         <span className="scm-row__dir">{change.path.includes('/') ? change.path : ''}</span>

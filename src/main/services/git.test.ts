@@ -167,6 +167,50 @@ describe('commit', () => {
   })
 })
 
+describe('fileDiff', () => {
+  it('returns the changed lines of an unstaged edit', async () => {
+    write('base.md', 'original\nadded line\n')
+    const d = await git.fileDiff(repo, 'base.md', false)
+    expect(d.added).toBe(1)
+    expect(d.hunks[0]!.lines.some((l) => l.kind === 'added' && l.text === 'added line')).toBe(true)
+  })
+
+  it('looks at the index when asked for the staged side', async () => {
+    write('base.md', 'staged version\n')
+    await git.stage(repo, ['base.md'])
+    write('base.md', 'and then more\n')
+
+    const staged = await git.fileDiff(repo, 'base.md', true)
+    const unstaged = await git.fileDiff(repo, 'base.md', false)
+    expect(staged.hunks[0]!.lines.some((l) => l.text === 'staged version')).toBe(true)
+    expect(unstaged.hunks[0]!.lines.some((l) => l.text === 'and then more')).toBe(true)
+  })
+
+  it('shows an untracked file as all additions', async () => {
+    // Nothing in git to compare against, so it is diffed against /dev/null.
+    write('brand new.md', 'line one\nline two\n')
+    const d = await git.fileDiff(repo, 'brand new.md', false)
+    expect(d.added).toBe(2)
+    expect(d.removed).toBe(0)
+  })
+
+  it('reports nothing for an unchanged file', async () => {
+    expect(await git.fileDiff(repo, 'base.md', false)).toMatchObject({ hunks: [], added: 0 })
+  })
+
+  it('reports a deletion', async () => {
+    rmSync(join(repo, 'base.md'))
+    const d = await git.fileDiff(repo, 'base.md', false)
+    expect(d.removed).toBeGreaterThan(0)
+  })
+
+  it('does not throw outside a repository', async () => {
+    const plain = mkdtempSync(join(tmpdir(), 'orrery-plain-'))
+    expect(await git.fileDiff(plain, 'x.md', false)).toMatchObject({ hunks: [] })
+    rmSync(plain, { recursive: true, force: true })
+  })
+})
+
 describe('discard', () => {
   it('restores a tracked file', async () => {
     write('base.md', 'changed\n')

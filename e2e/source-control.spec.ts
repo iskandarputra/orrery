@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -101,6 +101,99 @@ test('an untracked file shows, and unstaging returns it', async () => {
   expect(execFileSync('git', ['status', '--porcelain'], { cwd: vault }).toString()).toContain(
     'brand new.md'
   )
+})
+
+test('clicking a file shows its diff', async () => {
+  // Its own committed file: an earlier test commits Index.md, so sharing it
+  // would diff against whatever that test happened to leave behind.
+  writeFileSync(join(vault, 'Diffme.md'), 'alpha\nbeta\n')
+  git('add', 'Diffme.md')
+  git('commit', '-qm', 'add Diffme')
+  writeFileSync(join(vault, 'Diffme.md'), 'alpha\nan added line\nbeta\n')
+
+  await openPanel()
+  await refresh()
+  await page.locator('.scm-row__name').filter({ hasText: 'Diffme.md' }).click()
+
+  const diff = page.locator('.diff')
+  await expect(diff).toBeVisible({ timeout: 10_000 })
+  await expect(diff.locator('.diff__path')).toHaveText('Diffme.md')
+
+  // One inserted line, nothing removed, and the counts agree with the lines.
+  await expect(diff.locator('.diff__cell--added')).toHaveCount(1)
+  await expect(diff.locator('.diff__cell--added')).toContainText('an added line')
+  await expect(diff.locator('.diff__stat--added')).toHaveText('+1')
+  await expect(diff.locator('.diff__stat--removed')).toHaveText('-0')
+  // Context lines carry both line numbers; an addition only carries the new one.
+  await expect(diff.locator('.diff__cell--context').first()).toContainText('alpha')
+
+  // It is a tab, so it appears in the tab bar and closes like any other.
+  await expect(page.locator('.tab--active')).toContainText('Diffme.md (diff)')
+  await page.locator('.diff button[aria-label="Close"]').click()
+  await expect(diff).toBeHidden()
+  writeFileSync(join(vault, 'Diffme.md'), 'alpha\nbeta\n')
+})
+
+test('the working-tree column is editable and writes to the file', async () => {
+  writeFileSync(join(vault, 'Editable.md'), 'first\nsecond\n')
+  git('add', 'Editable.md')
+  git('commit', '-qm', 'add Editable')
+  writeFileSync(join(vault, 'Editable.md'), 'first\nsecond changed\n')
+
+  await openPanel()
+  await refresh()
+  await page.locator('.scm-row__name').filter({ hasText: 'Editable.md' }).click()
+  await expect(page.locator('.diff')).toBeVisible({ timeout: 10_000 })
+
+  // Edit the right column in place, as VS Code lets you edit its right pane.
+  const line = page.locator('.diff__cell--added .diff__text--editable').first()
+  await expect(line).toBeVisible()
+  await line.click()
+  await page.keyboard.press('Control+a')
+  await page.keyboard.type('rewritten from the diff')
+  await page.keyboard.press('Enter')
+
+  // The file on disk carries the edit...
+  await expect
+    .poll(() => readFileSync(join(vault, 'Editable.md'), 'utf-8'), { timeout: 10_000 })
+    .toContain('rewritten from the diff')
+  // ...and the diff re-reads itself to show it.
+  await expect(page.locator('.diff__cell--added')).toContainText('rewritten from the diff')
+
+  await page.locator('.diff button[aria-label="Close"]').click()
+})
+
+test('the staged column is read-only', async () => {
+  writeFileSync(join(vault, 'Stagedonly.md'), 'alpha\n')
+  git('add', 'Stagedonly.md')
+
+  await openPanel()
+  await refresh()
+  // The staged group's row opens the index-vs-HEAD diff, which cannot be edited.
+  await page.locator('.scm-row__name').filter({ hasText: 'Stagedonly.md' }).first().click()
+  await expect(page.locator('.diff')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.diff__heads')).toContainText('read-only')
+  await expect(page.locator('.diff__text--editable')).toHaveCount(0)
+
+  await page.locator('.diff button[aria-label="Close"]').click()
+  git('restore', '--staged', 'Stagedonly.md')
+  rmSync(join(vault, 'Stagedonly.md'))
+})
+
+test('an untracked file diffs as all additions', async () => {
+  writeFileSync(join(vault, 'Fresh.md'), 'alpha\nbeta\n')
+  await openPanel()
+  await refresh()
+
+  await page.locator('.scm-row__name').filter({ hasText: 'Fresh.md' }).click()
+  const diff = page.locator('.diff')
+  await expect(diff).toBeVisible({ timeout: 10_000 })
+  // Nothing in git to compare against, so every line is new.
+  await expect(diff.locator('.diff__stat--added')).toHaveText('+2')
+  await expect(diff.locator('.diff__cell--removed')).toHaveCount(0)
+
+  await page.locator('.diff button[aria-label="Close"]').click()
+  rmSync(join(vault, 'Fresh.md'))
 })
 
 test('commit is refused without a message or staged work', async () => {

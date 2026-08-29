@@ -5,11 +5,10 @@ import { createDocumentState } from '@/editor/create-state'
 import { getActiveView, viewForBuffer } from '@/editor/active-view'
 import { invalidateEmbed } from '@/editor/live-preview/embeds'
 import { invoke, parseIpcError } from '@/services/client'
-import type { EditorState } from '@codemirror/state'
+import { EditorState } from '@codemirror/state'
 import type { AppState } from './store'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import { closeDocument } from '@/editor/lsp-session'
-
 
 export type { DocumentKind }
 
@@ -22,9 +21,14 @@ export interface DocumentBuffer {
   savedMtimeMs: number | null
   isDirty: boolean
   kind: DocumentKind
+  /** What this tab is a diff of (kind 'diff' only). */
+  diff?: { path: string; staged: boolean }
 }
 
 export interface DocumentsSlice {
+  /** Open a file's diff as a tab, focusing an existing one if it is already open. */
+  openDiff(path: string, staged: boolean): void
+
   buffers: Record<string, DocumentBuffer>
   tabOrder: string[]
   /** Buffer in the focused pane — a mirror of `paneIds[focusedPane]`. */
@@ -151,6 +155,44 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       }
     }
     rememberSession(get())
+  },
+
+  /**
+   * Open a diff as a tab.
+   *
+   * A tab rather than a dialog, because that is what a diff is: something you
+   * look at beside your work, switch away from and come back to. Reopening the
+   * same file's diff focuses the existing tab instead of stacking duplicates.
+   */
+  openDiff(path, staged) {
+    const existing = Object.values(get().buffers).find(
+      (b) => b.kind === 'diff' && b.diff?.path === path && b.diff?.staged === staged
+    )
+    if (existing) {
+      get().setActive(existing.id)
+      return
+    }
+    const id = crypto.randomUUID()
+    // A diff has no text of its own; the empty state exists only so the pane
+    // machinery, which assumes every buffer has one, keeps working.
+    bufferRegistry.create(id, EditorState.create({ doc: '' }), null)
+    set((s) => ({
+      buffers: {
+        ...s.buffers,
+        [id]: {
+          id,
+          filePath: null,
+          fileName: `${basename(path)} (diff)`,
+          savedMtimeMs: null,
+          isDirty: false,
+          kind: 'diff' as const,
+          diff: { path, staged }
+        }
+      },
+      tabOrder: [...s.tabOrder, id],
+      activeId: id,
+      paneIds: s.focusedPane === 0 ? [id, s.paneIds[1]] : [s.paneIds[0], id]
+    }))
   },
 
   async openFileDialog() {
@@ -341,9 +383,10 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         const idx = s.tabOrder.indexOf(id)
         activeId = tabOrder[Math.min(idx, tabOrder.length - 1)] ?? null
       }
-      const paneIds = s.paneIds.map((paneId) =>
-        paneId === id ? null : paneId
-      ) as [string | null, string | null]
+      const paneIds = s.paneIds.map((paneId) => (paneId === id ? null : paneId)) as [
+        string | null,
+        string | null
+      ]
       if (paneIds[0] === null && paneIds[1] !== null) {
         // Never leave a hole on the left; slide the survivor over.
         paneIds[0] = paneIds[1]

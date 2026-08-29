@@ -11,6 +11,7 @@ import { openDocument, replayDiagnostics } from '@/editor/lsp-session'
 import { lineWidthCss } from '@/editor/line-width'
 import { useStore } from '@/state/store'
 import { CanvasEditor } from './CanvasEditor'
+import { DiffView } from './DiffView'
 import { EmptyState } from './PanelBits'
 
 /**
@@ -37,6 +38,9 @@ function Pane({
   const kind = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind : undefined))
   const isDirty = useStore((s) => (bufferId ? (s.buffers[bufferId]?.isDirty ?? false) : false))
   const isCanvas = kind === 'canvas'
+  const isDiff = kind === 'diff'
+  // Neither surface is a CodeMirror view, so the editor host stays hidden.
+  const isCustom = isCanvas || isDiff
 
   useEffect(() => {
     const view = new EditorView({ parent: containerRef.current! })
@@ -127,8 +131,8 @@ function Pane({
   // Coming back from a board, the editor was display:none and measured as
   // zero-sized; CodeMirror needs telling to look again.
   useEffect(() => {
-    if (!isCanvas) viewRef.current?.requestMeasure()
-  }, [isCanvas])
+    if (!isCustom) viewRef.current?.requestMeasure()
+  }, [isCustom])
 
   return (
     <div
@@ -138,7 +142,7 @@ function Pane({
       <div
         ref={containerRef}
         className="editor-pane"
-        hidden={isCanvas || !bufferId}
+        hidden={isCustom || !bufferId}
         style={{
           fontSize: `${settings.editor.fontSize}px`,
           ['--or-editor-font-size' as string]: `${settings.editor.fontSize}px`,
@@ -154,6 +158,7 @@ function Pane({
         }}
       />
       {isCanvas && bufferId && <CanvasEditor key={bufferId} bufferId={bufferId} />}
+      {isDiff && bufferId && <DiffView key={bufferId} bufferId={bufferId} />}
       {!bufferId && <EmptyState icon="file-text">Open a note in this pane.</EmptyState>}
     </div>
   )

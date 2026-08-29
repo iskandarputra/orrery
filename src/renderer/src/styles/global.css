@@ -2803,6 +2803,218 @@ textarea {
   box-shadow: var(--or-shadow-lg);
 }
 
+/* File diff. Unified rather than side-by-side: a vault is prose, its lines are
+   long, and one column survives a narrow window where two do not. */
+/* A diff is a tab in the editor area, not something floating over it — it is
+   read beside your work, switched away from and come back to. */
+.diff {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--or-editor-bg);
+  overflow: hidden;
+}
+
+.diff__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.9rem;
+  border-bottom: 1px solid var(--or-border);
+}
+
+.diff__path {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--or-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff__side {
+  font-size: 11px;
+  color: var(--or-fg-muted);
+  padding: 1px 6px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-full);
+}
+
+.diff__stat {
+  font-family: var(--or-mono-font);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff__stat--added {
+  color: #3fb950;
+}
+.diff__stat--removed {
+  color: #f85149;
+}
+
+.diff__bar .icon-btn {
+  margin-left: auto;
+}
+
+.diff__body {
+  flex: 1;
+  overflow: auto;
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+  line-height: 1.55;
+  background: var(--or-editor-bg);
+}
+
+.diff__note {
+  padding: 1.5rem;
+  color: var(--or-fg-muted);
+  font-family: var(--or-prose-font);
+  font-size: 13px;
+}
+
+.diff__hunk-head {
+  padding: 0.3rem 0.9rem;
+  color: var(--or-fg-faint);
+  background: color-mix(in srgb, var(--or-panel-bg) 60%, transparent);
+  border-top: 1px solid var(--or-border);
+  border-bottom: 1px solid var(--or-border);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diff__heads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--or-border);
+}
+
+.diff__head {
+  padding: 0.25rem 0.9rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--or-fg-muted);
+}
+
+.diff__head + .diff__head {
+  border-left: 1px solid var(--or-border);
+}
+
+.diff__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 26px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  color: var(--or-fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.diff__edit:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+/* Two columns, old on the left and the working tree on the right. The grid is
+   what keeps a replaced line opposite the line that replaced it; an empty cell
+   is padding, not an absence. */
+.diff__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.diff__cell {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff__cell + .diff__cell {
+  border-left: 1px solid var(--or-border);
+}
+
+.diff__cell--empty {
+  background: color-mix(in srgb, var(--or-fg) 4%, transparent);
+}
+
+.diff__num {
+  flex: 0 0 3.5ch;
+  padding: 0 0.4rem;
+  text-align: right;
+  color: var(--or-fg-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.diff__sign {
+  flex: 0 0 1.5ch;
+  text-align: center;
+  user-select: none;
+}
+
+.diff__text {
+  flex: 1;
+  min-width: 0;
+  padding-right: 0.9rem;
+  color: var(--or-fg);
+}
+
+/* An editable line reads as ordinary text until you reach for it — a diff is
+   mostly read, and boxing every line would make it look like a form. */
+.diff__text--editable {
+  cursor: text;
+  border-radius: 2px;
+  outline: 1px solid transparent;
+}
+
+.diff__text--editable:hover {
+  outline-color: var(--or-border);
+}
+
+.diff__text--editable:focus {
+  outline: 2px solid var(--or-accent);
+  background: var(--or-editor-bg);
+}
+
+.diff__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.diff__head-note {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--or-fg-faint);
+}
+
+.diff__cell--added {
+  background: color-mix(in srgb, #3fb950 14%, transparent);
+}
+.diff__cell--added .diff__sign {
+  color: #3fb950;
+}
+
+.diff__cell--removed {
+  background: color-mix(in srgb, #f85149 14%, transparent);
+}
+.diff__cell--removed .diff__sign {
+  color: #f85149;
+}
+
 /* Source control panel. A working-tree view, not a git client: what changed,
    what is staged, and a commit box. */
 .scm {

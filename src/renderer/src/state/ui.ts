@@ -320,5 +320,6 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   closeMediaViewer() {
     set({ mediaViewer: null })
+
   }
 })
