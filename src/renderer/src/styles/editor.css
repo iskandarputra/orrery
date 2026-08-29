@@ -428,8 +428,19 @@
 
 /* Tables — rendered widget (GitHub / Notion style) */
 .cm-or-table {
-  padding: 0.5em 2rem;
+  /* Margin, not padding: the inset has to sit outside the scroll container, or
+     it scrolls away with the table and the first column ends up against the
+     edge. */
+  margin: 0.5em var(--or-line-pad, 2rem);
   overflow-x: auto;
+  /* The same containment the code card needs, and for the same reason:
+     .cm-content cannot shrink below its widest child, and a block child's
+     min-content contribution is its content's width — being a scroll container
+     does not change that. A grid column of minmax(0, 1fr) may shrink below it,
+     which is what stops a wide table dragging the whole document sideways and
+     taking every paragraph in the note with it. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cm-or-table table {
