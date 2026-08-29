@@ -19,6 +19,16 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().newUntitled()
   },
   {
+    id: 'go.toLine',
+    title: 'Go to Line…',
+    run: ({ store }) => store().openPalette('line')
+  },
+  {
+    id: 'go.toSymbol',
+    title: 'Go to Symbol…',
+    run: ({ store }) => store().openPalette('symbol')
+  },
+  {
     id: 'file.open',
     title: 'Open File…',
     run: ({ store }) => store().openFileDialog()

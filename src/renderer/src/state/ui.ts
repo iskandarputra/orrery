@@ -21,7 +21,13 @@ export interface ToastMessage {
 }
 
 /** What the palette is listing. */
-export type PaletteMode = 'files' | 'commands' | 'templates'
+/**
+ * `line` and `symbol` are the same box seeded with a prefix, not separate
+ * pickers — Goto Anything is one input where what you type decides what is
+ * searched, and having a command open it primed is only a shortcut to typing
+ * the prefix yourself.
+ */
+export type PaletteMode = 'files' | 'commands' | 'templates' | 'line' | 'symbol'
 
 /** Tabs of the right side panel. */
 export type SidePanel =

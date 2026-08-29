@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fuzzyFilter } from '@core/fuzzy'
 import { buildNoteIndex } from '@core/notes'
+import { documentSymbols, parseLineTarget } from '@core/symbols'
+import { getActiveView } from '@/editor/active-view'
 import { insertTemplate } from '@/notes/daily'
 import { invoke } from '@/services/client'
 import { getRegistry } from '@/bootstrap'
@@ -15,6 +17,20 @@ interface Entry {
   icon: IconName
   badge?: string
   run(): void
+}
+
+/**
+ * Jump to a position in the document that is open.
+ *
+ * Selecting the line rather than only scrolling to it: a jump that leaves the
+ * caret where it was means the next keystroke types somewhere else.
+ */
+function jumpToLine(line: number): void {
+  const view = getActiveView()
+  if (!view) return
+  const target = view.state.doc.line(Math.min(line, view.state.doc.lines))
+  view.dispatch({ selection: { anchor: target.from }, scrollIntoView: true })
+  view.focus()
 }
 
 /** Quick switcher (Ctrl+P) and command palette (Ctrl+Shift+P) in one. */
@@ -34,13 +50,55 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     initialMode === 'files' ? 'files' : 'commands'
   )
   const templates = useTemplateFiles(picking)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(
+    initialMode === 'line' ? ':' : initialMode === 'symbol' ? '@' : ''
+  )
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  // Sublime's Goto Anything: one box where a prefix decides what is searched.
+  // `:` for a line, `@` for a symbol — both scoped to the document in front of
+  // you, which is why neither needs the vault index behind the other tabs.
+  const lineQuery = query.startsWith(':') ? query.slice(1) : null
+  const symbolQuery = query.startsWith('@') ? query.slice(1) : null
+
   const entries = useMemo<Entry[]>(() => {
     const list: Entry[] = []
+
+    if (lineQuery !== null) {
+      const view = getActiveView()
+      const total = view?.state.doc.lines ?? 0
+      const target = parseLineTarget(lineQuery, total)
+      if (target !== null) {
+        list.push({
+          id: `line:${target}`,
+          label: `Line ${target}`,
+          detail: view?.state.doc.line(target).text.trim().slice(0, 80) ?? '',
+          icon: 'list-ordered',
+          run: () => jumpToLine(target)
+        })
+      }
+      return list
+    }
+
+    if (symbolQuery !== null) {
+      const view = getActiveView()
+      const buffer = useStore.getState()
+      const active = buffer.activeId ? buffer.buffers[buffer.activeId] : null
+      if (view && active) {
+        for (const symbol of documentSymbols(view.state.doc.toString(), active.fileName)) {
+          list.push({
+            id: `sym:${symbol.line}:${symbol.name}`,
+            label: `${'  '.repeat(symbol.depth)}${symbol.name}`,
+            detail: `Line ${symbol.line}`,
+            icon: symbol.kind === 'heading' ? 'hash' : 'code',
+            run: () => jumpToLine(symbol.line)
+          })
+        }
+      }
+      return list
+    }
 
     if (picking) {
       templates.forEach((t) => {
@@ -83,9 +141,15 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     }
 
     return list
-  }, [picking, templates, activeTab, noteIndex, openPaths, settings.keybindings])
+  }, [picking, templates, activeTab, noteIndex, openPaths, settings.keybindings, lineQuery, symbolQuery])
 
-  const results = useMemo(() => fuzzyFilter(query, entries, (e) => e.label), [query, entries])
+  const results = useMemo(() => {
+    // A line target is already the answer, and a symbol list is filtered by what
+    // follows the `@` rather than by the prefix itself.
+    if (lineQuery !== null) return entries
+    if (symbolQuery !== null) return fuzzyFilter(symbolQuery, entries, (e) => e.label)
+    return fuzzyFilter(query, entries, (e) => e.label)
+  }, [query, entries, lineQuery, symbolQuery])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -139,6 +203,11 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
                 e.preventDefault()
                 setSelected((s) => Math.max(s - 1, 0))
               } else if (e.key === 'Enter') {
+                // Consumed, like every other key that acts here. Without this
+                // an entry that focuses the editor — a jump to a line — hands
+                // the same Enter straight on to it, and the jump arrives with a
+                // newline typed into the document.
+                e.preventDefault()
                 pick(results[selected])
               } else if (e.key === 'Tab' && !picking) {
                 e.preventDefault()
