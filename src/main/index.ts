@@ -52,7 +52,8 @@ if (!gotLock) {
 
   const windows = new WindowManager({
     getSettings: () => settings.get(),
-    saveWindowBounds: (bounds) => settings.set({ window: bounds })
+    saveWindowBounds: (bounds) => settings.set({ window: bounds }),
+    saveZoomLevel: (zoomLevel) => settings.set({ zoomLevel })
   })
 
   const watcher = new WatcherService((watchId, events) => {

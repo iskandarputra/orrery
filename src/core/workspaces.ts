@@ -9,6 +9,7 @@
  */
 
 import { MAX_PANES, settle, type TabLayout } from './tab-layout'
+import { fitSizes } from './pane-sizes'
 
 export interface Workspace {
   /** Every open tab, in tab-bar order. */
@@ -20,6 +21,8 @@ export interface Workspace {
   focusedPane: number
   /** Right-hand panel, or null for none. Kept loose: the names live in `shared`. */
   sidePanel: string | null
+  /** Column widths, as fractions. Empty means whatever the panes default to. */
+  paneSizes: number[]
 }
 
 export interface Capture {
@@ -28,6 +31,7 @@ export interface Capture {
   activePath: string | null
   focusedPane: number
   sidePanel: string | null
+  paneSizes: number[]
 }
 
 /** Take a workspace from the live layout. */
@@ -39,7 +43,8 @@ export function captureWorkspace(input: Capture): Workspace {
     panePaths: input.panePaths.slice(0, MAX_PANES).map((path) => path ?? ''),
     activePath: input.activePath ?? '',
     focusedPane: Math.max(0, Math.trunc(input.focusedPane) || 0),
-    sidePanel: input.sidePanel
+    sidePanel: input.sidePanel,
+    paneSizes: [...input.paneSizes]
   }
 }
 
@@ -62,6 +67,16 @@ export function pathsToOpen(workspace: Workspace): string[] {
  * failed — a file deleted since the workspace was saved. Those panes collapse
  * rather than showing an empty column.
  */
+/**
+ * The column widths to restore, fitted to the panes that survived.
+ *
+ * Separate from `restoreLayout` because the layout decides how many panes there
+ * are, and the widths can only be fitted once that is known.
+ */
+export function restoreSizes(workspace: Workspace, paneCount: number): number[] {
+  return fitSizes(workspace.paneSizes, paneCount)
+}
+
 export function restoreLayout(
   workspace: Workspace,
   idFor: (path: string) => string | null

@@ -442,6 +442,16 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   // --- settings ------------------------------------------------------------
   handle('settings:get', null, () => settings.get())
   // The zod merge inside SettingsStore.set validates the patch; pass raw here.
+  handle(
+    'window:setZoom',
+    z.object({ by: z.number().optional(), level: z.number().optional() }),
+    (_e, req) => {
+      if (typeof req.level === 'number') windows.setZoom(req.level)
+      else windows.zoomBy(req.by ?? 0)
+      return settings.get().zoomLevel
+    }
+  )
+
   handle('settings:set', null, (_e, patch) => {
     const before = settings.get().lastOpenedFolder
     const next = settings.set(patch)

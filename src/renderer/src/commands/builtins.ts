@@ -1,6 +1,7 @@
 import { openSearchPanel, replaceNext } from '@codemirror/search'
 import { moveBlockDown, moveBlockUp } from '@/editor/block-move'
 import { unwrapParagraphs } from '@core/reflow'
+import { equalSizes, fitSizes, resizePanes } from '@core/pane-sizes'
 import {
   canvasFromCluster,
   clusterMoc,
@@ -286,6 +287,48 @@ export const builtinCommands: Command[] = [
     id: 'view.toggleSplit',
     title: 'Split Editor',
     run: ({ store }) => store().toggleSplit()
+  },
+  {
+    id: 'view.zoomIn',
+    title: 'Zoom In',
+    run: () => void invoke('window:setZoom', { by: 1 })
+  },
+  {
+    id: 'view.zoomOut',
+    title: 'Zoom Out',
+    run: () => void invoke('window:setZoom', { by: -1 })
+  },
+  {
+    id: 'view.zoomReset',
+    title: 'Reset Zoom',
+    run: () => void invoke('window:setZoom', { level: 0 })
+  },
+  {
+    id: 'view.equalPanes',
+    title: 'Even Out Pane Widths',
+    run: ({ store }) => store().setPaneSizes(equalSizes(store().paneIds.length))
+  },
+  {
+    id: 'view.widenPane',
+    title: 'Widen Focused Pane',
+    run: ({ store }) => {
+      const { paneSizes, paneIds, focusedPane, setPaneSizes } = store()
+      // The divider to the right of the focused pane, or the one to its left
+      // when it is the last: widening always means "give this pane more".
+      const sizes = fitSizes(paneSizes, paneIds.length)
+      if (focusedPane < paneIds.length - 1) setPaneSizes(resizePanes(sizes, focusedPane, 0.05))
+      else if (focusedPane > 0) setPaneSizes(resizePanes(sizes, focusedPane - 1, -0.05))
+    }
+  },
+  {
+    id: 'view.narrowPane',
+    title: 'Narrow Focused Pane',
+    run: ({ store }) => {
+      const { paneSizes, paneIds, focusedPane, setPaneSizes } = store()
+      const sizes = fitSizes(paneSizes, paneIds.length)
+      if (focusedPane < paneIds.length - 1) setPaneSizes(resizePanes(sizes, focusedPane, -0.05))
+      else if (focusedPane > 0) setPaneSizes(resizePanes(sizes, focusedPane - 1, 0.05))
+    }
   },
   {
     id: 'view.splitRight',

@@ -123,6 +123,12 @@ export function buildTreeMenu(node: FileNode): MenuItem[] {
   }
   return [
     { label: 'Open', icon: 'file-text', onSelect: () => void state.openPaths([node.path]) },
+    {
+      label: 'Open to the Side',
+      icon: 'columns',
+      disabled: state.paneIds.length >= MAX_PANES,
+      onSelect: () => void state.openToSide(node.path)
+    },
     { separator: true },
     ...shared
   ]

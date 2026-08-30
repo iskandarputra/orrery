@@ -222,6 +222,20 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
           click: dispatch('view.closePane')
         },
         {
+          label: 'Widen Pane',
+          accelerator: acc('view.widenPane', 'CmdOrCtrl+Alt+Right'),
+          click: dispatch('view.widenPane')
+        },
+        {
+          label: 'Narrow Pane',
+          accelerator: acc('view.narrowPane', 'CmdOrCtrl+Alt+Left'),
+          click: dispatch('view.narrowPane')
+        },
+        {
+          label: 'Even Out Pane Widths',
+          click: dispatch('view.equalPanes')
+        },
+        {
           label: 'Focus Next Pane',
           accelerator: acc('view.focusNextPane', 'CmdOrCtrl+Alt+\\'),
           click: dispatch('view.focusNextPane')
@@ -237,9 +251,24 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
           click: dispatch('view.deleteWorkspace')
         },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        // Not the built-in roles: those forget the level on restart, and their
+        // accelerator matches one spelling of "plus" out of the three a
+        // keyboard offers. `before-input-event` in windows.ts catches the rest.
+        {
+          label: 'Zoom In',
+          accelerator: acc('view.zoomIn', 'CmdOrCtrl+Plus'),
+          click: dispatch('view.zoomIn')
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: acc('view.zoomOut', 'CmdOrCtrl+-'),
+          click: dispatch('view.zoomOut')
+        },
+        {
+          label: 'Reset Zoom',
+          accelerator: acc('view.zoomReset', 'CmdOrCtrl+0'),
+          click: dispatch('view.zoomReset')
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' as const }])

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { EditorView } from '@codemirror/view'
 import { registerPaneView, setActiveView } from '@/editor/active-view'
 import { bumpDocVersion } from '@/state/doc-version'
@@ -9,6 +9,7 @@ import { ensureLanguage } from '@/editor/code-language'
 import { refreshGitGutter } from '@/editor/git-gutter'
 import { openDocument, replayDiagnostics } from '@/editor/lsp-session'
 import { lineWidthCss } from '@/editor/line-width'
+import { equalSizes, fitSizes, resizePanes, toColumns } from '@core/pane-sizes'
 import { useStore } from '@/state/store'
 import { surfaceForKind } from '@/plugins/registry'
 import { CanvasEditor } from './CanvasEditor'
@@ -173,29 +174,90 @@ function Pane({
   )
 }
 
-/** The editing area: one pane, or two side by side when the editor is split. */
+/** Width of the grab area between two panes, matching `.pane-divider`. */
+const DIVIDER = '5px'
+
+/** The editing area: one pane, or several side by side, with dividers between. */
 export function EditorPane(): React.JSX.Element {
   const paneIds = useStore((s) => s.paneIds)
   const focusedPane = useStore((s) => s.focusedPane)
   const focusPane = useStore((s) => s.focusPane)
+  const paneSizes = useStore((s) => s.paneSizes)
+  const setPaneSizes = useStore((s) => s.setPaneSizes)
   const split = paneIds.length > 1
+  const hostRef = useRef<HTMLDivElement>(null)
+
+  // Fitted at render rather than on every change: the stored list can be one
+  // pane out of date after a split or a close, and this is the one place that
+  // has to agree with what is on screen.
+  const sizes = fitSizes(paneSizes, paneIds.length)
+
+  const startDrag = (divider: number) => (event: React.MouseEvent) => {
+    event.preventDefault()
+    const host = hostRef.current
+    if (!host) return
+    const width = host.getBoundingClientRect().width
+    const startX = event.clientX
+    const from = sizes
+
+    const onMove = (move: MouseEvent): void => {
+      setPaneSizes(resizePanes(from, divider, (move.clientX - startX) / width))
+    }
+    const onUp = (): void => {
+      document.body.classList.remove('is-resizing')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    document.body.classList.add('is-resizing')
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // The keyboard path, because a divider is four pixels wide and a mouse is
+  // not the only way anyone works.
+  const onDividerKey =
+    (divider: number) =>
+    (event: React.KeyboardEvent): void => {
+      const step = event.shiftKey ? 0.1 : 0.02
+      if (event.key === 'ArrowLeft') setPaneSizes(resizePanes(sizes, divider, -step))
+      else if (event.key === 'ArrowRight') setPaneSizes(resizePanes(sizes, divider, step))
+      else if (event.key === 'Home' || event.key === 'Enter')
+        setPaneSizes(equalSizes(paneIds.length))
+      else return
+      event.preventDefault()
+    }
 
   return (
     <div
       className={`editor-panes${split ? ' editor-panes--split' : ''}`}
-      // Equal columns, however many there are. A count in the style rather than
-      // a class per width, because the count is data.
-      style={{ ['--or-pane-count' as string]: String(paneIds.length) }}
+      ref={hostRef}
+      style={{ gridTemplateColumns: toColumns(sizes, DIVIDER) }}
     >
       {paneIds.map((bufferId, index) => (
-        <Pane
-          // By position: a pane is a slot, and keying by buffer would tear down
-          // the editor whenever a pane was told to show something else.
-          key={index}
-          bufferId={bufferId}
-          focused={focusedPane === index}
-          onFocus={() => focusPane(index)}
-        />
+        // A fragment per slot: the divider belongs between two panes, and the
+        // grid needs both as its own children.
+        <Fragment key={index}>
+          {index > 0 && (
+            <div
+              className="pane-divider"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={`Resize pane ${index}`}
+              tabIndex={0}
+              title="Drag to resize. Double-click for equal columns."
+              onMouseDown={startDrag(index - 1)}
+              onDoubleClick={() => setPaneSizes(equalSizes(paneIds.length))}
+              onKeyDown={onDividerKey(index - 1)}
+            />
+          )}
+          <Pane
+            // By position: a pane is a slot, and keying by buffer would tear
+            // down the editor whenever a pane was told to show something else.
+            bufferId={bufferId}
+            focused={focusedPane === index}
+            onFocus={() => focusPane(index)}
+          />
+        </Fragment>
       ))}
     </div>
   )

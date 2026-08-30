@@ -18,6 +18,8 @@ interface Entry {
   icon: IconName
   badge?: string
   run(): void
+  /** What Ctrl+Enter does, where that means something. */
+  runToSide?(): void
 }
 
 /**
@@ -144,7 +146,8 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           label: n.stem,
           detail: n.path,
           icon: fileIcon(n.stem).shape,
-          run: () => void openPaths([n.path])
+          run: () => void openPaths([n.path]),
+          runToSide: () => void useStore.getState().openToSide(n.path)
         })
       })
     }
@@ -228,10 +231,11 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     listRef.current?.querySelector('.palette__item--active')?.scrollIntoView({ block: 'nearest' })
   }, [selected])
 
-  const pick = (entry: Entry | undefined): void => {
+  const pick = (entry: Entry | undefined, toSide = false): void => {
     if (!entry) return
     close()
-    entry.run()
+    if (toSide && entry.runToSide) entry.runToSide()
+    else entry.run()
   }
 
   return (
@@ -281,7 +285,9 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
                 // the same Enter straight on to it, and the jump arrives with a
                 // newline typed into the document.
                 e.preventDefault()
-                pick(results[selected])
+                // Ctrl+Enter opens beside what you are reading, as it does in
+                // the editors people come here from.
+                pick(results[selected], e.ctrlKey || e.metaKey)
               } else if (e.key === 'Tab' && !oneList) {
                 e.preventDefault()
                 setActiveTab((t) =>
@@ -363,6 +369,12 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           <span className="palette__hint">
             <kbd>↵</kbd> select
           </span>
+          {activeTab !== 'commands' && (
+            <span className="palette__hint">
+              <kbd>Ctrl</kbd>
+              <kbd>↵</kbd> to the side
+            </span>
+          )}
           {!oneList && (
             <span className="palette__hint">
               <kbd>Tab</kbd> switch tab

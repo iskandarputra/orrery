@@ -270,6 +270,11 @@ export interface IpcInvokeContract {
   /** Renderer signals the unsaved-changes flow is resolved; main may destroy the window. */
   'window:readyToClose': { req: void; res: void }
   'window:setTitle': { req: { title: string }; res: void }
+  /**
+   * Interface zoom. `by` steps from where it is, `level` sets it outright.
+   * Resolves to the level that ended up being applied.
+   */
+  'window:setZoom': { req: { by?: number; level?: number }; res: number }
 }
 
 /** Main -> renderer push events. */

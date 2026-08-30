@@ -10,7 +10,8 @@ import { EditorState } from '@codemirror/state'
 import type { AppState } from './app-state'
 import { documentKind, type DocumentKind } from '@core/document-kind'
 import * as tabs from '@core/tab-layout'
-import { captureWorkspace, pathsToOpen, restoreLayout } from '@core/workspaces'
+import { equalSizes, fitSizes } from '@core/pane-sizes'
+import { captureWorkspace, pathsToOpen, restoreLayout, restoreSizes } from '@core/workspaces'
 import { surfaceForFile } from '@/plugins/registry'
 import { closeDocument } from '@/editor/lsp-session'
 
@@ -50,6 +51,14 @@ export interface DocumentsSlice {
   /** One entry per pane, left to right; always at least one. Null is an empty pane. */
   paneIds: (string | null)[]
   focusedPane: number
+  /**
+   * How wide each pane is, as fractions of the editor adding up to 1.
+   *
+   * Fractions rather than pixels so that resizing the window, opening the
+   * sidebar or closing a pane changes the space without changing the
+   * proportions somebody chose.
+   */
+  paneSizes: number[]
 
   openPaths(paths: string[]): Promise<void>
   openFileDialog(): Promise<void>
@@ -62,6 +71,10 @@ export interface DocumentsSlice {
   focusNextPane(): void
   /** A new pane beside the focused one, showing `id` or the first free tab. */
   splitRight(id?: string): void
+  /** Open one file in a pane of its own, to the right of the focused one. */
+  openToSide(path: string): Promise<void>
+  /** Set the column widths, as fractions. */
+  setPaneSizes(sizes: number[]): void
   /** Close one pane, leaving its tab open. */
   closePane(index: number): void
 
@@ -137,6 +150,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   activeId: null,
   paneIds: [null],
   focusedPane: 0,
+  paneSizes: [1],
 
   async openPaths(paths) {
     for (const path of paths) {
@@ -270,6 +284,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
 
   toggleSplit() {
     set((s) => tabs.toggleSplit(s))
+    set((s) => ({ paneSizes: equalSizes(s.paneIds.length) }))
   },
 
   focusPane(pane) {
@@ -282,11 +297,63 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
 
   splitRight(id) {
     set((s) => tabs.splitRight(s, id))
+    set((s) => ({ paneSizes: fitSizes(s.paneSizes, s.paneIds.length) }))
     rememberSession(get())
+  },
+
+  /**
+   * Open a file beside what is being read, rather than over it.
+   *
+   * Opening normally puts the file in the focused pane, so this notes what was
+   * there, opens, then gives that pane its file back and puts the new one in a
+   * pane of its own to the right. At the pane limit it goes to the last pane
+   * instead: still not the one you were reading in.
+   */
+  async openToSide(path) {
+    const before = get()
+    const previous = before.paneIds[before.focusedPane] ?? null
+    const home = before.focusedPane
+
+    await get().openPaths([path])
+    const opened = get().activeId
+    if (!opened) return
+
+    const now = get()
+    // Already on screen: opening it moved focus to the pane it was in, and
+    // there is nothing to move.
+    if (now.focusedPane !== home || previous === opened) return
+    // An empty pane is already a pane of its own.
+    if (previous === null) return
+
+    if (now.paneIds.length >= tabs.MAX_PANES) {
+      const last = now.paneIds.length - 1
+      if (last === home) return
+      set((s) => {
+        const paneIds = [...s.paneIds]
+        paneIds[home] = previous
+        paneIds[last] = opened
+        return tabs.settle({ ...s, paneIds, focusedPane: last, activeId: opened })
+      })
+    } else {
+      set((s) => {
+        const paneIds = [...s.paneIds]
+        paneIds[home] = previous
+        paneIds.splice(home + 1, 0, opened)
+        return tabs.settle({ ...s, paneIds, focusedPane: home + 1, activeId: opened })
+      })
+    }
+
+    set((s) => ({ paneSizes: fitSizes(s.paneSizes, s.paneIds.length) }))
+    rememberSession(get())
+  },
+
+  setPaneSizes(sizes) {
+    set((s) => ({ paneSizes: fitSizes(sizes, s.paneIds.length) }))
   },
 
   closePane(index) {
     set((s) => tabs.closePane(s, index))
+    set((s) => ({ paneSizes: fitSizes(s.paneSizes, s.paneIds.length) }))
     rememberSession(get())
   },
 
@@ -302,7 +369,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         panePaths: state.paneIds.map(pathOf),
         activePath: pathOf(state.activeId),
         focusedPane: state.focusedPane,
-        sidePanel: state.sidePanel
+        sidePanel: state.sidePanel,
+        paneSizes: state.paneSizes
       }),
       // Narrower than what `core` hands back: on disk a panel name is one of a
       // known set, and that is the schema's business rather than the layout's.
@@ -323,7 +391,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     const idFor = (path: string): string | null =>
       Object.keys(buffers).find((id) => buffers[id]?.filePath === path) ?? null
 
-    set(restoreLayout(workspace, idFor))
+    const layout = restoreLayout(workspace, idFor)
+    set({ ...layout, paneSizes: restoreSizes(workspace, layout.paneIds.length) })
     get().setSidePanel(workspace.sidePanel)
     rememberSession(get())
   },

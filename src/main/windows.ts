@@ -6,7 +6,12 @@ import { send } from './ipc/registry'
 export interface WindowManagerDeps {
   getSettings: () => Settings
   saveWindowBounds: (bounds: Settings['window']) => void
+  saveZoomLevel: (level: number) => void
 }
+
+/** Chromium's own limits, and as far as the text stays worth reading. */
+const ZOOM_MIN = -5
+const ZOOM_MAX = 5
 
 /**
  * Factory + manager for app windows. Security posture is decided here and
@@ -22,6 +27,17 @@ export class WindowManager {
 
   get window(): BrowserWindow | null {
     return this.mainWindow
+  }
+
+  /** One step in or out, and remembered. */
+  zoomBy(steps: number): void {
+    this.setZoom(this.deps.getSettings().zoomLevel + steps)
+  }
+
+  setZoom(level: number): void {
+    const next = clampZoom(level)
+    this.mainWindow?.webContents.setZoomLevel(next)
+    this.deps.saveZoomLevel(next)
   }
 
   createMainWindow(): BrowserWindow {
@@ -107,6 +123,23 @@ export class WindowManager {
       this.mainWindow = null
     })
 
+    // Zoom, the way a browser does it: the whole interface, in steps of 1.2x.
+    // Applied after the load rather than at creation, because a webContents
+    // resets its zoom when it navigates.
+    win.webContents.on('did-finish-load', () => {
+      win.webContents.setZoomLevel(clampZoom(this.deps.getSettings().zoomLevel))
+    })
+
+    // `Ctrl +` on most keyboards is `Ctrl Shift =`, and the menu accelerator
+    // only matches one spelling of it. The others are caught here, so every
+    // key someone might press for this does the same thing.
+    win.webContents.on('before-input-event', (_event, input) => {
+      if (input.type !== 'keyDown' || !(input.control || input.meta) || input.alt) return
+      if (input.key === '=' || input.key === '+') this.zoomBy(1)
+      else if (input.key === '-' || input.key === '_') this.zoomBy(-1)
+      else if (input.key === '0') this.setZoom(0)
+    })
+
     if (process.env['ELECTRON_RENDERER_URL']) {
       void win.loadURL(process.env['ELECTRON_RENDERER_URL'])
     } else {
@@ -123,4 +156,9 @@ export class WindowManager {
     this.closeConfirmed = true
     this.mainWindow?.close()
   }
+}
+
+function clampZoom(level: number): number {
+  if (!Number.isFinite(level)) return 0
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, level))
 }

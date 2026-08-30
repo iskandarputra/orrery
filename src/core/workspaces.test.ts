@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { captureWorkspace, pathsToOpen, restoreLayout, type Workspace } from './workspaces'
+import {
+  captureWorkspace,
+  pathsToOpen,
+  restoreLayout,
+  restoreSizes,
+  type Workspace
+} from './workspaces'
 
 const ws = (over: Partial<Workspace> = {}): Workspace => ({
   openPaths: ['a.md', 'b.md'],
@@ -7,6 +13,7 @@ const ws = (over: Partial<Workspace> = {}): Workspace => ({
   activePath: 'b.md',
   focusedPane: 1,
   sidePanel: 'outline',
+  paneSizes: [0.6, 0.4],
   ...over
 })
 
@@ -19,7 +26,8 @@ describe('captureWorkspace', () => {
       panePaths: ['a.md', 'b.md'],
       activePath: 'b.md',
       focusedPane: 1,
-      sidePanel: 'git'
+      sidePanel: 'git',
+      paneSizes: [0.6, 0.4]
     })
     expect(saved).toEqual(ws({ sidePanel: 'git' }))
   })
@@ -30,7 +38,8 @@ describe('captureWorkspace', () => {
       panePaths: ['a.md', null],
       activePath: null,
       focusedPane: 0,
-      sidePanel: null
+      sidePanel: null,
+      paneSizes: [1]
     })
     expect(saved.openPaths).toEqual(['a.md'])
     expect(saved.panePaths).toEqual(['a.md', ''])
@@ -46,6 +55,22 @@ describe('pathsToOpen', () => {
 
   it('opens each file once', () => {
     expect(pathsToOpen(ws())).toEqual(['a.md', 'b.md'])
+  })
+})
+
+describe('restoreSizes', () => {
+  it('gives back the widths that were saved', () => {
+    expect(restoreSizes(ws(), 2)).toEqual([0.6, 0.4])
+  })
+
+  it('fits them to the panes that survived', () => {
+    // One file was deleted, so its pane is gone and its width with it.
+    const fitted = restoreSizes(ws(), 1)
+    expect(fitted).toEqual([1])
+  })
+
+  it('falls back to equal columns for a workspace saved before widths existed', () => {
+    expect(restoreSizes(ws({ paneSizes: [] }), 2)).toEqual([0.5, 0.5])
   })
 })
 

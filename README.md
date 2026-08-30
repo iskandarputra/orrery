@@ -105,9 +105,18 @@ a new one named after the minute you thought of it.
 
 **Up to four panes** side by side. `Ctrl+\` splits, `Ctrl+Shift+\` sends the
 tab you are on into a pane of its own, `Ctrl+Alt+\` moves between them, and no
-file is ever open in two panes at once. A layout worth keeping becomes a
-**workspace**: `Ctrl+Alt+W`, give it a name, and the tabs, panes and side panel
-come back that way whenever you ask for it.
+file is ever open in two panes at once. To open a file beside what you are
+reading rather than over it, right-click it in the tree and choose **Open to the
+Side**, or press `Ctrl+Enter` in quick open. Drag the divider between two panes
+to set their widths, double-click it to even them out, or use
+`Ctrl+Alt+←` and `Ctrl+Alt+→`.
+
+A layout worth keeping becomes a **workspace**: `Ctrl+Alt+W`, give it a name,
+and the tabs, panes, column widths and side panel come back that way whenever
+you ask for it.
+
+`Ctrl +` and `Ctrl -` zoom the whole interface in Chromium's 1.2x steps, `Ctrl
+0` puts it back, and the level is remembered across a restart.
 
 ## Code, git and a terminal
 

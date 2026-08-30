@@ -156,7 +156,9 @@ export const settingsSchema = z.object({
         panePaths: z.array(z.string()).default([]),
         activePath: z.string().default(''),
         focusedPane: z.number().int().min(0).default(0),
-        sidePanel: sidePanelSchema.nullable().default(null)
+        sidePanel: sidePanelSchema.nullable().default(null),
+        /** Column widths as fractions. Absent in workspaces saved before them. */
+        paneSizes: z.array(z.number()).default([])
       })
     )
     .prefault({}),
@@ -266,6 +268,12 @@ export const settingsSchema = z.object({
       y: z.number().optional()
     })
     .prefault({}),
+  /**
+   * Interface zoom, in Chromium's steps of 1.2x, as `Ctrl +` and `Ctrl -` set
+   * it. Everything scales together, the way it does in a browser and in the
+   * editors people come here from, and it is remembered across a restart.
+   */
+  zoomLevel: z.number().min(-5).max(5).default(0),
   /** Accelerator overrides by command id (e.g. "file.save": "CmdOrCtrl+S"). */
   keybindings: z.record(z.string(), z.string()).default({}),
   /** Files pinned by the user, newest first. Absolute paths. */
