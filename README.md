@@ -45,7 +45,7 @@ Tables render as tables, and tidy themselves: edit one and the pipes line up
 when you leave it, keeping whatever alignment the columns declared. A table you
 only read is left exactly as it was. Drag the line between two columns in the
 rendered table to set their widths, and double-click it to give the widths back
-to the content — markdown has nowhere to store a width, so that is a way of
+to the content. Markdown has nowhere to store a width, so that is a way of
 looking at the table rather than a change to the file. `$inline$` and `$$block$$` maths through KaTeX.
 ` ```mermaid ` fences become diagrams. `==Highlights==` get a marker pen. Images
 and diagrams open full screen. A long code fence scrolls inside its own card,
