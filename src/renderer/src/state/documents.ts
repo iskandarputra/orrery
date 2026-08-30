@@ -514,7 +514,14 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     bufferRegistry.remove(id)
     set((s) => {
       const { [id]: _removed, ...rest } = s.buffers
-      return { buffers: rest, ...tabs.closeTab(s, id) }
+      // The layout helper is handed the whole state as its layout, so what
+      // comes back is a copy of every field in it — `buffers` included, still
+      // holding the tab being closed. The removal has to be applied over the
+      // top of it, or the buffer comes straight back: the tab disappears, the
+      // buffer does not, and clicking that file again finds the leftover and
+      // activates a tab that is no longer there, which looks like nothing
+      // happening at all.
+      return { ...tabs.closeTab(s, id), buffers: rest }
     })
     rememberSession(get())
     return true

@@ -154,6 +154,22 @@ describe('documents slice', () => {
     expect(s.buffers[s.activeId!]?.fileName).toBe('a.md')
   })
 
+  it('a closed file opens again, rather than nothing happening', async () => {
+    // Closing has to take the buffer with the tab. A buffer left behind is
+    // found by the next open, which activates a tab that is not there any
+    // more — and from the outside that looks like the click did nothing.
+    fake.files.set('/ws/a.md', { content: 'x', mtimeMs: 1 })
+    await useStore.getState().openPaths(['/ws/a.md'])
+    await useStore.getState().closeTab(useStore.getState().activeId!)
+
+    expect(Object.keys(useStore.getState().buffers)).toHaveLength(0)
+
+    await useStore.getState().openPaths(['/ws/a.md'])
+    const s = useStore.getState()
+    expect(s.tabOrder).toHaveLength(1)
+    expect(s.buffers[s.activeId!]?.fileName).toBe('a.md')
+  })
+
   it('closeOthers keeps only the given tab', async () => {
     fake.files.set('/ws/a.md', { content: 'a', mtimeMs: 1 })
     fake.files.set('/ws/b.md', { content: 'b', mtimeMs: 1 })

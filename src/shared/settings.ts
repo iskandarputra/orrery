@@ -228,6 +228,20 @@ export const settingsSchema = z.object({
       width: z.number().min(160).max(600).default(260)
     })
     .prefault({}),
+  diff: z
+    .object({
+      /**
+       * The left column's share of a side-by-side diff.
+       *
+       * A fraction rather than a width: the diff is opened in whatever space
+       * the panes, the sidebar and the window happen to leave it, and none of
+       * those should change the proportions somebody chose. The bounds are the
+       * same twelve percent a pane divider stops at, so a column cannot be
+       * dragged down to a sliver that has to be hunted for afterwards.
+       */
+      split: z.number().min(0.12).max(0.88).default(0.5)
+    })
+    .prefault({}),
   rightPanel: z
     .object({
       width: z.number().min(220).max(720).default(300),

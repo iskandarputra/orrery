@@ -29,6 +29,31 @@ const refresh = async (): Promise<void> => {
   await page.waitForTimeout(300)
 }
 
+/**
+ * Click a changed file until its diff is up.
+ *
+ * The panel redraws every time a git status arrives, and a click that lands on
+ * a row which has just been replaced does nothing at all — so this is a retry
+ * rather than a single click and a wait.
+ */
+async function openDiff(name: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        if (!(await page.locator('.diff__panes').isVisible())) {
+          await page
+            .locator('.scm-row__name')
+            .filter({ hasText: name })
+            .click()
+            .catch(() => {})
+        }
+        return page.locator('.diff__panes').isVisible()
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(true)
+}
+
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-scm-'))
   writeFileSync(join(vault, 'Index.md'), '# Index\n\noriginal\n')
@@ -287,8 +312,7 @@ test('the preview bands the changes across its width, in green and red', async (
 
   await openPanel()
   await refresh()
-  await page.locator('.scm-row__name').filter({ hasText: 'Preview.md' }).click()
-  await expect(page.locator('.diff')).toBeVisible({ timeout: 10_000 })
+  await openDiff('Preview.md')
   await expect(page.locator('.diff__pane--new .cm-minimap-gutter')).toBeVisible({ timeout: 10_000 })
 
   const measure = async (): Promise<{
@@ -352,6 +376,68 @@ test('the preview bands the changes across its width, in green and red', async (
   expect(first.top).toBeGreaterThan(seen.lineTop / 8 - 4)
   expect(first.top).toBeLessThan(seen.lineTop / 8 + 4)
 
+  await page.locator('.diff button[aria-label="Close"]').click()
+  git('checkout', '-q', '--', 'Preview.md')
+})
+
+test('the two columns can be dragged, and the split is remembered', async () => {
+  writeFileSync(join(vault, 'Preview.md'), '# rewritten\n\nwith a couple of lines\n')
+  await openPanel()
+  await refresh()
+  await openDiff('Preview.md')
+
+  const widths = (): Promise<number[]> =>
+    page
+      .locator('.diff__pane')
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width))
+  const drag = async (dx: number): Promise<void> => {
+    const grip = (await page.locator('.diff .pane-divider').boundingBox())!
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(grip.x + grip.width / 2 + dx, grip.y + grip.height / 2, { steps: 10 })
+    await page.mouse.up()
+  }
+
+  const [oldLeft, oldRight] = await widths()
+  // Equal columns to start with, which is what a diff opens as.
+  expect(Math.abs(oldLeft! - oldRight!)).toBeLessThan(3)
+
+  await drag(180)
+  const [wideLeft, narrowRight] = await widths()
+  expect(wideLeft! - oldLeft!).toBeGreaterThan(160)
+  expect(oldRight! - narrowRight!).toBeGreaterThan(160)
+  // The pair keeps the space between them: the panes do not grow past their box.
+  expect(wideLeft! + narrowRight!).toBeCloseTo(oldLeft! + oldRight!, 0)
+
+  // Dragging past the other column stops rather than squeezing it away, so a
+  // column can always be found again.
+  await drag(-4000)
+  const [tinyLeft, hugeRight] = await widths()
+  expect(tinyLeft!).toBeGreaterThan((tinyLeft! + hugeRight!) * 0.1)
+  expect(tinyLeft!).toBeLessThan((tinyLeft! + hugeRight!) * 0.2)
+
+  // The header stays over the column it names.
+  const label = (await page.locator('.diff__head').first().boundingBox())!
+  expect(Math.abs(label.width - tinyLeft!)).toBeLessThan(3)
+
+  await page.locator('.diff .pane-divider').dblclick()
+  const [evenLeft, evenRight] = await widths()
+  expect(Math.abs(evenLeft! - evenRight!)).toBeLessThan(3)
+
+  // A share is a way of looking at a diff rather than a property of one, so it
+  // outlives the tab it was chosen in.
+  await drag(-120)
+  const chosen = (await widths())[0]!
+  await page.locator('.diff button[aria-label="Close"]').click()
+  await openDiff('Preview.md')
+  expect((await widths())[0]!).toBeCloseTo(chosen, 0)
+
+  // And the keyboard moves it too, for anyone not using a mouse.
+  await page.locator('.diff .pane-divider').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(async () => (await widths())[0]!).toBeGreaterThan(chosen + 5)
+
+  await page.locator('.diff .pane-divider').dblclick()
   await page.locator('.diff button[aria-label="Close"]').click()
   git('checkout', '-q', '--', 'Preview.md')
 })

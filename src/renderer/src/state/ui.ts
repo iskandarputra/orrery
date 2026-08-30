@@ -153,6 +153,8 @@ export interface UiSlice {
   toggleSidebar(): void
   setSidebarWidth(width: number): void
   setRightPanelWidth(width: number): void
+  /** The left column's share of a side-by-side diff. */
+  setDiffSplit(share: number): void
   setThemeMode(mode: Settings['theme']): void
   /** Pick a palette: applies immediately and remembers it for its appearance. */
   selectTheme(themeId: string): void
@@ -288,6 +290,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   setRightPanelWidth(width) {
     const { rightPanel } = get().settings
     get().updateSettings({ rightPanel: { ...rightPanel, width } })
+  },
+
+  setDiffSplit(share) {
+    get().updateSettings({ diff: { ...get().settings.diff, split: share } })
   },
 
   setThemeMode(mode) {

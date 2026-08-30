@@ -2959,8 +2959,16 @@ textarea {
 
 .diff__heads {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Overwritten inline with the columns the panes below are using, so a label
+     stays over the column it names however the divider is dragged. */
+  grid-template-columns: minmax(0, 1fr) 5px minmax(0, 1fr);
   border-bottom: 1px solid var(--or-border);
+}
+
+/* The divider's track, carried up through the header so the line between the
+   two columns is continuous rather than starting below the labels. */
+.diff__head-gap {
+  background: var(--or-border);
 }
 
 .diff__head {
@@ -2970,10 +2978,6 @@ textarea {
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--or-fg-muted);
-}
-
-.diff__head + .diff__head {
-  border-left: 1px solid var(--or-border);
 }
 
 .diff__edit {
@@ -3003,8 +3007,9 @@ textarea {
 .diff__panes {
   flex: 1;
   display: grid;
-  /* minmax(0, …) or a long line makes the pane grow instead of scrolling. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* minmax(0, …) or a long line makes the pane grow instead of scrolling. The
+     middle track is the divider; the shares are set inline. */
+  grid-template-columns: minmax(0, 1fr) 5px minmax(0, 1fr);
   min-height: 0;
   background: var(--or-editor-bg);
 }
@@ -3012,10 +3017,6 @@ textarea {
 .diff__pane {
   min-width: 0;
   overflow: hidden;
-}
-
-.diff__pane--new {
-  border-left: 1px solid var(--or-border);
 }
 
 .diff__pane .cm-editor {
@@ -3056,10 +3057,6 @@ textarea {
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--or-fg-muted);
-}
-
-.diff__head + .diff__head {
-  border-left: 1px solid var(--or-border);
 }
 
 .diff__edit {

@@ -6,6 +6,7 @@ import { bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap } from '@codemirror/search'
 import { alignFile, changedLines, changeMarks, padding } from '@core/diff-align'
+import { resizePanes, toColumns } from '@core/pane-sizes'
 import { EMPTY_DIFF, type FileDiff } from '@core/unified-diff'
 import { languageCompartment, findLanguage } from '@/editor/code-language'
 import { diffMarks, setDiffMarks } from '@/editor/diff-decorations'
@@ -20,6 +21,9 @@ import { Icon } from './Icon'
  * the preview and the text agree, and a theme change carries both.
  */
 const MARK_COLOURS = { added: 'var(--or-diff-add)', removed: 'var(--or-diff-del)' } as const
+
+/** The divider's own grid track, matching the one between editor panes. */
+const DIVIDER = '5px'
 
 /** Lines in a string, counting the way a file does. */
 const lineCount = (text: string): number => (text === '' ? 0 : text.split('\n').length)
@@ -66,6 +70,8 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
   const setDirty = useStore((s) => s.setDirty)
   const rootPath = useStore((s) => s.rootPath)
   const showMinimap = useStore((s) => s.settings.editor.minimap)
+  const split = useStore((s) => s.settings.diff.split)
+  const setDiffSplit = useStore((s) => s.setDiffSplit)
   const close = (): void => void closeTab(bufferId)
 
   const [diff, setDiff] = useState<FileDiff | null>(null)
@@ -75,6 +81,8 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
 
   const leftHost = useRef<HTMLDivElement>(null)
   const rightHost = useRef<HTMLDivElement>(null)
+  const panesRef = useRef<HTMLDivElement>(null)
+  const headsRef = useRef<HTMLDivElement>(null)
   const leftView = useRef<EditorView | null>(null)
   const rightView = useRef<EditorView | null>(null)
   /** mtime the working tree was read at, so a save cannot clobber a newer one. */
@@ -244,6 +252,52 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
 
   if (!target) return null
 
+  const columns = (share: number): string => toColumns([share, 1 - share], DIVIDER)
+
+  /**
+   * Drag the boundary between the two columns.
+   *
+   * Written to the elements during the drag and saved once at the end. The
+   * share is a setting, and a setting written per pixel of movement is a store
+   * update, a re-render, an IPC message and a debounced disk write per pixel —
+   * which is what made the sidebar feel like it was catching up rather than
+   * following.
+   */
+  const startResize = (event: React.MouseEvent): void => {
+    event.preventDefault()
+    const host = panesRef.current
+    if (!host) return
+    const width = host.getBoundingClientRect().width
+    const startX = event.clientX
+    let latest = split
+
+    const onMove = (move: MouseEvent): void => {
+      latest = resizePanes([split, 1 - split], 0, (move.clientX - startX) / width)[0]!
+      host.style.gridTemplateColumns = columns(latest)
+      if (headsRef.current) headsRef.current.style.gridTemplateColumns = columns(latest)
+    }
+    const onUp = (): void => {
+      document.body.classList.remove('is-resizing')
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setDiffSplit(latest)
+    }
+    document.body.classList.add('is-resizing')
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // The keyboard path, because a divider is five pixels wide and a mouse is not
+  // the only way anyone works.
+  const onDividerKey = (event: React.KeyboardEvent): void => {
+    const step = event.shiftKey ? 0.1 : 0.02
+    if (event.key === 'ArrowLeft') setDiffSplit(resizePanes([split, 1 - split], 0, -step)[0]!)
+    else if (event.key === 'ArrowRight') setDiffSplit(resizePanes([split, 1 - split], 0, step)[0]!)
+    else if (event.key === 'Home' || event.key === 'Enter') setDiffSplit(0.5)
+    else return
+    event.preventDefault()
+  }
+
   const openInEditor = async (): Promise<void> => {
     if (!rootPath) return
     const absolute = await invoke('git:absolutePath', { rootPath, path: target.path })
@@ -284,10 +338,11 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
         </button>
       </div>
 
-      <div className="diff__heads">
+      <div className="diff__heads" ref={headsRef} style={{ gridTemplateColumns: columns(split) }}>
         <span className="diff__head">
           {target.commit ? 'parent' : target.staged ? 'HEAD' : 'staged'}
         </span>
+        <span className="diff__head-gap" aria-hidden="true" />
         <span className="diff__head">
           {target.commit ? 'this commit' : target.staged ? 'staged' : 'working tree'}
           <span className="diff__head-note">
@@ -300,8 +355,22 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
         </span>
       </div>
 
-      <div className="diff__panes">
+      <div className="diff__panes" ref={panesRef} style={{ gridTemplateColumns: columns(split) }}>
         <div className="diff__pane" ref={leftHost} />
+        <div
+          className="pane-divider"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the diff columns"
+          aria-valuenow={Math.round(split * 100)}
+          aria-valuemin={12}
+          aria-valuemax={88}
+          tabIndex={0}
+          title="Drag to resize. Double-click for equal columns."
+          onMouseDown={startResize}
+          onDoubleClick={() => setDiffSplit(0.5)}
+          onKeyDown={onDividerKey}
+        />
         <div className="diff__pane diff__pane--new" ref={rightHost} />
       </div>
 
