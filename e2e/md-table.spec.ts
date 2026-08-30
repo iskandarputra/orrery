@@ -177,3 +177,31 @@ test('double-clicking the grip gives the widths back to the content', async () =
   await page.locator('.cm-or-table-grip').first().dblclick()
   await expect.poll(() => widthOf(0)).toBeLessThan(dragged - 40)
 })
+
+test('the columns can be dragged in reading mode too', async () => {
+  // Reading is when a column being too narrow matters most, and a width is a
+  // way of looking at the table rather than an edit, so nothing stops it.
+  await openTable('Table.md')
+  // The widths are remembered per view, and an earlier test dragged this
+  // table: give them back to the content so there is room to drag again.
+  await page.locator('.cm-or-table-grip').first().dblclick()
+  await runCommand('view.modeReading')
+  await expect(page.locator('.cm-or-table table')).toBeVisible({ timeout: 15_000 })
+
+  const widthOf = (n: number): Promise<number> =>
+    page
+      .locator('.cm-or-table th')
+      .nth(n)
+      .evaluate((el) => el.getBoundingClientRect().width)
+  const before = await widthOf(0)
+
+  const grip = (await page.locator('.cm-or-table-grip').first().boundingBox())!
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip.x + 200, grip.y + grip.height / 2, { steps: 8 })
+  await page.mouse.up()
+
+  await expect.poll(() => widthOf(0)).toBeGreaterThan(before + 15)
+  await runCommand('view.modeHybrid')
+  await expect(page.locator('.cm-or-table table')).toBeVisible({ timeout: 15_000 })
+})

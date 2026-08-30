@@ -286,7 +286,16 @@ export const settingsSchema = z.object({
       width: z.number().default(1200),
       height: z.number().default(800),
       x: z.number().optional(),
-      y: z.number().optional()
+      y: z.number().optional(),
+      /**
+       * The active theme's background, remembered by the renderer.
+       *
+       * A window is created before anything has rendered in it, and it is
+       * painted with whatever colour it was given. A fixed dark grey means a
+       * light-theme user watches a dark rectangle appear and then turn white,
+       * which reads as the app struggling rather than starting.
+       */
+      background: z.string().default('#1e1e1e')
     })
     .prefault({}),
   /**

@@ -1,5 +1,4 @@
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
+import { renderMath } from '../katex-lazy'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { expandButton } from './expand-button'
@@ -25,11 +24,13 @@ class MathWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {
     const el = document.createElement(this.display ? 'div' : 'span')
     el.className = this.display ? 'cm-or-math cm-or-math--block' : 'cm-or-math'
-    try {
-      katex.render(this.expr, el, { displayMode: this.display, throwOnError: false })
-    } catch {
-      el.textContent = this.expr
-    }
+    // The equation goes in a box of its own: KaTeX replaces the contents of
+    // whatever it is given, and it arrives after this function has returned,
+    // so rendering straight into `el` would take the expand button with it.
+    const body = document.createElement(this.display ? 'div' : 'span')
+    body.className = 'cm-or-math__body'
+    el.appendChild(body)
+    renderMath(body, this.expr, this.display)
     // Only the block form: an inline equation sits in a run of text, where a
     // corner button would have nowhere to go and nothing to reveal.
     if (this.display) el.appendChild(expandButton({ kind: 'math', code: this.expr }))

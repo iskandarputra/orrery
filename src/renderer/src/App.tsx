@@ -1,3 +1,4 @@
+import { injectThemeCss } from '@/themes/themes'
 import { useEffect } from 'react'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
@@ -23,6 +24,22 @@ import { Toast } from '@/components/Toast'
 import { Toolbar } from '@/components/Toolbar'
 import { WelcomeView } from '@/components/WelcomeView'
 
+/**
+ * Keep the window's own background in step with the theme.
+ *
+ * Main paints the frame with this before anything has rendered in it, so the
+ * window that appears already looks like the app rather than a dark rectangle
+ * that turns white. Written only when it actually changes: this runs on every
+ * theme application.
+ */
+function rememberBackground(): void {
+  const colour = getComputedStyle(document.documentElement).getPropertyValue('--or-bg').trim()
+  if (!colour) return
+  const state = useStore.getState()
+  if (state.settings.window.background === colour) return
+  state.updateSettings({ window: { ...state.settings.window, background: colour } })
+}
+
 function useThemeSync(): void {
   const mode = useStore((s) => s.settings.theme)
   const lightTheme = useStore((s) => s.settings.lightTheme)
@@ -32,7 +49,11 @@ function useThemeSync(): void {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const apply = (): void => {
       const appearance = mode === 'system' ? (media.matches ? 'dark' : 'light') : mode
+      // Whichever comes first, the frame or the settings: the palettes must be
+      // in the document before one of them is named.
+      injectThemeCss()
       document.documentElement.dataset['theme'] = appearance === 'dark' ? darkTheme : lightTheme
+      rememberBackground()
     }
     apply()
     media.addEventListener('change', apply)

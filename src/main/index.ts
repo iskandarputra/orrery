@@ -53,7 +53,7 @@ if (!gotLock) {
 
   const windows = new WindowManager({
     getSettings: () => settings.get(),
-    saveWindowBounds: (bounds) => settings.set({ window: bounds }),
+    saveWindowBounds: (bounds) => settings.set({ window: { ...settings.get().window, ...bounds } }),
     saveZoomLevel: (zoomLevel) => settings.set({ zoomLevel })
   })
 

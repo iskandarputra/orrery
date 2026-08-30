@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import katex from 'katex'
+import { renderMath } from '@/editor/katex-lazy'
 import {
   actualSize,
   fitBounds,
@@ -129,13 +129,13 @@ export function MediaViewerModal(): React.JSX.Element | null {
       el.replaceChildren()
       const host = document.createElement('div')
       host.className = 'media-viewer__math'
-      try {
-        katex.render(target.code ?? '', host, { displayMode: true, throwOnError: false })
-      } catch {
-        host.textContent = target.code ?? ''
-      }
+      renderMath(host, target.code ?? '', true)
       el.appendChild(host)
+      // Measured twice: once now for the source it shows immediately, and once
+      // after KaTeX has drawn it, since the rendered equation is a different
+      // size from the text it replaced.
       measureAndFit()
+      setTimeout(measureAndFit, 300)
     }
 
     return () => {

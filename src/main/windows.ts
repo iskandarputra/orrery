@@ -5,7 +5,8 @@ import { send } from './ipc/registry'
 
 export interface WindowManagerDeps {
   getSettings: () => Settings
-  saveWindowBounds: (bounds: Settings['window']) => void
+  /** Position and size only; the remembered background is written elsewhere. */
+  saveWindowBounds: (bounds: Omit<Settings['window'], 'background'>) => void
   saveZoomLevel: (level: number) => void
 }
 
@@ -61,7 +62,9 @@ export class WindowManager {
       minHeight: 420,
       show: false,
       autoHideMenuBar: false,
-      backgroundColor: '#1e1e1e',
+      // The colour the app was wearing when it was last closed, so the frame
+      // that appears before the first render already looks like the app.
+      backgroundColor: bounds.background || '#1e1e1e',
       webPreferences: {
         preload: path.join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -73,6 +76,17 @@ export class WindowManager {
       }
     })
 
+    /**
+     * Shown as soon as there is a window to show.
+     *
+     * Waiting for the renderer to report its first paint was tried and made
+     * things worse: a window that is not visible has its animation frames
+     * throttled, so holding it back delayed the very render it was waiting for
+     * — `domComplete` went from 90ms to 371ms. The frame appears immediately
+     * instead, wearing the colour the app was last in, so what is on screen
+     * before the first render looks like the app rather than a dark rectangle
+     * about to turn white.
+     */
     win.once('ready-to-show', () => {
       if (headless) {
         win.setPosition(-20000, -20000)

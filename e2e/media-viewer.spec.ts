@@ -39,6 +39,15 @@ test('mermaid renders and every block gets an expand control', async () => {
   await expect(page.locator('.cm-or-math--block .cm-or-expand')).toHaveCount(1)
 })
 
+test('an equation still renders, now that KaTeX arrives late', async () => {
+  // KaTeX is 484 KB that used to be parsed before the first window painted.
+  // It is fetched when a note actually has maths in it, so the equation shows
+  // its own source for a moment and then becomes an equation.
+  await page.locator('.tree-row--file', { hasText: 'Diagram.md' }).click()
+  await expect(page.locator('.cm-or-math--block .katex')).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.cm-or-math--block')).toContainText('∫')
+})
+
 test('the expand control opens the viewer, and the diagram is bigger in it', async () => {
   await page.locator('.tree-row--file', { hasText: 'Diagram.md' }).click()
   await expect(page.locator('.cm-or-mermaid > svg')).toBeVisible({ timeout: 20_000 })

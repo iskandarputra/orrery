@@ -6670,3 +6670,63 @@ kbd {
 .cm-or-table-grip:hover {
   background: var(--or-accent);
 }
+
+/* --- Rail tooltips ------------------------------------------------------ */
+
+/* The native `title` waits about a second before it appears, which on a strip
+   of unlabelled icons is a second of not knowing what anything is. These are
+   drawn by the element itself and show after 90ms, which reads as instant
+   while still not flickering as the pointer crosses the rail. */
+.rail-tip {
+  position: relative;
+}
+
+.rail-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  padding: 3px 8px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  background: var(--or-panel-bg);
+  box-shadow: var(--or-shadow-md);
+  font-family: var(--or-ui-font);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--or-fg);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 60ms linear 90ms,
+    visibility 0s linear 90ms;
+}
+
+/* The rail on the left points right, and the one on the right points left. */
+.sidebar-rail .rail-tip::after {
+  left: calc(100% + 8px);
+}
+
+.rpanel-rail .rail-tip::after {
+  right: calc(100% + 8px);
+}
+
+.rail-tip:hover::after,
+.rail-tip:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* The equation itself, inside the block that carries the expand control. The
+   control is a sibling of this rather than a child, because KaTeX replaces
+   whatever it renders into. */
+.cm-or-math__body {
+  display: inline;
+}
+
+.cm-or-math--block .cm-or-math__body {
+  display: block;
+}

@@ -435,8 +435,9 @@ export function RightPanel(): React.JSX.Element {
             role="tab"
             aria-selected={panel === t.id}
             aria-label={t.label}
-            title={t.label}
-            className={`rpanel__tab${panel === t.id ? ' rpanel__tab--active' : ''}`}
+            // As the left-hand rail does: drawn here, so it appears at once.
+            data-tip={t.label}
+            className={`rpanel__tab rail-tip${panel === t.id ? ' rpanel__tab--active' : ''}`}
             onClick={() => toggle(t.id)}
           >
             <Icon name={t.icon} size={17} />

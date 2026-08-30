@@ -59,10 +59,13 @@ export function SidebarRail(): React.JSX.Element {
       {items.map((item) => (
         <button
           key={item.id}
-          className={`sidebar-rail__btn${item.active ? ' sidebar-rail__btn--active' : ''}`}
+          className={`sidebar-rail__btn rail-tip${item.active ? ' sidebar-rail__btn--active' : ''}`}
           aria-label={item.label}
           aria-pressed={item.active}
-          title={item.label}
+          // Drawn by the element rather than by the operating system: a native
+          // `title` waits about a second, which on a strip of icons is a second
+          // of not knowing what anything is.
+          data-tip={item.label}
           onClick={item.run}
         >
           <Icon name={item.icon} size={17} />

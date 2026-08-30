@@ -102,9 +102,10 @@ class TableWidget extends WidgetType {
       const th = document.createElement('th')
       if (parsed.align[i]) th.style.textAlign = parsed.align[i]!
       renderInline(th, cell)
-      // A grip on the column's edge. Dragging it is a change to the view, not
-      // to the file, so nothing is written and the tab stays clean.
-      if (this.interactive && i < parsed.header.length - 1) {
+      // A grip on the column's edge, in Reading mode as much as in Hybrid.
+      // Dragging it is a change to the view rather than to the file, and
+      // reading is when a column being too narrow matters most.
+      if (i < parsed.header.length - 1) {
         const grip = document.createElement('span')
         grip.className = 'cm-or-table-grip'
         grip.title = 'Drag to resize. Double-click for automatic widths.'
@@ -187,8 +188,16 @@ class TableWidget extends WidgetType {
     return wrap
   }
 
+  /**
+   * Which events the editor should keep its hands off.
+   *
+   * Everything the widget handles itself: the resize grips work in both modes,
+   * and in Hybrid a plain mousedown on the table is how the source is opened,
+   * so that one is left to the handler above.
+   */
   override ignoreEvent(event: Event): boolean {
-    return !this.interactive || event.type !== 'mousedown'
+    if (event.type !== 'mousedown') return true
+    return !this.interactive
   }
 }
 

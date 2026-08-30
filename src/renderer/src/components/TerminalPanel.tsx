@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
-import '@xterm/xterm/css/xterm.css'
+import type { FitAddon } from '@xterm/addon-fit'
+import type { Terminal } from '@xterm/xterm'
 import { invoke, on } from '@/services/client'
 import { useStore } from '@/state/store'
 import { getTheme, resolveTheme } from '@/themes/themes'
@@ -70,28 +69,41 @@ export function TerminalPanel(): React.JSX.Element | null {
     const host = hostRef.current
     if (!open || !host) return
     let live = true
+    let term: Terminal | null = null
+    let fit: FitAddon | null = null
 
     const palette = resolveTheme(getTheme(themeId))
     const mono = monoStack()
-    const term = new Terminal({
-      fontFamily: mono,
-      fontSize: 12,
-      cursorBlink: true,
-      // Follows the app's palette, so the terminal is not the one panel that
-      // ignores the theme.
-      theme: {
-        background: palette['editor-bg'],
-        foreground: palette['fg'],
-        cursor: palette['accent'],
-        selectionBackground: palette['selection-bg']
-      }
-    })
-    const fit = new FitAddon()
-    term.loadAddon(fit)
-    termRef.current = term
-    fitRef.current = fit
 
     void (async () => {
+      // xterm and its stylesheet are a quarter of a megabyte, fetched when the
+      // terminal is first opened rather than while the app is starting: a
+      // session that never presses Ctrl+` never pays for it.
+      const [{ Terminal }, { FitAddon }] = await Promise.all([
+        import('@xterm/xterm'),
+        import('@xterm/addon-fit'),
+        import('@xterm/xterm/css/xterm.css')
+      ])
+      if (!live) return
+
+      term = new Terminal({
+        fontFamily: mono,
+        fontSize: 12,
+        cursorBlink: true,
+        // Follows the app's palette, so the terminal is not the one panel that
+        // ignores the theme.
+        theme: {
+          background: palette['editor-bg'],
+          foreground: palette['fg'],
+          cursor: palette['accent'],
+          selectionBackground: palette['selection-bg']
+        }
+      })
+      fit = new FitAddon()
+      term.loadAddon(fit)
+      termRef.current = term
+      fitRef.current = fit
+
       await fontReady(mono)
       if (!live) return
       term.open(host)
@@ -120,6 +132,9 @@ export function TerminalPanel(): React.JSX.Element | null {
     // The panel is resizable and the window is not fixed, so the shell has to
     // be told the new size or its line wrapping goes wrong.
     const observer = new ResizeObserver(() => {
+      // The shell may not exist yet: the observer is attached before xterm has
+      // finished arriving, and a resize before then has nothing to resize.
+      if (!term || !fit) return
       try {
         fit.fit()
       } catch {
@@ -136,7 +151,7 @@ export function TerminalPanel(): React.JSX.Element | null {
       const id = idRef.current
       if (id) void invoke('terminal:kill', { id })
       idRef.current = null
-      term.dispose()
+      term?.dispose()
       termRef.current = null
     }
   }, [open, rootPath, themeId])

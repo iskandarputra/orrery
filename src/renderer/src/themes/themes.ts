@@ -73,8 +73,26 @@ export type TokenName =
  * Deliberately independent of the theme accent: these encode identity, and
  * shuffling them per theme would make the same cluster change colour.
  */
-const VIZ_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
-const VIZ_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
+const VIZ_LIGHT = [
+  '#2a78d6',
+  '#eb6834',
+  '#1baf7a',
+  '#eda100',
+  '#e87ba4',
+  '#008300',
+  '#4a3aa7',
+  '#e34948'
+]
+const VIZ_DARK = [
+  '#3987e5',
+  '#d95926',
+  '#199e70',
+  '#c98500',
+  '#d55181',
+  '#008300',
+  '#9085e9',
+  '#e66767'
+]
 
 const d = (spec: Omit<ThemeSpec, 'appearance'>): ThemeSpec => ({ ...spec, appearance: 'dark' })
 const l = (spec: Omit<ThemeSpec, 'appearance'>): ThemeSpec => ({ ...spec, appearance: 'light' })
@@ -281,4 +299,20 @@ export function generateThemeCss(): string {
       .join('\n')
     return `${base}\n\n:root[data-theme='${spec.id}'][data-hc-code='on'] {\n${hc}\n}`
   }).join('\n\n')
+}
+
+/**
+ * Put the palettes in the document, once.
+ *
+ * Building all 28 costs about 24ms and 43KB of CSS, which was being spent
+ * before React had rendered anything — and none of it is needed until a theme
+ * is stamped on `<html>`, which cannot happen until settings have loaded. So it
+ * is done on the way there instead of in front of the first paint.
+ */
+export function injectThemeCss(): void {
+  if (document.getElementById('orrery-themes')) return
+  const style = document.createElement('style')
+  style.id = 'orrery-themes'
+  style.textContent = generateThemeCss()
+  document.head.appendChild(style)
 }
