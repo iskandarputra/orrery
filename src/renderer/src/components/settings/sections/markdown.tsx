@@ -50,6 +50,15 @@ export function MarkdownSection(): React.JSX.Element {
           onChange={(reflowParagraphs) => update({ markdown: { ...m, reflowParagraphs } })}
         />
       </SettingRow>
+      <SettingRow
+        label="Line up table columns"
+        description="Tidy a table's pipes when the cursor leaves it"
+      >
+        <Toggle
+          checked={m.autoFormatTables}
+          onChange={(autoFormatTables) => update({ markdown: { ...m, autoFormatTables } })}
+        />
+      </SettingRow>
     </>
   )
 }

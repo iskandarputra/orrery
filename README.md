@@ -41,7 +41,12 @@ rich-text model, so the file on disk is what you typed.
 Three modes on `Ctrl+Shift+1/2/3`: **Edit** (raw source), **Hybrid** (the
 default), **Reading** (fully rendered, read-only).
 
-Tables render as tables. `$inline$` and `$$block$$` maths through KaTeX.
+Tables render as tables, and tidy themselves: edit one and the pipes line up
+when you leave it, keeping whatever alignment the columns declared. A table you
+only read is left exactly as it was. Drag the line between two columns in the
+rendered table to set their widths, and double-click it to give the widths back
+to the content — markdown has nowhere to store a width, so that is a way of
+looking at the table rather than a change to the file. `$inline$` and `$$block$$` maths through KaTeX.
 ` ```mermaid ` fences become diagrams. `==Highlights==` get a marker pen. Images
 and diagrams open full screen. A long code fence scrolls inside its own card,
 leaving the rest of the document where it was.

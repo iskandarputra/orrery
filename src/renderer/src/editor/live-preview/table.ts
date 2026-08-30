@@ -36,6 +36,30 @@ function renderInline(target: HTMLElement, text: string): void {
   if (last < text.length) target.appendChild(document.createTextNode(text.slice(last)))
 }
 
+/**
+ * Column widths for the tables in one editor.
+ *
+ * Markdown has nowhere to put a column width — the format is the text — so a
+ * width is a way of looking at the file rather than part of it, and it lives
+ * beside the view for as long as the view does. Keyed by the table's header
+ * row, so editing the body keeps the widths and two tables with the same
+ * headings share them, which is a fair guess at what someone meant.
+ */
+const widthsByView = new WeakMap<EditorView, Map<string, number[]>>()
+
+/** Narrower than this and a column is a sliver nobody can read or grab. */
+const MIN_COLUMN = 48
+
+function widthsFor(view: EditorView, key: string): number[] | null {
+  return widthsByView.get(view)?.get(key) ?? null
+}
+
+function rememberWidths(view: EditorView, key: string, widths: number[]): void {
+  const forView = widthsByView.get(view) ?? new Map<string, number[]>()
+  forView.set(key, widths)
+  widthsByView.set(view, forView)
+}
+
 class TableWidget extends WidgetType {
   constructor(
     readonly source: string,
@@ -58,12 +82,84 @@ class TableWidget extends WidgetType {
       return wrap
     }
     const table = document.createElement('table')
+    // The table's identity for remembered widths: its own headings.
+    const key = parsed.header.join('\u0000')
+    const widths = widthsFor(view, key)
+    if (widths) {
+      table.style.tableLayout = 'fixed'
+      const group = document.createElement('colgroup')
+      widths.forEach((width) => {
+        const col = document.createElement('col')
+        col.style.width = `${width}px`
+        group.appendChild(col)
+      })
+      table.appendChild(group)
+    }
+
     const thead = table.createTHead()
     const headRow = thead.insertRow()
     parsed.header.forEach((cell, i) => {
       const th = document.createElement('th')
       if (parsed.align[i]) th.style.textAlign = parsed.align[i]!
       renderInline(th, cell)
+      // A grip on the column's edge. Dragging it is a change to the view, not
+      // to the file, so nothing is written and the tab stays clean.
+      if (this.interactive && i < parsed.header.length - 1) {
+        const grip = document.createElement('span')
+        grip.className = 'cm-or-table-grip'
+        grip.title = 'Drag to resize. Double-click for automatic widths.'
+        grip.addEventListener('mousedown', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          const cells = [...headRow.children] as HTMLElement[]
+          const start = cells.map((element) => element.getBoundingClientRect().width)
+          const startX = event.clientX
+
+          const onMove = (move: MouseEvent): void => {
+            const next = [...start]
+            const left = start[i] ?? 0
+            const right = start[i + 1] ?? 0
+            // Clamped to what the pair can give. Letting one column take more
+            // than its neighbour has makes the table wider than its box, and
+            // the browser then scales every column back down — which reads as
+            // a drag that only half worked.
+            const room = Math.min(move.clientX - startX, right - MIN_COLUMN)
+            const moved = Math.max(room, MIN_COLUMN - left)
+            next[i] = left + moved
+            next[i + 1] = right - moved
+            rememberWidths(view, key, next)
+            table.style.tableLayout = 'fixed'
+            let group = table.querySelector('colgroup')
+            if (!group) {
+              group = document.createElement('colgroup')
+              table.insertBefore(group, table.firstChild)
+            }
+            group.replaceChildren(
+              ...next.map((width) => {
+                const col = document.createElement('col')
+                col.style.width = `${width}px`
+                return col
+              })
+            )
+          }
+          const onUp = (): void => {
+            document.body.classList.remove('is-resizing')
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+          }
+          document.body.classList.add('is-resizing')
+          window.addEventListener('mousemove', onMove)
+          window.addEventListener('mouseup', onUp)
+        })
+        grip.addEventListener('dblclick', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          widthsByView.get(view)?.delete(key)
+          table.style.tableLayout = ''
+          table.querySelector('colgroup')?.remove()
+        })
+        th.appendChild(grip)
+      }
       headRow.appendChild(th)
     })
     const tbody = table.createTBody()
@@ -80,6 +176,9 @@ class TableWidget extends WidgetType {
     // reading mode — there the table is a static rendered block.
     if (this.interactive) {
       wrap.addEventListener('mousedown', (event) => {
+        // A grip handles its own drag; clicking it must not also open the
+        // source underneath.
+        if ((event.target as HTMLElement).classList.contains('cm-or-table-grip')) return
         event.preventDefault()
         view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true })
         view.focus()

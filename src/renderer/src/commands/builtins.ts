@@ -1,6 +1,7 @@
 import { openSearchPanel, replaceNext } from '@codemirror/search'
 import { moveBlockDown, moveBlockUp } from '@/editor/block-move'
 import { unwrapParagraphs } from '@core/reflow'
+import { formatTableAt } from '@/editor/table-format'
 import { equalSizes, fitSizes, resizePanes } from '@core/pane-sizes'
 import {
   canvasFromCluster,
@@ -462,6 +463,14 @@ export const builtinCommands: Command[] = [
     run: ({ view }) => {
       const v = view()
       if (v) moveBlockDown(v)
+    }
+  },
+  {
+    id: 'format.table',
+    title: 'Line Up Table Columns',
+    run: ({ view }) => {
+      const editor = view()
+      if (editor) formatTableAt(editor, editor.state.selection.main.head)
     }
   },
   {

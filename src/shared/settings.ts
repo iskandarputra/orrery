@@ -132,7 +132,15 @@ export const settingsSchema = z.object({
        * Reflow soft-wrapped paragraph lines to fill the canvas width, like a
        * markdown preview — single newlines within a paragraph render as spaces.
        */
-      reflowParagraphs: z.boolean().default(true)
+      reflowParagraphs: z.boolean().default(true),
+      /**
+       * Line a table's pipes up when the cursor leaves it.
+       *
+       * On leaving rather than while typing: rewriting the line under someone's
+       * cursor moves the cursor, and a formatter that fights the typist is one
+       * people switch off.
+       */
+      autoFormatTables: z.boolean().default(true)
     })
     .prefault({}),
   /**

@@ -35,6 +35,7 @@ import { gitGutter } from './git-gutter'
 import { indentGuides } from './indent-guides'
 import { vimMode } from './vim-mode'
 import { minimap } from './minimap'
+import { tableAutoFormat } from './table-format'
 import { changeDocument } from './lsp-session'
 import { goToDefinition } from './lsp-definition'
 import { lspHover } from './lsp-hover'
@@ -180,6 +181,8 @@ export function settingsExtensions(settings: Settings, kind: DocumentKind = 'mar
         })
       : [],
     reflowParagraphs(reflow),
+    // Nothing to tidy where the source is never shown or edited.
+    tableAutoFormat(!reading && settings.markdown.autoFormatTables),
     // Reading mode: no cursor, no edits — a clean rendered document.
     reading ? [EditorView.editable.of(false), EditorState.readOnly.of(true)] : [],
     pluginEditorExtensions(settings)
