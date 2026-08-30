@@ -16,6 +16,7 @@ import { tags } from './features/tags'
 import { frontmatterRendering } from './frontmatter'
 import { imageRendering } from './images'
 import { codeCardRendering } from './code-card'
+import { htmlBlockRendering } from './html-block'
 import { livePreviewPlugin } from './plugin'
 import { mathRendering } from './math'
 import { mermaidRendering } from './mermaid'
@@ -102,6 +103,7 @@ export function composeLivePreview(
     embeds,
     tableRendering(reveal),
     codeCardRendering(reveal),
+    htmlBlockRendering(reveal),
     mathRendering(reveal),
     mermaidRendering(reveal),
     showImages ? imageRendering(reveal) : [],

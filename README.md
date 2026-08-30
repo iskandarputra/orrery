@@ -46,6 +46,11 @@ Tables render as tables. `$inline$` and `$$block$$` maths through KaTeX.
 and diagrams open full screen. A long code fence scrolls inside its own card,
 leaving the rest of the document where it was.
 
+**Raw HTML renders too**, which markdown files are full of: the centred title,
+the row of badges and the `<details>` fold that every README opens with. It goes
+through an allow-list, so a note can lay itself out and cannot run anything. A
+tag that is refused is named where it was rather than vanishing.
+
 YAML frontmatter renders as a **properties table** you edit in place. Add a
 property, rename one, type a value, and the YAML underneath is rewritten.
 Properties you did not touch are written back exactly as you left them, quoting

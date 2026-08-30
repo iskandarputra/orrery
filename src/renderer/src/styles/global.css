@@ -6153,3 +6153,69 @@ kbd {
   border-radius: 0 2px 2px 0;
   background: var(--or-accent);
 }
+
+/* A block of raw HTML from the note, rendered. Kept to the prose column and
+   given the document's own type, so a centred heading looks like part of the
+   note rather than like a web page dropped into it. */
+.cm-or-html-block {
+  margin: 0.6em 0;
+  font-family: var(--or-editor-font-family);
+  color: var(--or-fg);
+}
+
+.cm-or-html-block img {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.cm-or-html-block h1,
+.cm-or-html-block h2,
+.cm-or-html-block h3 {
+  margin: 0.3em 0;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.cm-or-html-block h1 {
+  font-size: 1.9em;
+}
+
+.cm-or-html-block h2 {
+  font-size: 1.5em;
+}
+
+.cm-or-html-block p {
+  margin: 0.4em 0;
+  line-height: var(--or-editor-line-height);
+}
+
+.cm-or-html-block a {
+  color: var(--or-accent-text);
+  text-decoration: none;
+}
+
+.cm-or-html-block a:hover {
+  text-decoration: underline;
+}
+
+.cm-or-html-block table {
+  border-collapse: collapse;
+}
+
+.cm-or-html-block th,
+.cm-or-html-block td {
+  padding: 4px 10px;
+  border: 1px solid var(--or-border);
+}
+
+.cm-or-html-block summary {
+  cursor: pointer;
+}
+
+/* What was taken out, said rather than left as a puzzle. */
+.cm-or-html-block__note {
+  margin-top: 0.4em;
+  font-family: var(--or-ui-font);
+  font-size: 0.8em;
+  color: var(--or-fg-muted);
+}
