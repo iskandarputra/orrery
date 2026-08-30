@@ -135,6 +135,19 @@ export const settingsSchema = z.object({
       reflowParagraphs: z.boolean().default(true)
     })
     .prefault({}),
+  /**
+   * The vault map.
+   *
+   * `includeCode` widens it from notes joined by wikilinks to source files
+   * joined by imports as well. On by default: a vault with no code in it is
+   * unchanged by it, and a vault with code was being drawn with half of itself
+   * missing.
+   */
+  graph: z
+    .object({
+      includeCode: z.boolean().default(true)
+    })
+    .prefault({}),
   /** Restored on the next launch so a restart doesn't cost your working set. */
   session: z
     .object({

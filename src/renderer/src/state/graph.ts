@@ -16,6 +16,8 @@ export interface GraphSlice {
    * this; only the first one pays. `force` refreshes after edits.
    */
   loadGraph(force?: boolean): Promise<GraphAnalysis | null>
+  /** Whether the graph in hand includes source files. */
+  graphWithCode: boolean
   /** Drop the cache — the vault changed underneath it. */
   invalidateGraph(): void
 }
@@ -28,16 +30,20 @@ export const createGraphSlice: StateCreator<AppState, [], [], GraphSlice> = (set
   graphRoot: null,
   graphLoading: false,
   graphError: null,
+  graphWithCode: false,
 
   async loadGraph(force = false) {
     const rootPath = get().rootPath
     if (!rootPath) return null
-    const fresh = get().graph && get().graphRoot === rootPath
+    const withCode = get().settings.graph.includeCode
+    // The setting is part of what makes a cached graph fresh: turning code on
+    // has to rescan rather than filter, because the walk itself is different.
+    const fresh = get().graph && get().graphRoot === rootPath && get().graphWithCode === withCode
     if (fresh && !force) return get().graph
     if (inFlight && !force) return inFlight
 
-    set({ graphLoading: true, graphError: null })
-    inFlight = invoke('workspace:graph', { rootPath })
+    set({ graphLoading: true, graphError: null, graphWithCode: withCode })
+    inFlight = invoke('workspace:graph', { rootPath, withCode })
       .then((analysis) => {
         // A folder switch mid-scan makes the result stale: drop it.
         if (get().rootPath !== rootPath) return get().graph

@@ -111,6 +111,45 @@ test('the rail shows every view at once, in a column', async () => {
  * The rail is an activity bar, not the panel's own header: closing the panel
  * must not take the way back with it.
  */
+test('the left rail outlives the sidebar and brings it back', async () => {
+  // The same bargain the right-hand rail makes: closing the file tree should
+  // not cost you the way back into it.
+  await expect(page.locator('.sidebar')).toBeVisible()
+  await page.locator('.sidebar-rail__btn[aria-label*="Hide files"]').click()
+  await expect(page.locator('.sidebar')).toHaveCount(0)
+  await expect(page.locator('.sidebar-rail')).toBeVisible()
+
+  await page.locator('.sidebar-rail__btn[aria-label*="Show files"]').click()
+  await expect(page.locator('.sidebar')).toBeVisible()
+})
+
+test('the sidebar drag follows the pointer and saves once', async () => {
+  const widthOf = (): Promise<number> =>
+    page.locator('.sidebar').evaluate((el) => el.getBoundingClientRect().width)
+  const before = await widthOf()
+
+  const handle = (await page.locator('.sidebar__resizer').boundingBox())!
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + 120, handle.y + handle.height / 2, { steps: 10 })
+
+  // Still mid-drag: the element has moved, and nothing has been written.
+  await expect.poll(widthOf).toBeGreaterThan(before + 90)
+  const midDrag = await page.evaluate(async () => {
+    const settings = await window.orrery.invoke('settings:get', undefined)
+    return settings.sidebar.width
+  })
+  expect(midDrag).toBe(before)
+
+  await page.mouse.up()
+  await expect
+    .poll(async () => {
+      const settings = await page.evaluate(() => window.orrery.invoke('settings:get', undefined))
+      return settings.sidebar.width
+    })
+    .toBeGreaterThan(before + 90)
+})
+
 test('the rail outlives the panel and reopens it', async () => {
   await page.locator('.rpanel__close-btn').click()
   await expect(page.locator('.rpanel')).toBeHidden()

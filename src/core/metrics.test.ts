@@ -7,6 +7,7 @@ function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
     id,
     label: id,
     exists: true,
+    kind: 'note',
     degree: 0,
     folder: '',
     words: 0,
@@ -17,7 +18,10 @@ function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
 }
 
 function graph(ids: string[], links: [string, string][]): LinkGraph {
-  return { nodes: ids.map((id) => node(id)), edges: links.map(([from, to]) => ({ from, to })) }
+  return {
+    nodes: ids.map((id) => node(id)),
+    edges: links.map(([from, to]) => ({ from, to, kind: 'link' as const }))
+  }
 }
 
 /** Metrics of one node, by id. */
@@ -27,7 +31,16 @@ function of(analysis: ReturnType<typeof analyzeGraph>, id: string) {
 
 describe('degrees', () => {
   it('separates links in from links out', () => {
-    const a = analyzeGraph(graph(['A', 'B', 'C'], [['A', 'B'], ['A', 'C'], ['B', 'C']]))
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'C'],
+        [
+          ['A', 'B'],
+          ['A', 'C'],
+          ['B', 'C']
+        ]
+      )
+    )
     expect([of(a, 'A').outDegree, of(a, 'A').inDegree]).toEqual([2, 0])
     expect([of(a, 'B').outDegree, of(a, 'B').inDegree]).toEqual([1, 1])
     expect([of(a, 'C').outDegree, of(a, 'C').inDegree]).toEqual([0, 2])
@@ -36,7 +49,15 @@ describe('degrees', () => {
 
 describe('pagerank', () => {
   it('sums to one and is symmetric on a mutual pair', () => {
-    const a = analyzeGraph(graph(['A', 'B'], [['A', 'B'], ['B', 'A']]))
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B'],
+        [
+          ['A', 'B'],
+          ['B', 'A']
+        ]
+      )
+    )
     const total = a.nodes.reduce((sum, n) => sum + n.pagerank, 0)
     expect(total).toBeCloseTo(1, 6)
     expect(of(a, 'A').pagerank).toBeCloseTo(of(a, 'B').pagerank, 6)
@@ -45,9 +66,15 @@ describe('pagerank', () => {
   it('ranks a well-linked note above a rarely-linked one', () => {
     // Everyone links to Hub; only A links to Quiet.
     const a = analyzeGraph(
-      graph(['Hub', 'Quiet', 'A', 'B', 'C'], [
-        ['A', 'Hub'], ['B', 'Hub'], ['C', 'Hub'], ['A', 'Quiet']
-      ])
+      graph(
+        ['Hub', 'Quiet', 'A', 'B', 'C'],
+        [
+          ['A', 'Hub'],
+          ['B', 'Hub'],
+          ['C', 'Hub'],
+          ['A', 'Quiet']
+        ]
+      )
     )
     expect(of(a, 'Hub').pagerank).toBeGreaterThan(of(a, 'Quiet').pagerank)
     expect(a.insights.hubs[0]?.id).toBe('Hub')
@@ -61,7 +88,15 @@ describe('pagerank', () => {
 
 describe('betweenness', () => {
   it('credits only the note in the middle of a path', () => {
-    const a = analyzeGraph(graph(['A', 'B', 'C'], [['A', 'B'], ['B', 'C']]))
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'C'],
+        [
+          ['A', 'B'],
+          ['B', 'C']
+        ]
+      )
+    )
     expect(of(a, 'B').betweenness).toBeGreaterThan(0)
     expect(of(a, 'A').betweenness).toBe(0)
     expect(of(a, 'C').betweenness).toBe(0)
@@ -69,11 +104,19 @@ describe('betweenness', () => {
 
   it('names the bridge between two clusters as the top connector', () => {
     const a = analyzeGraph(
-      graph(['a1', 'a2', 'a3', 'BRIDGE', 'b1', 'b2', 'b3'], [
-        ['a1', 'a2'], ['a2', 'a3'], ['a3', 'a1'],
-        ['a1', 'BRIDGE'], ['BRIDGE', 'b1'],
-        ['b1', 'b2'], ['b2', 'b3'], ['b3', 'b1']
-      ])
+      graph(
+        ['a1', 'a2', 'a3', 'BRIDGE', 'b1', 'b2', 'b3'],
+        [
+          ['a1', 'a2'],
+          ['a2', 'a3'],
+          ['a3', 'a1'],
+          ['a1', 'BRIDGE'],
+          ['BRIDGE', 'b1'],
+          ['b1', 'b2'],
+          ['b2', 'b3'],
+          ['b3', 'b1']
+        ]
+      )
     )
     expect(a.insights.connectors[0]?.id).toBe('BRIDGE')
   })
@@ -81,7 +124,15 @@ describe('betweenness', () => {
 
 describe('components and communities', () => {
   it('separates disconnected islands', () => {
-    const a = analyzeGraph(graph(['A', 'B', 'X', 'Y'], [['A', 'B'], ['X', 'Y']]))
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'X', 'Y'],
+        [
+          ['A', 'B'],
+          ['X', 'Y']
+        ]
+      )
+    )
     expect(a.stats.components).toBe(2)
     expect(of(a, 'A').component).toBe(of(a, 'B').component)
     expect(of(a, 'A').component).not.toBe(of(a, 'X').component)
@@ -90,10 +141,17 @@ describe('components and communities', () => {
 
   it('never puts two islands in one community', () => {
     const a = analyzeGraph(
-      graph(['a1', 'a2', 'a3', 'b1', 'b2', 'b3'], [
-        ['a1', 'a2'], ['a2', 'a3'], ['a3', 'a1'],
-        ['b1', 'b2'], ['b2', 'b3'], ['b3', 'b1']
-      ])
+      graph(
+        ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'],
+        [
+          ['a1', 'a2'],
+          ['a2', 'a3'],
+          ['a3', 'a1'],
+          ['b1', 'b2'],
+          ['b2', 'b3'],
+          ['b3', 'b1']
+        ]
+      )
     )
     expect(of(a, 'a1').community).toBe(of(a, 'a2').community)
     expect(of(a, 'a1').community).not.toBe(of(a, 'b1').community)
@@ -110,8 +168,8 @@ describe('insights', () => {
         node('ghost:missing', { label: 'missing', exists: false })
       ],
       edges: [
-        { from: 'A', to: 'B' },
-        { from: 'A', to: 'ghost:missing' }
+        { from: 'A', to: 'B', kind: 'link' as const },
+        { from: 'A', to: 'ghost:missing', kind: 'link' as const }
       ]
     }
     const a = analyzeGraph(g)
@@ -123,7 +181,7 @@ describe('insights', () => {
   it('does not count a ghost as an orphan or a dead end', () => {
     const g: LinkGraph = {
       nodes: [node('A'), node('ghost:x', { label: 'x', exists: false })],
-      edges: [{ from: 'A', to: 'ghost:x' }]
+      edges: [{ from: 'A', to: 'ghost:x', kind: 'link' as const }]
     }
     const a = analyzeGraph(g)
     expect(a.insights.orphans).toEqual([])
@@ -139,7 +197,10 @@ describe('vault stats', () => {
         node('B', { words: 50 }),
         node('ghost:g', { label: 'g', exists: false })
       ],
-      edges: [{ from: 'A', to: 'B' }, { from: 'A', to: 'ghost:g' }]
+      edges: [
+        { from: 'A', to: 'B', kind: 'link' as const },
+        { from: 'A', to: 'ghost:g', kind: 'link' as const }
+      ]
     }
     const a = analyzeGraph(g)
     expect(a.stats).toMatchObject({ notes: 2, ghosts: 1, links: 2, words: 150 })
@@ -147,7 +208,15 @@ describe('vault stats', () => {
   })
 
   it('buckets notes by out-link count', () => {
-    const a = analyzeGraph(graph(['A', 'B', 'C'], [['A', 'B'], ['A', 'C']]))
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'C'],
+        [
+          ['A', 'B'],
+          ['A', 'C']
+        ]
+      )
+    )
     expect(a.stats.linkHistogram[0]).toBe(2) // B and C link nowhere
     expect(a.stats.linkHistogram[2]).toBe(1) // A links twice
   })
@@ -172,7 +241,15 @@ describe('determinism', () => {
   it('produces identical output for identical input', () => {
     const g = graph(
       ['a', 'b', 'c', 'd', 'e', 'f'],
-      [['a', 'b'], ['b', 'c'], ['c', 'a'], ['c', 'd'], ['d', 'e'], ['e', 'f'], ['f', 'd']]
+      [
+        ['a', 'b'],
+        ['b', 'c'],
+        ['c', 'a'],
+        ['c', 'd'],
+        ['d', 'e'],
+        ['e', 'f'],
+        ['f', 'd']
+      ]
     )
     expect(JSON.stringify(analyzeGraph(g))).toBe(JSON.stringify(analyzeGraph(g)))
   })

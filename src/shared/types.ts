@@ -40,6 +40,14 @@ export interface GraphNode {
   id: string
   label: string
   exists: boolean
+  /**
+   * A note, or a source file.
+   *
+   * The vault is a folder, and a folder with code in it has two kinds of thing
+   * that link to each other in two different ways. Drawing both and saying
+   * which is which beats drawing half of it.
+   */
+  kind: 'note' | 'code'
   /** Total link degree (in + out) — drives node size. */
   degree: number
   /** Folder holding the note, relative to the vault root ('' at the root). */
@@ -55,6 +63,8 @@ export interface GraphNode {
 export interface GraphEdge {
   from: string
   to: string
+  /** `link` is a wikilink between notes; `import` is one file requiring another. */
+  kind: 'link' | 'import'
 }
 
 /** The raw link graph, before analysis. */

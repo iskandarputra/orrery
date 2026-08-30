@@ -16,6 +16,7 @@ import { SettingsModal } from '@/components/settings/SettingsModal'
 import { McpApprovalModal } from '@/components/McpApprovalModal'
 import { McpElicitModal, McpPromptModal, McpSamplingModal } from '@/components/McpElicitModal'
 import { Sidebar } from '@/components/Sidebar'
+import { SidebarRail } from '@/components/SidebarRail'
 import { StatusBar } from '@/components/StatusBar'
 import { TabBar } from '@/components/TabBar'
 import { Toast } from '@/components/Toast'
@@ -74,6 +75,7 @@ export function App(): React.JSX.Element {
 
   return (
     <div className={`app${zenMode ? ' app--zen' : ''}`}>
+      {!zenMode && <SidebarRail />}
       {!zenMode && <Sidebar />}
       <main className="main">
         <TabBar />

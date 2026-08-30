@@ -7,6 +7,7 @@ function note(label: string, over: Partial<AnalyzedGraphNode> = {}): AnalyzedGra
     id: `/v/${label}.md`,
     label,
     exists: true,
+    kind: 'note',
     degree: 0,
     folder: '',
     words: 100,

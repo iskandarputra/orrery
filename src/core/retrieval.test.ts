@@ -3,11 +3,24 @@ import { describe, expect, it } from 'vitest'
 import { selectContext, type ScoredChunk } from './retrieval'
 
 function node(id: string): GraphNode {
-  return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0, tags: [] }
+  return {
+    id,
+    label: id,
+    exists: true,
+    kind: 'note',
+    degree: 0,
+    folder: '',
+    words: 0,
+    mtimeMs: 0,
+    tags: []
+  }
 }
 
 function graph(ids: string[], links: [string, string][]): LinkGraph {
-  return { nodes: ids.map(node), edges: links.map(([from, to]) => ({ from, to })) }
+  return {
+    nodes: ids.map(node),
+    edges: links.map(([from, to]) => ({ from, to, kind: 'link' as const }))
+  }
 }
 
 const chunk = (path: string, score: number, line = 1): ScoredChunk => ({
@@ -28,7 +41,7 @@ describe('selectContext', () => {
 
   it('pulls in a note linked from the best hit over an unrelated one', () => {
     // B scores below far.md on text alone, but A (the top hit) links to it.
-    const chunks = [chunk('/A.md', 0.90), chunk('/far.md', 0.72), chunk('/B.md', 0.70)]
+    const chunks = [chunk('/A.md', 0.9), chunk('/far.md', 0.72), chunk('/B.md', 0.7)]
     const picked = selectContext({ chunks, graph: g, k: 2, seeds: 1 })
     expect(picked.map((c) => c.path)).toEqual(['/A.md', '/B.md'])
   })

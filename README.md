@@ -95,6 +95,15 @@ the view to whatever sits within _n_ hops of the note you are reading. A note
 you have linked to but never written appears as a ghost, so the gaps show up
 alongside the structure.
 
+**Code is on the map too.** A vault is a folder, and a folder with source in it
+has two kinds of link: notes point at each other with wikilinks, files point at
+each other with imports. Both are drawn, and a note that links `[[pane]]`
+reaches `pane.ts`, so the writing and the code are one shape rather than two.
+Imports are read from the file for the usual languages, and only ever resolved
+to files inside the vault: a dependency on `react` is real but it is not part of
+this folder. Colour by "Notes or code" to tell them apart, or switch code off in
+the graph's own settings.
+
 `Ctrl+P` opens any note by fuzzy name and `Ctrl+Shift+P` runs any of 61
 commands. In the same box, `:` jumps to a line and `@` jumps to a heading or a
 declaration inside the file you are looking at. Prompts from connected MCP

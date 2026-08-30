@@ -1,6 +1,6 @@
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AnalyzedGraphNode, GraphEdge } from '@shared/types'
+import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 
@@ -14,7 +14,7 @@ interface SimNode extends AnalyzedGraphNode {
 /** What node size means. Links is raw count; the others come from the analysis. */
 type SizeBy = 'links' | 'influence' | 'bridge'
 /** What node colour means. */
-type ColorBy = 'none' | 'cluster' | 'folder'
+type ColorBy = 'none' | 'cluster' | 'folder' | 'kind'
 
 /**
  * Groups are ranked by size and the eight biggest take the theme's validated
@@ -72,6 +72,9 @@ export function GraphView(): React.JSX.Element | null {
   const close = (): void => useStore.setState({ graphOpen: false })
   const rootPath = useStore((s) => s.rootPath)
   const loadGraph = useStore((s) => s.loadGraph)
+  const includeCode = useStore((s) => s.settings.graph.includeCode)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const setIncludeCode = (on: boolean): void => updateSettings({ graph: { includeCode: on } })
   const activePath = useStore((s) =>
     s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null
   )
@@ -99,6 +102,8 @@ export function GraphView(): React.JSX.Element | null {
   /** Cluster / folder → palette slot, biggest first. */
   const clusterRankRef = useRef<Map<string, number>>(new Map())
   const folderRankRef = useRef<Map<string, number>>(new Map())
+  /** Set by the canvas effect, so a rescan can reach the running view. */
+  const ingestRef = useRef<((data: GraphAnalysis | null) => void) | null>(null)
   const zoomControlsRef = useRef<{
     zoomIn(): void
     zoomOut(): void
@@ -139,7 +144,14 @@ export function GraphView(): React.JSX.Element | null {
     workNodesRef.current = nodes
     workEdgesRef.current = edges
     workByIdRef.current = byId
-    setStatus(`${nodes.length} notes · ${edges.length} links`)
+    // Named for what is actually on the map: calling a source file a note was
+    // fine while the graph only had notes in it.
+    const code = nodes.filter((n) => n.kind === 'code').length
+    setStatus(
+      code > 0
+        ? `${nodes.length - code} notes · ${code} files · ${edges.length} links`
+        : `${nodes.length} notes · ${edges.length} links`
+    )
   }, [activePath])
 
   const rebuildRef = useRef(rebuild)
@@ -241,6 +253,9 @@ export function GraphView(): React.JSX.Element | null {
       const c = ctlRef.current
       if (c.colorBy === 'cluster') return slotColor(clusterRankRef.current.get(String(n.community)))
       if (c.colorBy === 'folder') return slotColor(folderRankRef.current.get(n.folder))
+      // Notes and code in two colours, which is the first question anyone asks
+      // of a map that has both in it.
+      if (c.colorBy === 'kind') return n.kind === 'code' ? colors.viz[1]! : colors.viz[0]!
       return colors.node
     }
 
@@ -396,8 +411,15 @@ export function GraphView(): React.JSX.Element | null {
       if (!disposed) raf = requestAnimationFrame(tick)
     }
 
-    setStatus('Building graph…')
-    void loadGraph().then((data) => {
+    /**
+     * Take a freshly scanned graph and make it the one on screen.
+     *
+     * Held in a ref as well as called here, because the graph can be rescanned
+     * while the view is open — switching code files on is a different walk, not
+     * a filter — and the result has to reach the canvas that is already
+     * running.
+     */
+    const ingest = (data: GraphAnalysis | null): void => {
       if (disposed || !data) return
       const all = new Map<string, SimNode>()
       data.nodes.forEach((n, i) => {
@@ -419,8 +441,13 @@ export function GraphView(): React.JSX.Element | null {
       folderRankRef.current = rankByFrequency(data.nodes.map((n) => n.folder))
       readyRef.current = true
       rebuildRef.current()
+      cancelAnimationFrame(raf)
       raf = requestAnimationFrame(tick)
-    })
+    }
+    ingestRef.current = ingest
+
+    setStatus('Building graph…')
+    void loadGraph().then(ingest)
 
     const onMove = (e: MouseEvent): void => {
       if (drag) {
@@ -679,7 +706,8 @@ export function GraphView(): React.JSX.Element | null {
                     options={[
                       ['none', 'Nothing'],
                       ['cluster', 'Topic cluster'],
-                      ['folder', 'Folder']
+                      ['folder', 'Folder'],
+                      ['kind', 'Notes or code']
                     ]}
                     set={(v) => up({ colorBy: v as ColorBy })}
                   />
@@ -697,6 +725,16 @@ export function GraphView(): React.JSX.Element | null {
                     set={(v) => up({ labels: v })}
                   />
                   <Check label="Scale node size" on={ctl.scale} set={(v) => up({ scale: v })} />
+                  <Check
+                    label="Include code files"
+                    on={includeCode}
+                    set={(v) => {
+                      setIncludeCode(v)
+                      // A different walk, not a filter: rescan, then hand the
+                      // result to the canvas that is already running.
+                      void loadGraph(true).then((data) => ingestRef.current?.(data))
+                    }}
+                  />
                 </section>
                 <button className="graph__reset" onClick={() => setCtl({ ...DEFAULTS })}>
                   Reset to defaults

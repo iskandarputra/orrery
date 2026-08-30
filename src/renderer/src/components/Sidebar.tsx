@@ -39,6 +39,10 @@ function SidebarEmpty(): React.JSX.Element {
   )
 }
 
+/** Narrower than this and the tree is unreadable; wider and it is a document. */
+const MIN_WIDTH = 160
+const MAX_WIDTH = 600
+
 export function Sidebar(): React.JSX.Element | null {
   const visible = useStore((s) => s.settings.sidebar.visible)
   const width = useStore((s) => s.settings.sidebar.width)
@@ -46,29 +50,45 @@ export function Sidebar(): React.JSX.Element | null {
   const openFolder = useStore((s) => s.openFolder)
   const setSidebarWidth = useStore((s) => s.setSidebarWidth)
   const collapseAllDirs = useStore((s) => s.collapseAllDirs)
-  const openSettings = useStore((s) => s.openSettings)
-  const toggleGraph = useStore((s) => s.toggleGraph)
-  const openPalette = useStore((s) => s.openPalette)
   const setTreeEdit = useStore((s) => s.setTreeEdit)
   const noteIndex = useStore((s) => s.noteIndex)
   const refreshTree = useStore((s) => s.refreshTree)
   const filter = useStore((s) => s.fileTreeFilter)
   const setFilter = useStore((s) => s.setFileTreeFilter)
   const dragging = useRef(false)
+  const asideRef = useRef<HTMLElement>(null)
 
+  /**
+   * Resize by writing to the element, and save once at the end.
+   *
+   * The width used to be a setting written on every mouse move, which meant a
+   * store update, a re-render of everything subscribed to settings, an IPC
+   * message and a debounced disk write per pixel of drag. That is what made it
+   * feel like it was catching up rather than following.
+   */
   const startResize = useCallback(
     (event: React.MouseEvent) => {
       event.preventDefault()
+      const el = asideRef.current
+      if (!el) return
       dragging.current = true
       document.body.classList.add('is-resizing')
+      // Where the pointer sits inside the handle, so the edge does not jump to
+      // the cursor on the first pixel of movement.
+      const grip = event.clientX - el.getBoundingClientRect().right
+      let latest = el.getBoundingClientRect().width
+
       const onMove = (e: MouseEvent): void => {
-        if (dragging.current) setSidebarWidth(Math.min(600, Math.max(160, e.clientX)))
+        if (!dragging.current) return
+        latest = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX - grip))
+        el.style.width = `${latest}px`
       }
       const onUp = (): void => {
         dragging.current = false
         document.body.classList.remove('is-resizing')
         window.removeEventListener('mousemove', onMove)
         window.removeEventListener('mouseup', onUp)
+        setSidebarWidth(Math.round(latest))
       }
       window.addEventListener('mousemove', onMove)
       window.addEventListener('mouseup', onUp)
@@ -79,7 +99,7 @@ export function Sidebar(): React.JSX.Element | null {
   if (!visible) return null
 
   return (
-    <aside className="sidebar" style={{ width }}>
+    <aside className="sidebar" ref={asideRef} style={{ width }}>
       <div className="sidebar__header">
         <div className="sidebar__header-top">
           <div className="sidebar__workspace-info">
@@ -118,7 +138,11 @@ export function Sidebar(): React.JSX.Element | null {
                 <button className="icon-btn" title="Collapse all folders" onClick={collapseAllDirs}>
                   <Icon name="collapse-all" size={14} />
                 </button>
-                <button className="icon-btn" title="Refresh files" onClick={() => void refreshTree()}>
+                <button
+                  className="icon-btn"
+                  title="Refresh files"
+                  onClick={() => void refreshTree()}
+                >
                   <Icon name="refresh" size={14} />
                 </button>
               </>
@@ -157,35 +181,6 @@ export function Sidebar(): React.JSX.Element | null {
       </div>
 
       <div className="sidebar__scroll">{rootPath ? <FileTree /> : <SidebarEmpty />}</div>
-
-      <div className="sidebar__footer">
-        <div className="sidebar__footer-nav">
-          <button
-            className="sidebar__footer-btn"
-            title="Search notes or commands (Ctrl+P)"
-            onClick={() => openPalette('files')}
-          >
-            <Icon name="search" size={14} />
-            <span>Search</span>
-          </button>
-          <button
-            className="sidebar__footer-btn"
-            title="Open Graph View (Ctrl+Shift+G)"
-            onClick={toggleGraph}
-          >
-            <Icon name="diagram" size={14} />
-            <span>Graph</span>
-          </button>
-          <button
-            className="sidebar__footer-btn"
-            title="Preferences (Ctrl+,)"
-            onClick={openSettings}
-          >
-            <Icon name="gear" size={14} />
-            <span>Settings</span>
-          </button>
-        </div>
-      </div>
 
       <div className="sidebar__resizer" onMouseDown={startResize} />
     </aside>

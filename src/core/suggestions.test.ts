@@ -3,11 +3,24 @@ import { describe, expect, it } from 'vitest'
 import { noteCentroid, suggestLinks } from './suggestions'
 
 function node(id: string): GraphNode {
-  return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0, tags: [] }
+  return {
+    id,
+    label: id,
+    exists: true,
+    kind: 'note',
+    degree: 0,
+    folder: '',
+    words: 0,
+    mtimeMs: 0,
+    tags: []
+  }
 }
 
 function graph(ids: string[], links: [string, string][]): LinkGraph {
-  return { nodes: ids.map(node), edges: links.map(([from, to]) => ({ from, to })) }
+  return {
+    nodes: ids.map(node),
+    edges: links.map(([from, to]) => ({ from, to, kind: 'link' as const }))
+  }
 }
 
 describe('noteCentroid', () => {
@@ -34,7 +47,10 @@ describe('suggestLinks', () => {
   ])
 
   it('suggests the semantically close note that is not linked yet', () => {
-    const g = graph(['/v/A.md', '/v/Twin.md', '/v/Linked.md', '/v/Other.md'], [['/v/A.md', '/v/Linked.md']])
+    const g = graph(
+      ['/v/A.md', '/v/Twin.md', '/v/Linked.md', '/v/Other.md'],
+      [['/v/A.md', '/v/Linked.md']]
+    )
     const suggestions = suggestLinks({ from: '/v/A.md', vectors, graph: g })
     expect(suggestions.map((s) => s.id)).toEqual(['/v/Twin.md'])
     expect(suggestions[0]!.similarity).toBeGreaterThan(0.9)
@@ -52,7 +68,10 @@ describe('suggestLinks', () => {
     // A → Linked → Twin: Twin is two hops away.
     const g = graph(
       ['/v/A.md', '/v/Twin.md', '/v/Linked.md'],
-      [['/v/A.md', '/v/Linked.md'], ['/v/Linked.md', '/v/Twin.md']]
+      [
+        ['/v/A.md', '/v/Linked.md'],
+        ['/v/Linked.md', '/v/Twin.md']
+      ]
     )
     const [twin] = suggestLinks({ from: '/v/A.md', vectors, graph: g })
     expect(twin?.hops).toBe(2)
@@ -74,7 +93,10 @@ describe('suggestLinks', () => {
     // Near is two hops from A; Far is in another island entirely.
     const g = graph(
       ['/v/A.md', '/v/Near.md', '/v/Far.md', '/v/Hop.md'],
-      [['/v/A.md', '/v/Hop.md'], ['/v/Hop.md', '/v/Near.md']]
+      [
+        ['/v/A.md', '/v/Hop.md'],
+        ['/v/Hop.md', '/v/Near.md']
+      ]
     )
     const ranked = suggestLinks({ from: '/v/A.md', vectors: close, graph: g })
     expect(ranked.map((s) => s.id)).toEqual(['/v/Far.md', '/v/Near.md'])

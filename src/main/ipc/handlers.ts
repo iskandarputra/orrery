@@ -283,8 +283,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       })
   )
 
-  handle('workspace:graph', z.object({ rootPath: z.string().min(1) }), (_e, req) =>
-    links.graph(req.rootPath)
+  handle(
+    'workspace:graph',
+    z.object({ rootPath: z.string().min(1), withCode: z.boolean().optional() }),
+    (_e, req) => links.graph(req.rootPath, req.withCode === true)
   )
 
   handle('plugins:list', null, async () => {

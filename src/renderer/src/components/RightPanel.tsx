@@ -330,6 +330,9 @@ function DocStatsBody(): React.JSX.Element {
   )
 }
 
+/** The rail beside the panel, which the pointer's distance from the edge includes. */
+const RAIL_WIDTH = 44
+
 const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'outline', label: 'Outline', icon: 'list' },
   { id: 'backlinks', label: 'Links', icon: 'link' },
@@ -350,20 +353,34 @@ export function RightPanel(): React.JSX.Element {
   const width = useStore((s) => s.settings.rightPanel.width)
   const setWidth = useStore((s) => s.setRightPanelWidth)
   const dragging = useRef(false)
+  const asideRef = useRef<HTMLElement>(null)
 
+  /**
+   * As the sidebar does it: the element's own width while dragging, the
+   * setting once at the end. A width written per mouse move is a store update,
+   * an IPC message and a disk write per pixel.
+   */
   const startResize = useCallback(
     (event: React.MouseEvent) => {
       event.preventDefault()
+      const el = asideRef.current
+      if (!el) return
       dragging.current = true
       document.body.classList.add('is-resizing')
+      const grip = event.clientX - el.getBoundingClientRect().left
+      let latest = el.getBoundingClientRect().width
+
       const onMove = (e: MouseEvent): void => {
-        if (dragging.current) setWidth(Math.min(720, Math.max(220, window.innerWidth - e.clientX)))
+        if (!dragging.current) return
+        latest = Math.min(720, Math.max(220, window.innerWidth - (e.clientX - grip) - RAIL_WIDTH))
+        el.style.width = `${latest}px`
       }
       const onUp = (): void => {
         dragging.current = false
         document.body.classList.remove('is-resizing')
         window.removeEventListener('mousemove', onMove)
         window.removeEventListener('mouseup', onUp)
+        setWidth(Math.round(latest))
       }
       window.addEventListener('mousemove', onMove)
       window.addEventListener('mouseup', onUp)
@@ -376,7 +393,7 @@ export function RightPanel(): React.JSX.Element {
   return (
     <>
       {panel && (
-        <aside className="rpanel" style={{ width }}>
+        <aside className="rpanel" ref={asideRef} style={{ width }}>
           <div className="rpanel__resizer" onMouseDown={startResize} />
           <div className="rpanel__title-row">
             {active && <Icon name={active.icon} size={13} className="rpanel__title-icon" />}

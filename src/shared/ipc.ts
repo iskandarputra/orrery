@@ -169,8 +169,13 @@ export interface IpcInvokeContract {
     }
     res: BacklinkHit[]
   }
-  /** Wikilink graph of the whole vault, with its structural analysis. */
-  'workspace:graph': { req: { rootPath: string }; res: GraphAnalysis }
+  /**
+   * The vault's graph, with its structural analysis.
+   *
+   * `withCode` widens it from wikilinks between notes to imports between
+   * source files as well, which is a different walk rather than a filter.
+   */
+  'workspace:graph': { req: { rootPath: string; withCode?: boolean }; res: GraphAnalysis }
 
   /** User plugin sources from <userData>/plugins/*.js. */
   'plugins:list': { req: void; res: { name: string; source: string }[] }

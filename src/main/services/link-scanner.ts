@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fingerprintVault, type FileStamp } from '@core/fingerprint'
 import { buildGraph, type GraphFile } from '@core/graph'
+import { importsFamily } from '@core/code-links'
 import { matchesAnyGlob, parsePatternList } from '@core/glob'
 import { analyzeGraph } from '@core/metrics'
 import { buildSearchMatcher, type SearchOptions } from '@core/search-query'
@@ -10,6 +11,15 @@ import type { BacklinkHit, GraphAnalysis } from '@shared/types'
 import type { SidecarClient } from './sidecar'
 
 const IGNORED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg'])
+
+/**
+ * Skipped when the graph walks source files, and only then.
+ *
+ * Build output is code the vault did not write, and a map of it is a picture
+ * of a bundler rather than of a project. Search still looks in these, because
+ * someone typing `path:dist` is asking for exactly that.
+ */
+const BUILD_DIRS = new Set(['dist', 'build', 'out', 'target', 'vendor', '__pycache__', '.venv'])
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_HITS = 200
 
@@ -42,7 +52,7 @@ export class LinkScanner {
   }
 
   /** Every markdown file's stats, without reading any of them. */
-  private async stamps(rootPath: string): Promise<FileStamp[]> {
+  private async stamps(rootPath: string, withCode = false): Promise<FileStamp[]> {
     const found: FileStamp[] = []
     const visit = async (dir: string): Promise<void> => {
       let entries
@@ -53,12 +63,16 @@ export class LinkScanner {
       }
       for (const entry of entries) {
         if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
+        if (withCode && BUILD_DIRS.has(entry.name)) continue
         const full = path.join(dir, entry.name)
         if (entry.isDirectory()) {
           await visit(full)
           continue
         }
-        if (!entry.isFile() || !/\.(md|markdown|mdown|mkd)$/i.test(entry.name)) continue
+        if (!entry.isFile()) continue
+        // Notes always; source files when the graph is asked to include them.
+        const markdown = /\.(md|markdown|mdown|mkd)$/i.test(entry.name)
+        if (!markdown && !(withCode && importsFamily(entry.name))) continue
         try {
           const stat = await fs.stat(full)
           if (stat.size > MAX_FILE_BYTES) continue
@@ -78,9 +92,17 @@ export class LinkScanner {
    * is returned and not a single note is read. The `stat` walk that decides
    * this is cheap; reading the files is what costs.
    */
-  async graph(rootPath: string): Promise<GraphAnalysis> {
-    const stamps = await this.stamps(rootPath)
-    const fingerprint = fingerprintVault(stamps)
+  /**
+   * The vault's graph.
+   *
+   * `withCode` widens the walk from markdown to source files, so imports join
+   * the wikilinks. It is part of the cache key rather than a filter afterwards:
+   * the two walks read different files, and answering one from the other's
+   * cache would show a map with half of itself missing.
+   */
+  async graph(rootPath: string, withCode = false): Promise<GraphAnalysis> {
+    const stamps = await this.stamps(rootPath, withCode)
+    const fingerprint = `${withCode ? 'code:' : 'notes:'}${fingerprintVault(stamps)}`
     const cached = this.cache.get(rootPath)
     if (cached?.fingerprint === fingerprint) return cached.analysis
 

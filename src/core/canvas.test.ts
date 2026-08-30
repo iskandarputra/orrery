@@ -115,11 +115,21 @@ describe('geometry', () => {
 
 describe('seedCanvasFromNotes', () => {
   function node(id: string): GraphNode {
-    return { id, label: id, exists: true, degree: 0, folder: '', words: 0, mtimeMs: 0, tags: [] }
+    return {
+      id,
+      label: id,
+      exists: true,
+      kind: 'note',
+      degree: 0,
+      folder: '',
+      words: 0,
+      mtimeMs: 0,
+      tags: []
+    }
   }
   const graph: LinkGraph = {
     nodes: ['/v/A.md', '/v/B.md', '/v/C.md'].map(node),
-    edges: [{ from: '/v/A.md', to: '/v/B.md' }]
+    edges: [{ from: '/v/A.md', to: '/v/B.md', kind: 'link' }]
   }
 
   it('turns notes into file nodes and keeps the links between them', () => {
@@ -140,12 +150,19 @@ describe('seedCanvasFromNotes', () => {
       nodes: Array.from({ length: 12 }, (_, i) => node(`/v/n${i}.md`)),
       edges: []
     }
-    const canvas = seedCanvasFromNotes(many, many.nodes.map((n) => n.id), '/v')
+    const canvas = seedCanvasFromNotes(
+      many,
+      many.nodes.map((n) => n.id),
+      '/v'
+    )
     for (const a of canvas.nodes) {
       for (const b of canvas.nodes) {
         if (a.id === b.id) continue
         const apart =
-          a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y
         expect(apart).toBe(true)
       }
     }
@@ -186,13 +203,12 @@ describe('selection geometry', () => {
   const b = textNode('b', 400, 300)
 
   it('selects every node a marquee touches', () => {
-    expect(nodesInBox([a, b], { x: -20, y: -20, width: 260, height: 160 }).map((n) => n.id)).toEqual([
-      'a'
-    ])
-    expect(nodesInBox([a, b], { x: -50, y: -50, width: 900, height: 900 }).map((n) => n.id)).toEqual([
-      'a',
-      'b'
-    ])
+    expect(
+      nodesInBox([a, b], { x: -20, y: -20, width: 260, height: 160 }).map((n) => n.id)
+    ).toEqual(['a'])
+    expect(
+      nodesInBox([a, b], { x: -50, y: -50, width: 900, height: 900 }).map((n) => n.id)
+    ).toEqual(['a', 'b'])
   })
 
   it('counts a partial overlap as selected', () => {

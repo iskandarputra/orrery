@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode, LinkGraph } from '@shared/types'
-import { dirname } from './paths'
+import { findImports, importsFamily, resolveImport } from './code-links'
+import { dirname, extname } from './paths'
 import { findTags } from './tags'
 import { findWikilinks } from './wikilinks'
 
@@ -14,6 +15,13 @@ export interface GraphFile {
   mtimeMs?: number
 }
 
+const MARKDOWN = /\.(md|markdown|mdown|mkd)$/i
+
+/** A note or a source file, decided by extension. */
+function kindOf(filePath: string): 'note' | 'code' {
+  return MARKDOWN.test(filePath) ? 'note' : 'code'
+}
+
 /** Folder holding the note, relative to the vault root ('' at the root). */
 function folderOf(filePath: string, rootPath: string): string {
   const dir = dirname(filePath)
@@ -22,8 +30,14 @@ function folderOf(filePath: string, rootPath: string): string {
 }
 
 /**
- * Build the vault link graph from note contents (pure — tested in Node).
- * Nodes carry the per-note facts analysis needs — words, folder, mtime — so
+ * Build the vault link graph from file contents (pure — tested in Node).
+ *
+ * Two kinds of edge, because a vault that holds code has two kinds of link.
+ * Notes point at each other with `[[wikilinks]]`; source files point at each
+ * other with imports. Both are drawn, and a wikilink naming a source file
+ * connects the two halves, which is the point of having them in one map.
+ *
+ * Nodes carry the per-file facts analysis needs — words, folder, mtime — so
  * the vault is read once; `analyzeGraph` adds the structural measures.
  */
 export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
@@ -36,6 +50,7 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       id: f.path,
       label: f.stem,
       exists: true,
+      kind: kindOf(f.path),
       degree: 0,
       folder: folderOf(f.path, rootPath),
       words: f.content.match(WORD_RE)?.length ?? 0,
@@ -56,6 +71,7 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
           id: to,
           label: link.target,
           exists: false,
+          kind: 'note',
           degree: 0,
           folder: '',
           words: 0,
@@ -67,10 +83,34 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ from: f.path, to })
+      edges.push({ from: f.path, to, kind: 'link' })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
     }
   }
+
+  // Imports, for the files that have them. Only edges to files that are in the
+  // vault: a dependency on `react` is real but it is not part of this folder,
+  // and drawing every package would bury the map it is meant to be.
+  const paths = files.map((f) => f.path)
+  for (const f of files) {
+    if (!importsFamily(f.path)) continue
+    for (const found of findImports(f.content, f.path)) {
+      const to = resolveImport(f.path, found.spec, paths)
+      if (!to || to === f.path) continue
+      const key = `${f.path}→${to}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      edges.push({ from: f.path, to, kind: 'import' })
+      nodes.get(f.path)!.degree++
+      nodes.get(to)!.degree++
+    }
+  }
+
   return { nodes: [...nodes.values()], edges }
+}
+
+/** Extension without the dot, for a graph that colours by language. */
+export function languageOf(filePath: string): string {
+  return extname(filePath).replace('.', '').toLowerCase()
 }

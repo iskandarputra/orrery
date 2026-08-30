@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -47,6 +42,21 @@ project/
 > body of the callout
 `
 
+/**
+ * Put one end of the document on screen.
+ *
+ * CodeMirror renders the viewport rather than the document, so a construct
+ * below the fold has no DOM to measure. This fixture is deliberately taller
+ * than the window, and which half is on screen depends on the width of
+ * everything beside the editor, so no test may assume it.
+ */
+async function scrollTo(end: 'top' | 'bottom'): Promise<void> {
+  await page.locator('.cm-scroller').evaluate((el, where) => {
+    el.scrollTop = where === 'top' ? 0 : el.scrollHeight
+  }, end)
+  await page.waitForTimeout(120)
+}
+
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-render-'))
   writeFileSync(join(vault, 'Render.md'), DOC)
@@ -55,6 +65,8 @@ test.beforeAll(async () => {
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Render.md')
   await page.locator('.tree-row--file', { hasText: 'Render.md' }).click()
+  await page.waitForSelector('.cm-content')
+  await scrollTo('bottom')
   await page.waitForSelector('.cm-or-code-line')
 })
 
@@ -64,6 +76,7 @@ test.afterAll(async () => {
 })
 
 test('code blocks keep their columns', async () => {
+  await scrollTo('bottom')
   // Never wrapped: an ASCII tree or an aligned comment must not reflow.
   const whiteSpace = await page
     .locator('.cm-or-code-line')
@@ -78,7 +91,7 @@ test('code blocks keep their columns', async () => {
     .evaluate((el) =>
       Array.from(el.querySelectorAll('span')).map((s) => getComputedStyle(s).fontSize)
     )
-    expect(new Set(sizes).size).toBe(1)
+  expect(new Set(sizes).size).toBe(1)
 
   // Indented (4-space) code blocks get the same card as fenced ones.
   const indented = await page.evaluate(() =>
@@ -90,6 +103,7 @@ test('code blocks keep their columns', async () => {
 })
 
 test('list items hang their wrapped lines under the item text', async () => {
+  await scrollTo('top')
   const rows = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.cm-or-li')).map((el) => {
       // One text node spanning a soft wrap yields one rect per visual line —
@@ -120,21 +134,26 @@ test('list items hang their wrapped lines under the item text', async () => {
 })
 
 test('blockquotes and callouts conceal their markers', async () => {
+  await scrollTo('bottom')
   const quote = await page.locator('.cm-or-blockquote').first().textContent()
   expect(quote).toBe('a quoted paragraph that lazily continues on a second source line')
 
-  const callout = await page.locator('.cm-or-callout--warning').first().evaluate((el) => ({
-    text: el.textContent,
-    title: el.querySelector('.cm-or-callout-title')?.textContent ?? null,
-    // `[!WARNING]` parses as a shortcut link — it must not render as one.
-    link: el.querySelector('.cm-or-link-text')?.textContent ?? null
-  }))
+  const callout = await page
+    .locator('.cm-or-callout--warning')
+    .first()
+    .evaluate((el) => ({
+      text: el.textContent,
+      title: el.querySelector('.cm-or-callout-title')?.textContent ?? null,
+      // `[!WARNING]` parses as a shortcut link — it must not render as one.
+      link: el.querySelector('.cm-or-link-text')?.textContent ?? null
+    }))
   expect(callout.title).toBe('Be careful')
   expect(callout.link).toBeNull()
   expect(callout.text).not.toContain('[!')
 })
 
 test('code fences hide until the cursor is on the fence line', async () => {
+  await scrollTo('bottom')
   // Nothing in the rendered document shows the fence syntax…
   await expect(page.locator('.cm-content')).not.toContainText('```')
   // …but the language badge survives as the card's header.

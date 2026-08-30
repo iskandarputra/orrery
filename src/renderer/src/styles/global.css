@@ -6103,3 +6103,53 @@ kbd {
   background: var(--or-accent);
   outline: none;
 }
+
+/* The rail down the left edge. Mirrors the right-hand one: same width, same
+   target size, same habit of outliving the panel it opens. */
+.sidebar-rail {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 44px;
+  padding: 8px 0;
+  background: var(--or-panel-bg);
+  border-right: 1px solid var(--or-border);
+}
+
+.sidebar-rail__btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--or-radius-sm);
+  color: var(--or-fg-muted);
+  cursor: pointer;
+  transition:
+    color var(--or-transition-fast),
+    background var(--or-transition-fast);
+}
+
+.sidebar-rail__btn:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.sidebar-rail__btn--active {
+  color: var(--or-accent-text);
+}
+
+/* The marker on the active view, on the edge the rail is attached to. */
+.sidebar-rail__btn--active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--or-accent);
+}
