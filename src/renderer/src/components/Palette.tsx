@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { basename, stem } from '@core/paths'
 import { fuzzyFilter } from '@core/fuzzy'
-import { buildNoteIndex } from '@core/notes'
+import { notesFromPaths } from '@core/notes'
 import { fileIcon } from '@core/file-icons'
 import { documentSymbols, parseLineTarget } from '@core/symbols'
 import { getActiveView } from '@/editor/active-view'
@@ -48,6 +48,9 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
   const close = useStore((s) => s.closePalette)
   // Every file, not only the notes: quick open is asked where a file is.
   const fileIndex = useStore((s) => s.fileIndex)
+  // A vault larger than the index can be opened; a file it never saw cannot be
+  // found by name, and saying nothing about that looks like a bug.
+  const indexTruncated = useStore((s) => s.indexTruncated)
   const openPaths = useStore((s) => s.openPaths)
   const settings = useStore((s) => s.settings)
   const picking = initialMode === 'templates'
@@ -417,6 +420,14 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           <span className="palette__hint">
             <kbd>Esc</kbd> close
           </span>
+          {indexTruncated && (
+            <span
+              className="palette__hint palette__hint--warn"
+              title="This folder has more files than the index holds, so some cannot be found by name. Vault search still reads every file."
+            >
+              partial index
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -433,8 +444,10 @@ function useTemplateFiles(active: boolean): { path: string; stem: string }[] {
     if (!active || !rootPath) return
     let stale = false
     const dir = [rootPath, folder].filter((part) => part.trim() !== '').join('/')
-    void invoke('fs:readTree', { path: dir })
-      .then((tree) => !stale && setFiles(buildNoteIndex(tree)))
+    // A flat walk rather than a tree read: the tree is fetched a directory at
+    // a time now, and a template two folders down still has to be offered.
+    void invoke('fs:listFiles', { path: dir, limit: 2000 })
+      .then(({ paths }) => !stale && setFiles(notesFromPaths(paths)))
       .catch(() => !stale && setFiles([]))
     return () => {
       stale = true

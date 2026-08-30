@@ -126,6 +126,22 @@ export interface IpcInvokeContract {
     res: FileWriteResult
   }
   'fs:readTree': { req: { path: string }; res: FileNode }
+  /**
+   * One directory's entries, fetched when it is opened in the tree.
+   *
+   * The tree is read a directory at a time: reading a whole vault before the
+   * window can show anything costs seconds and tens of megabytes on a folder
+   * that is somebody's entire Documents.
+   */
+  'fs:readDir': { req: { path: string }; res: FileNode[] }
+  /**
+   * Every file in the vault as a flat list, for opening by name and resolving
+   * links. Bounded — `truncated` says the vault was larger than the limit.
+   */
+  'fs:listFiles': {
+    req: { path: string; limit: number }
+    res: { paths: string[]; truncated: boolean }
+  }
   'fs:createFile': { req: { dirPath: string; name: string }; res: FileNode }
   /**
    * Create a note (and any missing parent folders) only if it isn't there yet.
@@ -285,6 +301,14 @@ export interface IpcInvokeContract {
   'editor:replaceMisspelling': { req: { word: string }; res: void }
   'fs:watch': { req: { path: string }; res: { watchId: string } }
   'fs:unwatch': { req: { watchId: string }; res: void }
+  /**
+   * The directories worth watching: the vault root and whichever are open.
+   *
+   * A recursive watch over a large folder is tens of thousands of file handles
+   * and a scan of every file in it, for events about directories nobody is
+   * looking at.
+   */
+  'fs:watchPaths': { req: { watchId: string; paths: string[] }; res: void }
 
   /** Versions of a note, newest first. */
   'history:list': { req: { path: string }; res: { id: string; at: number; bytes: number }[] }

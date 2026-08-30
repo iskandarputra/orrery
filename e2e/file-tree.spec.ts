@@ -89,3 +89,97 @@ test('opening a note in another branch moves the highlight', async () => {
   expect(after).toContain('Archive')
   expect(after).not.toContain('Alpha')
 })
+
+test('a folder is read when it is opened, not before', async () => {
+  // The tree used to be read to the bottom before the window could show
+  // anything, which on a real folder — 59,000 directories, 365,000 files — was
+  // eight seconds and seventy megabytes of JSON.
+  //
+  // What this covers is the behaviour from outside: a folder opens and its
+  // contents appear, one level at a time. It cannot see whether the data was
+  // fetched lazily, because a collapsed folder renders nothing either way —
+  // `file-system.test.ts` is where the shallow read itself is pinned down.
+  const fresh = mkdtempSync(join(tmpdir(), 'orrery-lazy-'))
+  mkdirSync(join(fresh, 'Deep', 'Deeper'), { recursive: true })
+  writeFileSync(join(fresh, 'Top.md'), '# Top\n')
+  writeFileSync(join(fresh, 'Deep', 'Middle.md'), '# Middle\n')
+  writeFileSync(join(fresh, 'Deep', 'Deeper', 'Bottom.md'), '# Bottom\n')
+
+  await openVault(page, fresh, 'Top.md')
+  await expect(page.locator('.tree-row--dir', { hasText: 'Deep' })).toBeVisible({ timeout: 15_000 })
+  // Present but unread: the folder is there and nothing inside it is.
+  await expect(page.locator('.tree-row--file', { hasText: 'Middle.md' })).toHaveCount(0)
+
+  await page.locator('.tree-row--dir', { hasText: 'Deep' }).first().click()
+  await expect(page.locator('.tree-row--file', { hasText: 'Middle.md' })).toBeVisible({
+    timeout: 10_000
+  })
+  // One level at a time: opening a folder does not read its children's children.
+  await expect(page.locator('.tree-row--file', { hasText: 'Bottom.md' })).toHaveCount(0)
+
+  await page.locator('.tree-row--dir', { hasText: 'Deeper' }).first().click()
+  await expect(page.locator('.tree-row--file', { hasText: 'Bottom.md' })).toBeVisible({
+    timeout: 10_000
+  })
+
+  rmSync(fresh, { recursive: true, force: true })
+})
+
+test('a note in a folder nobody has opened can still be found by name', async () => {
+  // The index is what quick open and wikilinks resolve against, and it cannot
+  // come from the tree any more: the tree only knows the parts somebody has
+  // expanded. A note three folders down has to be findable without going and
+  // looking for it first.
+  const fresh = mkdtempSync(join(tmpdir(), 'orrery-index-'))
+  mkdirSync(join(fresh, 'A', 'B', 'C'), { recursive: true })
+  writeFileSync(join(fresh, 'Start.md'), '# Start\n')
+  writeFileSync(join(fresh, 'A', 'B', 'C', 'Buried.md'), '# Buried\n')
+
+  await openVault(page, fresh, 'Start.md')
+  await expect(page.locator('.tree-row--dir', { hasText: 'A' }).first()).toBeVisible({
+    timeout: 15_000
+  })
+  await expect(page.locator('.tree-row--file', { hasText: 'Buried.md' })).toHaveCount(0)
+
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'app.quickOpen'
+    })
+  })
+  await page.locator('.palette__input').fill('Buried')
+  await expect(page.locator('.palette__item').first()).toContainText('Buried.md', {
+    timeout: 15_000
+  })
+  await page.keyboard.press('Escape')
+
+  rmSync(fresh, { recursive: true, force: true })
+})
+
+test('a file created on disk appears in the folder that is open', async () => {
+  // The watcher used to follow every directory in the vault; it now follows the
+  // ones on screen, which is what the tree can show a change in anyway. The
+  // contract that matters is unchanged: put a file there and it turns up.
+  const fresh = mkdtempSync(join(tmpdir(), 'orrery-watch-'))
+  mkdirSync(join(fresh, 'Watched'), { recursive: true })
+  writeFileSync(join(fresh, 'Root.md'), '# Root\n')
+  writeFileSync(join(fresh, 'Watched', 'One.md'), '# One\n')
+
+  await openVault(page, fresh, 'Root.md')
+  await page.locator('.tree-row--dir', { hasText: 'Watched' }).first().click()
+  await expect(page.locator('.tree-row--file', { hasText: 'One.md' })).toBeVisible({
+    timeout: 15_000
+  })
+
+  writeFileSync(join(fresh, 'Watched', 'Two.md'), '# Two\n')
+  await expect(page.locator('.tree-row--file', { hasText: 'Two.md' })).toBeVisible({
+    timeout: 20_000
+  })
+
+  // And in the root, which is watched from the moment the vault opens.
+  writeFileSync(join(fresh, 'Three.md'), '# Three\n')
+  await expect(page.locator('.tree-row--file', { hasText: 'Three.md' })).toBeVisible({
+    timeout: 20_000
+  })
+
+  rmSync(fresh, { recursive: true, force: true })
+})

@@ -6982,3 +6982,12 @@ kbd {
   border: 1px solid var(--or-border);
   box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
 }
+
+/* The quick-open index stops at a limit; a vault past it is told so rather
+   than quietly missing files. Muted like its neighbours — this is a fact about
+   the vault, not an error — with the underline that marks it as explaining
+   itself on hover. */
+.palette__hint--warn {
+  border-bottom: 1px dotted currentcolor;
+  cursor: help;
+}

@@ -47,41 +47,98 @@ export class FileSystemService {
     }
   }
 
-  /** Read a directory tree recursively. Files sorted after directories, both alphabetical. */
+  /**
+   * The vault's top level, one directory deep.
+   *
+   * Deliberately not recursive. This used to read the whole tree before the
+   * window could show anything, which is fine for a folder of notes and ruinous
+   * for a folder like `~/Documents`: measured on one with 59,000 directories
+   * and 365,000 files it took eight seconds of solid I/O and produced seventy
+   * megabytes of JSON, all of which then crossed the process boundary and was
+   * held in the renderer. A directory now arrives when somebody opens it.
+   *
+   * A directory that has not been read yet has no `children` at all, which is
+   * how the tree tells "empty" from "not looked at".
+   */
   async readTree(dirPath: string): Promise<FileNode> {
     try {
       const name = path.basename(dirPath)
-      return { name, path: dirPath, kind: 'directory', children: await this.readChildren(dirPath) }
+      return { name, path: dirPath, kind: 'directory', children: await this.readDir(dirPath) }
     } catch (err) {
       throw toIpcError(err)
     }
   }
 
-  private async readChildren(dirPath: string): Promise<FileNode[]> {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    const nodes: FileNode[] = []
-    for (const entry of entries) {
-      if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
-      const full = path.join(dirPath, entry.name)
-      if (entry.isDirectory()) {
-        nodes.push({
-          name: entry.name,
-          path: full,
-          kind: 'directory',
-          children: await this.readChildren(full)
-        })
-      } else if (entry.isFile()) {
-        nodes.push({ name: entry.name, path: full, kind: 'file' })
+  /** One directory's entries, sorted: directories first, then files, alphabetically. */
+  async readDir(dirPath: string): Promise<FileNode[]> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true })
+      const nodes: FileNode[] = []
+      for (const entry of entries) {
+        if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
+        const full = path.join(dirPath, entry.name)
+        if (entry.isDirectory()) nodes.push({ name: entry.name, path: full, kind: 'directory' })
+        else if (entry.isFile()) nodes.push({ name: entry.name, path: full, kind: 'file' })
       }
+      nodes.sort((a, b) =>
+        a.kind !== b.kind
+          ? a.kind === 'directory'
+            ? -1
+            : 1
+          : a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      )
+      return nodes
+    } catch (err) {
+      throw toIpcError(err)
     }
-    nodes.sort((a, b) =>
-      a.kind !== b.kind
-        ? a.kind === 'directory'
-          ? -1
-          : 1
-        : a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-    )
-    return nodes
+  }
+
+  /**
+   * Every file in the vault, as a flat list, for the things that need names
+   * rather than shape: opening a file by name, resolving a wikilink, listing
+   * the notes.
+   *
+   * Breadth-first and level-by-level in parallel, because the walk is I/O and
+   * doing it one directory at a time wastes almost all of the wait: the same
+   * 365,000-file folder takes 2.4 seconds this way against 8 serially, and
+   * comes back as a list of strings rather than a tree of objects.
+   *
+   * Bounded, and honest about it. A folder large enough to hit the limit is a
+   * folder where the index would cost more than it is worth, and the caller is
+   * told so it can say so rather than quietly missing files.
+   */
+  async listFiles(root: string, limit: number): Promise<{ paths: string[]; truncated: boolean }> {
+    const paths: string[] = []
+    let truncated = false
+    let level = [root]
+
+    while (level.length > 0 && !truncated) {
+      const next: string[] = []
+      await Promise.all(
+        level.map(async (dir) => {
+          let entries
+          try {
+            entries = await fs.readdir(dir, { withFileTypes: true })
+          } catch {
+            return // unreadable directory — skipped, not fatal
+          }
+          for (const entry of entries) {
+            if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
+            const full = path.join(dir, entry.name)
+            if (entry.isDirectory()) next.push(full)
+            else if (entry.isFile()) {
+              if (paths.length >= limit) {
+                truncated = true
+                return
+              }
+              paths.push(full)
+            }
+          }
+        })
+      )
+      level = next
+    }
+    return { paths, truncated }
   }
 
   async createFile(dirPath: string, name: string): Promise<FileNode> {

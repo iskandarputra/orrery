@@ -42,6 +42,27 @@ export function buildNoteIndex(tree: FileNode | null): NoteRef[] {
   return notes
 }
 
+/**
+ * The same two indexes, from a flat list of paths.
+ *
+ * The tree is read a directory at a time now, so it knows only about the parts
+ * somebody has opened — which is the wrong thing to build an index from, since
+ * a wikilink to a note three folders down has to resolve whether or not that
+ * folder has ever been expanded. Main walks the vault once and hands over the
+ * paths; the shape of the tree is not needed to know what is in it.
+ */
+export function notesFromPaths(paths: readonly string[]): NoteRef[] {
+  const notes: NoteRef[] = []
+  for (const filePath of paths) {
+    if (isMarkdownFile(filePath)) notes.push({ path: filePath, stem: stem(filePath) })
+  }
+  return notes
+}
+
+export function filesFromPaths(paths: readonly string[]): NoteRef[] {
+  return paths.map((filePath) => ({ path: filePath, stem: basename(filePath) }))
+}
+
 /** Resolve a wikilink target to a note (case-insensitive stem match). */
 export function resolveNote(index: readonly NoteRef[], target: string): NoteRef | null {
   const needle = target.trim().toLowerCase()

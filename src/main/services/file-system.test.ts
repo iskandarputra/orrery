@@ -119,13 +119,64 @@ describe('readTree', () => {
     expect(names).toEqual(['a.md', 'b.md'])
   })
 
-  it('descends into subdirectories', async () => {
+  it('stops at the top level, and says so by leaving children out', async () => {
+    // Reading the whole tree up front is what made opening a large folder take
+    // eight seconds and seventy megabytes. An unread directory has no
+    // `children` at all, which is how the tree tells it from an empty one.
     const sub = join(dir, 'sub')
     await fsvc.createDirectory(dir, 'sub')
     writeFileSync(join(sub, 'deep.md'), '')
     const tree = await fsvc.readTree(dir)
     const folder = (tree.children ?? []).find((c) => c.name === 'sub')
-    expect((folder?.children ?? []).map((c) => c.name)).toEqual(['deep.md'])
+    expect(folder?.kind).toBe('directory')
+    expect(folder?.children).toBeUndefined()
+  })
+
+  it('reads that subdirectory when it is asked for', async () => {
+    await fsvc.createDirectory(dir, 'sub')
+    writeFileSync(join(dir, 'sub', 'deep.md'), '')
+    expect((await fsvc.readDir(join(dir, 'sub'))).map((c) => c.name)).toEqual(['deep.md'])
+  })
+
+  it('refuses a directory that is not there rather than returning nothing', async () => {
+    // "Empty" and "gone" have to be different answers, or a vanished folder
+    // quietly looks like one somebody emptied.
+    await expect(fsvc.readDir(join(dir, 'nope'))).rejects.toThrow()
+  })
+})
+
+describe('listFiles', () => {
+  it('finds every file, however deep, and no directories', async () => {
+    await fsvc.createDirectory(dir, 'a')
+    await fsvc.createDirectory(join(dir, 'a'), 'b')
+    writeFileSync(join(dir, 'top.md'), '')
+    writeFileSync(join(dir, 'a', 'mid.md'), '')
+    writeFileSync(join(dir, 'a', 'b', 'deep.md'), '')
+
+    const { paths, truncated } = await fsvc.listFiles(dir, 100)
+    expect(paths.map((p) => p.replace(dir, '')).sort()).toEqual([
+      '/a/b/deep.md',
+      '/a/mid.md',
+      '/top.md'
+    ])
+    expect(truncated).toBe(false)
+  })
+
+  it('stops at the limit and admits it', async () => {
+    // A vault larger than the index is a vault where some files cannot be
+    // found by name, and the caller has to be able to say so.
+    for (let i = 0; i < 5; i++) writeFileSync(join(dir, `n${i}.md`), '')
+    const { paths, truncated } = await fsvc.listFiles(dir, 3)
+    expect(paths).toHaveLength(3)
+    expect(truncated).toBe(true)
+  })
+
+  it('skips the directories nobody wants indexed', async () => {
+    await fsvc.createDirectory(dir, 'node_modules')
+    writeFileSync(join(dir, 'node_modules', 'dep.md'), '')
+    writeFileSync(join(dir, 'real.md'), '')
+    const { paths } = await fsvc.listFiles(dir, 100)
+    expect(paths.map((p) => p.replace(dir, ''))).toEqual(['/real.md'])
   })
 })
 

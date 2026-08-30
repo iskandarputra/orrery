@@ -310,16 +310,26 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   },
 
   toggleDir(path) {
+    let opening = false
     set((s) => {
       const next = { ...s.expandedDirs }
       if (next[path]) delete next[path]
-      else next[path] = true
+      else {
+        next[path] = true
+        opening = true
+      }
       return { expandedDirs: next }
     })
+    // The tree is read a directory at a time, so opening one is what fetches
+    // it. Already-read directories are re-read too: a folder you come back to
+    // should show what is in it now, not what was in it when you first looked.
+    if (opening) void get().loadDir(path)
+    get().syncWatchPaths()
   },
 
   collapseAllDirs() {
     set({ expandedDirs: {} })
+    get().syncWatchPaths()
   },
 
   toggleFormattingToolbar() {

@@ -232,6 +232,12 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   )
 
   handle('fs:readTree', pathReq, (_e, req) => fs.readTree(req.path))
+  handle('fs:readDir', pathReq, (_e, req) => fs.readDir(req.path))
+  handle(
+    'fs:listFiles',
+    z.object({ path: z.string().min(1), limit: z.number().int().min(1).max(200_000) }),
+    (_e, req) => fs.listFiles(req.path, req.limit)
+  )
 
   handle(
     'fs:createFile',
@@ -463,6 +469,13 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('fs:watch', pathReq, async (_e, req) => ({ watchId: await watcher.watch(req.path) }))
 
   handle('fs:unwatch', z.object({ watchId: z.string() }), (_e, req) => watcher.unwatch(req.watchId))
+  handle(
+    'fs:watchPaths',
+    // Bounded: this is a list from the renderer, and every entry becomes a
+    // file handle.
+    z.object({ watchId: z.string(), paths: z.array(z.string().min(1)).max(2000) }),
+    (_e, req) => watcher.setPaths(req.watchId, req.paths)
+  )
 
   // --- version history -----------------------------------------------------
   handle('history:list', z.object({ path: z.string().min(1) }), (_e, req) => history.list(req.path))

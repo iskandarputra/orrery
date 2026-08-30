@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { FileNode } from '@shared/types'
-import { buildFileIndex, buildNoteIndex, resolveNote } from './notes'
+import {
+  buildFileIndex,
+  buildNoteIndex,
+  filesFromPaths,
+  notesFromPaths,
+  resolveNote
+} from './notes'
 
 const tree: FileNode = {
   name: 'vault',
@@ -93,5 +99,48 @@ describe('buildFileIndex', () => {
   it('leaves the note index alone, which links still resolve against', () => {
     // A wikilink must not resolve to a TypeScript file.
     expect(buildNoteIndex(tree).map((n) => n.stem)).toEqual(['Note'])
+  })
+})
+
+describe('notesFromPaths and filesFromPaths', () => {
+  const paths = ['/v/Index.md', '/v/src/main.ts', '/v/Folder/Deep.markdown', '/v/pic.png']
+
+  it('takes the markdown ones as notes, by their stems', () => {
+    expect(notesFromPaths(paths)).toEqual([
+      { path: '/v/Index.md', stem: 'Index' },
+      { path: '/v/Folder/Deep.markdown', stem: 'Deep' }
+    ])
+  })
+
+  it('takes everything as a file, by its whole name', () => {
+    // Quick open is asked "where is that file" and has to find anything —
+    // including the extension, because that is what people type.
+    expect(filesFromPaths(paths).map((f) => f.stem)).toEqual([
+      'Index.md',
+      'main.ts',
+      'Deep.markdown',
+      'pic.png'
+    ])
+  })
+
+  it('agrees with the tree walkers it replaces', () => {
+    // The tree is read lazily now, so these are what the indexes are actually
+    // built from; they must not quietly classify things differently.
+    const tree = {
+      name: 'v',
+      path: '/v',
+      kind: 'directory' as const,
+      children: [
+        { name: 'Index.md', path: '/v/Index.md', kind: 'file' as const },
+        {
+          name: 'src',
+          path: '/v/src',
+          kind: 'directory' as const,
+          children: [{ name: 'main.ts', path: '/v/src/main.ts', kind: 'file' as const }]
+        }
+      ]
+    }
+    expect(notesFromPaths(['/v/Index.md', '/v/src/main.ts'])).toEqual(buildNoteIndex(tree))
+    expect(filesFromPaths(['/v/Index.md', '/v/src/main.ts'])).toEqual(buildFileIndex(tree))
   })
 })
