@@ -36,6 +36,10 @@ interface Harness {
   asked: AskRequest[]
   /** What the next permission dialog answers with. */
   answer: { decision: 'allow' | 'deny' | 'never' | 'once' } | null
+  /** What an elicitation dialog answers with; null means it was closed. */
+  elicit: { action: 'accept' | 'decline' | 'cancel'; content?: Record<string, unknown> } | null
+  /** What the "may this server borrow the model" dialog answers with. */
+  sampling: { decision: 'allow' | 'deny' } | null
   changes: string[]
 }
 
@@ -50,6 +54,8 @@ function build(config: McpServerConfig, timeoutMs = 5000): Harness {
   const state: Harness = {
     asked: [],
     answer: { decision: 'once' },
+    elicit: { action: 'accept', content: {} },
+    sampling: { decision: 'allow' },
     changes: [],
     settings: () => settings,
     service: null as unknown as McpClientService
@@ -57,8 +63,17 @@ function build(config: McpServerConfig, timeoutMs = 5000): Harness {
 
   const ask = new AskUser((request) => {
     state.asked.push(request)
-    // Answers on the next tick, as a dialog does.
-    setTimeout(() => ask.answer(request.id, state.answer), 0)
+    // Answers on the next tick, as a dialog does. Elicitation has its own
+    // answer because it is a form rather than a yes or no.
+    setTimeout(() => {
+      const answer =
+        request.kind === 'elicitation'
+          ? state.elicit
+          : request.kind === 'sampling'
+            ? state.sampling
+            : state.answer
+      ask.answer(request.id, answer)
+    }, 0)
     return true
   }, 2000)
 
@@ -76,7 +91,8 @@ function build(config: McpServerConfig, timeoutMs = 5000): Harness {
       onServerChanged: (status) => state.changes.push(`${status.id}:${status.state}`),
       onActivity: () => {}
     },
-    () => dir
+    () => dir,
+    async (_system, prompt) => `a model would say something about: ${prompt.slice(0, 40)}`
   )
   return state
 }
@@ -294,6 +310,70 @@ describe('a server that dies', () => {
     const result = await harness.service.callTool('fixture', 'echo', { text: 'back' })
     expect(result.text).toBe('back')
   }, 20_000)
+})
+
+describe('what a server may ask the client for', () => {
+  it('answers roots with the vault, so a server knows where it may work', async () => {
+    harness = build(serverConfig())
+    await harness.service.connect('fixture')
+    harness.answer = { decision: 'allow' }
+
+    const result = await harness.service.callTool('fixture', 'where_am_i', {})
+    expect(result.text).toContain('file://')
+    expect(result.text).toContain(dir.split('/').pop() ?? '')
+  })
+
+  it("runs a sampling request through the user's own model, once allowed", async () => {
+    harness = build(serverConfig())
+    await harness.service.connect('fixture')
+    harness.answer = { decision: 'allow' }
+
+    const result = await harness.service.callTool('fixture', 'ask_the_model', {})
+
+    expect(result.text).toContain('a model would say something about')
+    // Two dialogs: one for the tool, one for lending the model.
+    expect(harness.asked.map((ask) => ask.kind)).toEqual(['tool', 'sampling'])
+  })
+
+  it('tells a server the model was declined rather than failing the call', async () => {
+    harness = build(serverConfig())
+    await harness.service.connect('fixture')
+    // The tool may run; lending the model may not. A refusal has to reach the
+    // server as an answer, or a server that asks politely looks broken.
+    harness.answer = { decision: 'allow' }
+    harness.sampling = { decision: 'deny' }
+
+    const result = await harness.service.callTool('fixture', 'ask_the_model', {})
+
+    expect(result.text).toBe('The user declined this request.')
+    expect(result.isError).toBe(false)
+  })
+
+  it('collects what a server elicits, and hands back what was typed', async () => {
+    harness = build(serverConfig())
+    await harness.service.connect('fixture')
+    harness.answer = { decision: 'allow' }
+    harness.elicit = { action: 'accept', content: { title: 'Q3 review' } }
+
+    const result = await harness.service.callTool('fixture', 'ask_the_user', {})
+
+    expect(result.text).toBe('accept:Q3 review')
+    const elicitation = harness.asked.find((ask) => ask.kind === 'elicitation')
+    expect((elicitation?.payload as { message: string }).message).toContain('report be called')
+  })
+
+  it('declines an elicitation the user closed, without failing the tool', async () => {
+    harness = build(serverConfig())
+    await harness.service.connect('fixture')
+    harness.answer = { decision: 'allow' }
+    harness.elicit = null
+
+    const result = await harness.service.callTool('fixture', 'ask_the_user', {})
+
+    // No answer is a cancellation, and the server is told so plainly.
+    expect(result.text).toBe('cancel:')
+    expect(result.isError).toBe(false)
+  })
 })
 
 describe('resources and prompts', () => {

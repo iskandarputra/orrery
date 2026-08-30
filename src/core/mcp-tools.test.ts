@@ -5,6 +5,7 @@ import {
   findTool,
   isReadOnly,
   qualify,
+  schemaForPromptArguments,
   toolLabel,
   truncate,
   type CatalogueInput
@@ -127,6 +128,29 @@ describe('truncate', () => {
 
   it('treats a limit of zero as no limit rather than as nothing', () => {
     expect(truncate('text', 0)).toBe('text')
+  })
+})
+
+describe('schemaForPromptArguments', () => {
+  it("turns a prompt's argument list into a schema a form can draw", () => {
+    expect(
+      schemaForPromptArguments([
+        { name: 'subject', description: 'What to summarise', required: true },
+        { name: 'tone' }
+      ])
+    ).toEqual({
+      type: 'object',
+      properties: {
+        subject: { type: 'string', description: 'What to summarise' },
+        tone: { type: 'string' }
+      },
+      required: ['subject']
+    })
+  })
+
+  it('has nothing to ask for a prompt that takes nothing', () => {
+    expect(schemaForPromptArguments(undefined)).toEqual({ type: 'object', properties: {} })
+    expect(schemaForPromptArguments([])).toEqual({ type: 'object', properties: {} })
   })
 })
 

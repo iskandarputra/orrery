@@ -72,6 +72,47 @@ server.registerTool('crash', { description: 'Kills the server.', inputSchema: {}
   return { content: [{ type: 'text', text: 'goodbye' }] }
 })
 
+// The three things a server may ask the client for. Each is a tool so a test
+// can trigger it on demand rather than at connection time.
+server.registerTool(
+  'ask_the_user',
+  { description: 'Asks the client to collect something.', inputSchema: {} },
+  async () => {
+    const answer = await server.server.elicitInput({
+      message: 'What should the report be called?',
+      requestedSchema: {
+        type: 'object',
+        properties: { title: { type: 'string', description: 'A short name' } },
+        required: ['title']
+      }
+    })
+    return {
+      content: [{ type: 'text', text: `${answer.action}:${answer.content?.title ?? ''}` }]
+    }
+  }
+)
+
+server.registerTool(
+  'ask_the_model',
+  { description: 'Asks the client to run a completion.', inputSchema: {} },
+  async () => {
+    const answer = await server.server.createMessage({
+      messages: [{ role: 'user', content: { type: 'text', text: 'name three colours' } }],
+      maxTokens: 100
+    })
+    return { content: [{ type: 'text', text: answer.content.text ?? '' }] }
+  }
+)
+
+server.registerTool(
+  'where_am_i',
+  { description: 'Asks the client which folders it may work in.', inputSchema: {} },
+  async () => {
+    const { roots } = await server.server.listRoots()
+    return { content: [{ type: 'text', text: roots.map((root) => root.uri).join(', ') }] }
+  }
+)
+
 server.registerResource(
   'greeting',
   'fixture://greeting',

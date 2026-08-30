@@ -168,6 +168,35 @@ export function truncate(text: string, max: number): string {
   return `${text.slice(0, head)}\n\n… ${dropped.toLocaleString()} characters omitted …\n\n${text.slice(text.length - tail)}`
 }
 
+export interface PromptArgument {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+/**
+ * A prompt's arguments, as a JSON Schema.
+ *
+ * MCP describes prompt arguments as a flat list rather than a schema, but they
+ * are filled in by the same form as everything else, and a form wants a schema.
+ * Every argument is a string: that is all the protocol offers.
+ */
+export function schemaForPromptArguments(
+  args: readonly PromptArgument[] | undefined
+): Record<string, unknown> {
+  const properties: Record<string, unknown> = {}
+  const required: string[] = []
+  for (const argument of args ?? []) {
+    if (!argument?.name) continue
+    properties[argument.name] = {
+      type: 'string',
+      ...(argument.description ? { description: argument.description } : {})
+    }
+    if (argument.required) required.push(argument.name)
+  }
+  return { type: 'object', properties, ...(required.length > 0 ? { required } : {}) }
+}
+
 /** Does this tool change anything? Used for wording, not for permission. */
 export function isReadOnly(tool: McpToolInfo): boolean {
   return tool.annotations?.readOnlyHint === true

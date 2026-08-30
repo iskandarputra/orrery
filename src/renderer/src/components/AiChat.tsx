@@ -111,6 +111,23 @@ export function AiChatBody(): React.JSX.Element {
   // broken rather than busy.
   useEffect(() => on('ai:toolStep', (step) => setSteps((current) => [...current, step])), [])
 
+  // A prompt from a server, or a resource someone attached, arrives as a draft
+  // rather than being sent: it is a starting point for a question, not one.
+  // Taken by subscription, and once on mount, because setting it is what opens
+  // this panel — the change lands before the component that wants it exists.
+  const clearAiDraft = useStore((s) => s.clearAiDraft)
+  useEffect(() => {
+    const consume = (draft: string): void => {
+      if (!draft) return
+      setInput((current) => (current ? `${current}\n\n${draft}` : draft))
+      clearAiDraft()
+    }
+    queueMicrotask(() => consume(useStore.getState().aiDraft))
+    return useStore.subscribe((state, previous) => {
+      if (state.aiDraft !== previous.aiDraft) consume(state.aiDraft)
+    })
+  }, [clearAiDraft])
+
   const send = (overrideText?: string): void => {
     const question = (overrideText ?? input).trim()
     if (!question || busy) return

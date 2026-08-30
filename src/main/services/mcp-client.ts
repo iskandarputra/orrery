@@ -2,11 +2,15 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {
+  CreateMessageRequestSchema,
+  ElicitRequestSchema,
+  ListRootsRequestSchema,
   LoggingMessageNotificationSchema,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
+import { pathToFileURL } from 'node:url'
 import { expandEnv, type McpServerConfig } from '@core/mcp-config'
 import {
   buildCatalogue,
@@ -48,6 +52,12 @@ export interface McpEvents {
   onActivity(): void
 }
 
+/**
+ * Answering a server's `sampling/createMessage`: run these messages through
+ * whichever model the user configured, and hand back what it said.
+ */
+export type Sampler = (system: string, prompt: string) => Promise<string>
+
 interface SettingsAccess {
   get(): Settings
   set(patch: Partial<Settings>): Settings
@@ -87,8 +97,9 @@ export class McpClientService {
     private readonly ask: AskUser,
     private readonly audit: McpAudit,
     private readonly events: McpEvents,
-    /** The vault, used as a default working directory for stdio servers. */
-    private readonly vaultRoot: () => string | null
+    /** The vault: the working directory for stdio servers, and the one root. */
+    private readonly vaultRoot: () => string | null,
+    private readonly sample: Sampler
   ) {}
 
   /** Every configured server and what is known about it, connected or not. */
@@ -145,11 +156,18 @@ export class McpClientService {
     try {
       const client = new Client(
         { name: 'orrery', version: '0.1.0' },
-        // Only what is actually implemented is declared. A client that claims
-        // sampling and then refuses every request is worse than one that never
-        // claimed it.
-        { capabilities: {} }
+        // Declared because all three are implemented below. A client that
+        // claims a capability and then refuses every request is worse than one
+        // that never claimed it.
+        {
+          capabilities: {
+            roots: { listChanged: true },
+            sampling: {},
+            elicitation: {}
+          }
+        }
       )
+      this.serveClientCapabilities(client, config)
 
       client.onclose = () => this.onClosed(config.id)
       // A list that changes under us is the normal case: servers add tools when
@@ -185,6 +203,89 @@ export class McpClientService {
     }
     this.publish(connection)
     return connection.status
+  }
+
+  /**
+   * The three things a server may ask the client for.
+   *
+   * Two of them spend something that is not ours to spend — the user's
+   * attention, and the user's model budget — so both go through the same
+   * dialog a tool call does, and a refusal is an answer rather than an error.
+   * The third, roots, is the vault, and is not worth interrupting anyone over.
+   */
+  private serveClientCapabilities(client: Client, config: McpServerConfig): void {
+    client.setRequestHandler(ListRootsRequestSchema, () => {
+      const root = this.vaultRoot()
+      return root ? { roots: [{ uri: pathToFileURL(root).href, name: 'Vault' }] } : { roots: [] }
+    })
+
+    client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
+      const messages = request.params.messages
+        .map((message) => {
+          const content = message.content as { type?: string; text?: string }
+          return content.type === 'text' ? `${message.role}: ${content.text ?? ''}` : ''
+        })
+        .filter(Boolean)
+        .join('\n\n')
+
+      const approved = await this.ask.ask<{ decision: string }>('sampling', {
+        serverId: config.id,
+        serverName: config.name,
+        system: request.params.systemPrompt ?? '',
+        preview: messages
+      })
+      if (!approved || approved.decision === 'deny') {
+        // Refusing has to look like an answer, not a broken connection: a
+        // server is entitled to carry on without the completion it asked for.
+        return {
+          model: 'orrery/refused',
+          role: 'assistant',
+          content: { type: 'text', text: 'The user declined this request.' },
+          stopReason: 'endTurn'
+        }
+      }
+
+      const text = await this.sample(request.params.systemPrompt ?? '', messages).catch(
+        (err: unknown) => `The model could not answer: ${describeError(err)}`
+      )
+      return {
+        model: 'orrery',
+        role: 'assistant',
+        content: { type: 'text', text },
+        stopReason: 'endTurn'
+      }
+    })
+
+    client.setRequestHandler(ElicitRequestSchema, async (request) => {
+      const params = request.params as { message?: string; requestedSchema?: unknown }
+      const answer = await this.ask.ask<{
+        action: 'accept' | 'decline' | 'cancel'
+        content?: Record<string, unknown>
+      }>('elicitation', {
+        serverId: config.id,
+        serverName: config.name,
+        message: params.message ?? '',
+        schema: params.requestedSchema ?? { type: 'object', properties: {} }
+      })
+      // No answer at all is a cancellation, which is what closing a window is.
+      if (!answer) return { action: 'cancel' }
+      return answer.action === 'accept'
+        ? { action: 'accept', content: answer.content ?? {} }
+        : { action: answer.action }
+    })
+  }
+
+  /**
+   * Tell every server the vault changed.
+   *
+   * A server given a root it can no longer read is worse than one given none:
+   * it will keep answering about a folder nobody is looking at.
+   */
+  rootsChanged(): void {
+    for (const connection of this.connections.values()) {
+      if (connection.status.state !== 'ready') continue
+      void connection.client?.sendRootsListChanged().catch(() => undefined)
+    }
   }
 
   private transportFor(

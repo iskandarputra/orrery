@@ -415,10 +415,14 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('settings:get', null, () => settings.get())
   // The zod merge inside SettingsStore.set validates the patch; pass raw here.
   handle('settings:set', null, (_e, patch) => {
+    const before = settings.get().lastOpenedFolder
     const next = settings.set(patch)
     if (patch && typeof patch === 'object' && 'keybindings' in patch) {
       buildAppMenu(next.keybindings)
     }
+    // Opening another vault moves the one root every server was given. A
+    // server still answering about the old folder is worse than one with none.
+    if (next.lastOpenedFolder !== before) mcp.rootsChanged()
     return next
   })
 

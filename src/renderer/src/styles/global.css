@@ -5649,12 +5649,27 @@ kbd {
 }
 
 .mcp-server__resource {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 26px;
   padding: 3px 8px;
+  border-radius: var(--or-radius-xs);
   font-size: 12px;
   color: var(--or-fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcp-server__resource span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mcp-server__resource:hover {
+  background: var(--or-hover-bg);
 }
 
 .mcp-tool {
@@ -6063,4 +6078,9 @@ kbd {
   color: var(--or-fg);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* A form inside the approval dialog, for what a server elicits. */
+.mcp-approve__form {
+  margin-top: 14px;
 }

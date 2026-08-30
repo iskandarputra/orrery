@@ -1,5 +1,11 @@
 import type { StateCreator } from 'zustand'
-import type { McpAskRequest, McpAuditEntry, McpServerStatus, McpToolResult } from '@shared/types'
+import type {
+  McpAskRequest,
+  McpAuditEntry,
+  McpPromptInfo,
+  McpServerStatus,
+  McpToolResult
+} from '@shared/types'
 import { forgetServer } from '@core/mcp-permissions'
 import type { McpServerConfig } from '@core/mcp-config'
 import { invoke, parseIpcError } from '@/services/client'
@@ -23,6 +29,21 @@ export interface McpSlice {
    */
   mcpAsks: McpAskRequest[]
   mcpLog: McpAuditEntry[]
+  /**
+   * Text waiting to be put in the AI chat box.
+   *
+   * A server's prompt, or a resource someone attached. The panel and the
+   * palette can both fill it; the chat picks it up and clears it, so nothing
+   * has to reach into the chat's own state.
+   */
+  aiDraft: string
+  /**
+   * A prompt waiting for its arguments.
+   *
+   * Rendering a prompt that takes a subject without asking for one gets an
+   * error back from the server, which is a worse answer than a form.
+   */
+  mcpPromptPending: { serverId: string; prompt: McpPromptInfo } | null
 
   loadMcp(): Promise<void>
   onMcpServerChanged(status: McpServerStatus): void
@@ -30,6 +51,18 @@ export interface McpSlice {
   /** Answer the question at the front of the queue and drop it. */
   answerMcpAsk(id: string, value: unknown): void
   refreshMcpLog(): Promise<void>
+  /** Put text in the chat box and show it. */
+  draftToChat(text: string): void
+  clearAiDraft(): void
+  /** Use a server's prompt: straight to the chat, or via a form for its arguments. */
+  useMcpPrompt(serverId: string, name: string): Promise<void>
+  /** Finish a prompt that needed arguments. */
+  runMcpPrompt(args: Record<string, string>): Promise<void>
+  cancelMcpPrompt(): void
+  /** Render a prompt with the arguments it needs and draft the result. */
+  runMcpPromptWith(serverId: string, name: string, args: Record<string, string>): Promise<void>
+  /** Read a resource and attach it to the chat box. */
+  attachMcpResource(serverId: string, uri: string): Promise<void>
 
   connectMcpServer(id: string): Promise<void>
   disconnectMcpServer(id: string): Promise<void>
@@ -47,6 +80,8 @@ export const createMcpSlice: StateCreator<AppState, [], [], McpSlice> = (set, ge
   mcpServers: [],
   mcpAsks: [],
   mcpLog: [],
+  aiDraft: '',
+  mcpPromptPending: null,
 
   async loadMcp() {
     try {
@@ -79,6 +114,56 @@ export const createMcpSlice: StateCreator<AppState, [], [], McpSlice> = (set, ge
     } catch {
       // As above.
     }
+  },
+
+  draftToChat(text) {
+    set({ aiDraft: text })
+    get().setSidePanel('ai')
+  },
+
+  clearAiDraft() {
+    set({ aiDraft: '' })
+  },
+
+  async useMcpPrompt(serverId, name) {
+    const prompt = get()
+      .mcpServers.find((server) => server.id === serverId)
+      ?.prompts.find((candidate) => candidate.name === name)
+
+    if (prompt?.arguments && prompt.arguments.length > 0) {
+      set({ mcpPromptPending: { serverId, prompt } })
+      return
+    }
+    await get().runMcpPromptWith(serverId, name, {})
+  },
+
+  async runMcpPrompt(args) {
+    const pending = get().mcpPromptPending
+    if (!pending) return
+    set({ mcpPromptPending: null })
+    await get().runMcpPromptWith(pending.serverId, pending.prompt.name, args)
+  },
+
+  cancelMcpPrompt() {
+    set({ mcpPromptPending: null })
+  },
+
+  async runMcpPromptWith(serverId, name, args) {
+    const text = await invoke('mcp:getPrompt', { id: serverId, name, args }).catch(() => '')
+    if (text) get().draftToChat(text)
+    else get().showToast('That prompt returned nothing', 'error')
+  },
+
+  async attachMcpResource(serverId, uri) {
+    const text = await invoke('mcp:readResource', { id: serverId, uri }).catch(() => '')
+    if (!text) {
+      get().showToast('That resource could not be read', 'error')
+      return
+    }
+    // Labelled where it came from: a question about "the file below" is
+    // ambiguous once three resources are attached.
+    const existing = get().aiDraft
+    get().draftToChat(`${existing ? `${existing}\n\n` : ''}From ${uri}:\n\n${text}`)
   },
 
   async connectMcpServer(id) {

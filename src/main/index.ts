@@ -111,7 +111,10 @@ if (!gotLock) {
         if (win) send(win, 'mcp:activity', undefined)
       }
     },
-    () => settings.get().lastOpenedFolder
+    () => settings.get().lastOpenedFolder,
+    // Sampling runs through the user's own provider, so a server borrowing the
+    // model borrows the one they configured and pays for.
+    (system, prompt) => ai.chat(system, [{ role: 'user', content: prompt }])
   )
 
   // Language servers are children of this process; leaving them running

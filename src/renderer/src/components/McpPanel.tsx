@@ -102,6 +102,8 @@ function ServerCard({
 }): React.JSX.Element {
   const connect = useStore((s) => s.connectMcpServer)
   const disconnect = useStore((s) => s.disconnectMcpServer)
+  const runPrompt = useStore((s) => s.useMcpPrompt)
+  const attach = useStore((s) => s.attachMcpResource)
 
   return (
     <section className={`mcp-server mcp-server--${server.state}`}>
@@ -150,9 +152,15 @@ function ServerCard({
             <>
               <h5 className="mcp-server__sub">Resources</h5>
               {server.resources.map((resource) => (
-                <p className="mcp-server__resource" key={resource.uri} title={resource.uri}>
-                  {resource.title || resource.name || resource.uri}
-                </p>
+                <button
+                  className="mcp-server__resource"
+                  key={resource.uri}
+                  title={`Attach ${resource.uri} to the chat`}
+                  onClick={() => void attach(server.id, resource.uri)}
+                >
+                  <Icon name="file-text" size={12} />
+                  <span>{resource.title || resource.name || resource.uri}</span>
+                </button>
               ))}
             </>
           )}
@@ -161,9 +169,15 @@ function ServerCard({
             <>
               <h5 className="mcp-server__sub">Prompts</h5>
               {server.prompts.map((prompt) => (
-                <p className="mcp-server__resource" key={prompt.name} title={prompt.description}>
-                  {prompt.title || prompt.name}
-                </p>
+                <button
+                  className="mcp-server__resource"
+                  key={prompt.name}
+                  title={prompt.description || 'Use this prompt in the chat'}
+                  onClick={() => void runPrompt(server.id, prompt.name)}
+                >
+                  <Icon name="sparkle" size={12} />
+                  <span>{prompt.title || prompt.name}</span>
+                </button>
               ))}
             </>
           )}

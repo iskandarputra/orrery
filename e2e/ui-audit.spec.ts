@@ -640,6 +640,28 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    // The form a server's prompt asks for, which is the same form elicitation
+    // and a tool's arguments use.
+    name: 'mcp prompt form',
+    root: '.mcp-approve',
+    open: async () => {
+      await runCommand('view.toggleMcp')
+      await setExpanded('.mcp-server__toggle', 'Fixture', true)
+      await page.locator('.mcp-server__resource', { hasText: 'summarise' }).click()
+      await expect(page.locator('[aria-label="Prompt arguments"]')).toBeVisible({ timeout: 15_000 })
+    },
+    close: async () => {
+      await page
+        .locator('[aria-label="Prompt arguments"]')
+        .getByRole('button', { name: 'Cancel' })
+        .click()
+      await expect(page.locator('[aria-label="Prompt arguments"]')).toHaveCount(0)
+      await setExpanded('.mcp-server__toggle', 'Fixture', false)
+      await runCommand('view.toggleOutline')
+      await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
     name: 'document statistics',
     root: '.doc-stats-modal',
     open: async () => {

@@ -149,6 +149,22 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
       })
     }
 
+    // Prompts from connected servers, alongside the commands: a prompt is a
+    // command someone else wrote, and the palette is where commands are.
+    if (activeTab === 'all' || activeTab === 'commands') {
+      for (const server of useStore.getState().mcpServers) {
+        for (const prompt of server.prompts) {
+          list.push({
+            id: `mcpprompt:${server.id}:${prompt.name}`,
+            label: `${prompt.title || prompt.name}`,
+            detail: `${server.name} prompt`,
+            icon: 'sparkle',
+            run: () => void useStore.getState().useMcpPrompt(server.id, prompt.name)
+          })
+        }
+      }
+    }
+
     if (activeTab === 'all' || activeTab === 'commands') {
       const registry = getRegistry()
       const kb = settings.keybindings
