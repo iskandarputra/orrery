@@ -149,6 +149,19 @@ test('prose counters go quiet on code', async () => {
   await expect(page.locator('.status-bar__stats-btn')).toHaveCount(0)
 })
 
+test('the view-mode switch is offered only where it does something', async () => {
+  await open('Note.md')
+  await expect(page.locator('.header-viewmode')).toBeVisible()
+
+  // Edit / Hybrid / Read change a setting the code editor never reads: the
+  // one that looked active was describing some other document.
+  await open('script.ts')
+  await expect(page.locator('.header-viewmode')).toHaveCount(0)
+
+  await open('Note.md')
+  await expect(page.locator('.header-viewmode')).toBeVisible()
+})
+
 test('the file tree gives each language its own icon and colour', async () => {
   // Orrery draws its own set: real language logos are trademarks with their own
   // terms, and shipping forty of them would undo the licensing work.

@@ -28,7 +28,14 @@ export interface ToastMessage {
  * the prefix yourself.
  */
 export type PaletteMode =
-  'files' | 'commands' | 'templates' | 'line' | 'symbol' | 'workspaces' | 'workspacesDelete'
+  | 'files'
+  | 'commands'
+  | 'templates'
+  | 'line'
+  | 'symbol'
+  | 'workspaces'
+  | 'workspacesDelete'
+  | 'recent'
 
 /** Tabs of the right side panel. */
 export type SidePanel =

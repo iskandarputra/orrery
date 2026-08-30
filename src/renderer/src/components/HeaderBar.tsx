@@ -4,7 +4,6 @@ import { getActiveView } from '@/editor/active-view'
 import { formatAndUnwrapNote } from '@/editor/format-helpers'
 import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
-import { surfaceForKind } from '@/plugins/registry'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 
@@ -53,13 +52,14 @@ export function HeaderBar(): React.JSX.Element | null {
     }
   }
 
-  // A drawing has no words, no reading time, and no raw-versus-rendered to
-  // switch between. Offering "Edit / Hybrid / Read" over a board is not merely
-  // useless — every one of those buttons changes a setting that does nothing
-  // here, and the one that appears active is describing some other document.
-  const isDrawing = buffer
-    ? buffer.kind === 'canvas' || surfaceForKind(buffer.kind) !== null
-    : false
+  // Only prose has words, a reading time, and a raw-versus-rendered to switch
+  // between. Offering "Edit / Hybrid / Read" over a board, a diff or a
+  // TypeScript file is not merely useless: every one of those buttons changes
+  // a setting that does nothing here, and the one that appears active is
+  // describing some other document. `create-state.ts` returns before the view
+  // mode is read for anything but markdown, which is the same fact from the
+  // other end.
+  const isProse = buffer.kind === 'markdown'
   const readingTimeMin = Math.max(1, Math.ceil(stats.words / 200))
 
   const handleExportHtml = async (): Promise<void> => {
@@ -135,7 +135,11 @@ export function HeaderBar(): React.JSX.Element | null {
           <span className="breadcrumb-file">
             <Icon name="file-text" size={13} className="breadcrumb-file__icon" />
             <span className="breadcrumb-file__name">{buffer.fileName}</span>
-            {buffer.isDirty && <span className="breadcrumb-dirty" title="Unsaved changes">●</span>}
+            {buffer.isDirty && (
+              <span className="breadcrumb-dirty" title="Unsaved changes">
+                ●
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -143,7 +147,7 @@ export function HeaderBar(): React.JSX.Element | null {
       {/* Center: Reading time / stats pill. Prose only — "1 min read" on a
           JSON file is a number nobody asked for and nobody can use. */}
       <div className="header-bar__center">
-        {buffer?.kind !== 'code' && !isDrawing && (
+        {isProse && (
           <button
             className="header-stats-pill"
             title="Click to view detailed document statistics"
@@ -185,8 +189,9 @@ export function HeaderBar(): React.JSX.Element | null {
           <Icon name="type" size={15} />
         </button>
 
-        {/* View mode segmented switcher — text documents only. */}
-        {!isDrawing && (
+        {/* View mode segmented switcher — markdown only, since nothing else
+            reads the setting. */}
+        {isProse && (
           <div className="header-viewmode" role="radiogroup" aria-label="View mode">
             <button
               role="radio"

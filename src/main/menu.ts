@@ -20,7 +20,18 @@ function dispatch(commandId: string) {
   }
 }
 
-export function buildAppMenu(bindings: Record<string, string> = {}): void {
+export interface RecentPaths {
+  files: readonly string[]
+  folders: readonly string[]
+}
+
+/** How many of each to offer before the submenu becomes a list nobody scans. */
+const RECENT_SHOWN = 8
+
+export function buildAppMenu(
+  bindings: Record<string, string> = {},
+  recent: RecentPaths = { files: [], folders: [] }
+): void {
   const isMac = process.platform === 'darwin'
   /** User override or the shipped default accelerator. */
   const acc = (commandId: string, dflt?: string): string | undefined => bindings[commandId] || dflt
@@ -55,6 +66,10 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
           label: 'Open Folder…',
           accelerator: acc('workspace.openFolder', 'CmdOrCtrl+Shift+O'),
           click: dispatch('workspace.openFolder')
+        },
+        {
+          label: 'Open Recent',
+          submenu: recentSubmenu(recent, acc('file.openRecent', 'CmdOrCtrl+Shift+R'))
         },
         { type: 'separator' },
         {
@@ -287,4 +302,58 @@ export function buildAppMenu(bindings: Record<string, string> = {}): void {
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+/**
+ * The Open Recent submenu.
+ *
+ * Files and folders in one list, each opened directly rather than through a
+ * command, because a menu item that has to carry a path is the one thing the
+ * command channel cannot express: it sends an id and nothing else. Main knows
+ * the path, so main sends the event that opens it.
+ *
+ * The palette entry sits at the top, since it is the one that can be searched
+ * and the one a keyboard reaches without the mouse.
+ */
+function recentSubmenu(recent: RecentPaths, accelerator?: string): MenuItemConstructorOptions[] {
+  const openPath = (channel: 'app:openPath' | 'app:openFolder', path: string) => (): void => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) win.webContents.send(channel, { path })
+  }
+
+  const files = recent.files.slice(0, RECENT_SHOWN)
+  const folders = recent.folders.slice(0, RECENT_SHOWN)
+
+  const items: MenuItemConstructorOptions[] = [
+    {
+      label: 'Open Recent…',
+      ...(accelerator ? { accelerator } : {}),
+      click: dispatch('file.openRecent')
+    }
+  ]
+
+  if (files.length > 0) {
+    items.push({ type: 'separator' }, { label: 'Files', enabled: false })
+    for (const path of files) {
+      items.push({ label: shorten(path), toolTip: path, click: openPath('app:openPath', path) })
+    }
+  }
+  if (folders.length > 0) {
+    items.push({ type: 'separator' }, { label: 'Folders', enabled: false })
+    for (const path of folders) {
+      items.push({ label: shorten(path), toolTip: path, click: openPath('app:openFolder', path) })
+    }
+  }
+  if (files.length === 0 && folders.length === 0) {
+    items.push({ type: 'separator' }, { label: 'Nothing yet', enabled: false })
+  }
+  return items
+}
+
+/** A path a menu can show: the last two segments, with the home directory folded. */
+function shorten(path: string): string {
+  const home = app.getPath('home')
+  const tidy = path.startsWith(home) ? `~${path.slice(home.length)}` : path
+  const parts = tidy.split(/[/\\]/).filter(Boolean)
+  return parts.length <= 2 ? tidy : `…/${parts.slice(-2).join('/')}`
 }

@@ -456,9 +456,18 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   handle('settings:set', null, (_e, patch) => {
     const before = settings.get().lastOpenedFolder
+    const beforeRecent = settings.get().recentFolders
     const next = settings.set(patch)
-    if (patch && typeof patch === 'object' && 'keybindings' in patch) {
-      buildAppMenu(next.keybindings)
+    // The Open Recent submenu is built from settings, so it is rebuilt when
+    // they change. A native menu cannot read state; it is state, copied.
+    if (
+      (patch && typeof patch === 'object' && 'keybindings' in patch) ||
+      next.recentFolders !== beforeRecent
+    ) {
+      buildAppMenu(next.keybindings, {
+        files: next.recentFiles,
+        folders: next.recentFolders
+      })
     }
     // Opening another vault moves the one root every server was given. A
     // server still answering about the old folder is worse than one with none.
@@ -470,8 +479,16 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('app:getRecentFiles', null, () => settings.get().recentFiles)
 
   handle('app:addRecentFile', pathReq, (_e, req) => {
-    settings.set({ recentFiles: pushRecent(settings.get().recentFiles, req.path) })
+    const next = settings.set({ recentFiles: pushRecent(settings.get().recentFiles, req.path) })
     app.addRecentDocument(req.path)
+    buildAppMenu(next.keybindings, { files: next.recentFiles, folders: next.recentFolders })
+  })
+
+  handle('app:getRecentFolders', null, () => settings.get().recentFolders)
+  handle('app:clearRecent', null, () => {
+    const next = settings.set({ recentFiles: [], recentFolders: [] })
+    app.clearRecentDocuments()
+    buildAppMenu(next.keybindings, { files: [], folders: [] })
   })
 
   // --- window --------------------------------------------------------------

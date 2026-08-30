@@ -67,6 +67,7 @@ export function bootstrap(): CommandRegistry {
   // are routed by path rather than applied to whatever is on screen.
   on('lsp:diagnostics', (payload) => routeDiagnostics(payload))
   on('app:openPath', ({ path }) => void useStore.getState().openPaths([path]))
+  on('app:openFolder', ({ path }) => void useStore.getState().openFolder(path))
   // MCP servers announce themselves as they connect, and main asks permission
   // through the same channel a tool call is waiting on.
   on('mcp:serverChanged', (status) => useStore.getState().onMcpServerChanged(status))

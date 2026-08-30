@@ -434,6 +434,11 @@ export const builtinCommands: Command[] = [
     }
   },
   {
+    id: 'file.openRecent',
+    title: 'Open Recent…',
+    run: ({ store }) => store().openPalette('recent')
+  },
+  {
     id: 'app.quickOpen',
     title: 'Quick Open Note',
     run: ({ store }) => store().openPalette('files')

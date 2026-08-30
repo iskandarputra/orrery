@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { basename, stem } from '@core/paths'
 import { fuzzyFilter } from '@core/fuzzy'
 import { buildNoteIndex } from '@core/notes'
 import { fileIcon } from '@core/file-icons'
@@ -51,10 +52,12 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
   const settings = useStore((s) => s.settings)
   const picking = initialMode === 'templates'
   const workspacesMode = initialMode === 'workspaces' || initialMode === 'workspacesDelete'
+  const recentMode = initialMode === 'recent'
+  const recent = useRecentPaths(recentMode)
   const deletingWorkspace = initialMode === 'workspacesDelete'
   // Only these two lists are the whole palette; everything else shares the box
   // with notes and commands, and keeps the tabs that switch between them.
-  const oneList = picking || workspacesMode
+  const oneList = picking || workspacesMode || recentMode
   const applyWorkspace = useStore((s) => s.applyWorkspace)
   const saveWorkspace = useStore((s) => s.saveWorkspace)
   const deleteWorkspace = useStore((s) => s.deleteWorkspace)
@@ -108,6 +111,31 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
             run: () => jumpToLine(symbol.line)
           })
         }
+      }
+      return list
+    }
+
+    if (recentMode) {
+      // Files first: reopening one is the common case, and reopening a folder
+      // replaces everything on screen.
+      for (const path of recent.files) {
+        list.push({
+          id: `recent-file:${path}`,
+          label: stem(path),
+          detail: path,
+          icon: fileIcon(basename(path)).shape,
+          run: () => void openPaths([path]),
+          runToSide: () => void useStore.getState().openToSide(path)
+        })
+      }
+      for (const path of recent.folders) {
+        list.push({
+          id: `recent-folder:${path}`,
+          label: basename(path),
+          detail: `${path} · folder`,
+          icon: 'folder',
+          run: () => void useStore.getState().openFolder(path)
+        })
       }
       return list
     }
@@ -186,6 +214,8 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
     return list
   }, [
     picking,
+    recentMode,
+    recent,
     templates,
     activeTab,
     fileIndex,
@@ -254,17 +284,19 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
             ref={inputRef}
             className="palette__input"
             placeholder={
-              picking
-                ? 'Insert a template…'
-                : deletingWorkspace
-                  ? 'Delete a workspace…'
-                  : workspacesMode
-                    ? 'Switch workspace, or type a name to save this layout…'
-                    : activeTab === 'files'
-                      ? 'Open note by name…'
-                      : activeTab === 'commands'
-                        ? 'Run a command…'
-                        : 'Search notes and commands…'
+              recentMode
+                ? 'Reopen a file or folder…'
+                : picking
+                  ? 'Insert a template…'
+                  : deletingWorkspace
+                    ? 'Delete a workspace…'
+                    : workspacesMode
+                      ? 'Switch workspace, or type a name to save this layout…'
+                      : activeTab === 'files'
+                        ? 'Open note by name…'
+                        : activeTab === 'commands'
+                          ? 'Run a command…'
+                          : 'Search notes and commands…'
             }
             value={query}
             onChange={(e) => {
@@ -338,11 +370,13 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
                 className="palette__empty-icon"
               />
               <p>
-                {deletingWorkspace
-                  ? 'No workspaces saved yet.'
-                  : workspacesMode
-                    ? 'No workspaces yet. Type a name to save the layout in front of you.'
-                    : 'No matching notes or commands found.'}
+                {recentMode
+                  ? 'Nothing opened yet.'
+                  : deletingWorkspace
+                    ? 'No workspaces saved yet.'
+                    : workspacesMode
+                      ? 'No workspaces yet. Type a name to save the layout in front of you.'
+                      : 'No matching notes or commands found.'}
               </p>
             </div>
           ) : (
@@ -408,4 +442,34 @@ function useTemplateFiles(active: boolean): { path: string; stem: string }[] {
   }, [active, rootPath, folder])
 
   return files
+}
+
+/**
+ * What has been opened lately, read when the palette asks for it.
+ *
+ * Files live in main (they are appended there, and the native menu is built
+ * from the same list), so both come over IPC rather than being mirrored in the
+ * store where they would drift.
+ */
+function useRecentPaths(active: boolean): { files: string[]; folders: string[] } {
+  const [recent, setRecent] = useState<{ files: string[]; folders: string[] }>({
+    files: [],
+    folders: []
+  })
+
+  useEffect(() => {
+    if (!active) return
+    let live = true
+    void Promise.all([
+      invoke('app:getRecentFiles', undefined),
+      invoke('app:getRecentFolders', undefined)
+    ])
+      .then(([files, folders]) => live && setRecent({ files, folders }))
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [active])
+
+  return recent
 }

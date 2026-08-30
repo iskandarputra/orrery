@@ -178,7 +178,10 @@ if (!gotLock) {
       mcpAudit,
       askUser
     })
-    buildAppMenu(settings.get().keybindings)
+    buildAppMenu(settings.get().keybindings, {
+      files: settings.get().recentFiles,
+      folders: settings.get().recentFolders
+    })
     windows.createMainWindow()
     // After the window exists: connecting announces status, and an announcement
     // with nowhere to go is a status the panel never shows.

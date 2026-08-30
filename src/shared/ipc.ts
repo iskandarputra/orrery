@@ -270,7 +270,10 @@ export interface IpcInvokeContract {
   'settings:set': { req: Partial<Settings>; res: Settings }
 
   'app:getRecentFiles': { req: void; res: string[] }
+  'app:getRecentFolders': { req: void; res: string[] }
   'app:addRecentFile': { req: { path: string }; res: void }
+  /** Forget everything recently opened, files and folders alike. */
+  'app:clearRecent': { req: void; res: void }
 
   /** Renderer signals the unsaved-changes flow is resolved; main may destroy the window. */
   'window:readyToClose': { req: void; res: void }
@@ -310,6 +313,8 @@ export interface IpcEventContract {
   'window:closeRequested': void
   /** A file was opened via OS (double-click / open-with / CLI arg). */
   'app:openPath': { path: string }
+  /** Open this folder as the vault — the File menu's recent list. */
+  'app:openFolder': { path: string }
   /**
    * Right-click inside the window. Forwarded from main because only there do
    * the spelling suggestions exist; the renderer draws its own themed menu so
