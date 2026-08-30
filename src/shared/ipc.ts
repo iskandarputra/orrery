@@ -9,7 +9,13 @@ import type {
   GraphAnalysis,
   LinkSuggestion
 } from './types'
-import type { McpAskRequest, McpAuditEntry, McpServerStatus, McpToolResult } from './types'
+import type {
+  AiToolStep,
+  McpAskRequest,
+  McpAuditEntry,
+  McpServerStatus,
+  McpToolResult
+} from './types'
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
 import type { GitStatus } from '@core/git-status'
@@ -220,6 +226,18 @@ export interface IpcInvokeContract {
   /** Recent tool calls, newest first. */
   'mcp:audit': { req: { limit: number }; res: McpAuditEntry[] }
 
+  /**
+   * The same chat, with whatever MCP tools are connected offered to the model.
+   *
+   * Separate from `ai:chat` rather than a flag on it: this one can take as long
+   * as several tool calls and a permission dialog, and the callers that want a
+   * single completion should not have to think about that.
+   */
+  'ai:chatWithTools': {
+    req: { system: string; messages: { role: 'user' | 'assistant'; content: string }[] }
+    res: string
+  }
+
   /** Export the given markdown; resolves to the saved path or null on cancel. */
   'export:html': { req: { title: string; markdown: string }; res: string | null }
   'export:pdf': { req: { title: string; markdown: string }; res: string | null }
@@ -257,6 +275,8 @@ export interface IpcEventContract {
   'lsp:diagnostics': DiagnosticsPayload
   /** Native menu item clicked; renderer command registry executes it. */
   'menu:command': { commandId: string }
+  /** The assistant called a tool, or got an answer back. */
+  'ai:toolStep': AiToolStep
   /** A server connected, dropped, or changed what it offers. */
   'mcp:serverChanged': McpServerStatus
   /** Something ran; the panel's log is stale. */

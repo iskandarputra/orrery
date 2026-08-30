@@ -8,7 +8,13 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { expandEnv, type McpServerConfig } from '@core/mcp-config'
-import { contentToText, truncate, type McpToolInfo } from '@core/mcp-tools'
+import {
+  buildCatalogue,
+  contentToText,
+  truncate,
+  type CatalogueEntry,
+  type McpToolInfo
+} from '@core/mcp-tools'
 import {
   decide,
   permissionKey,
@@ -238,6 +244,29 @@ export class McpClientService {
       : []
 
     connection.status = { ...connection.status, tools, resources, prompts }
+  }
+
+  /**
+   * Every tool the model may be offered, qualified by server.
+   *
+   * Only connected servers, and only tools the user left switched on: a tool
+   * that is off should not be in the list the model chooses from, rather than
+   * being refused after it picks one.
+   */
+  toolCatalogue(): CatalogueEntry[] {
+    const disabled = this.settings.get().mcp.disabledTools
+    return buildCatalogue(
+      [...this.connections.values()]
+        .filter((connection) => connection.status.state === 'ready')
+        .map((connection) => ({
+          id: connection.status.id,
+          name: connection.status.name,
+          tools: connection.status.tools,
+          disabled: connection.status.tools
+            .map((tool) => tool.name)
+            .filter((name) => disabled.includes(`${connection.status.id}/${name}`))
+        }))
+    )
   }
 
   /** Re-read a server's lists, after a change notification or on demand. */

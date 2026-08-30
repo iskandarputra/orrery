@@ -242,3 +242,12 @@ export interface McpAuditEntry {
   /** First lines of the result or the error, for a list that has to fit. */
   summary: string
 }
+
+/** One thing that happened while the assistant was answering with tools. */
+export interface AiToolStep {
+  kind: 'call' | 'result'
+  name: string
+  args?: unknown
+  text?: string
+  isError?: boolean
+}

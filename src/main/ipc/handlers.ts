@@ -19,7 +19,7 @@ import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
 import type { WindowManager } from '../windows'
 import { buildAppMenu } from '../menu'
-import { handle } from './registry'
+import { handle, send } from './registry'
 
 export interface HandlerDeps {
   fs: FileSystemService
@@ -330,14 +330,42 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     mcpAudit.recent(req.limit)
   )
 
-  handle(
-    'ai:chat',
-    z.object({
-      system: z.string(),
-      messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }))
-    }),
-    (_e, req) => ai.chat(req.system, req.messages)
-  )
+  const chatReq = z.object({
+    system: z.string(),
+    messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }))
+  })
+
+  handle('ai:chat', chatReq, (_e, req) => ai.chat(req.system, req.messages))
+
+  handle('ai:chatWithTools', chatReq, (_e, req) => {
+    // The catalogue is taken once per question, so a server that reconnects
+    // mid-answer cannot change which tool a name refers to halfway through.
+    const catalogue = mcp.toolCatalogue()
+    const specs = catalogue.map((entry) => ({
+      name: entry.qualified,
+      // The server's name is part of the description because the model chooses
+      // by description, and "search" from two servers is otherwise a coin toss.
+      description: `[${entry.serverName}] ${entry.tool.description ?? entry.tool.name}`,
+      inputSchema: entry.tool.inputSchema ?? {}
+    }))
+
+    return ai.chatWithTools(
+      req.system,
+      req.messages,
+      specs,
+      async (call) => {
+        const entry = catalogue.find((candidate) => candidate.qualified === call.name)
+        if (!entry) return { text: `There is no tool called ${call.name}.`, isError: true }
+        // Straight to the service, which asks before anything runs.
+        const result = await mcp.callTool(entry.serverId, entry.tool.name, call.args, 'model')
+        return { text: result.text, isError: result.isError }
+      },
+      (step) => {
+        const win = windows.window
+        if (win) send(win, 'ai:toolStep', step)
+      }
+    )
+  })
 
   handle('embeddings:reindex', z.object({ rootPath: z.string().min(1) }), (_e, req) =>
     embeddings.reindex(req.rootPath)
