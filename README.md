@@ -110,7 +110,7 @@ this folder. Colour by "Notes or code" to tell them apart, or switch code off in
 the graph's own settings.
 
 `Ctrl+P` opens any note by fuzzy name, `Ctrl+Shift+R` reopens something you
-had open before, and `Ctrl+Shift+P` runs any of 63 commands. In the same box, `:` jumps to a line and `@` jumps to a heading or a
+had open before, and `Ctrl+Shift+P` runs any of 69 commands. In the same box, `:` jumps to a line and `@` jumps to a heading or a
 declaration inside the file you are looking at. Prompts from connected MCP
 servers are in there too, since a prompt is a command someone else wrote. Two of
 those commands are for
