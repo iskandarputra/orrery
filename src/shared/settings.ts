@@ -237,7 +237,25 @@ export const settingsSchema = z.object({
       /** How long to wait for a server before giving up on one call. */
       timeoutMs: z.number().int().min(1000).max(300_000).default(30_000),
       /** A tool result longer than this is trimmed before a model sees it. */
-      maxResultChars: z.number().int().min(500).max(200_000).default(20_000)
+      maxResultChars: z.number().int().min(500).max(200_000).default(20_000),
+      /**
+       * Orrery's own MCP server: the vault, offered to other clients.
+       *
+       * Off by default, and writing is off inside that: turning the whole
+       * thing on should not also hand an agent a pen.
+       */
+      host: z
+        .object({
+          enabled: z.boolean().default(false),
+          /** 0 asks the operating system for a free one. */
+          port: z.number().int().min(0).max(65_535).default(7373),
+          /** Generated the first time the server starts; regenerable by hand. */
+          token: z.string().default(''),
+          allowWrites: z.boolean().default(false),
+          /** Tools not offered, by name. */
+          disabledTools: z.array(z.string()).default([])
+        })
+        .prefault({})
     })
     .prefault({}),
   window: z

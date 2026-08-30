@@ -9,13 +9,19 @@ export default tseslint.config(
   {
     // Fixture and build scripts are Node programs run as separate processes,
     // not app code.
-    files: ['e2e/fixtures/**/*.mjs', 'scripts/**/*.mjs', 'src/**/__fixtures__/**/*.mjs'],
+    files: [
+      'e2e/fixtures/**/*.mjs',
+      'scripts/**/*.mjs',
+      'resources/**/*.mjs',
+      'src/**/__fixtures__/**/*.mjs'
+    ],
     languageOptions: {
       globals: {
         Buffer: 'readonly',
         process: 'readonly',
         console: 'readonly',
-        setTimeout: 'readonly'
+        setTimeout: 'readonly',
+        fetch: 'readonly'
       }
     }
   },

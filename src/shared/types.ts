@@ -251,3 +251,12 @@ export interface AiToolStep {
   text?: string
   isError?: boolean
 }
+
+/** Orrery's own MCP server, as the settings pane shows it. */
+export interface McpHostStatus {
+  running: boolean
+  /** Where a client should point. Empty when nothing is listening. */
+  url: string
+  token: string
+  allowWrites: boolean
+}

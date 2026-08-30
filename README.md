@@ -97,7 +97,9 @@ alongside the structure.
 
 `Ctrl+P` opens any note by fuzzy name and `Ctrl+Shift+P` runs any of 61
 commands. In the same box, `:` jumps to a line and `@` jumps to a heading or a
-declaration inside the file you are looking at. Two of those commands are for
+declaration inside the file you are looking at. Prompts from connected MCP
+servers are in there too, since a prompt is a command someone else wrote. Two of
+those commands are for
 when you do not know what to open: one picks a note at random, the other makes
 a new one named after the minute you thought of it.
 
@@ -147,6 +149,36 @@ in **Settings → AI**. Answers are grounded in the note you have open plus
 matching passages from the vault, each cited as `[file:line]`. Semantic search
 runs over embeddings computed on your own machine. API keys stay in the main
 process and never reach the renderer.
+
+## MCP, both ways
+
+Orrery speaks the Model Context Protocol in both directions. Full details in
+[docs/mcp.md](docs/mcp.md).
+
+**It connects to your MCP servers.** Paste the `mcpServers` block you already
+use in Claude Desktop, Claude Code or VS Code, and their tools, resources and
+prompts appear in the Tools panel, in the command palette, and to the
+assistant. Any tool can be filled in and run by hand, which is how you find out
+what one does before letting a model call it.
+
+Every tool asks the first time, showing the server, the tool and the exact
+arguments. The answer is remembered per tool, except for two things that always
+ask: anything the server marks destructive, and anything that writes to your
+vault. Refusing once refuses that call; refusing for good is its own button.
+Every call is logged, including the refused ones.
+
+Servers can ask Orrery for things too, and it answers: **sampling** runs through
+your own configured model after showing you the prompt, **elicitation** draws a
+form from the schema a server sends, and **roots** tells a server that the vault
+is the one folder it may work in.
+
+**It serves your vault.** Switch it on and Claude Code, Claude Desktop or
+anything else that speaks MCP can search your notes, read them, follow backlinks
+and read the git log. It listens on `127.0.0.1` behind a bearer token, and ships
+a dependency-free stdio bridge for clients that launch a program instead. Every
+path is checked against the vault, so one that climbs out with `..` is refused.
+Writing is off inside all of that, and when it is on, each write asks you first
+and shows what it is about to write.
 
 ## Install
 

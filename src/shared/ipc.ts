@@ -12,6 +12,7 @@ import type {
 import type {
   AiToolStep,
   McpAskRequest,
+  McpHostStatus,
   McpAuditEntry,
   McpServerStatus,
   McpToolResult
@@ -223,6 +224,13 @@ export interface IpcInvokeContract {
   }
   /** The renderer's answer to an `mcp:ask` event. */
   'mcp:answer': { req: { id: string; value: unknown }; res: void }
+  /** Orrery's own server: is it listening, and where. */
+  'mcp:hostStatus': { req: void; res: McpHostStatus }
+  /** Start or stop it, following the setting. */
+  'mcp:hostSync': { req: void; res: McpHostStatus }
+  /** A new token; any client using the old one stops working. */
+  'mcp:hostRegenerateToken': { req: void; res: McpHostStatus }
+
   /** Recent tool calls, newest first. */
   'mcp:audit': { req: { limit: number }; res: McpAuditEntry[] }
 

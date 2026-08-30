@@ -13,6 +13,7 @@ import type { LspService } from '../services/lsp'
 import type { AskUser } from '../services/ask-user'
 import type { McpAudit } from '../services/mcp-audit'
 import type { McpClientService } from '../services/mcp-client'
+import type { McpHostService } from '../services/mcp-host'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
@@ -35,6 +36,7 @@ export interface HandlerDeps {
   lsp: LspService
   terminal: TerminalService
   mcp: McpClientService
+  mcpHost: McpHostService
   mcpAudit: McpAudit
   askUser: AskUser
 }
@@ -62,6 +64,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     lsp,
     terminal,
     mcp,
+    mcpHost,
     mcpAudit,
     askUser
   } = deps
@@ -329,6 +332,31 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('mcp:audit', z.object({ limit: z.number().int().min(1).max(500) }), (_e, req) =>
     mcpAudit.recent(req.limit)
   )
+
+  const hostStatus = (): { running: boolean; url: string; token: string; allowWrites: boolean } => {
+    const { host } = settings.get().mcp
+    return {
+      running: mcpHost.running,
+      url: mcpHost.url,
+      token: host.token,
+      allowWrites: host.allowWrites
+    }
+  }
+
+  handle('mcp:hostStatus', null, () => hostStatus())
+  handle('mcp:hostSync', null, async () => {
+    await mcpHost.sync()
+    return hostStatus()
+  })
+  handle('mcp:hostRegenerateToken', null, async () => {
+    const { mcp: current } = settings.get()
+    // Stop first: a client holding the old token should lose the connection
+    // rather than keep a session that outlived its credential.
+    await mcpHost.stop()
+    settings.set({ mcp: { ...current, host: { ...current.host, token: '' } } })
+    await mcpHost.sync()
+    return hostStatus()
+  })
 
   const chatReq = z.object({
     system: z.string(),

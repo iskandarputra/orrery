@@ -15,6 +15,10 @@ extraResources:
   - from: resources/sidecar
     to: sidecar
     filter: ['**/*']
+  # The stdio bridge is a program another client launches, so it has to be a
+  # real file on disk rather than something inside the asar.
+  - from: resources/mcp-stdio-bridge.mjs
+    to: mcp-stdio-bridge.mjs
   # Shipped with the app, not only kept in the repository: the fonts are under
   # the SIL Open Font License, which asks that its text and the copyright
   # notices travel with anything the font is bundled into.

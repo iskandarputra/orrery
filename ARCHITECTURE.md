@@ -26,14 +26,15 @@ and not in a component or a store.
 
 Ask what it needs:
 
-| It needs…                               | It belongs in               |
-| --------------------------------------- | --------------------------- |
-| nothing but its arguments               | `core/`, and it gets a test |
-| the filesystem, a process, git          | `main/services/`            |
-| to be named across the process boundary | `shared/ipc.ts`             |
-| CodeMirror                              | `renderer/src/editor/`      |
-| React                                   | `renderer/src/components/`  |
-| to coordinate several of the above      | a thin store slice          |
+| It needs…                               | It belongs in                |
+| --------------------------------------- | ---------------------------- |
+| nothing but its arguments               | `core/`, and it gets a test  |
+| the filesystem, a process, git          | `main/services/`             |
+| to decide whether something may run     | `core/`, with the most tests |
+| to be named across the process boundary | `shared/ipc.ts`              |
+| CodeMirror                              | `renderer/src/editor/`       |
+| React                                   | `renderer/src/components/`   |
+| to coordinate several of the above      | a thin store slice           |
 
 **A store slice is orchestration, not logic.** It calls IPC, sets state, and
 decides nothing on its own. When a slice starts making decisions, such as which
@@ -48,6 +49,14 @@ tested.
 application state, and the store loads them, so importing `store.ts` from there
 is a runtime cycle. They call `appState()` instead, from a module that imports
 nothing. It is also how a test gives one of those modules a state of its own.
+
+**`services/ask-user.ts`.** IPC runs one way, the renderer asking and main
+answering, except here. MCP needs main to ask the person at the keyboard something in the
+middle of a call: may this tool run, fill in this form, may this server borrow
+the model. Main sends `mcp:ask`, the renderer answers on `mcp:answer`, and the
+pending promise settles. Every path settles, and every path that is not an
+explicit yes settles as no: no window, no answer in time, the window closing, an
+answer arriving late.
 
 **`plugins/api.ts`.** Commands, editor extensions, and whole document surfaces
 are contributed through `PluginContext`. A surface claims files by name and

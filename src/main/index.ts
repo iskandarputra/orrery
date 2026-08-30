@@ -12,6 +12,7 @@ import { LspService } from './services/lsp'
 import { AskUser } from './services/ask-user'
 import { McpAudit } from './services/mcp-audit'
 import { McpClientService } from './services/mcp-client'
+import { McpHostService } from './services/mcp-host'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -119,12 +120,29 @@ if (!gotLock) {
 
   // Language servers are children of this process; leaving them running
   // after a quit would leak one per session.
+  // The vault, offered to other MCP clients. Off unless the user says so, and
+  // started after settings have loaded.
+  const mcpHost = new McpHostService({
+    settings: { get: () => settings.get(), set: (patch) => settings.set(patch) },
+    fs,
+    links,
+    git,
+    ask: askUser,
+    audit: mcpAudit,
+    vaultRoot: () => settings.get().lastOpenedFolder,
+    onChanged: () => {
+      const win = windows.window
+      if (win) send(win, 'mcp:activity', undefined)
+    }
+  })
+
   app.on('will-quit', () => {
     lsp.shutdown()
     // Somebody else's programs, started by us: none may outlive the window,
     // and anything still waiting on a dialog is refused rather than left.
     askUser.cancelAll()
     void mcp.shutdown()
+    void mcpHost.stop()
     sidecar?.shutdown()
     // Shells are children of this process; none may outlive the window.
     terminal.shutdown()
@@ -155,6 +173,7 @@ if (!gotLock) {
       lsp,
       terminal,
       mcp,
+      mcpHost,
       mcpAudit,
       askUser
     })
@@ -163,6 +182,9 @@ if (!gotLock) {
     // After the window exists: connecting announces status, and an announcement
     // with nowhere to go is a status the panel never shows.
     void mcp.connectAll()
+    // A server that was left on stays on across a restart: a client configured
+    // against it should not need Orrery opened and a switch flipped.
+    void mcpHost.sync().catch((err: unknown) => console.error('MCP host:', err))
 
     app.on('activate', () => {
       if (windows.window === null) windows.createMainWindow()
