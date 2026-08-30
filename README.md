@@ -109,13 +109,13 @@ to files inside the vault: a dependency on `react` is real but it is not part of
 this folder. Colour by "Notes or code" to tell them apart, or switch code off in
 the graph's own settings.
 
-`Ctrl+P` opens any note by fuzzy name, `Ctrl+Shift+R` reopens something you
-had open before, and `Ctrl+Shift+P` runs any of 69 commands. In the same box, `:` jumps to a line and `@` jumps to a heading or a
-declaration inside the file you are looking at. Prompts from connected MCP
-servers are in there too, since a prompt is a command someone else wrote. Two of
-those commands are for
-when you do not know what to open: one picks a note at random, the other makes
-a new one named after the minute you thought of it.
+`Ctrl+P` opens any note by fuzzy name, `Ctrl+Shift+R` reopens something you had
+open before, and `Ctrl+Shift+P` runs any of 69 commands. In the same box, `:`
+jumps to a line and `@` jumps to a heading or a declaration inside the file you
+are looking at. Prompts from connected MCP servers are in there too, since a
+prompt is a command someone else wrote. Two of those commands are for when you
+do not know what to open: one picks a note at random, the other makes a new one
+named after the minute you thought of it.
 
 **Up to four panes** side by side. `Ctrl+\` splits, `Ctrl+Shift+\` sends the
 tab you are on into a pane of its own, `Ctrl+Alt+\` moves between them, and no
