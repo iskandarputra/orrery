@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchApp, openVault } from './helpers'
+import { makePdf } from './fixtures/make-pdf'
 
 let app: ElectronApplication
 let page: Page
@@ -92,6 +93,15 @@ test.beforeAll(async () => {
   writeFileSync(
     join(vault, 'lexer.ts'),
     'export function parse(a: string) {\n  // counts the characters\n  return a.length + 1\n}\n'
+  )
+  // A PDF, so the reader's toolbar, its page rail and its outline are measured
+  // rather than assumed.
+  writeFileSync(
+    join(vault, 'audit.pdf'),
+    makePdf({
+      pages: [['A page of prose for the audit.'], ['And a second one.']],
+      outline: [{ title: 'The only chapter', page: 1 }]
+    })
   )
   // A small database, so the viewer has tables, rows and a query box to
   // measure rather than an empty state.
@@ -262,6 +272,11 @@ async function contrastFailures(root: string): Promise<Scan> {
       if (rect.width < 1 || rect.height < 1) continue
       const cs = getComputedStyle(el)
       if (cs.visibility === 'hidden' || cs.opacity === '0') continue
+      // pdf.js paints a page's glyphs onto a canvas and lays transparent copies
+      // of the words over the top so a mouse can select them. That layer is
+      // deliberately inkless — the legible text is the canvas underneath, which
+      // no contrast rule can read anyway.
+      if (el.closest('.textLayer')) continue
       scanned++
 
       const bg = surfaceOf(el)
@@ -674,6 +689,25 @@ const SURFACES: Surface[] = [
       await setExpanded('.mcp-server__toggle', 'Fixture', false)
       await runCommand('view.toggleOutline')
       await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
+    // The PDF reader: its toolbar, the page rail beside it, and the outline —
+    // small controls and smaller labels, over a white page that a dark theme
+    // has to stay legible against.
+    name: 'pdf reader',
+    root: '.pdfv',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'audit.pdf' }).click()
+      await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 30_000 })
+      await expect(page.locator('.pdfv__outline-row').first()).toBeVisible()
+      await page.locator('button[aria-label="Find in this document"]').click()
+      await expect(page.locator('.pdfv__find-input')).toBeVisible()
+    },
+    close: async () => {
+      await page.locator('button[aria-label="Close find"]').click()
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await expect(page.locator('.cm-content').first()).toBeVisible()
     }
   },
   {

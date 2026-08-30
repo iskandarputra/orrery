@@ -3,7 +3,11 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 export default tseslint.config(
-  { ignores: ['node_modules/**', 'out/**', 'dist/**', 'coverage/**'] },
+  // `public/` is generated from node_modules by scripts/sync-assets.mjs, so
+  // what is in it is somebody else's code and none of our business.
+  {
+    ignores: ['node_modules/**', 'out/**', 'dist/**', 'coverage/**', 'src/renderer/public/**']
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

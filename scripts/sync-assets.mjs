@@ -1,5 +1,10 @@
 /**
- * Copy Excalidraw's fonts into the renderer's public directory.
+ * Copy the runtime data files third-party viewers fetch for themselves.
+ *
+ * Excalidraw's handwriting fonts and pdf.js's character maps, standard fonts
+ * and wasm decoders are all loaded by URL at runtime rather than imported, so a
+ * bundler never sees them. Both libraries fall back to a CDN or to failing
+ * silently, which for an offline desktop app means blank pages.
  *
  * Excalidraw fetches its handwriting fonts at runtime and falls back to a CDN
  * when it cannot find them locally — which for an offline desktop app means a
@@ -57,3 +62,29 @@ await writeFile(
 )
 
 console.log('sync-assets: Excalidraw fonts and their licences copied')
+
+/**
+ * pdf.js's runtime data, beside index.html as `pdfjs/`.
+ *
+ * `cmaps` are the predefined character maps CJK documents encode their text
+ * with; `standard_fonts` are the fourteen faces a PDF may name without
+ * embedding, which pdf.js otherwise substitutes with whatever the system has;
+ * `wasm` holds the JBIG2, JPEG 2000 and colour-management decoders that scans
+ * are full of. Each degrades quietly when it is missing — a substituted font,
+ * an undecodable image, text that does not appear — so they are bundled rather
+ * than fetched or hoped for.
+ */
+const pdfjs = join(root, 'node_modules/pdfjs-dist')
+const pdfjsTo = join(root, 'src/renderer/public/pdfjs')
+if (!existsSync(pdfjs)) {
+  console.log('sync-assets: no pdfjs-dist found; skipping')
+} else {
+  await rm(pdfjsTo, { recursive: true, force: true })
+  await mkdir(pdfjsTo, { recursive: true })
+  for (const dir of ['cmaps', 'standard_fonts', 'wasm']) {
+    const source = join(pdfjs, dir)
+    if (existsSync(source)) await cp(source, join(pdfjsTo, dir), { recursive: true })
+  }
+  await cp(join(pdfjs, 'LICENSE'), join(pdfjsTo, 'LICENSE'))
+  console.log('sync-assets: pdf.js cmaps, standard fonts and wasm copied')
+}
