@@ -5,7 +5,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap } from '@codemirror/search'
-import { alignFile, changedLines, padding } from '@core/diff-align'
+import { alignFile, changedLines, changeMarks, padding } from '@core/diff-align'
 import { EMPTY_DIFF, type FileDiff } from '@core/unified-diff'
 import { languageCompartment, findLanguage } from '@/editor/code-language'
 import { diffMarks, setDiffMarks } from '@/editor/diff-decorations'
@@ -15,8 +15,11 @@ import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 
-/** The minimap's change strip. Matches the line tint, at full strength. */
-const ADDED_MARK = '#3fb950'
+/**
+ * The minimap's bands. The same tokens the changed lines are tinted with, so
+ * the preview and the text agree, and a theme change carries both.
+ */
+const MARK_COLOURS = { added: 'var(--or-diff-add)', removed: 'var(--or-diff-del)' } as const
 
 /** Lines in a string, counting the way a file does. */
 const lineCount = (text: string): number => (text === '' ? 0 : text.split('\n').length)
@@ -171,12 +174,16 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
           extensions: [
             // One minimap, on the working-tree side, as VS Code's diff editor
             // has: two in half-width panes would cost a quarter of the view to
-            // say the same thing twice. Its gutter marks the changed lines, so
-            // the shape of the edit is visible without scrolling the file.
+            // say the same thing twice. It bands the changed lines, so the shape
+            // of the edit is visible without scrolling the file — deletions
+            // included, marked on the line that replaced them, since this side
+            // has no line of their own to mark.
             paneExtensions(
               editable,
               minimap(showMinimap, {
-                gutter: Object.fromEntries(changed.added.map((n) => [n, ADDED_MARK]))
+                changes: Object.fromEntries(
+                  changeMarks(rows).map((mark) => [mark.line, MARK_COLOURS[mark.kind]])
+                )
               })
             ),
             // Ahead of the default keymap so Mod-s is a save and never a browser

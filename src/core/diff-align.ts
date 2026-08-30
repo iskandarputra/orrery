@@ -142,3 +142,39 @@ export function changedLines(rows: DiffRow[]): { removed: number[]; added: numbe
   }
   return { removed, added }
 }
+
+export interface ChangeMark {
+  /** A line in the new file, 1-based. */
+  line: number
+  kind: 'added' | 'removed'
+}
+
+/**
+ * Where the changes are, in the new file's numbering.
+ *
+ * The working tree is the side with the minimap, and it has no line for a
+ * deleted one — so a removal is marked where it happened: on the line that took
+ * its place, or on the last line when the file ends with the deletion. A line
+ * that was rewritten counts as added rather than removed, because that is the
+ * line somebody would go and look at.
+ */
+export function changeMarks(rows: DiffRow[]): ChangeMark[] {
+  const kinds = new Map<number, 'added' | 'removed'>()
+  let removals = false
+  let lastNew = 0
+
+  for (const row of rows) {
+    if (row.left?.kind === 'removed') removals = true
+    const line = row.right?.newLine
+    if (line == null) continue
+
+    lastNew = line
+    if (row.right?.kind === 'added') kinds.set(line, 'added')
+    else if (removals && !kinds.has(line)) kinds.set(line, 'removed')
+    removals = false
+  }
+  // Deletions at the end of the file have no following line to hang from.
+  if (removals && lastNew > 0 && !kinds.has(lastNew)) kinds.set(lastNew, 'removed')
+
+  return [...kinds].sort((a, b) => a[0] - b[0]).map(([line, kind]) => ({ line, kind }))
+}

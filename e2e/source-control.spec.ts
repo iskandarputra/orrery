@@ -271,3 +271,87 @@ test('commit is refused without a message or staged work', async () => {
   // Nothing staged: the button is disabled and so is the message box.
   await expect(page.locator('.scm__commit-btn')).toBeDisabled()
 })
+
+test('the preview bands the changes across its width, in green and red', async () => {
+  // Long enough that the preview draws a window of lines rather than the whole
+  // file, which is the case the band arithmetic has to get right.
+  const lines = Array.from({ length: 300 }, (_, i) => `line ${i + 1}`)
+  writeFileSync(join(vault, 'Preview.md'), `${lines.join('\n')}\n`)
+  git('add', 'Preview.md')
+  git('commit', '-qm', 'a long file')
+
+  const edited = [...lines]
+  edited[9] = 'line 10, rewritten'
+  edited.splice(20, 3)
+  writeFileSync(join(vault, 'Preview.md'), `${edited.join('\n')}\n`)
+
+  await openPanel()
+  await refresh()
+  await page.locator('.scm-row__name').filter({ hasText: 'Preview.md' }).click()
+  await expect(page.locator('.diff')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.diff__pane--new .cm-minimap-gutter')).toBeVisible({ timeout: 10_000 })
+
+  const measure = async (): Promise<{
+    bands: { top: number; height: number; width: number; red: number; green: number }[]
+    gutterWidth: number
+    lineTop: number
+  } | null> =>
+    page.evaluate(() => {
+      const pane = document.querySelector('.diff__pane--new')
+      const inner = pane?.querySelector('.cm-minimap-inner')
+      const gutter = pane?.querySelector('.cm-minimap-gutter')
+      const content = pane?.querySelector('.cm-content')
+      const line = [...(pane?.querySelectorAll('.cm-line') ?? [])].find((el) =>
+        el.textContent?.includes('line 10, rewritten')
+      )
+      if (!inner || !gutter || !content || !line) return null
+
+      const innerTop = inner.getBoundingClientRect().top
+      const bands = [...inner.querySelectorAll('.cm-or-minimap-change')]
+        .filter((el) => getComputedStyle(el).display !== 'none')
+        .map((el) => {
+          const box = el.getBoundingClientRect()
+          const [red = 0, green = 0] = (
+            getComputedStyle(el).backgroundColor.match(/\d+/g) ?? []
+          ).map(Number)
+          return { top: box.top - innerTop, height: box.height, width: box.width, red, green }
+        })
+      return {
+        bands,
+        gutterWidth: gutter.getBoundingClientRect().width,
+        // Where the rewritten line sits in the text, measured from the top of
+        // the content box so the document's own padding is included.
+        lineTop: line.getBoundingClientRect().top - content.getBoundingClientRect().top
+      }
+    })
+
+  // The bands are placed on an animation frame, as the canvas beside them is.
+  await expect.poll(async () => (await measure())?.bands.length ?? 0).toBeGreaterThanOrEqual(2)
+  const seen = (await measure())!
+
+  // Both kinds are marked: the rewritten line, and the hole three deleted lines
+  // left behind — which the working tree has no line of its own for.
+  const added = seen.bands.filter((band) => band.green > band.red)
+  const removed = seen.bands.filter((band) => band.red > band.green)
+  expect(added.length).toBeGreaterThanOrEqual(1)
+  expect(removed.length).toBeGreaterThanOrEqual(1)
+
+  // The whole width of the preview, not a strip down one edge of it. The
+  // package's own gutter draws four canvas pixels, which is two here.
+  for (const band of seen.bands) {
+    expect(band.width).toBeGreaterThan(seen.gutterWidth * 0.8)
+    expect(band.width).toBeGreaterThan(8)
+    expect(band.height).toBeGreaterThanOrEqual(3)
+  }
+
+  // And beside the line it marks. A minimap line is a quarter of an editor line
+  // on a canvas of twice the pixels, so the text's own geometry says where the
+  // band belongs — worked out from the editor rather than from the same
+  // arithmetic the bands are placed with.
+  const first = added.sort((a, b) => a.top - b.top)[0]!
+  expect(first.top).toBeGreaterThan(seen.lineTop / 8 - 4)
+  expect(first.top).toBeLessThan(seen.lineTop / 8 + 4)
+
+  await page.locator('.diff button[aria-label="Close"]').click()
+  git('checkout', '-q', '--', 'Preview.md')
+})

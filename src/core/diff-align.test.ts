@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { alignFile, changedLines, hunkStart, padding } from './diff-align'
+import { alignFile, changedLines, changeMarks, hunkStart, padding } from './diff-align'
 import { parseUnifiedDiff } from './unified-diff'
 
 /** A real `git diff` body, so the parser is exercised rather than bypassed. */
@@ -116,5 +116,38 @@ describe('changedLines', () => {
   it('marks nothing for an unchanged file', () => {
     const marks = changedLines(alignFile({ hunks: [], binary: false, added: 0, removed: 0 }, 4, 4))
     expect(marks).toEqual({ removed: [], added: [] })
+  })
+})
+
+describe('changeMarks', () => {
+  it('marks added lines where they are in the new file', () => {
+    const d = diffOf('@@ -2,0 +3,2 @@\n+one\n+two\n')
+    expect(changeMarks(alignFile(d, 4, 6))).toEqual([
+      { line: 3, kind: 'added' },
+      { line: 4, kind: 'added' }
+    ])
+  })
+
+  it('marks a deletion on the line that took its place', () => {
+    // The working tree has no line for a deleted one, and a change nobody can
+    // point at is a change the preview cannot show.
+    const d = diffOf('@@ -2,2 +2,1 @@\n-gone\n kept\n')
+    expect(changeMarks(alignFile(d, 4, 3))).toEqual([{ line: 2, kind: 'removed' }])
+  })
+
+  it('counts a rewritten line as added rather than as a hole beside it', () => {
+    const d = diffOf('@@ -2,1 +2,1 @@\n-old\n+new\n')
+    expect(changeMarks(alignFile(d, 3, 3))).toEqual([{ line: 2, kind: 'added' }])
+  })
+
+  it('hangs a deletion at the end of the file on its last line', () => {
+    const d = diffOf('@@ -3,2 +2,0 @@\n-tail one\n-tail two\n')
+    expect(changeMarks(alignFile(d, 4, 2))).toEqual([{ line: 2, kind: 'removed' }])
+  })
+
+  it('marks nothing for an unchanged file', () => {
+    expect(
+      changeMarks(alignFile({ hunks: [], binary: false, added: 0, removed: 0 }, 4, 4))
+    ).toEqual([])
   })
 })
