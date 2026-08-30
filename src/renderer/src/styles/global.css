@@ -5312,6 +5312,13 @@ kbd {
 
 .csv__table {
   border-collapse: collapse;
+  /* Fixed rather than auto: the column widths are the ones being dragged, and
+     an auto layout treats them as a suggestion it may overrule from content.
+     `max-content` with it, because a fixed table with an automatic width
+     scales its columns down to the container instead — which looks like a
+     resize that only half worked. */
+  table-layout: fixed;
+  width: max-content;
   font-family: var(--or-mono-font);
   font-size: 12px;
 }
@@ -5329,28 +5336,52 @@ kbd {
   background: var(--or-panel-bg);
 }
 
+/* A table cell, and left as one. `display: flex` here took the row-number
+   column out of table layout altogether: it stopped sizing with its column,
+   stopped lining up with the row it belongs to, and fought the sticky
+   positioning that keeps it on screen. The flexbox belongs inside it. */
 .csv__gutter {
   position: sticky;
   left: 0;
   z-index: 2;
+  background: var(--or-panel-bg);
+  color: var(--or-fg-faint);
+  vertical-align: middle;
+  /* A collapsed-border table drops a sticky cell's borders while it is stuck,
+     so the frozen column draws its own edge and reads as frozen. */
+  box-shadow: inset -1px 0 0 var(--or-border);
+}
+
+/* The corner cell is both a header and a gutter, so it sticks both ways and
+   sits above each of them. */
+.csv__table thead .csv__gutter {
+  top: 0;
+  z-index: 3;
+}
+
+.csv__gutter-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 2px;
-  min-width: 3.4rem;
+  height: 100%;
+  min-height: 26px;
   padding: 0 4px;
-  background: var(--or-panel-bg);
-  color: var(--or-fg-faint);
 }
 
 .csv__number {
+  flex: 1;
+  text-align: right;
   font-variant-numeric: tabular-nums;
   font-size: 11px;
+  font-weight: 400;
 }
 
 .csv__input {
   width: 100%;
-  min-width: 8rem;
+  /* Zero, so a narrowed column really narrows: a minimum here would make the
+     input wider than the cell holding it. */
+  min-width: 0;
   min-height: 26px;
   padding: 3px 7px;
   border: 0;
@@ -6217,5 +6248,134 @@ kbd {
   margin-top: 0.4em;
   font-family: var(--or-ui-font);
   font-size: 0.8em;
+  color: var(--or-fg-muted);
+}
+
+/* --- The table grid, made a table --------------------------------------- */
+
+/* The header is a drag handle, a sort button, a name and a resize grip in one
+   row, which is what every spreadsheet header is.
+   `position` is left alone here: it is already `sticky` above, which is what
+   freezes the header, and `relative` for the sake of the buttons inside would
+   quietly unfreeze it. A sticky box is a positioned box, so they anchor to it
+   either way. */
+.csv__head {
+  cursor: grab;
+}
+
+.csv__head:active {
+  cursor: grabbing;
+}
+
+/* Where a dragged column or row would land. */
+.csv__head--over {
+  box-shadow: inset 2px 0 0 var(--or-accent);
+}
+
+.csv__row--over td,
+.csv__row--over th {
+  box-shadow: inset 0 2px 0 var(--or-accent);
+}
+
+.csv__sort {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 20px;
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-faint);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.csv__head:hover .csv__sort,
+.csv__sort:focus-visible {
+  color: var(--or-fg);
+  background: var(--or-hover-bg);
+}
+
+.csv__input--head {
+  padding-left: 22px;
+}
+
+/* The grab area for a column's width, on the border it moves. */
+.csv__grip {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.csv__grip:hover,
+.csv__grip:focus-visible {
+  background: var(--or-accent);
+  outline: none;
+}
+
+.csv__gutter[draggable='true'] {
+  cursor: grab;
+}
+
+.csv__filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  background: var(--or-input-bg);
+}
+
+.csv__filter-icon {
+  flex: none;
+  color: var(--or-fg-faint);
+}
+
+.csv__filter-input {
+  width: 11rem;
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  background: none;
+  font-family: var(--or-ui-font);
+  font-size: 12px;
+  color: var(--or-fg);
+  outline: none;
+}
+
+.csv__filter-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-muted);
+  cursor: pointer;
+}
+
+.csv__filter-clear:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.csv__hidden {
+  color: var(--or-fg-muted);
+}
+
+.csv__empty {
+  padding: 14px;
+  font-size: 12.5px;
   color: var(--or-fg-muted);
 }
