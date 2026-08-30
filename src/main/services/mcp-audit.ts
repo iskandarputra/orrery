@@ -62,7 +62,11 @@ export class McpAudit {
       return []
     }
 
-    const entries: AuditEntry[] = []
+    // Read order is the tiebreaker, so two calls inside the same millisecond
+    // still come back in the order they happened. Without it "newest first"
+    // silently becomes "oldest first" for a burst, which is exactly when the
+    // log is being read.
+    const entries: { entry: AuditEntry; order: number }[] = []
     for (const file of files) {
       let raw: string
       try {
@@ -73,13 +77,16 @@ export class McpAudit {
       for (const line of raw.split('\n')) {
         if (!line.trim()) continue
         try {
-          entries.push(JSON.parse(line) as AuditEntry)
+          entries.push({ entry: JSON.parse(line) as AuditEntry, order: entries.length })
         } catch {
           // A half-written last line from a crash; the rest is still good.
         }
       }
       if (entries.length >= limit) break
     }
-    return entries.sort((a, b) => b.at - a.at).slice(0, limit)
+    return entries
+      .sort((a, b) => b.entry.at - a.entry.at || b.order - a.order)
+      .slice(0, limit)
+      .map((row) => row.entry)
   }
 }

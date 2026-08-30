@@ -62,6 +62,17 @@ describe('McpAudit', () => {
     expect(written.length).toBeLessThan(1000)
   })
 
+  it('keeps two calls in the same millisecond in the order they happened', async () => {
+    // Nothing forces a tool call to take a millisecond, and a log that says
+    // "newest first" must not quietly mean the opposite for a burst.
+    const audit = new McpAudit(dir)
+    const at = Date.now()
+    await audit.write(entry({ at, tool: 'first' }))
+    await audit.write(entry({ at, tool: 'second' }))
+
+    expect((await new McpAudit(dir).recent(10)).map((e) => e.tool)).toEqual(['second', 'first'])
+  })
+
   it('honours the limit it is given', async () => {
     const audit = new McpAudit(dir)
     for (let i = 0; i < 10; i++) await audit.write(entry({ at: 1_000 + i }))
