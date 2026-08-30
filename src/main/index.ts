@@ -13,6 +13,7 @@ import { AskUser } from './services/ask-user'
 import { McpAudit } from './services/mcp-audit'
 import { McpClientService } from './services/mcp-client'
 import { McpHostService } from './services/mcp-host'
+import { SqliteService } from './services/sqlite'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -74,6 +75,7 @@ if (!gotLock) {
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
   const history = new HistoryService(app.getPath('userData'))
   const git = new GitService()
+  const sqlite = new SqliteService()
   const terminal = new TerminalService({
     onData: (id, data) => {
       const win = windows.window
@@ -144,6 +146,8 @@ if (!gotLock) {
     askUser.cancelAll()
     void mcp.shutdown()
     void mcpHost.stop()
+    // Database handles are files held open; none may outlive the window.
+    sqlite.close()
     sidecar?.shutdown()
     // Shells are children of this process; none may outlive the window.
     terminal.shutdown()
@@ -176,7 +180,8 @@ if (!gotLock) {
       mcp,
       mcpHost,
       mcpAudit,
-      askUser
+      askUser,
+      sqlite
     })
     buildAppMenu(settings.get().keybindings, {
       files: settings.get().recentFiles,

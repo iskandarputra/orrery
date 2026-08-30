@@ -11,6 +11,8 @@ import type {
 } from './types'
 import type {
   AiToolStep,
+  DbQueryResult,
+  DbTableInfo,
   McpAskRequest,
   McpHostStatus,
   McpAuditEntry,
@@ -250,6 +252,29 @@ export interface IpcInvokeContract {
     req: { system: string; messages: { role: 'user' | 'assistant'; content: string }[] }
     res: string
   }
+
+  /**
+   * SQLite files, read-only.
+   *
+   * The viewer never writes: the handle is opened read-only and the SQL is
+   * checked before it gets there. `db:available` reports whether the runtime
+   * has SQLite at all, so the surface can say so rather than look broken.
+   */
+  'db:available': { req: void; res: boolean }
+  'db:tables': { req: { path: string }; res: DbTableInfo[] }
+  'db:rows': {
+    req: {
+      path: string
+      table: string
+      limit?: number
+      offset?: number
+      orderBy?: string
+      descending?: boolean
+    }
+    res: DbQueryResult
+  }
+  'db:query': { req: { path: string; sql: string }; res: DbQueryResult }
+  'db:close': { req: { path: string }; res: void }
 
   /** Export the given markdown; resolves to the saved path or null on cancel. */
   'export:html': { req: { title: string; markdown: string }; res: string | null }

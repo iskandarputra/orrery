@@ -14,6 +14,7 @@ import type { AskUser } from '../services/ask-user'
 import type { McpAudit } from '../services/mcp-audit'
 import type { McpClientService } from '../services/mcp-client'
 import type { McpHostService } from '../services/mcp-host'
+import type { SqliteService } from '../services/sqlite'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import type { SettingsStore } from '../services/settings-store'
@@ -37,6 +38,7 @@ export interface HandlerDeps {
   terminal: TerminalService
   mcp: McpClientService
   mcpHost: McpHostService
+  sqlite: SqliteService
   mcpAudit: McpAudit
   askUser: AskUser
 }
@@ -66,7 +68,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     mcp,
     mcpHost,
     mcpAudit,
-    askUser
+    askUser,
+    sqlite
   } = deps
 
   // --- dialogs -------------------------------------------------------------
@@ -416,6 +419,32 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   )
 
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
+  // --- databases ------------------------------------------------------------
+  handle('db:available', null, () => sqlite.available)
+  handle('db:tables', pathReq, (_e, req) => sqlite.tables(req.path))
+  handle(
+    'db:rows',
+    z.object({
+      path: z.string().min(1),
+      table: z.string().min(1),
+      limit: z.number().int().min(1).max(5000).optional(),
+      offset: z.number().int().min(0).optional(),
+      orderBy: z.string().optional(),
+      descending: z.boolean().optional()
+    }),
+    (_e, req) =>
+      sqlite.rows(req.path, req.table, {
+        limit: req.limit ?? 200,
+        offset: req.offset ?? 0,
+        orderBy: req.orderBy ?? '',
+        descending: req.descending === true
+      })
+  )
+  handle('db:query', z.object({ path: z.string().min(1), sql: z.string() }), (_e, req) =>
+    sqlite.query(req.path, req.sql)
+  )
+  handle('db:close', pathReq, (_e, req) => sqlite.close(req.path))
+
   handle('export:html', exportReq, (_e, req) => exporter.exportHtml(req.title, req.markdown))
   handle('export:pdf', exportReq, (_e, req) => exporter.exportPdf(req.title, req.markdown))
   handle('export:print', exportReq, (_e, req) => exporter.print(req.title, req.markdown))

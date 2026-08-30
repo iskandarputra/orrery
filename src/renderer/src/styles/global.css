@@ -6379,3 +6379,274 @@ kbd {
   font-size: 12.5px;
   color: var(--or-fg-muted);
 }
+
+/* --- The database viewer ------------------------------------------------- */
+
+.db {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
+  background: var(--or-editor-bg);
+}
+
+.db__tables {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 6px;
+  overflow: auto;
+  border-right: 1px solid var(--or-border);
+  background: var(--or-panel-bg);
+}
+
+.db__tables-title {
+  padding: 0 6px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--or-fg-muted);
+}
+
+.db__table {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 6px;
+  border-radius: var(--or-radius-xs);
+  color: var(--or-fg-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.db__table:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.db__table--active {
+  background: var(--or-active-bg);
+  color: var(--or-fg);
+}
+
+.db__table-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.db__table-rows {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--or-fg-faint);
+}
+
+.db__main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.db__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--or-border);
+  font-size: 11.5px;
+  color: var(--or-fg-muted);
+}
+
+.db__shape {
+  font-variant-numeric: tabular-nums;
+}
+
+.db__readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: var(--or-radius-full);
+  background: var(--or-hover-bg);
+  font-size: 10.5px;
+}
+
+.db__page {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.db__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  font-size: 11.5px;
+  color: var(--or-fg-muted);
+  cursor: pointer;
+}
+
+.db__action:hover:not(:disabled) {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.db__action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.db__action--active {
+  background: var(--or-active-bg);
+  color: var(--or-fg);
+}
+
+.db__sql {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--or-border);
+  background: var(--or-panel-bg);
+}
+
+.db__sql-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  background: var(--or-input-bg);
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+  color: var(--or-fg);
+  resize: vertical;
+}
+
+.db__sql-input:focus {
+  outline: 2px solid var(--or-accent);
+  outline-offset: -1px;
+}
+
+.db__sql-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.db__sql-hint {
+  flex: 1;
+  font-size: 11px;
+  color: var(--or-fg-muted);
+}
+
+.db__scroll {
+  overflow: auto;
+  min-width: 0;
+}
+
+.db__grid {
+  border-collapse: collapse;
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+}
+
+.db__grid th,
+.db__grid td {
+  border: 1px solid var(--or-border);
+  padding: 0;
+}
+
+.db__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--or-panel-bg);
+  text-align: left;
+}
+
+.db__sort {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 26px;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--or-fg);
+  cursor: pointer;
+}
+
+.db__sort:disabled {
+  cursor: default;
+}
+
+.db__sort:hover:not(:disabled) {
+  background: var(--or-hover-bg);
+}
+
+.db__head-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db__gutter {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  padding: 0 8px;
+  background: var(--or-panel-bg);
+  color: var(--or-fg-faint);
+  text-align: right;
+  box-shadow: inset -1px 0 0 var(--or-border);
+}
+
+.db__grid thead .db__gutter {
+  top: 0;
+  z-index: 3;
+}
+
+.db__number {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.db__cell {
+  max-width: 32rem;
+  padding: 3px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--or-fg);
+}
+
+.db__null {
+  color: var(--or-fg-faint);
+  font-style: italic;
+}
+
+.db__error {
+  margin: 12px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--or-diff-del);
+  background: var(--or-panel-bg);
+  font-family: var(--or-mono-font);
+  font-size: 12px;
+  color: var(--or-fg);
+}
+
+.db__empty {
+  padding: 14px;
+  font-size: 12.5px;
+  color: var(--or-fg-muted);
+}

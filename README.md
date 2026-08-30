@@ -165,6 +165,14 @@ folding.
 Excalidraw canvas and save in Excalidraw's own format, so a board made here
 opens on excalidraw.com and one made there opens here.
 
+**Tables and databases.** A `.csv` opens as a grid you can sort, filter, resize
+and rearrange by dragging, edited in place. Sorting and filtering never touch
+the file: they choose an order to draw in, and an edit goes back to the row it
+really came from. A `.db` or `.sqlite` opens as its tables, with row counts, a
+page at a time, sortable, and a box for a query. It is strictly read-only, twice
+over: the file is opened read-only and anything that is not a question is
+refused before it reaches the database.
+
 ## AI, if you want it
 
 Off until you configure it. Point it at the Claude API or a local Ollama model

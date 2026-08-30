@@ -93,6 +93,21 @@ test.beforeAll(async () => {
     join(vault, 'lexer.ts'),
     'export function parse(a: string) {\n  // counts the characters\n  return a.length + 1\n}\n'
   )
+  // A small database, so the viewer has tables, rows and a query box to
+  // measure rather than an empty state.
+  {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DatabaseSync } = require('node:sqlite') as {
+      DatabaseSync: new (p: string) => { exec(sql: string): void; close(): void }
+    }
+    const db = new DatabaseSync(join(vault, 'audit.db'))
+    db.exec(
+      `CREATE TABLE notes (id INTEGER PRIMARY KEY, title TEXT, size REAL);
+       INSERT INTO notes (title, size) VALUES ('alpha', 3.5), ('beta', 1.5);`
+    )
+    db.close()
+  }
+
   // A board with one of each kind of card, so the canvas surface has its own
   // text to measure: rendered markdown, a note preview and a group label.
   writeFileSync(
@@ -659,6 +674,23 @@ const SURFACES: Surface[] = [
       await setExpanded('.mcp-server__toggle', 'Fixture', false)
       await runCommand('view.toggleOutline')
       await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
+    // The database viewer: a table list, a grid and the query box, which is
+    // the smallest text on it.
+    name: 'database viewer',
+    root: '.db',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'audit.db' }).click()
+      await expect(page.locator('.db__table-name').first()).toBeVisible({ timeout: 20_000 })
+      await page.locator('.db__action', { hasText: 'SQL' }).click()
+      await expect(page.locator('.db__sql-input')).toBeVisible()
+    },
+    close: async () => {
+      await page.locator('.db__action', { hasText: 'SQL' }).click()
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await expect(page.locator('.cm-content').first()).toBeVisible()
     }
   },
   {

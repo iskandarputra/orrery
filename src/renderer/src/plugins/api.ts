@@ -36,6 +36,15 @@ export interface DocumentSurface {
    */
   Component: (props: { bufferId: string }) => React.JSX.Element
   /**
+   * The file is not text, so do not read it as text.
+   *
+   * Without this the app slurps the file into a document before the surface is
+   * ever asked about it, which for a database or an image means megabytes of
+   * binary decoded as UTF-8 and held in memory for nothing. A binary surface
+   * opens with an empty document and reads the file itself, by path.
+   */
+  binary?: boolean
+  /**
    * How to make a new one, if that makes sense for the format.
    *
    * Without this a surface can only open files that already exist — which,

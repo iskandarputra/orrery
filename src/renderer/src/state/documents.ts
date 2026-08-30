@@ -160,7 +160,13 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         continue
       }
       try {
-        const file = await invoke('fs:readFile', { path })
+        // A binary surface reads its own file, by path: slurping a database
+        // into a text document would decode megabytes of B-tree as UTF-8 and
+        // hold it for nothing.
+        const surface = surfaceForFile(basename(path))
+        const file = surface?.binary
+          ? { path, content: '', mtimeMs: Date.now() }
+          : await invoke('fs:readFile', { path })
         const id = crypto.randomUUID()
         const state = createDocumentState({
           id,

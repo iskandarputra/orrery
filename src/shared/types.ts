@@ -270,3 +270,31 @@ export interface McpHostStatus {
   token: string
   allowWrites: boolean
 }
+
+/** One column of a table in a SQLite file. */
+export interface DbColumnInfo {
+  name: string
+  type: string
+  primaryKey: boolean
+  notNull: boolean
+}
+
+export interface DbTableInfo {
+  name: string
+  kind: 'table' | 'view'
+  /** The `CREATE` statement, as SQLite stored it. */
+  sql: string
+  columns: DbColumnInfo[]
+  /** -1 when it could not be counted. */
+  rowCount: number
+}
+
+/** Rows as text: a grid draws strings, and JSON cannot carry a blob. */
+export interface DbQueryResult {
+  columns: string[]
+  rows: string[][]
+  /** Empty when the query ran. */
+  error: string
+  /** More rows existed than the viewer will show. */
+  truncated: boolean
+}
