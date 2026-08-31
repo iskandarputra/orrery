@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -45,11 +40,24 @@ async function caretIn(needle: string): Promise<void> {
   // silently moves the wrong thing — which the assertions read as the feature
   // being broken.
   await expect
-    .poll(
-      () => page.evaluate(() => document.querySelector('.cm-activeLine')?.textContent ?? ''),
-      { timeout: 5_000 }
-    )
+    .poll(() => page.evaluate(() => document.querySelector('.cm-activeLine')?.textContent ?? ''), {
+      timeout: 5_000
+    })
     .toContain(needle)
+}
+
+/**
+ * Run a command that edits the document, and wait for the edit to land.
+ *
+ * `runCommand` posts a message and returns; the command runs when the renderer
+ * gets to it. Saving straight afterwards sometimes wrote the file *before* the
+ * move had been applied, and the test then read the old order back off disk and
+ * reported the feature broken. An edit makes the buffer dirty, so that is the
+ * signal that it has actually happened.
+ */
+async function edit(commandId: string): Promise<void> {
+  await runCommand(commandId)
+  await expect(page.locator('.tab__close--dirty')).toBeVisible({ timeout: 10_000 })
 }
 
 async function saved(): Promise<string> {
@@ -76,36 +84,36 @@ test.afterAll(async () => {
 
 test('moves a paragraph past the block above it', async () => {
   await caretIn('first paragraph')
-  await runCommand('block.moveUp')
+  await edit('block.moveUp')
 
   const text = await saved()
   expect(text.indexOf('first paragraph')).toBeLessThan(text.indexOf('# Title'))
-  await runCommand('block.moveDown') // put it back
+  await edit('block.moveDown') // put it back
   await saved()
 })
 
 test('a list travels whole, not one line at a time', async () => {
   await caretIn('of items')
-  await runCommand('block.moveUp')
+  await edit('block.moveUp')
 
   const text = await saved()
   // Both list lines moved together, above the paragraph.
   expect(text.indexOf('- a list')).toBeLessThan(text.indexOf('first paragraph'))
   expect(text.indexOf('- a list')).toBeLessThan(text.indexOf('- of items'))
-  await runCommand('block.moveDown')
+  await edit('block.moveDown')
   await saved()
 })
 
 test('a fenced block travels whole', async () => {
   await caretIn('const fenced')
-  await runCommand('block.moveDown')
+  await edit('block.moveDown')
 
   const text = await saved()
   const fence = text.indexOf('```ts')
   expect(fence).toBeGreaterThan(text.indexOf('last paragraph'))
   // The fence is still intact around its code.
   expect(text).toContain('```ts\nconst fenced = true\n```')
-  await runCommand('block.moveUp')
+  await edit('block.moveUp')
   await saved()
 })
 
@@ -113,6 +121,8 @@ test('refuses to move past the end, leaving the document alone', async () => {
   const before = readFileSync(join(vault, 'Note.md'), 'utf-8')
   // Live preview conceals the `#`, so the rendered text is just "Title".
   await caretIn('Title')
+  // Deliberately the unwaiting version: this move is meant to do nothing, so
+  // there is no edit to wait for.
   await runCommand('block.moveUp')
   await page.waitForTimeout(300)
   await expect(page.locator('.tab__close--dirty')).toBeHidden()
@@ -140,7 +150,11 @@ test('dragging a block by its handle drops it elsewhere', async () => {
   }, paragraphBox.y)
   expect(handleBox, 'a handle beside the paragraph').not.toBeNull()
 
-  const target = (await page.locator('.cm-content').getByText('last paragraph').first().boundingBox())!
+  const target = (await page
+    .locator('.cm-content')
+    .getByText('last paragraph')
+    .first()
+    .boundingBox())!
   await page.mouse.move(handleBox!.x, handleBox!.y)
   await page.mouse.down()
   await page.mouse.move(target.x + 20, target.y + target.height - 2, { steps: 12 })
