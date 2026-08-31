@@ -117,6 +117,7 @@ const BY_EXTENSION: Record<string, FileIcon> = {
   webp: { shape: 'image', colour: '#a074c4' },
   avif: { shape: 'image', colour: '#a074c4' },
   ico: { shape: 'image', colour: '#a074c4' },
+  bmp: { shape: 'image', colour: '#a074c4' },
   pdf: { shape: 'binary', colour: '#e05252' },
   zip: { shape: 'binary', colour: '#afb42b' },
   gz: { shape: 'binary', colour: '#afb42b' },

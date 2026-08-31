@@ -7168,3 +7168,76 @@ kbd {
   color: var(--or-fg);
   pointer-events: none;
 }
+
+/* --- Image viewer -------------------------------------------------------- */
+.imgv {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--or-editor-bg);
+}
+
+.imgv__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--or-border);
+  font-size: 11.5px;
+  color: var(--or-fg-muted);
+}
+
+.imgv__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--or-fg);
+}
+
+.imgv__size,
+.imgv__zoom {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.imgv__zoom {
+  min-width: 3.2rem;
+  text-align: center;
+}
+
+.imgv__spacer {
+  flex: 1;
+}
+
+/* Scrolls in both directions once the picture is larger than the room, which
+   is the whole point of zooming in on one. */
+.imgv__stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: auto;
+  /* A chequerboard, so a transparent PNG reads as transparent rather than as
+     whatever colour the theme happens to be. */
+  background-color: var(--or-panel-bg);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--or-fg) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--or-fg) 6%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--or-fg) 6%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--or-fg) 6%, transparent) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+.imgv__image {
+  /* Kept crisp when magnified: a screenshot zoomed in should show its pixels,
+     not a guess at what was between them. */
+  image-rendering: pixelated;
+  max-width: none;
+}

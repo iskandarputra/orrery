@@ -2,6 +2,7 @@ import type { OrreryPlugin } from './api'
 import { csvPlugin } from './csv'
 import { sqlitePlugin } from './sqlite'
 import { excalidrawPlugin } from './excalidraw'
+import { imagePlugin } from './image'
 import { pdfPlugin } from './pdf'
 import { wikilinksPlugin } from './wikilinks'
 
@@ -14,5 +15,6 @@ export const builtinPlugins: OrreryPlugin[] = [
   excalidrawPlugin,
   csvPlugin,
   sqlitePlugin,
-  pdfPlugin
+  pdfPlugin,
+  imagePlugin
 ]

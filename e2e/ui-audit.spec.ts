@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchApp, openVault } from './helpers'
 import { makePdf } from '../src/main/services/__fixtures__/make-pdf'
+import { makePng } from '../src/main/services/__fixtures__/make-png'
 
 let app: ElectronApplication
 let page: Page
@@ -61,14 +62,7 @@ test.beforeAll(async () => {
   writeFileSync(join(vault, 'Other.md'), '# Other\n\nBack to [[Index]]. #tag\n')
   // Rendered media, so the blocks that carry an expand control — and the viewer
   // that control opens — are audited rather than assumed. 64x64 red PNG.
-  writeFileSync(
-    join(vault, 'pic.png'),
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAK0lEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAA' +
-        'AAAAAAAAAAAAAAAAAB4GxAAAAHmVwZ/AAAAAElFTkSuQmCC',
-      'base64'
-    )
-  )
+  writeFileSync(join(vault, 'pic.png'), makePng(64, 64))
   writeFileSync(
     join(vault, 'Diagram.md'),
     '# Diagram\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Middle]\n  B --> C[End]\n```\n\n' +
@@ -706,6 +700,21 @@ const SURFACES: Surface[] = [
     },
     close: async () => {
       await page.locator('button[aria-label="Close find"]').click()
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await expect(page.locator('.cm-content').first()).toBeVisible()
+    }
+  },
+  {
+    // The image viewer: a name, the dimensions and the zoom readout, all in
+    // small text over whatever colour the picture happens to be.
+    name: 'image viewer',
+    root: '.imgv',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'pic.png' }).click()
+      await expect(page.locator('.imgv__image')).toBeVisible({ timeout: 20_000 })
+      await expect(page.locator('.imgv__size')).toContainText('64')
+    },
+    close: async () => {
       await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
       await expect(page.locator('.cm-content').first()).toBeVisible()
     }
