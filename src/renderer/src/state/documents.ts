@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { basename, retargetPath } from '@core/paths'
 import { bufferRegistry } from '@/editor/buffer-registry'
+import { surfaceForKind } from '@/plugins/registry'
 import { createDocumentState } from '@/editor/create-state'
 import { getActiveView, viewForBuffer } from '@/editor/active-view'
 import { invalidateEmbed } from '@/editor/live-preview/embeds'
@@ -434,8 +435,16 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
 
   async save(id, opts) {
     const buffer = get().buffers[id]
+    if (!buffer) return false
+
+    // A surface whose file is not text saves itself. Falling through would
+    // write this buffer's document over it, and for a binary surface that
+    // document is empty — a saved PDF would become a nought-byte file.
+    const surface = buffer.kind ? surfaceForKind(buffer.kind) : null
+    if (surface?.save) return surface.save(id)
+
     const state = getBufferEditorState(id, get().activeId)
-    if (!buffer || !state) return false
+    if (!state) return false
 
     let targetPath = buffer.filePath
     let expectedMtimeMs: number | null = buffer.savedMtimeMs

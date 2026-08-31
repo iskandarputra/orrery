@@ -1,5 +1,6 @@
 import type { OrreryPlugin } from '../api'
 import { PdfViewer } from './PdfViewer'
+import { savePdf } from './saving'
 
 /**
  * PDFs as a document kind.
@@ -20,7 +21,11 @@ export const pdfPlugin: OrreryPlugin = {
       Component: PdfViewer,
       // Never decoded as text: a hundred-megabyte scan read as UTF-8 is a
       // hundred megabytes of nonsense held in memory for nothing.
-      binary: true
+      binary: true,
+      // And because the buffer is empty, the ordinary save would write nothing
+      // over the file. The open reader holds the annotations and the form
+      // values, so it is the thing that saves.
+      save: savePdf
     })
   }
 }

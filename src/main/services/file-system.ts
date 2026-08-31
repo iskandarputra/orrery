@@ -177,6 +177,38 @@ export class FileSystemService {
   }
 
   /**
+   * Write bytes over a file, with the same conflict check text saves use.
+   *
+   * Temp file and rename, so a save that fails halfway leaves the original
+   * document intact rather than a truncated one — which for the only copy of a
+   * signed contract is the difference between an inconvenience and a loss.
+   */
+  async writeBytes(
+    filePath: string,
+    bytes: Uint8Array,
+    expectedMtimeMs: number | null
+  ): Promise<FileWriteResult> {
+    try {
+      if (expectedMtimeMs !== null) {
+        const stat = await fs.stat(filePath).catch(() => null)
+        if (stat && Math.abs(stat.mtimeMs - expectedMtimeMs) > 1) {
+          throw new IpcError('CONFLICT', 'File was modified outside orrery since it was loaded')
+        }
+      }
+      const tmp = path.join(
+        path.dirname(filePath),
+        `.${path.basename(filePath)}.${randomUUID()}.tmp`
+      )
+      await fs.writeFile(tmp, bytes)
+      await fs.rename(tmp, filePath)
+      const stat = await fs.stat(filePath)
+      return { path: filePath, mtimeMs: stat.mtimeMs }
+    } catch (err) {
+      throw toIpcError(err)
+    }
+  }
+
+  /**
    * File a pasted or dropped asset into the vault. Never overwrites: a name
    * already in use gets a numbered variant, because losing an image someone
    * pasted earlier is not a recoverable mistake.

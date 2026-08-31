@@ -284,6 +284,21 @@ export interface IpcInvokeContract {
    */
   'pdf:text': { req: { path: string }; res: { pages: string[]; emptyPages: number[] } }
   /**
+   * Write a PDF back, bytes and all.
+   *
+   * The bytes rather than a base64 string: a scanned document runs to tens of
+   * megabytes and encoding it would cost a third again in memory on both sides
+   * for no benefit — Electron's own serialisation carries a `Uint8Array`.
+   *
+   * `expectedMtimeMs` is the same optimistic check every other save uses, so a
+   * document that changed on disk while it was open refuses rather than
+   * overwriting.
+   */
+  'pdf:save': {
+    req: { path: string; bytes: Uint8Array; expectedMtimeMs: number | null }
+    res: { path: string; mtimeMs: number }
+  }
+  /**
    * Text recognised from pages that had none, merged into the same cache the
    * extractor fills so search asks one question and gets one answer.
    */

@@ -6998,3 +6998,14 @@ kbd {
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* The annotation tools, grouped so they read as a set of things you pick up
+   rather than as five more buttons in a row. */
+.pdfv__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  border-left: 1px solid var(--or-border);
+  border-right: 1px solid var(--or-border);
+}

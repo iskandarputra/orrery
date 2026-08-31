@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcInvokeContract, OrreryApi } from '@shared/ipc'
 import { bufferRegistry } from '@/editor/buffer-registry'
 import { setClient } from '@/services/client'
+import { activatePlugins } from '@/plugins/registry'
 import { useStore } from './store'
 
 /**
@@ -246,5 +247,45 @@ describe('documents slice', () => {
     expect(saved).toBe(true)
     expect(useStore.getState().buffers[id]?.isDirty).toBe(false)
     expect(fake.files.get('/ws/a.md')?.content).toBe('edited original')
+  })
+})
+
+describe('a surface that saves itself', () => {
+  it('is asked to save instead of having the buffer written over its file', async () => {
+    // The trap this closes: a binary surface's buffer document is empty, so
+    // the ordinary save path would write nought bytes over somebody's PDF.
+    const saved: string[] = []
+    activatePlugins(
+      [
+        {
+          id: 'fake-binary',
+          name: 'Fake',
+          activate: (ctx) =>
+            ctx.registerDocumentSurface({
+              id: 'fakebin',
+              label: 'Fake',
+              claims: (name) => name.endsWith('.fake'),
+              Component: () => null as unknown as React.JSX.Element,
+              binary: true,
+              save: async (id) => {
+                saved.push(id)
+                return true
+              }
+            })
+        }
+      ],
+      { registerCommand: () => undefined, store: useStore }
+    )
+
+    fake.files.set('/ws/thing.fake', { content: '', mtimeMs: 1 })
+    await useStore.getState().openPaths(['/ws/thing.fake'])
+    const id = useStore.getState().activeId!
+
+    expect(await useStore.getState().save(id)).toBe(true)
+    expect(saved).toEqual([id])
+    // The file is untouched: the surface was asked, and it is the one that
+    // knows what its bytes are.
+    expect(fake.files.get('/ws/thing.fake')?.content).toBe('')
+    expect(fake.files.get('/ws/thing.fake')?.mtimeMs).toBe(1)
   })
 })

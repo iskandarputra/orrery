@@ -266,3 +266,81 @@ test('recognition runs offline, on the engine that ships with the app', async ()
     timeout: 120_000
   })
 })
+
+test('a note written on the page is saved into the file', async () => {
+  // The first write. pdf.js serialises the annotation as an incremental update
+  // — the original bytes kept, the new objects appended — so what lands on disk
+  // is the document somebody sent plus what was added to it.
+  const notesPath = join(vault, 'Notes.pdf')
+  writeFileSync(notesPath, makePdf({ pages: [['A page to write on.']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Notes.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+  // Nothing on it yet, so the annotation found after saving can only be the one
+  // written here.
+  await expect(page.locator('.annotationLayer section')).toHaveCount(0)
+  const before = statSync(notesPath).mtimeMs
+
+  await page.locator('button[aria-label="Text box"]').click()
+  await expect(page.locator('button[aria-label="Text box"]')).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+
+  const box = (await page.locator('.pdfViewer .page').first().boundingBox())!
+  await page.mouse.click(box.x + 120, box.y + 120)
+  await page.keyboard.type('written by a test')
+  await page.keyboard.press('Escape')
+
+  // Writing on the page makes the tab dirty, as editing a note does.
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(1, { timeout: 10_000 })
+
+  await page.locator('button[aria-label="Save this document"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0, { timeout: 20_000 })
+
+  // On disk, and a PDF annotation rather than a picture of one: another reader
+  // can open this file and see the same note.
+  expect(statSync(notesPath).mtimeMs).not.toBe(before)
+  const bytes = readFileSync(notesPath, 'latin1')
+  expect(bytes).toContain('/FreeText')
+  // The original document is still in there: an incremental update appends.
+  expect(bytes).toContain('A page to write on.')
+})
+
+test('the saved note is there when the document is opened again', async () => {
+  await page.locator('.tab--active button[aria-label^="Close"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Notes.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+  await expect(
+    page.locator('.annotationLayer .freeText, .annotationLayer section').first()
+  ).toBeVisible({ timeout: 20_000 })
+})
+
+test('a form can be filled in, and the answer is saved into the file', async () => {
+  // Interactive fields were drawn but dead until there was a way to save them:
+  // a box you can type into that forgets what you typed is worse than one you
+  // cannot.
+  const formPath = join(vault, 'Form.pdf')
+  writeFileSync(
+    formPath,
+    makePdf({ pages: [['Please write your name below.']], textField: { name: 'fullName' } })
+  )
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Form.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+
+  const field = page.locator('.annotationLayer input').first()
+  await expect(field).toBeVisible({ timeout: 20_000 })
+  await field.fill('Ada Lovelace')
+  await field.blur()
+
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(1, { timeout: 10_000 })
+  await page.locator('button[aria-label="Save this document"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0, { timeout: 20_000 })
+
+  // In the file as the field's value, which is what any other PDF reader will
+  // show — not baked into a picture of the page.
+  await expect
+    .poll(() => readFileSync(formPath, 'latin1'), { timeout: 10_000 })
+    .toContain('Ada Lovelace')
+})

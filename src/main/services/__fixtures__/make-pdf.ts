@@ -17,12 +17,19 @@ export interface PdfSpec {
   pages: string[][]
   /** Optional bookmarks, each pointing at a 1-based page. */
   outline?: { title: string; page: number }[]
+  /**
+   * A single-line text field on page 1, for testing form filling.
+   *
+   * The smallest real AcroForm there is: a catalogue that declares one, a
+   * widget annotation on the page, and a field with a name and no value.
+   */
+  textField?: { name: string }
 }
 
 /** Escape the characters a PDF literal string cannot carry raw. */
 const literal = (text: string): string => `(${text.replace(/([\\()])/g, '\\$1')})`
 
-export function makePdf({ pages, outline = [] }: PdfSpec): Buffer {
+export function makePdf({ pages, outline = [], textField }: PdfSpec): Buffer {
   const chunks: string[] = []
   const offsets: number[] = []
   let length = 0
@@ -42,7 +49,10 @@ export function makePdf({ pages, outline = [] }: PdfSpec): Buffer {
   const fontNumber = 3 + count * 2
   const outlineRoot = fontNumber + 1
   const outlineItem = (index: number): number => outlineRoot + 1 + index
-  const total = outline.length > 0 ? outlineItem(outline.length - 1) : fontNumber
+  const afterOutline =
+    outline.length > 0 ? outlineItem(outline.length - 1) : outline.length === 0 ? fontNumber : 0
+  const fieldNumber = afterOutline + 1
+  const total = textField ? fieldNumber : afterOutline
 
   // The binary comment on the second line is what tells anything reading this
   // that the file is not text, and every real PDF has one.
@@ -50,7 +60,9 @@ export function makePdf({ pages, outline = [] }: PdfSpec): Buffer {
 
   object(
     1,
-    `<< /Type /Catalog /Pages 2 0 R${outline.length > 0 ? ` /Outlines ${outlineRoot} 0 R` : ''} >>`
+    `<< /Type /Catalog /Pages 2 0 R` +
+      `${outline.length > 0 ? ` /Outlines ${outlineRoot} 0 R` : ''}` +
+      `${textField ? ` /AcroForm << /Fields [${fieldNumber} 0 R] /DA (/F1 12 Tf 0 g) >>` : ''} >>`
   )
   object(
     2,
@@ -71,6 +83,7 @@ export function makePdf({ pages, outline = [] }: PdfSpec): Buffer {
       pageNumber(index),
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ` +
         `/Resources << /Font << /F1 ${fontNumber} 0 R >> >> ` +
+        `${textField && index === 0 ? `/Annots [${fieldNumber} 0 R] ` : ''}` +
         `/Contents ${contentNumber(index)} 0 R >>`
     )
     object(
@@ -100,6 +113,14 @@ export function makePdf({ pages, outline = [] }: PdfSpec): Buffer {
           `/Dest [${pageNumber(entry.page - 1)} 0 R /XYZ 0 792 0] >>`
       )
     })
+  }
+
+  if (textField) {
+    object(
+      fieldNumber,
+      `<< /Type /Annot /Subtype /Widget /FT /Tx /T ${literal(textField.name)} ` +
+        `/Rect [72 600 400 630] /F 4 /P ${pageNumber(0)} 0 R /DA (/F1 12 Tf 0 g) >>`
+    )
   }
 
   // Every entry is exactly twenty bytes, which is the one rule of a

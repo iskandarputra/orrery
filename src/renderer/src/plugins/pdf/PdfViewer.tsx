@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/PanelBits'
 import { useStore } from '@/state/store'
 import { loadPdfjs } from './pdfjs-lazy'
 import { readPage, startReader } from './ocr'
+import { registerSaver } from './saving'
 import { PdfSidebar } from './PdfSidebar'
 
 /**
@@ -32,6 +33,21 @@ import { PdfSidebar } from './PdfSidebar'
  * Nothing here writes. A PDF opened in Orrery today is a document being read;
  * the tab is never dirty and the file on disk is never touched.
  */
+
+/**
+ * pdf.js's annotation editor modes.
+ *
+ * Its own constants live behind a dynamic import, and a toolbar cannot wait for
+ * one to draw a button. These are the values from `AnnotationEditorType`, and
+ * the e2e checks a tool actually turns on rather than trusting the numbers.
+ */
+const TOOLS = [
+  { mode: 9, icon: 'pencil', label: 'Highlight' },
+  { mode: 3, icon: 'type', label: 'Text box' },
+  { mode: 15, icon: 'diagram', label: 'Draw' },
+  { mode: 13, icon: 'image', label: 'Image' },
+  { mode: 101, icon: 'pencil', label: 'Signature' }
+] as const
 
 /** How far each zoom button moves, and where it stops. */
 const ZOOM_STEP = 1.1
@@ -63,6 +79,9 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const linksRef = useRef<PDFLinkService | null>(null)
 
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
+  // The saver is registered once and outlives any particular render, so it
+  // reads the document through a ref rather than closing over one.
+  const docRef = useRef<PDFDocumentProxy | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pageCount, setPageCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -75,6 +94,11 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   /** Pages with no text on them: a scan, until somebody recognises it. */
   const [emptyPages, setEmptyPages] = useState<number[]>([])
   const [reading, setReading] = useState<string | null>(null)
+  /** Which annotation tool is in hand, as pdf.js numbers them. */
+  const [tool, setTool] = useState(0)
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const savedMtime = useRef<number | null>(null)
 
   useEffect(() => {
     if (!url) return
@@ -98,10 +122,10 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           findController,
           l10n: new components.GenericL10n('en-US'),
           textLayerMode: 1,
-          // Annotations are drawn, but their form fields are not interactive:
-          // a field you can type into that cannot be saved would be a lie. The
-          // stage that can save them turns this up.
-          annotationMode: api.AnnotationMode.ENABLE
+          // Forms can be filled in and annotations made, because both can now
+          // be saved back into the file.
+          annotationMode: api.AnnotationMode.ENABLE_FORMS,
+          annotationEditorMode: api.AnnotationEditorType.NONE
         })
         linkService.setViewer(pdfViewer)
 
@@ -150,8 +174,19 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         if (!live) return
         pdfViewer.setDocument(pdf)
         linkService.setDocument(pdf)
+        docRef.current = pdf
         setDoc(pdf)
         setPageCount(pdf.numPages)
+
+        // Anything the editor or a form field puts in the storage makes the
+        // tab dirty, which is what puts the dot on it and what makes closing
+        // ask rather than throw the work away.
+        // pdf.js types this hook as `null`; it is a callback slot, and this is
+        // how the viewer it ships with uses it too.
+        ;(pdf.annotationStorage as unknown as { onSetModified: () => void }).onSetModified = () => {
+          setDirty(true)
+          useStore.getState().setDirty(bufferId, true)
+        }
 
         // A pane that changes width has to re-fit, or "fit width" stops being
         // true the moment a sidebar opens beside it.
@@ -178,11 +213,12 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     return () => {
       live = false
       destroy?.()
+      docRef.current = null
       viewerRef.current = null
       busRef.current = null
       linksRef.current = null
     }
-  }, [path, url])
+  }, [bufferId, path, url])
 
   // Which pages have nothing on them, from the same cache search reads. Asked
   // once the document is up, because the answer is about this file and not
@@ -253,6 +289,70 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     if (!view) return
     view.currentPageNumber = Math.min(Math.max(1, pdfTarget.page), doc.numPages)
   }, [pdfTarget, doc, path])
+
+  /**
+   * Write the annotations and form values back into the file.
+   *
+   * pdf.js serialises them as an incremental update — the original bytes are
+   * kept and the new objects appended — so what comes out is the document
+   * somebody sent plus what was added to it, and every other reader can open
+   * both. The mtime check is the one every save in this app uses: a file
+   * changed underneath is refused rather than overwritten.
+   */
+  const save = async (): Promise<boolean> => {
+    const pdf = docRef.current
+    if (!pdf || !path) return true
+    setSaving(true)
+    try {
+      const bytes = await pdf.saveDocument()
+      const result = await invoke('pdf:save', {
+        path,
+        bytes,
+        expectedMtimeMs: savedMtime.current
+      })
+      savedMtime.current = result.mtimeMs
+      pdf.annotationStorage.resetModified()
+      setDirty(false)
+      useStore.getState().setDirty(bufferId, false)
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      useStore
+        .getState()
+        .showToast(
+          message.includes('CONFLICT')
+            ? 'This document changed on disk since it was opened, so nothing was written'
+            : 'This document could not be saved',
+          'error'
+        )
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // The tab's own save — Ctrl+S, the menu, and the prompt when a dirty tab is
+  // closed all arrive here, because a PDF's buffer has no text to write.
+  const saveRef = useRef(save)
+  // Kept current in an effect rather than during render: the registration below
+  // happens once, and it has to reach this render's save, not the first one's.
+  useEffect(() => {
+    saveRef.current = save
+  })
+  useEffect(() => {
+    registerSaver(bufferId, () => saveRef.current())
+    return () => registerSaver(bufferId, null)
+  }, [bufferId])
+
+  /** Pick up or put down an annotation tool. */
+  const pickTool = async (mode: number): Promise<void> => {
+    const view = viewerRef.current
+    if (!view) return
+    const { api } = await loadPdfjs()
+    const next = tool === mode ? api.AnnotationEditorType.NONE : mode
+    view.annotationEditorMode = { mode: next }
+    setTool(next)
+  }
 
   /**
    * Send what is selected to a note beside the paper.
@@ -411,6 +511,32 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         <button className="pdfv__action" aria-label="Rotate the pages" onClick={rotate}>
           <Icon name="refresh" size={13} />
         </button>
+        <span className="pdfv__tools">
+          {TOOLS.map((entry) => (
+            <button
+              key={entry.mode}
+              className={`pdfv__action${tool === entry.mode ? ' pdfv__action--active' : ''}`}
+              aria-label={entry.label}
+              aria-pressed={tool === entry.mode}
+              title={`${entry.label} — click again to put it down`}
+              onClick={() => void pickTool(entry.mode)}
+            >
+              <Icon name={entry.icon} size={13} />
+            </button>
+          ))}
+        </span>
+
+        <button
+          className="pdfv__action"
+          aria-label="Save this document"
+          title="Write the annotations and form values back into the file (Ctrl+S)"
+          disabled={!dirty || saving}
+          onClick={() => void save()}
+        >
+          <Icon name="download" size={13} />
+          <span className="pdfv__ocr-label">{dirty ? 'Save' : 'Saved'}</span>
+        </button>
+
         {emptyPages.length > 0 && (
           <button
             className="pdfv__action"

@@ -45,6 +45,15 @@ export interface DocumentSurface {
    */
   binary?: boolean
   /**
+   * Save this document, for a surface whose file is not the buffer's text.
+   *
+   * Without it, Ctrl+S on a binary surface writes the buffer's document — which
+   * for a binary one is empty — straight over somebody's file. A surface that
+   * can become dirty must be able to save itself, and this is where it says so.
+   * Returns false if it could not, having already reported why.
+   */
+  save?(bufferId: string): Promise<boolean>
+  /**
    * How to make a new one, if that makes sense for the format.
    *
    * Without this a surface can only open files that already exist — which,

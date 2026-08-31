@@ -431,6 +431,21 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   // --- databases ------------------------------------------------------------
   handle('pdf:text', pathReq, (_e, req) => pdfText.read(req.path))
   handle(
+    'pdf:save',
+    z.object({
+      path: z.string().min(1),
+      bytes: z.instanceof(Uint8Array),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const result = await fs.writeBytes(req.path, req.bytes, req.expectedMtimeMs)
+      // The document has changed, so what it says has changed: the next search
+      // must read it again rather than answer from what it used to say.
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle(
     'pdf:recognised',
     z.object({
       path: z.string().min(1),
