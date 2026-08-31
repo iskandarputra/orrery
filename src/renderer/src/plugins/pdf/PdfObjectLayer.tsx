@@ -59,6 +59,8 @@ export function PdfObjectLayer({
   const [warned, setWarned] = useState<string[]>([])
   /** A drag in progress: which object, and how far it has come, in CSS pixels. */
   const [dragging, setDragging] = useState<{ index: number; dx: number; dy: number } | null>(null)
+  /** A resize in progress: how much bigger, as a fraction of the original. */
+  const [sizing, setSizing] = useState<{ sx: number; sy: number } | null>(null)
   /** Where a new line of text is being typed, in PDF coordinates. */
   const [adding, setAdding] = useState<{ x: number; y: number; text: string } | null>(null)
 
@@ -199,6 +201,59 @@ export function PdfObjectLayer({
     window.addEventListener('mouseup', onUp)
   }
 
+  /**
+   * Drag the corner to make something bigger or smaller.
+   *
+   * Scaled about its own corner, so it grows where it is rather than sliding
+   * away from the page's edge as it gets larger.
+   */
+  const startResize = (object: PageObject, event: React.MouseEvent): void => {
+    if (busy) return
+    event.preventDefault()
+    event.stopPropagation()
+    const startX = event.clientX
+    const startY = event.clientY
+    const width = (object.bounds.right - object.bounds.left) * geometry.scale
+    const height = (object.bounds.top - object.bounds.bottom) * geometry.scale
+
+    const factors = (moveX: number, moveY: number): { sx: number; sy: number } => ({
+      sx: Math.min(20, Math.max(0.05, (width + (moveX - startX)) / Math.max(1, width))),
+      sy: Math.min(20, Math.max(0.05, (height + (moveY - startY)) / Math.max(1, height)))
+    })
+
+    const onMove = (move: MouseEvent): void => setSizing(factors(move.clientX, move.clientY))
+
+    const onUp = async (up: MouseEvent): Promise<void> => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setSizing(null)
+      const { sx, sy } = factors(up.clientX, up.clientY)
+      // A nudge is not a resize; below this it was somebody grabbing the handle
+      // and letting go again.
+      if (Math.abs(sx - 1) < 0.02 && Math.abs(sy - 1) < 0.02) return
+      setBusy(true)
+      try {
+        const result = await invoke('pdf:resizeObject', {
+          path,
+          page: page - 1,
+          index: object.index,
+          sx,
+          sy,
+          expectedMtimeMs: mtime
+        })
+        setPicked(null)
+        onChanged(result.mtimeMs)
+      } catch {
+        useStore.getState().showToast('That could not be resized', 'error')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   /** Write a new line onto the page, in a font every reader has. */
   const addText = async (): Promise<void> => {
     if (!adding || adding.text.trim() === '' || busy) return
@@ -273,16 +328,26 @@ export function PdfObjectLayer({
       }}
     >
       {objects.map((object) => {
+        const chosen = picked?.index === object.index
         const shifted =
           dragging?.index === object.index ? { x: dragging.dx, y: dragging.dy } : { x: 0, y: 0 }
+        const scaled = chosen ? sizing : null
         return (
           <div
             key={object.index}
-            className={`pdfv__object${picked?.index === object.index ? ' pdfv__object--picked' : ''}`}
+            className={`pdfv__object${chosen ? ' pdfv__object--picked' : ''}`}
             style={{
               ...box(object),
               transform:
-                shifted.x || shifted.y ? `translate(${shifted.x}px, ${shifted.y}px)` : undefined
+                [
+                  shifted.x || shifted.y ? `translate(${shifted.x}px, ${shifted.y}px)` : '',
+                  // From the bottom-left, which is the corner the engine scales
+                  // about — so what is previewed is what will happen.
+                  scaled ? `scale(${scaled.sx}, ${scaled.sy})` : ''
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined,
+              transformOrigin: 'left bottom'
             }}
             title={
               object.kind === 'text'
@@ -290,7 +355,17 @@ export function PdfObjectLayer({
                 : `${object.kind} — drag to move`
             }
             onMouseDown={(event) => startDrag(object, event)}
-          />
+          >
+            {chosen && (
+              <span
+                className="pdfv__object-handle"
+                role="button"
+                aria-label="Resize this"
+                title="Drag to resize"
+                onMouseDown={(event) => startResize(object, event)}
+              />
+            )}
+          </div>
         )
       })}
 

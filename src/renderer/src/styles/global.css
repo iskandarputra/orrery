@@ -7131,6 +7131,7 @@ kbd {
 
 .pdfv__object-edit {
   position: absolute;
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -7173,4 +7174,28 @@ kbd {
   font-size: 11.5px;
   line-height: 1.4;
   color: var(--or-fg-muted);
+}
+
+/* The corner you drag to resize. Outside the box's bottom-right so it can be
+   grabbed even when the object itself is only a few pixels tall. */
+.pdfv__object-handle {
+  position: absolute;
+  /* Above the box that opens over a picked object: the handle sits at that
+     object's corner, and the input was covering it — the grip was there to see
+     and nothing happened when it was dragged. */
+  z-index: 5;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--or-accent);
+  border-radius: 2px;
+  background: var(--or-panel-bg);
+  cursor: nwse-resize;
+}
+
+/* Where a dragged page would land. A line rather than a gap: the rail is a
+   column of pages, and a gap opening up moves everything below it. */
+.pdfv__thumb--drop {
+  box-shadow: 0 -3px 0 -1px var(--or-accent);
 }

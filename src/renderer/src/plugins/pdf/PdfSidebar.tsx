@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { annotationLabel, type AnnotationRef } from '@core/pdf-annotations'
 import {
+  appendPages,
   extractPages,
   initialPlan,
   isUnchanged,
@@ -10,6 +11,8 @@ import {
   rotatePages,
   type PagePlan
 } from '@core/pdf-pages'
+import { invoke } from '@/services/client'
+import { useStore } from '@/state/store'
 import { Icon } from '@/components/Icon'
 
 /**
@@ -40,7 +43,8 @@ export function PdfSidebar({
   onGoToPage,
   onGoToDestination,
   onApplyPlan,
-  onExtract
+  onExtract,
+  onMerge
 }: {
   doc: PDFDocumentProxy | null
   page: number
@@ -54,6 +58,8 @@ export function PdfSidebar({
   onApplyPlan: (plan: PagePlan) => Promise<void>
   /** Write these pages out as a document of their own. */
   onExtract: (plan: PagePlan) => Promise<void>
+  /** Rebuild this document from itself and another one. */
+  onMerge: (other: string, plan: PagePlan) => Promise<void>
 }): React.JSX.Element {
   /**
    * The rearrangement being assembled, and what is selected.
@@ -65,6 +71,8 @@ export function PdfSidebar({
   const [plan, setPlan] = useState<PagePlan | null>(null)
   const [chosen, setChosen] = useState<number[]>([])
   const [working, setWorking] = useState(false)
+  /** A thumbnail being dragged, and the gap it is currently over. */
+  const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [outline, setOutline] = useState<OutlineNode[] | null>(null)
   const [tab, setTab] = useState<'pages' | 'outline' | 'marks'>('pages')
 
@@ -178,6 +186,31 @@ export function PdfSidebar({
             </button>
             <button
               className="pdfv__action"
+              aria-label="Add pages from another PDF"
+              title="Put another document's pages after this one's"
+              disabled={working}
+              onClick={() => {
+                setWorking(true)
+                void (async () => {
+                  try {
+                    const other = await invoke('dialog:pickPdf', undefined)
+                    if (!other) return
+                    const count = await invoke('pdf:pageCount', { path: other })
+                    // The second document's pages are numbered from where this
+                    // one's stop, which is what the engine is given.
+                    await onMerge(other, appendPages(pages, count, doc?.numPages ?? 0))
+                  } catch {
+                    useStore.getState().showToast('Those pages could not be added', 'error')
+                  } finally {
+                    setWorking(false)
+                  }
+                })()
+              }}
+            >
+              <Icon name="file-plus" size={12} />
+            </button>
+            <button
+              className="pdfv__action"
               aria-label="Extract pages"
               title="Save the selected pages as a document of their own"
               disabled={working || chosen.length === 0}
@@ -226,6 +259,17 @@ export function PdfSidebar({
                   rotate={pages.rotate[position] ?? 0}
                   current={!pending && page === position + 1}
                   chosen={chosen.includes(position)}
+                  dropBefore={drag !== null && drag.over === position && drag.from !== position}
+                  onDragStart={() => setDrag({ from: position, over: position })}
+                  onDragOver={() => setDrag((d) => (d ? { ...d, over: position } : d))}
+                  onDrop={() => {
+                    if (!drag) return
+                    // Dropping onto a thumbnail means "before this one", which
+                    // is the gap at its own position.
+                    change(movePages(pages, [drag.from], position))
+                    setDrag(null)
+                  }}
+                  onDragEnd={() => setDrag(null)}
                   onSelect={(additive) => {
                     if (additive) {
                       setChosen((current) =>
@@ -313,7 +357,12 @@ function Thumbnail({
   rotate,
   current,
   chosen,
-  onSelect
+  dropBefore,
+  onSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd
 }: {
   doc: PDFDocumentProxy
   /** Which page of the file this is, 1-based. */
@@ -324,7 +373,13 @@ function Thumbnail({
   rotate: number
   current: boolean
   chosen: boolean
+  /** True when a dragged page would land in front of this one. */
+  dropBefore: boolean
   onSelect: (additive: boolean) => void
+  onDragStart: () => void
+  onDragOver: () => void
+  onDrop: () => void
+  onDragEnd: () => void
 }): React.JSX.Element {
   const hostRef = useRef<HTMLButtonElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -372,10 +427,21 @@ function Thumbnail({
       ref={hostRef}
       className={`pdfv__thumb${current ? ' pdfv__thumb--current' : ''}${
         chosen ? ' pdfv__thumb--chosen' : ''
-      }`}
+      }${dropBefore ? ' pdfv__thumb--drop' : ''}`}
       aria-label={`Page ${label}`}
       aria-current={current ? 'page' : undefined}
       aria-pressed={chosen}
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={(event) => {
+        event.preventDefault()
+        onDragOver()
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        onDrop()
+      }}
+      onDragEnd={onDragEnd}
       onClick={(event) => onSelect(event.ctrlKey || event.metaKey || event.shiftKey)}
     >
       <canvas

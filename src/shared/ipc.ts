@@ -395,6 +395,22 @@ export interface IpcInvokeContract {
     }
     res: { path: string; mtimeMs: number }
   }
+  /** Scale an object about its own corner, so it grows in place. */
+  'pdf:resizeObject': {
+    req: {
+      path: string
+      page: number
+      index: number
+      sx: number
+      sy: number
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
+  /** How many pages another document has, for planning a merge. */
+  'pdf:pageCount': { req: { path: string }; res: number }
+  /** Choose a PDF from disk — the other half of merging one in. */
+  'dialog:pickPdf': { req: void; res: string | null }
   'pdf:save': {
     req: { path: string; bytes: Uint8Array; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }

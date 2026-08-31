@@ -23,8 +23,10 @@ import {
   applyPagePlan,
   editTextObject,
   moveObject,
+  pageCount,
   pageObjects,
-  removePageObjects
+  removePageObjects,
+  resizeObject
 } from '../services/pdfium'
 import type { PdfHistory } from '../services/pdf-history'
 import type { PdfTextService } from '../services/pdf-text'
@@ -88,6 +90,14 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   } = deps
 
   // --- dialogs -------------------------------------------------------------
+  handle('dialog:pickPdf', null, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+
   handle('dialog:openFile', null, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
@@ -535,6 +545,30 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       await pdfText.forget(req.path)
       return result
     }
+  )
+  handle(
+    'pdf:resizeObject',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      index: z.number().int().min(0),
+      // A hundredth to a hundred times: past either end is a mistake, not a
+      // resize, and an object scaled to nothing cannot be got back by dragging.
+      sx: z.number().min(0.01).max(100),
+      sy: z.number().min(0.01).max(100),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
+      const bytes = await resizeObject(source, req.page, req.index, req.sx, req.sy)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle('pdf:pageCount', pathReq, async (_e, req) =>
+    pageCount(new Uint8Array(await readFile(req.path)))
   )
   handle(
     'pdf:removeObjects',

@@ -631,3 +631,96 @@ test('new text can be written onto the page', async () => {
     timeout: 30_000
   })
 })
+
+test('an object can be made bigger by dragging its corner', async () => {
+  const sizePath = join(vault, 'Size.pdf')
+  writeFileSync(sizePath, makePdf({ pages: [['a line to stretch']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Size.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('to stretch', {
+    timeout: 20_000
+  })
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+
+  const box = page.locator('.pdfv__object').first()
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const before = (await box.boundingBox())!
+  // Pick it first: the handle only appears on the object in hand.
+  await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2)
+
+  const handle = page.locator('.pdfv__object-handle')
+  await expect(handle).toBeVisible()
+  const grip = (await handle.boundingBox())!
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip.x + 80, grip.y + 20, { steps: 10 })
+  await page.mouse.up()
+
+  // Wider on the page, and still saying the same thing.
+  await expect
+    .poll(async () => (await page.locator('.pdfv__object').first().boundingBox())?.width ?? 0, {
+      timeout: 30_000
+    })
+    .toBeGreaterThan(before.width + 30)
+  await expect(page.locator('.pdfViewer')).toContainText('a line to stretch')
+})
+
+test('pages can be dragged into a different order', async () => {
+  const orderPath = join(vault, 'Order.pdf')
+  writeFileSync(orderPath, makePdf({ pages: [['first page here'], ['second page here']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Order.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
+  await page.locator('.pdfv__tab', { hasText: 'Pages' }).click()
+
+  const thumbs = page.locator('.pdfv__thumb')
+  await expect(thumbs).toHaveCount(2)
+  await thumbs.nth(1).dragTo(thumbs.nth(0))
+
+  // Rearranged in the rail, and not yet in the file: nothing is written until
+  // it is applied.
+  await expect(page.locator('.pdfv__page-pending')).toBeVisible()
+  await page.locator('.pdfv__page-pending button', { hasText: 'Apply' }).click()
+
+  await expect(page.locator('.pdfViewer .page').first().locator('.textLayer')).toContainText(
+    'second page here',
+    { timeout: 30_000 }
+  )
+})
+
+test('another document can be added to the end of this one', async () => {
+  // Merging is the same path as any other rearrangement — one plan, one write —
+  // with a second document named as a further source.
+  const intoPath = join(vault, 'Into.pdf')
+  const fromPath = join(vault, 'From.pdf')
+  writeFileSync(intoPath, makePdf({ pages: [['the original document']] }))
+  writeFileSync(fromPath, makePdf({ pages: [['the added document']] }))
+
+  // The file picker is a native dialog, so it is answered from the main
+  // process rather than clicked.
+  await app.evaluate(({ dialog }, chosen) => {
+    dialog.showOpenDialog = async () =>
+      ({ canceled: false, filePaths: [chosen] }) as unknown as ReturnType<
+        typeof dialog.showOpenDialog
+      > extends Promise<infer R>
+        ? R
+        : never
+  }, fromPath)
+
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Into.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 1', { timeout: 20_000 })
+
+  await page.locator('.pdfv__tab', { hasText: 'Pages' }).click()
+  await page.locator('button[aria-label="Add pages from another PDF"]').click()
+
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 30_000 })
+  await expect(page.locator('.pdfViewer')).toContainText('the original document', {
+    timeout: 20_000
+  })
+  await expect(page.locator('.pdfViewer')).toContainText('the added document')
+
+  // The document it came from is untouched.
+  await page.locator('.tree-row--file', { hasText: 'From.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 1', { timeout: 20_000 })
+})

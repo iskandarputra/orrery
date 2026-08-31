@@ -59,7 +59,8 @@ long before the first. Closing the tab throws them away.
 ## Organising pages
 
 The **Pages** tab is a page organiser. Select pages and turn, move, remove or
-extract them. Nothing is written until you press **Apply**; **Undo** puts the
+extract them, drag a thumbnail to reorder it, or add another document's pages to
+the end of this one. Nothing is written until you press **Apply**; **Undo** puts the
 arrangement back. Extracting writes a new file beside the original and never
 overwrites an existing one.
 
@@ -84,7 +85,7 @@ you about the second one itself:
   the font may well have them.
 
 **Dragging** an object moves it — the same glyphs or picture, somewhere else on
-the page. **Double-clicking empty space** starts a new line of text, written in
+the page — and the corner handle on a picked object resizes it in place. **Double-clicking empty space** starts a new line of text, written in
 Helvetica because a document's own fonts usually hold only the characters
 already on the page; new words in one of those would come out full of holes.
 Text does not wrap, so a line started near the edge runs off it.

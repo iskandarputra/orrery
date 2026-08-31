@@ -452,6 +452,31 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     }
   }
 
+  /**
+   * Rebuild this document from itself and another one.
+   *
+   * The same path as any other rearrangement — one plan, one write — with the
+   * second document named as a further source. Anything unsaved goes in first,
+   * as it does before rearranging.
+   */
+  const mergeIn = async (other: string, plan: PagePlan): Promise<void> => {
+    if (!path) return
+    if (dirty && !(await save())) return
+    try {
+      const result = await invoke('pdf:pages', {
+        path,
+        plan,
+        also: [other],
+        expectedMtimeMs: savedMtime
+      })
+      setSavedMtime(result.mtimeMs)
+      setReload((n) => n + 1)
+      useStore.getState().showToast('Those pages were added', 'success')
+    } catch {
+      useStore.getState().showToast('Those pages could not be added', 'error')
+    }
+  }
+
   /** Write some pages out as a document of their own, beside this one. */
   const extract = async (plan: PagePlan): Promise<void> => {
     if (!path) return
@@ -847,6 +872,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
             onGoToDestination={(dest) => void linksRef.current?.goToDestination(dest)}
             onApplyPlan={applyPlan}
             onExtract={extract}
+            onMerge={mergeIn}
           />
         )}
         {/* pdf.js measures against its container and refuses to run unless that

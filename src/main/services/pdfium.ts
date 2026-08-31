@@ -493,3 +493,54 @@ export async function addTextObject(
     }
   })
 }
+
+/**
+ * Make an object bigger or smaller, about its own bottom-left corner.
+ *
+ * Scaling a page object means multiplying its matrix, and a bare scale would
+ * move it as well as resize it — everything is measured from the page's corner,
+ * so doubling an object's size doubles its distance from that corner too. The
+ * matrix here scales in place: shift the corner to the origin, scale, shift it
+ * back, which is what dragging a handle is understood to mean.
+ */
+export async function resizeObject(
+  bytes: Uint8Array,
+  pageIndex: number,
+  objectIndex: number,
+  sx: number,
+  sy: number
+): Promise<Uint8Array> {
+  if (!(sx > 0) || !(sy > 0)) throw new Error('An object cannot be scaled to nothing')
+  return writeWithPage(bytes, pageIndex, (lib, page) => {
+    const rt = lib.pdfium
+    const object = lib.FPDFPage_GetObject(page, objectIndex)
+    if (!object) throw new Error('That object is no longer there')
+
+    const box = rt.wasmExports.malloc(16)
+    try {
+      lib.FPDFPageObj_GetBounds(object, box, box + 4, box + 8, box + 12)
+      const left = rt.getValue(box, 'float')
+      const bottom = rt.getValue(box + 4, 'float')
+      lib.FPDFPageObj_Transform(object, sx, 0, 0, sy, left * (1 - sx), bottom * (1 - sy))
+    } finally {
+      rt.wasmExports.free(box)
+    }
+    if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+  })
+}
+
+/** How many pages a document has, without drawing any of them. */
+export async function pageCount(bytes: Uint8Array): Promise<number> {
+  const lib = await load()
+  const rt = lib.pdfium
+  const ptr = rt.wasmExports.malloc(bytes.length)
+  rt.HEAPU8.set(bytes, ptr)
+  const doc = lib.FPDF_LoadMemDocument(ptr, bytes.length, '')
+  try {
+    if (!doc) throw new Error('This PDF could not be opened')
+    return lib.FPDF_GetPageCount(doc)
+  } finally {
+    if (doc) lib.FPDF_CloseDocument(doc)
+    rt.wasmExports.free(ptr)
+  }
+}

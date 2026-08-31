@@ -12,8 +12,10 @@ import {
   applyPagePlan,
   editTextObject,
   moveObject,
+  pageCount,
   pageObjects,
-  removePageObjects
+  removePageObjects,
+  resizeObject
 } from './pdfium'
 import { makePdf } from './__fixtures__/make-pdf'
 
@@ -202,5 +204,38 @@ describe('moving and adding', () => {
       12
     )
     expect((await readBack(out))[0]?.text).toContain('Zyxw')
+  })
+})
+
+describe('resizing', () => {
+  it('makes an object bigger without moving its corner', async () => {
+    // A bare scale would move it as well: everything is measured from the
+    // page's corner, so doubling a size doubles the distance to it too.
+    const source = new Uint8Array(makePdf({ pages: [['a line to stretch']] }))
+    const [before] = await pageObjects(source, 0)
+    const out = await resizeObject(source, 0, 0, 2, 2)
+
+    const [after] = await pageObjects(out, 0)
+    expect(after!.bounds.left).toBeCloseTo(before!.bounds.left, 0)
+    expect(after!.bounds.bottom).toBeCloseTo(before!.bounds.bottom, 0)
+    const wide = before!.bounds.right - before!.bounds.left
+    expect(after!.bounds.right - after!.bounds.left).toBeCloseTo(wide * 2, 0)
+    expect((await readBack(out))[0]?.text).toContain('a line to stretch')
+  })
+
+  it('refuses to scale something out of existence', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['x']] }))
+    await expect(resizeObject(source, 0, 0, 0, 1)).rejects.toThrow()
+    await expect(resizeObject(source, 0, 0, 1, -2)).rejects.toThrow()
+  })
+})
+
+describe('counting pages', () => {
+  it('says how many there are', async () => {
+    expect(await pageCount(new Uint8Array(makePdf({ pages: [['a'], ['b'], ['c']] })))).toBe(3)
+  })
+
+  it('refuses something that is not a PDF', async () => {
+    await expect(pageCount(new Uint8Array(Buffer.from('nope')))).rejects.toThrow()
   })
 })
