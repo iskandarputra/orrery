@@ -8,6 +8,7 @@ import {
   rotatePages
 } from '@core/pdf-pages'
 import {
+  addImageObject,
   addTextObject,
   applyPagePlan,
   editTextRun,
@@ -302,5 +303,46 @@ describe('a document that positions every character', () => {
 
     const out = await editTextRun(source, 0, targets[0]!.indexes, 'LEASE')
     expect((await readBack(out))[0]?.text).toBe('LEASE')
+  })
+})
+
+describe('putting a picture on a page', () => {
+  /** Sixteen pixels of solid blue, as BGRA — what a decoder hands over. */
+  const blue = (): { pixels: Uint8Array; width: number; height: number } => {
+    const width = 4
+    const height = 4
+    const pixels = new Uint8Array(width * height * 4)
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = 200 // blue
+      pixels[i + 1] = 40
+      pixels[i + 2] = 20
+      pixels[i + 3] = 255
+    }
+    return { pixels, width, height }
+  }
+
+  it('adds an image object where it was asked for', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['a page with words']] }))
+    const out = await addImageObject(source, 0, blue(), 100, 300, 80, 60)
+
+    const objects = await pageObjects(out, 0)
+    const picture = objects.find((o) => o.kind === 'image')
+    expect(picture).toBeTruthy()
+    expect(picture!.bounds.left).toBeCloseTo(100, -1)
+    expect(picture!.bounds.right - picture!.bounds.left).toBeCloseTo(80, -1)
+    expect(picture!.bounds.top - picture!.bounds.bottom).toBeCloseTo(60, -1)
+  })
+
+  it('leaves the words that were already there', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['a page with words']] }))
+    const out = await addImageObject(source, 0, blue(), 10, 10, 40, 40)
+    expect((await readBack(out))[0]?.text).toContain('a page with words')
+  })
+
+  it('refuses an image with no pixels rather than writing a broken one', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['x']] }))
+    await expect(
+      addImageObject(source, 0, { pixels: new Uint8Array(0), width: 0, height: 0 }, 0, 0, 10, 10)
+    ).rejects.toThrow()
   })
 })

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 import { makePdf } from '../src/main/services/__fixtures__/make-pdf'
+import { makePng } from '../src/main/services/__fixtures__/make-png'
 
 /**
  * A PDF, opened in the app.
@@ -832,4 +833,189 @@ test('an edit keeps the zoom, the page and where you were reading', async () => 
   // And the pages are still on screen: nothing was torn down to do it.
   await expect(page.locator('.pdfViewer .page')).toHaveCount(2)
   await expect(page.locator('.pdfViewer')).toContainText('and another line')
+})
+
+test('a picture can be put on a page', async () => {
+  // pdf.js's stamp tool cannot be driven from its viewer components — there is
+  // no way to choose a file — so the button used to arm and clicking the page
+  // did nothing at all. This puts a real image object on the page instead.
+  const withPic = join(vault, 'Picture.pdf')
+  const png = join(vault, 'stamp.png')
+  writeFileSync(withPic, makePdf({ pages: [['a page to decorate']] }))
+  writeFileSync(png, makePng(64, 64))
+
+  await app.evaluate(({ dialog }, chosen) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] }) as never
+  }, png)
+
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Picture.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+
+  await page.locator('button[aria-label="Image"]').click()
+  await expect(page.locator('.toast__message')).toContainText('picture was added', {
+    timeout: 30_000
+  })
+
+  // In the page's own content, where the editor can find it — and the words
+  // that were there are untouched.
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  await expect
+    .poll(
+      async () => {
+        const objects = await page.evaluate(
+          (p) => window.orrery.invoke('pdf:objects', { path: p, page: 0 }),
+          withPic
+        )
+        return objects.filter((o) => o.kind === 'image').length
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(1)
+  await expect(page.locator('.pdfViewer')).toContainText('a page to decorate')
+})
+
+test('the page can be turned and still edited', async () => {
+  // Rotation and editing were built without knowing about each other. Turned a
+  // quarter, the drawn page's width is the page's height, so every box was
+  // measured against the wrong side and placed along the wrong axis — and since
+  // a click picks whatever box is under it, clicking a word retyped a different
+  // one. The check is the one that matters to somebody using it: click the
+  // words you can see, and get those words.
+  const turned = join(vault, 'Turned.pdf')
+  writeFileSync(turned, makePdf({ pages: [['LETTER OF OFFER', 'Date: 24/06/2026']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Turned.pdf' }).click()
+  await expect(page.locator('.pdfViewer:visible .textLayer').first()).toContainText(
+    'LETTER OF OFFER',
+    { timeout: 20_000 }
+  )
+
+  await page.locator('button[aria-label="Rotate the pages"]').click()
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  await expect(page.locator('.pdfv__object:visible')).toHaveCount(2, { timeout: 20_000 })
+
+  // Where pdf.js actually drew the words, on the page as it now stands.
+  //
+  // Scoped to the pane on screen: the earlier tabs in this file are still open
+  // behind this one and one of those documents says the same words, so without
+  // the filter this measures a hidden tab and compares two different pages.
+  const drawn = (await page
+    .locator('.pdfViewer:visible .textLayer span', { hasText: 'LETTER OF OFFER' })
+    .first()
+    .boundingBox())!
+  await page.mouse.click(drawn.x + drawn.width / 2, drawn.y + drawn.height / 2)
+
+  const input = page.locator('.pdfv__object-input')
+  await expect(input).toBeVisible()
+  await expect(input).toHaveValue(/LETTER OF OFFER/)
+
+  // And the editor's box lies over that word rather than somewhere else on the
+  // page. Both are measured again here, together: picking a line opens a panel
+  // and the pages settle a little, so a rectangle read before the click and one
+  // read after it are answers about two different layouts.
+  const box = (await page.locator('.pdfv__object--picked:visible').boundingBox())!
+  const word = (await page
+    .locator('.pdfViewer:visible .textLayer span', { hasText: 'LETTER OF OFFER' })
+    .first()
+    .boundingBox())!
+  const middle = { x: word.x + word.width / 2, y: word.y + word.height / 2 }
+  expect(middle.x).toBeGreaterThanOrEqual(box.x - 4)
+  expect(middle.x).toBeLessThanOrEqual(box.x + box.width + 4)
+  expect(middle.y).toBeGreaterThanOrEqual(box.y - 4)
+  expect(middle.y).toBeLessThanOrEqual(box.y + box.height + 4)
+  // Turned on its side, a line of text runs down the page rather than across.
+  expect(box.height).toBeGreaterThan(box.width)
+
+  // And the edit itself keeps the page turned. Handing the viewer a rewritten
+  // document resets its rotation, so without putting the turn back the page
+  // sprang upright while the editor went on placing boxes on its side.
+  const before = (await page.locator('.pdfViewer:visible .page').boundingBox())!
+  expect(before.width).toBeGreaterThan(before.height)
+  await input.fill('LETTER OF ACCEPTANCE')
+  await input.press('Enter')
+  await input.press('Enter') // the font warning: this little document has no P
+  await expect(page.locator('.pdfViewer:visible')).toContainText('LETTER OF ACCEPTANCE', {
+    timeout: 20_000
+  })
+  await expect
+    .poll(
+      async () => {
+        const after = await page.locator('.pdfViewer:visible .page').boundingBox()
+        return after ? after.width > after.height : false
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(true)
+})
+
+test('the editor follows the reader to another page', async () => {
+  // The boxes are drawn over one page at a time and positioned against that
+  // page's place in the scroller, so the page somebody has scrolled to is the
+  // page they can edit — not the first one, forever.
+  const many = join(vault, 'Chapters.pdf')
+  writeFileSync(
+    many,
+    makePdf({ pages: [['page one speaks'], ['page two speaks'], ['page three speaks']] })
+  )
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Chapters.pdf' }).click()
+  await expect(page.locator('.pdfViewer:visible .textLayer').first()).toContainText(
+    'page one speaks',
+    { timeout: 20_000 }
+  )
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  await expect(page.locator('.pdfv__object:visible')).toHaveCount(1, { timeout: 20_000 })
+
+  await page.locator('.pdfv__page-input').fill('3')
+  await page.locator('.pdfv__page-input').press('Enter')
+
+  const box = page.locator('.pdfv__object:visible').first()
+  await expect(box).toHaveAttribute('title', /page three speaks/, { timeout: 20_000 })
+
+  // Over the third page, not left behind on the first.
+  const third = (await page
+    .locator('.pdfViewer:visible .page[data-page-number="3"]')
+    .boundingBox())!
+  const drawn = (await box.boundingBox())!
+  expect(drawn.y).toBeGreaterThanOrEqual(third.y - 4)
+  expect(drawn.y).toBeLessThanOrEqual(third.y + third.height + 4)
+})
+
+test('the boxes stay on the words when the page is zoomed', async () => {
+  // Measured once when the layer opened, every box drifted off its word the
+  // first time somebody zoomed in to read what they were editing. It is
+  // measured again whenever the drawn page changes size; this is the guard.
+  const zoomed = join(vault, 'Zoomed.pdf')
+  writeFileSync(zoomed, makePdf({ pages: [['a line worth editing']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Zoomed.pdf' }).click()
+  await expect(page.locator('.pdfViewer:visible .textLayer').first()).toContainText(
+    'a line worth editing',
+    { timeout: 20_000 }
+  )
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const box = page.locator('.pdfv__object:visible').first()
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const before = (await box.boundingBox())!
+
+  await page.locator('button[aria-label="Zoom in"]').click()
+  await page.locator('button[aria-label="Zoom in"]').click()
+  // Bigger, because the page is bigger — not the same box over larger words.
+  await expect
+    .poll(async () => (await box.boundingBox())?.width ?? 0, { timeout: 20_000 })
+    .toBeGreaterThan(before.width * 1.2)
+
+  const word = (await page
+    .locator('.pdfViewer:visible .textLayer span', { hasText: 'a line worth editing' })
+    .first()
+    .boundingBox())!
+  const after = (await box.boundingBox())!
+  const middle = { x: word.x + word.width / 2, y: word.y + word.height / 2 }
+  expect(middle.x).toBeGreaterThanOrEqual(after.x - 4)
+  expect(middle.x).toBeLessThanOrEqual(after.x + after.width + 4)
+  expect(middle.y).toBeGreaterThanOrEqual(after.y - 4)
+  expect(middle.y).toBeLessThanOrEqual(after.y + after.height + 4)
 })

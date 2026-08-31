@@ -1,6 +1,6 @@
 import { promises as fsp } from 'node:fs'
 import path from 'node:path'
-import { app, dialog, shell } from 'electron'
+import { app, dialog, nativeImage, shell } from 'electron'
 import { z } from 'zod'
 import { pushRecent } from '@core/recent'
 import type { AiService } from '../services/ai'
@@ -18,7 +18,9 @@ import type { SqliteService } from '../services/sqlite'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import { readFile } from 'node:fs/promises'
+import { IpcError } from './errors'
 import {
+  addImageObject,
   addTextObject,
   applyPagePlan,
   editTextRun,
@@ -90,6 +92,14 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   } = deps
 
   // --- dialogs -------------------------------------------------------------
+  handle('dialog:pickImage', null, async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }]
+    })
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+
   handle('dialog:pickPdf', null, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
@@ -521,6 +531,41 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       const source = new Uint8Array(await readFile(req.path))
       await pdfHistory.remember(req.path, source)
       const bytes = await moveObject(source, req.page, req.index, req.dx, req.dy)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle(
+    'pdf:addImage',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      image: z.string().min(1),
+      x: z.number(),
+      y: z.number(),
+      width: z.number().min(1).max(20_000),
+      height: z.number().min(1).max(20_000),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      // Decoded by Electron, which reads every format the app can show. The
+      // renderer sends a path, not pixels: a screenshot is megabytes, and there
+      // is no reason for them to cross the boundary twice.
+      const picture = nativeImage.createFromPath(req.image)
+      if (picture.isEmpty()) throw new IpcError('UNKNOWN', 'That image could not be read')
+      const { width, height } = picture.getSize()
+      const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
+      const bytes = await addImageObject(
+        source,
+        req.page,
+        { pixels: new Uint8Array(picture.toBitmap()), width, height },
+        req.x,
+        req.y,
+        req.width,
+        req.height
+      )
       const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
       await pdfText.forget(req.path)
       return result

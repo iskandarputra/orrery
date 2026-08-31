@@ -48,7 +48,6 @@ const TOOLS = [
   { mode: 9, icon: 'pencil', label: 'Highlight' },
   { mode: 3, icon: 'type', label: 'Text box' },
   { mode: 15, icon: 'diagram', label: 'Draw' },
-  { mode: 13, icon: 'image', label: 'Image' },
   { mode: 101, icon: 'pencil', label: 'Signature' }
 ] as const
 
@@ -64,7 +63,7 @@ const MAX_SCALE = 10
  * irritating thing a PDF reader can do. Not persisted to disk yet — that is a
  * setting, and this is a session.
  */
-const lastSeen = new Map<string, { page: number; scale: string }>()
+const lastSeen = new Map<string, { page: number; scale: string; rotation: number }>()
 
 export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element {
   const path = useStore((s) => s.buffers[bufferId]?.filePath ?? '')
@@ -107,6 +106,14 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const [alphabet, setAlphabet] = useState('')
   /** Whether the page's own contents are being edited rather than annotated. */
   const [editing, setEditing] = useState(false)
+  /**
+   * How far the pages have been turned.
+   *
+   * Tracked because the editing layer has to place its boxes on the page as
+   * drawn, not as stored: on a turned page the two do not agree, and a box in
+   * the wrong place is a click that retypes the wrong line.
+   */
+  const [rotation, setRotation] = useState(0)
   /** Whether stepping back or forward through this document's changes is possible. */
   const [steps, setSteps] = useState({ undo: false, redo: false })
   const [reading, setReading] = useState<string | null>(null)
@@ -175,6 +182,13 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           // taken at open time would put the zoom back to what it was then.
           const remembered = lastSeen.get(path)
           pdfViewer.currentScaleValue = remembered?.scale ?? 'auto'
+          // Handing the viewer a rewritten document resets its rotation, so an
+          // edit made on a page somebody had turned would leave the page
+          // upright and this component still believing it was on its side —
+          // and the editing boxes are placed from that belief.
+          const turn = remembered?.rotation ?? 0
+          pdfViewer.pagesRotation = turn
+          setRotation(turn)
           // An asked-for page beats where you left off. A search hit or a
           // `#page=` link is a request about this moment; the remembered page
           // is only where the tab happened to be last time, and letting it win
@@ -187,7 +201,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           setPage(e.pageNumber)
           lastSeen.set(path, {
             page: e.pageNumber,
-            scale: String(pdfViewer.currentScaleValue ?? 'auto')
+            scale: String(pdfViewer.currentScaleValue ?? 'auto'),
+            rotation: pdfViewer.pagesRotation
           })
         })
         eventBus.on('scalechanging', (e: { scale: number; presetValue?: string }) => {
@@ -198,6 +213,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           // only ever recorded by accident — so a reload went back to whatever
           // it had been when the page last changed.
           lastSeen.set(path, {
+            rotation: pdfViewer.pagesRotation,
             page: pdfViewer.currentPageNumber,
             scale: String(pdfViewer.currentScaleValue ?? 'auto')
           })
@@ -335,7 +351,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         // overwrite it anyway.
         lastSeen.set(path, {
           page: view.currentPageNumber,
-          scale: String(view.currentScaleValue ?? 'auto')
+          scale: String(view.currentScaleValue ?? 'auto'),
+          rotation: view.pagesRotation
         })
         const scrolled = scrollRef.current?.scrollTop ?? 0
 
@@ -365,7 +382,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     return () => {
       live = false
     }
-  }, [reloadToken, url, bufferId])
+  }, [reloadToken, url, bufferId, path])
 
   // Which pages have nothing on them, from the same cache search reads. Asked
   // once the document is up, because the answer is about this file and not
@@ -634,6 +651,48 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     return () => host?.removeEventListener('keydown', onKey)
   }, [steps])
 
+  /**
+   * Put a picture on the page.
+   *
+   * Not pdf.js's stamp tool, which its viewer components cannot drive: they
+   * have no way to choose a file, so the button armed and clicking the page did
+   * nothing at all. This adds a real image object instead — part of the page
+   * like the words around it, drawn by every reader, and taken away by the same
+   * undo as everything else.
+   */
+  const addImage = async (): Promise<void> => {
+    if (!path || !doc) return
+    try {
+      const file = await invoke('dialog:pickImage', undefined)
+      if (!file) return
+      if (dirty && !(await save())) return
+
+      const pdfPage = await doc.getPage(page)
+      const view = pdfPage.view as number[]
+      const pageWidth = (view[2] ?? 612) - (view[0] ?? 0)
+      const pageHeight = (view[3] ?? 792) - (view[1] ?? 0)
+      // A third of the page across, in the middle of it: somewhere visible to
+      // drag from, rather than a guess at what size was wanted.
+      const width = pageWidth / 3
+      const height = width
+      const result = await invoke('pdf:addImage', {
+        path,
+        page: page - 1,
+        image: file,
+        x: (pageWidth - width) / 2,
+        y: (pageHeight - height) / 2,
+        width,
+        height,
+        expectedMtimeMs: savedMtime
+      })
+      setSavedMtime(result.mtimeMs)
+      setReload((n) => n + 1)
+      useStore.getState().showToast('The picture was added — drag it where you want it', 'success')
+    } catch {
+      useStore.getState().showToast('That picture could not be added', 'error')
+    }
+  }
+
   /** Pick up or put down an annotation tool. */
   const pickTool = async (mode: number): Promise<void> => {
     const view = viewerRef.current
@@ -705,7 +764,17 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
 
   const rotate = (): void => {
     const view = viewerRef.current
-    if (view) view.pagesRotation = (view.pagesRotation + 90) % 360
+    if (!view) return
+    const next = (view.pagesRotation + 90) % 360
+    view.pagesRotation = next
+    setRotation(next)
+    // Written down with the page and the zoom, so a document comes back the way
+    // it was left rather than upright.
+    lastSeen.set(path, {
+      page: view.currentPageNumber,
+      scale: String(view.currentScaleValue ?? 'auto'),
+      rotation: next
+    })
   }
 
   const find = (again: boolean, backwards = false): void => {
@@ -816,6 +885,14 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
               <Icon name={entry.icon} size={13} />
             </button>
           ))}
+          <button
+            className="pdfv__action"
+            aria-label="Image"
+            title="Put a picture on this page"
+            onClick={() => void addImage()}
+          >
+            <Icon name="image" size={13} />
+          </button>
         </span>
 
         <button
@@ -958,11 +1035,12 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
             <div className="pdfViewer" ref={pagesRef} />
             {editing && doc && path && (
               <PdfObjectLayer
-                key={`${page}:${reloadToken}`}
+                key={`${page}:${rotation}:${reloadToken}`}
                 doc={doc}
                 path={path}
                 page={page}
                 alphabet={alphabet}
+                rotation={rotation}
                 mtime={savedMtime}
                 onChanged={(mtimeMs) => {
                   setSavedMtime(mtimeMs)

@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { groupTargets, missingGlyphs, objectAt, type EditTarget } from '@core/pdf-edit'
+import {
+  asRotation,
+  dragToPdf,
+  drawnSize,
+  scaleFromDrawnWidth,
+  toCss,
+  toCssBox,
+  toPdf,
+  type PageGeometry
+} from '@core/pdf-geometry'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 
@@ -19,12 +29,28 @@ import { useStore } from '@/state/store'
  * drawn: typing one is allowed, but not without being told.
  */
 
+/**
+ * The corner PDFium scales an object about, as it appears on screen.
+ *
+ * The engine always grows a thing from its own bottom left. On a page turned a
+ * quarter that corner is somewhere else on the screen, and previewing the
+ * resize about the wrong one shows the object sliding away as it grows — which
+ * is not what the file ends up with.
+ */
+const SCALES_FROM: Record<number, string> = {
+  0: 'left bottom',
+  90: 'left top',
+  180: 'right top',
+  270: 'right bottom'
+}
+
 /** A box over each object, and the input that replaces one when it is picked. */
 export function PdfObjectLayer({
   doc,
   path,
   page,
   alphabet,
+  rotation,
   mtime,
   onChanged
 }: {
@@ -34,6 +60,8 @@ export function PdfObjectLayer({
   page: number
   /** Everything this document says, for guessing what its fonts can draw. */
   alphabet: string
+  /** How far the reader has turned the pages, on top of the page's own turn. */
+  rotation: number
   mtime: number | null
   onChanged: (mtimeMs: number) => void
 }): React.JSX.Element | null {
@@ -47,12 +75,11 @@ export function PdfObjectLayer({
    */
   const [objects, setObjects] = useState<EditTarget[]>([])
   const [geometry, setGeometry] = useState<{
-    scale: number
-    height: number
+    /** The page's size, scale and orientation; everything else asks this. */
+    page: PageGeometry
     /** Where the drawn page sits inside the scroller, so the layer can sit on it. */
     left: number
     top: number
-    width: number
   } | null>(null)
   const [picked, setPicked] = useState<EditTarget | null>(null)
   const [draft, setDraft] = useState('')
@@ -96,14 +123,20 @@ export function PdfObjectLayer({
         )
         if (!drawn) return
 
+        // The page's own turn plus the reader's, which is how pdf.js works out
+        // what to draw — so it is how the boxes have to be placed on top of it.
+        const turn = asRotation(rotation + (pdfPage.rotate ?? 0))
         const measure = (): void => {
           if (!live) return
           setGeometry({
-            scale: width > 0 ? drawn.clientWidth / width : 1,
-            height,
+            page: {
+              width,
+              height,
+              scale: scaleFromDrawnWidth(drawn.clientWidth, { width, height }, turn),
+              rotation: turn
+            },
             left: drawn.offsetLeft,
-            top: drawn.offsetTop,
-            width: drawn.clientWidth
+            top: drawn.offsetTop
           })
         }
         setObjects(groupTargets(found, { width, height }))
@@ -119,17 +152,21 @@ export function PdfObjectLayer({
       live = false
       observer?.disconnect()
     }
-  }, [doc, path, page])
+  }, [doc, path, page, rotation])
 
   if (!geometry || objects.length === 0) return null
 
-  /** PDF space has its origin at the bottom left; the page on screen does not. */
-  const box = (object: EditTarget): React.CSSProperties => ({
-    left: object.bounds.left * geometry.scale,
-    top: (geometry.height - object.bounds.top) * geometry.scale,
-    width: Math.max(2, (object.bounds.right - object.bounds.left) * geometry.scale),
-    height: Math.max(2, (object.bounds.top - object.bounds.bottom) * geometry.scale)
-  })
+  const drawn = drawnSize(geometry.page)
+
+  /** Where something on the page ends up on the screen, whichever way up. */
+  const box = (object: EditTarget): React.CSSProperties => toCssBox(geometry.page, object.bounds)
+
+  /** A point on the screen, in the page's own coordinates. */
+  const pointIn = (
+    host: DOMRect,
+    event: { clientX: number; clientY: number }
+  ): { x: number; y: number } =>
+    toPdf(geometry.page, { x: event.clientX - host.left, y: event.clientY - host.top })
 
   const apply = async (): Promise<void> => {
     if (!picked || busy) return
@@ -191,6 +228,9 @@ export function PdfObjectLayer({
       // A click is not a drag. Below this it was somebody selecting the object.
       if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return
       setBusy(true)
+      // Which way the page is turned decides which of its axes the hand moved
+      // along: sideways across a page on its side is up and down the page.
+      const moved = dragToPdf(geometry.page, { x: dx, y: dy })
       try {
         const result = await invoke('pdf:moveObject', {
           path,
@@ -198,9 +238,8 @@ export function PdfObjectLayer({
           // Moving acts on the first object of a run: a line that was split
           // into characters moves as one only once it has been retyped.
           index: object.indexes[0]!,
-          // Screen pixels down are PDF units up.
-          dx: dx / geometry.scale,
-          dy: -dy / geometry.scale,
+          dx: moved.x,
+          dy: moved.y,
           expectedMtimeMs: mtime
         })
         setPicked(null)
@@ -228,13 +267,27 @@ export function PdfObjectLayer({
     event.stopPropagation()
     const startX = event.clientX
     const startY = event.clientY
-    const width = (object.bounds.right - object.bounds.left) * geometry.scale
-    const height = (object.bounds.top - object.bounds.bottom) * geometry.scale
+    const drawnBox = toCssBox(geometry.page, object.bounds)
+    const turned = geometry.page.rotation === 90 || geometry.page.rotation === 270
 
-    const factors = (moveX: number, moveY: number): { sx: number; sy: number } => ({
-      sx: Math.min(20, Math.max(0.05, (width + (moveX - startX)) / Math.max(1, width))),
-      sy: Math.min(20, Math.max(0.05, (height + (moveY - startY)) / Math.max(1, height)))
-    })
+    /**
+     * How much bigger, along the page's own axes.
+     *
+     * The hand moves in screen pixels and the engine scales in page units, and
+     * on a page turned a quarter those are not the same pair — pulling the
+     * handle sideways makes a line taller, not longer.
+     */
+    const factors = (moveX: number, moveY: number): { sx: number; sy: number } => {
+      const across = Math.min(
+        20,
+        Math.max(0.05, (drawnBox.width + (moveX - startX)) / Math.max(1, drawnBox.width))
+      )
+      const down = Math.min(
+        20,
+        Math.max(0.05, (drawnBox.height + (moveY - startY)) / Math.max(1, drawnBox.height))
+      )
+      return turned ? { sx: down, sy: across } : { sx: across, sy: down }
+    }
 
     const onMove = (move: MouseEvent): void => setSizing(factors(move.clientX, move.clientY))
 
@@ -317,15 +370,13 @@ export function PdfObjectLayer({
       style={{
         left: geometry.left,
         top: geometry.top,
-        width: geometry.width,
-        height: geometry.height * geometry.scale
+        width: drawn.width,
+        height: drawn.height
       }}
       onClick={(event) => {
         // A click anywhere on the page picks whatever is smallest under it,
         // which is how you get the words rather than the box behind them.
-        const host = event.currentTarget.getBoundingClientRect()
-        const x = (event.clientX - host.left) / geometry.scale
-        const y = geometry.height - (event.clientY - host.top) / geometry.scale
+        const { x, y } = pointIn(event.currentTarget.getBoundingClientRect(), event)
         const hit = objectAt(objects, x, y)
         setPicked(hit)
         setDraft(hit?.text ?? '')
@@ -334,9 +385,7 @@ export function PdfObjectLayer({
       }}
       onDoubleClick={(event) => {
         // Nothing under the pointer: this is somewhere to write.
-        const host = event.currentTarget.getBoundingClientRect()
-        const x = (event.clientX - host.left) / geometry.scale
-        const y = geometry.height - (event.clientY - host.top) / geometry.scale
+        const { x, y } = pointIn(event.currentTarget.getBoundingClientRect(), event)
         if (objectAt(objects, x, y)) return
         setPicked(null)
         setAdding({ x, y, text: '' })
@@ -362,7 +411,7 @@ export function PdfObjectLayer({
                 ]
                   .filter(Boolean)
                   .join(' ') || undefined,
-              transformOrigin: 'left bottom'
+              transformOrigin: SCALES_FROM[geometry.page.rotation]
             }}
             title={
               object.kind === 'text'
@@ -388,8 +437,8 @@ export function PdfObjectLayer({
         <div
           className="pdfv__object-edit"
           style={{
-            left: adding.x * geometry.scale,
-            top: (geometry.height - adding.y) * geometry.scale - 24
+            left: toCss(geometry.page, adding).x,
+            top: toCss(geometry.page, adding).y - 24
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -417,12 +466,9 @@ export function PdfObjectLayer({
           // this panel is opaque, so editing a full-page picture would paint
           // the document out.
           style={{
-            left: picked.bounds.left * geometry.scale,
-            top: (geometry.height - picked.bounds.top) * geometry.scale,
-            minWidth: Math.min(
-              360,
-              Math.max(120, (picked.bounds.right - picked.bounds.left) * geometry.scale)
-            )
+            left: toCssBox(geometry.page, picked.bounds).left,
+            top: toCssBox(geometry.page, picked.bounds).top,
+            minWidth: Math.min(360, Math.max(120, toCssBox(geometry.page, picked.bounds).width))
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -462,8 +508,11 @@ export function PdfObjectLayer({
           className="pdfv__object-warning"
           role="status"
           style={{
-            left: picked.bounds.left * geometry.scale,
-            top: (geometry.height - picked.bounds.bottom) * geometry.scale + 4
+            left: toCssBox(geometry.page, picked.bounds).left,
+            top:
+              toCssBox(geometry.page, picked.bounds).top +
+              toCssBox(geometry.page, picked.bounds).height +
+              4
           }}
         >
           This document has never drawn {warned.join(' ')}, so its font may have no glyph for{' '}

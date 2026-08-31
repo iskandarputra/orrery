@@ -70,6 +70,25 @@ interface Pdfium {
   FPDFText_LoadStandardFont(doc: number, name: string): number
   FPDFFont_Close(font: number): void
   FPDFPage_InsertObject(page: number, object: number): void
+  FPDFPageObj_NewImageObj(doc: number): number
+  FPDFImageObj_SetBitmap(pages: number, count: number, object: number, bitmap: number): boolean
+  FPDFImageObj_SetMatrix(
+    object: number,
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number
+  ): boolean
+  FPDFBitmap_CreateEx(
+    width: number,
+    height: number,
+    format: number,
+    buffer: number,
+    stride: number
+  ): number
+  FPDFBitmap_Destroy(bitmap: number): void
   FPDFPageObj_SetFillColor(object: number, r: number, g: number, b: number, a: number): boolean
   pdfium: {
     HEAPU8: Uint8Array
@@ -558,4 +577,61 @@ export async function pageCount(bytes: Uint8Array): Promise<number> {
     if (doc) lib.FPDF_CloseDocument(doc)
     rt.wasmExports.free(ptr)
   }
+}
+
+/** PDFium's BGRA bitmap format, which is what Electron decodes an image into. */
+const BGRA = 4
+
+/**
+ * Put a picture on a page.
+ *
+ * The image arrives already decoded — main has Electron's own decoder, which
+ * reads every format the app can show — so this only has to hand PDFium the
+ * pixels and say where they go.
+ *
+ * A page object rather than an annotation: it becomes part of the page like the
+ * words around it, it is undone by the same undo, and every reader draws it,
+ * including the ones that ignore annotations.
+ */
+export async function addImageObject(
+  bytes: Uint8Array,
+  pageIndex: number,
+  image: { pixels: Uint8Array; width: number; height: number },
+  x: number,
+  y: number,
+  drawWidth: number,
+  drawHeight: number
+): Promise<Uint8Array> {
+  if (image.width < 1 || image.height < 1) throw new Error('That image has no size')
+
+  return writeWithPage(bytes, pageIndex, (lib, page, doc) => {
+    const rt = lib.pdfium
+    const stride = image.width * 4
+    let pixels = 0
+    let bitmap = 0
+    let object = 0
+    try {
+      pixels = rt.wasmExports.malloc(stride * image.height)
+      rt.HEAPU8.set(image.pixels.subarray(0, stride * image.height), pixels)
+      bitmap = lib.FPDFBitmap_CreateEx(image.width, image.height, BGRA, pixels, stride)
+      if (!bitmap) throw new Error('That image could not be prepared')
+
+      object = lib.FPDFPageObj_NewImageObj(doc)
+      if (!object) throw new Error('That image could not be added')
+      if (!lib.FPDFImageObj_SetBitmap(0, 0, object, bitmap)) {
+        throw new Error('That image could not be drawn')
+      }
+      // An image object is drawn into the unit square, so its matrix *is* its
+      // size and position on the page.
+      lib.FPDFImageObj_SetMatrix(object, drawWidth, 0, 0, drawHeight, x, y)
+      lib.FPDFPage_InsertObject(page, object)
+      object = 0 // the page owns it now
+      if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+    } finally {
+      if (object) lib.FPDFPageObj_Destroy(object)
+      if (bitmap) lib.FPDFBitmap_Destroy(bitmap)
+      // Freed after the bitmap, which was reading these pixels.
+      if (pixels) rt.wasmExports.free(pixels)
+    }
+  })
 }

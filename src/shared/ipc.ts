@@ -417,6 +417,28 @@ export interface IpcInvokeContract {
   'pdf:pageCount': { req: { path: string }; res: number }
   /** Choose a PDF from disk — the other half of merging one in. */
   'dialog:pickPdf': { req: void; res: string | null }
+  /** Choose a picture from disk, to put on a page. */
+  'dialog:pickImage': { req: void; res: string | null }
+  /**
+   * Draw a picture onto a page, at a place and size given in PDF units.
+   *
+   * The image is read and decoded in main — the renderer never sees its bytes —
+   * and becomes a page object, so every reader draws it and the same undo takes
+   * it away.
+   */
+  'pdf:addImage': {
+    req: {
+      path: string
+      page: number
+      image: string
+      x: number
+      y: number
+      width: number
+      height: number
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
   'pdf:save': {
     req: { path: string; bytes: Uint8Array; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }
