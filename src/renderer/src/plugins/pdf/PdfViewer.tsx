@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/PanelBits'
 import { useStore } from '@/state/store'
 import { loadPdfjs } from './pdfjs-lazy'
 import { readPage, startReader } from './ocr'
-import { registerSaver } from './saving'
+import { registerSaver, registerUndo } from './saving'
 import { PdfObjectLayer } from './PdfObjectLayer'
 import { annotationList, type AnnotationRef, type RawAnnotation } from '@core/pdf-annotations'
 import type { PagePlan } from '@core/pdf-pages'
@@ -86,6 +86,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   // A search hit or a `[[paper.pdf#page=12]]` link, asking for a page.
   const pdfTarget = useStore((s) => s.pdfTarget)
 
+  /** The surface itself, so it can hear a keystroke aimed at the document. */
+  const rootRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PdfjsViewer | null>(null)
@@ -111,6 +113,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const [alphabet, setAlphabet] = useState('')
   /** Whether the page's own contents are being edited rather than annotated. */
   const [editing, setEditing] = useState(false)
+  /** Whether stepping back or forward through this document's changes is possible. */
+  const [steps, setSteps] = useState({ undo: false, redo: false })
   const [reading, setReading] = useState<string | null>(null)
   /** Which annotation tool is in hand, as pdf.js numbers them. */
   const [tool, setTool] = useState(0)
@@ -463,6 +467,75 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     }
   }
 
+  /**
+   * Step the document back, or forward again.
+   *
+   * Every change here rewrote the whole file, so undo is not a stack of edits
+   * in memory: main keeps what the bytes were and puts them back. The reader
+   * then re-reads, because the file it was showing is a different one.
+   */
+  const step = async (direction: 'undo' | 'redo'): Promise<boolean> => {
+    if (!path) return false
+    try {
+      const result = await invoke('pdf:undo', { path, direction })
+      if (!result) return false
+      setSavedMtime(result.mtimeMs)
+      setSteps({ undo: result.undo, redo: result.redo })
+      setDirty(false)
+      useStore.getState().setDirty(bufferId, false)
+      setReload((n) => n + 1)
+      return true
+    } catch {
+      useStore.getState().showToast('That change could not be taken back', 'error')
+      return false
+    }
+  }
+
+  const stepRef = useRef(step)
+  useEffect(() => {
+    stepRef.current = step
+  })
+  useEffect(() => {
+    registerUndo(bufferId, {
+      undo: () => stepRef.current('undo'),
+      redo: () => stepRef.current('redo')
+    })
+    return () => registerUndo(bufferId, null)
+  }, [bufferId])
+
+  // What can be stepped, asked whenever the document is (re)read.
+  useEffect(() => {
+    if (!path) return
+    let live = true
+    void invoke('pdf:canUndo', { path })
+      .then((can) => live && setSteps(can))
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [path, reloadToken])
+
+  /**
+   * Ctrl+Z here, rather than through the application's keymap.
+   *
+   * The editor's undo belongs to CodeMirror and only fires while a text
+   * document has focus. This surface has focus instead, so it takes the
+   * keystroke itself — and only when there is something to undo, so a document
+   * nobody has changed does not swallow it.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+      const direction = event.shiftKey ? 'redo' : 'undo'
+      if (!steps[direction]) return
+      event.preventDefault()
+      void stepRef.current(direction)
+    }
+    const host = rootRef.current
+    host?.addEventListener('keydown', onKey)
+    return () => host?.removeEventListener('keydown', onKey)
+  }, [steps])
+
   /** Pick up or put down an annotation tool. */
   const pickTool = async (mode: number): Promise<void> => {
     const view = viewerRef.current
@@ -560,7 +633,9 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   }
 
   return (
-    <div className="pdfv">
+    // `tabIndex` so the surface can hear Ctrl+Z: without it the keystroke has
+    // nowhere to land when the pages, rather than an input, have focus.
+    <div className="pdfv" ref={rootRef} tabIndex={-1}>
       <div className="pdfv__bar">
         <button
           className={`pdfv__action${sidebar ? ' pdfv__action--active' : ''}`}
@@ -653,6 +728,25 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           onClick={() => setEditing((on) => !on)}
         >
           <Icon name="sliders" size={13} />
+        </button>
+
+        <button
+          className="pdfv__action"
+          aria-label="Undo"
+          title="Take back the last change (Ctrl+Z)"
+          disabled={!steps.undo}
+          onClick={() => void step('undo')}
+        >
+          <Icon name="undo" size={13} />
+        </button>
+        <button
+          className="pdfv__action"
+          aria-label="Redo"
+          title="Make that change again (Ctrl+Shift+Z)"
+          disabled={!steps.redo}
+          onClick={() => void step('redo')}
+        >
+          <Icon name="redo" size={13} />
         </button>
 
         <button

@@ -36,8 +36,11 @@ describe('missingGlyphs', () => {
     expect(missingGlyphs('abc', 'a b\tc\n')).toEqual([])
   })
 
-  it('treats an empty document as knowing nothing, not as knowing everything', () => {
-    expect(missingGlyphs('', 'a')).toEqual(['a'])
+  it('says nothing at all when there is no evidence either way', () => {
+    // An empty alphabet is not a document that draws nothing — it is a
+    // document whose text has not been read yet, or a scan that has none.
+    // Warning about every character typed would be true, useless and alarming.
+    expect(missingGlyphs('', 'a')).toEqual([])
   })
 })
 

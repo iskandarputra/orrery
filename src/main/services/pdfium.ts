@@ -56,6 +56,21 @@ interface Pdfium {
   FPDFText_ClosePage(textPage: number): void
   FPDFTextObj_GetText(object: number, textPage: number, buffer: number, length: number): number
   FPDFText_SetText(object: number, text: number): boolean
+  FPDFPageObj_Transform(
+    object: number,
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number
+  ): void
+  FPDFPageObj_CreateTextObj(doc: number, font: number, size: number): number
+  /** The binding declares the name as a string and marshals it itself. */
+  FPDFText_LoadStandardFont(doc: number, name: string): number
+  FPDFFont_Close(font: number): void
+  FPDFPage_InsertObject(page: number, object: number): void
+  FPDFPageObj_SetFillColor(object: number, r: number, g: number, b: number, a: number): boolean
   pdfium: {
     HEAPU8: Uint8Array
     UTF16ToString(ptr: number): string
@@ -363,7 +378,7 @@ async function withPage<T>(
 async function writeWithPage(
   bytes: Uint8Array,
   pageIndex: number,
-  body: (lib: Pdfium, page: number) => void
+  body: (lib: Pdfium, page: number, doc: number) => void
 ): Promise<Uint8Array> {
   const lib = await load()
   const rt = lib.pdfium
@@ -380,7 +395,7 @@ async function writeWithPage(
   try {
     page = lib.FPDF_LoadPage(doc, pageIndex)
     if (!page) throw new Error('That page is not in this document')
-    body(lib, page)
+    body(lib, page, doc)
 
     const chunks: Uint8Array[] = []
     writeBlock = rt.addFunction((_self: number, data: number, size: number) => {
@@ -407,4 +422,74 @@ async function writeWithPage(
     rt.wasmExports.free(writer)
     rt.wasmExports.free(ptr)
   }
+}
+
+/**
+ * Move an object, without changing anything else about it.
+ *
+ * A translation only: the same glyphs, the same size, somewhere else on the
+ * page. Dragging a picture into place is the other half of what people mean by
+ * editing a PDF, and the half that cannot be done by retyping.
+ */
+export async function moveObject(
+  bytes: Uint8Array,
+  pageIndex: number,
+  objectIndex: number,
+  dx: number,
+  dy: number
+): Promise<Uint8Array> {
+  return writeWithPage(bytes, pageIndex, (lib, page) => {
+    const object = lib.FPDFPage_GetObject(page, objectIndex)
+    if (!object) throw new Error('That object is no longer there')
+    // The identity matrix with a displacement: [1 0 0 1 dx dy].
+    lib.FPDFPageObj_Transform(object, 1, 0, 0, 1, dx, dy)
+    if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+  })
+}
+
+/**
+ * Put new text on a page, in one of the fonts every PDF reader has.
+ *
+ * A standard font rather than one of the document's own: the document's fonts
+ * are usually subsets containing only the characters already on the page, so
+ * new words written in one would come out full of holes. Helvetica is one of
+ * the fourteen a reader must provide, so this text draws anywhere.
+ */
+export async function addTextObject(
+  bytes: Uint8Array,
+  pageIndex: number,
+  text: string,
+  x: number,
+  y: number,
+  size: number
+): Promise<Uint8Array> {
+  return writeWithPage(bytes, pageIndex, (lib, page, doc) => {
+    const rt = lib.pdfium
+    let font = 0
+    let object = 0
+    try {
+      font = lib.FPDFText_LoadStandardFont(doc, 'Helvetica')
+      if (!font) throw new Error('That font could not be loaded')
+      object = lib.FPDFPageObj_CreateTextObj(doc, font, size)
+      if (!object) throw new Error('The text could not be created')
+
+      const wide = rt.wasmExports.malloc((text.length + 1) * 2)
+      try {
+        rt.stringToUTF16(text, wide, (text.length + 1) * 2)
+        if (!lib.FPDFText_SetText(object, wide)) throw new Error('The text could not be set')
+      } finally {
+        rt.wasmExports.free(wide)
+      }
+
+      // Black, and where it was asked for. A new object starts at the origin.
+      lib.FPDFPageObj_SetFillColor(object, 0, 0, 0, 255)
+      lib.FPDFPageObj_Transform(object, 1, 0, 0, 1, x, y)
+      lib.FPDFPage_InsertObject(page, object)
+      object = 0 // the page owns it now
+      if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+    } finally {
+      if (object) lib.FPDFPageObj_Destroy(object)
+      if (font) lib.FPDFFont_Close(font)
+    }
+  })
 }

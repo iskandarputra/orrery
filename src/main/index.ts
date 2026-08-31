@@ -15,6 +15,7 @@ import { McpClientService } from './services/mcp-client'
 import { McpHostService } from './services/mcp-host'
 import { SqliteService } from './services/sqlite'
 import { PdfTextService } from './services/pdf-text'
+import { PdfHistory } from './services/pdf-history'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -73,6 +74,10 @@ if (!gotLock) {
   // What PDFs say, so search can look inside them. Cached under userData: a
   // paper is parsed once and not on every search over the vault it lives in.
   const pdfText = new PdfTextService(join(app.getPath('userData'), 'pdf-text'))
+  // What each document looked like before its last few changes. On disk, not in
+  // memory: a scan is tens of megabytes and twenty of those is a quarter of a
+  // gigabyte for a feature nobody thinks about until they need it.
+  const pdfHistory = new PdfHistory(join(app.getPath('userData'), 'pdf-undo'))
   const links = new LinkScanner(sidecar, pdfText)
   const exporter = new ExportService()
   const ai = new AiService(() => settings.get())
@@ -186,7 +191,8 @@ if (!gotLock) {
       mcpAudit,
       askUser,
       sqlite,
-      pdfText
+      pdfText,
+      pdfHistory
     })
     buildAppMenu(settings.get().keybindings, {
       files: settings.get().recentFiles,

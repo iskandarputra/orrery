@@ -7,7 +7,14 @@ import {
   removePages,
   rotatePages
 } from '@core/pdf-pages'
-import { applyPagePlan, editTextObject, pageObjects, removePageObjects } from './pdfium'
+import {
+  addTextObject,
+  applyPagePlan,
+  editTextObject,
+  moveObject,
+  pageObjects,
+  removePageObjects
+} from './pdfium'
 import { makePdf } from './__fixtures__/make-pdf'
 
 /**
@@ -149,5 +156,51 @@ describe('editing what is on a page', () => {
   it('refuses to retype something that is not text', async () => {
     const source = new Uint8Array(makePdf({ pages: [['words']] }))
     await expect(editTextObject(source, 0, 99, 'nope')).rejects.toThrow()
+  })
+})
+
+describe('moving and adding', () => {
+  it('moves an object without changing what it says', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['a line to shift']] }))
+    const [before] = await pageObjects(source, 0)
+    const out = await moveObject(source, 0, 0, 40, -30)
+
+    const [after] = await pageObjects(out, 0)
+    expect(after?.text).toBe('a line to shift')
+    expect(after!.bounds.left).toBeCloseTo(before!.bounds.left + 40, 0)
+    expect(after!.bounds.top).toBeCloseTo(before!.bounds.top - 30, 0)
+    // And the other engine still reads it.
+    expect((await readBack(out))[0]?.text).toContain('a line to shift')
+  })
+
+  it('puts new text on a page, where it was asked for', async () => {
+    const out = await addTextObject(
+      new Uint8Array(makePdf({ pages: [['existing']] })),
+      0,
+      'added words',
+      100,
+      400,
+      14
+    )
+    const objects = await pageObjects(out, 0)
+    expect(objects).toHaveLength(2)
+    const added = objects.find((o) => o.text === 'added words')
+    expect(added).toBeTruthy()
+    expect(added!.bounds.left).toBeCloseTo(100, -1)
+    expect((await readBack(out))[0]?.text).toContain('added words')
+  })
+
+  it('writes new text in a font every reader has', async () => {
+    // The document's own fonts are usually subsets holding only the characters
+    // already on the page, so new words written in one come out full of holes.
+    const out = await addTextObject(
+      new Uint8Array(makePdf({ pages: [['abc']] })),
+      0,
+      'Zyxw £ 42',
+      72,
+      500,
+      12
+    )
+    expect((await readBack(out))[0]?.text).toContain('Zyxw')
   })
 })

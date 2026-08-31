@@ -44,6 +44,18 @@ objects appended — so what lands on disk is the document you were sent plus wh
 you added, and any other PDF reader can open both. Ctrl+S saves, the tab carries
 a dirty dot, and closing an unsaved document asks first.
 
+## Undo
+
+Ctrl+Z takes back the last change, Ctrl+Shift+Z makes it again, and the toolbar
+has both. It covers everything that changes the document — retyping, moving,
+removing, adding, and rearranging pages.
+
+A PDF's undo cannot be a stack of edits held in memory, because every change
+rewrites the whole file: what is kept is what the bytes were, on disk, under
+`pdf-undo` in the application's data folder. Twenty steps per document, and no
+more than 256 MB of them, because a scanned document reaches the second limit
+long before the first. Closing the tab throws them away.
+
 ## Organising pages
 
 The **Pages** tab is a page organiser. Select pages and turn, move, remove or
@@ -70,6 +82,12 @@ you about the second one itself:
   The editor checks what you type against everything the document says, names
   the characters it doubts, and takes a second Enter as your answer — because
   the font may well have them.
+
+**Dragging** an object moves it — the same glyphs or picture, somewhere else on
+the page. **Double-clicking empty space** starts a new line of text, written in
+Helvetica because a document's own fonts usually hold only the characters
+already on the page; new words in one of those would come out full of holes.
+Text does not wrap, so a line started near the edge runs off it.
 
 **Removing takes something out of the file**, rather than covering it. That is
 the difference between redaction and a black rectangle: a covered word is still

@@ -54,6 +54,16 @@ export interface DocumentSurface {
    */
   save?(bufferId: string): Promise<boolean>
   /**
+   * Take back the last change, or make it again.
+   *
+   * Ctrl+Z belongs to the editor when a note is open; a surface that changes
+   * something other than a text document has to be asked instead. Returns
+   * false when there was nothing to do, so the caller can leave the keystroke
+   * alone rather than swallowing it.
+   */
+  undo?(bufferId: string): Promise<boolean>
+  redo?(bufferId: string): Promise<boolean>
+  /**
    * How to make a new one, if that makes sense for the format.
    *
    * Without this a surface can only open files that already exist — which,

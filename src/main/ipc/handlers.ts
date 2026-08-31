@@ -18,7 +18,15 @@ import type { SqliteService } from '../services/sqlite'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import { readFile } from 'node:fs/promises'
-import { applyPagePlan, editTextObject, pageObjects, removePageObjects } from '../services/pdfium'
+import {
+  addTextObject,
+  applyPagePlan,
+  editTextObject,
+  moveObject,
+  pageObjects,
+  removePageObjects
+} from '../services/pdfium'
+import type { PdfHistory } from '../services/pdf-history'
 import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -43,6 +51,7 @@ export interface HandlerDeps {
   mcpHost: McpHostService
   sqlite: SqliteService
   pdfText: PdfTextService
+  pdfHistory: PdfHistory
   mcpAudit: McpAudit
   askUser: AskUser
 }
@@ -74,7 +83,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     mcpAudit,
     askUser,
     sqlite,
-    pdfText
+    pdfText,
+    pdfHistory
   } = deps
 
   // --- dialogs -------------------------------------------------------------
@@ -432,6 +442,36 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
   // --- databases ------------------------------------------------------------
+  /** Keep the bytes that are about to be replaced, so the change can be undone. */
+  const rememberBefore = async (target: string): Promise<void> => {
+    try {
+      await pdfHistory.remember(target, new Uint8Array(await readFile(target)))
+    } catch {
+      // A document that cannot be read has no history worth keeping, and this
+      // must never be the reason a save fails.
+    }
+  }
+
+  handle('pdf:canUndo', pathReq, (_e, req) => pdfHistory.can(req.path))
+  handle('pdf:forgetHistory', pathReq, (_e, req) => pdfHistory.forget(req.path))
+  handle(
+    'pdf:undo',
+    z.object({ path: z.string().min(1), direction: z.enum(['undo', 'redo']) }),
+    async (_e, req) => {
+      const current = new Uint8Array(await readFile(req.path))
+      const bytes =
+        req.direction === 'undo'
+          ? await pdfHistory.undo(req.path, current)
+          : await pdfHistory.redo(req.path, current)
+      if (!bytes) return null
+      // No conflict check: this is putting back bytes this app itself wrote a
+      // moment ago, and refusing would leave somebody with no way back.
+      const result = await fs.writeBytes(req.path, bytes, null)
+      await pdfText.forget(req.path)
+      return { mtimeMs: result.mtimeMs, ...pdfHistory.can(req.path) }
+    }
+  )
+
   handle('pdf:text', pathReq, (_e, req) => pdfText.read(req.path))
   handle(
     'pdf:objects',
@@ -449,7 +489,48 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     }),
     async (_e, req) => {
       const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
       const bytes = await editTextObject(source, req.page, req.index, req.text)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle(
+    'pdf:moveObject',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      index: z.number().int().min(0),
+      // Bounded to a page's worth of movement in either direction.
+      dx: z.number().min(-20_000).max(20_000),
+      dy: z.number().min(-20_000).max(20_000),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
+      const bytes = await moveObject(source, req.page, req.index, req.dx, req.dy)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle(
+    'pdf:addText',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      text: z.string().min(1).max(20_000),
+      x: z.number(),
+      y: z.number(),
+      size: z.number().min(1).max(400),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
+      const bytes = await addTextObject(source, req.page, req.text, req.x, req.y, req.size)
       const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
       await pdfText.forget(req.path)
       return result
@@ -465,6 +546,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     }),
     async (_e, req) => {
       const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
       const bytes = await removePageObjects(source, req.page, req.indexes)
       const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
       await pdfText.forget(req.path)
@@ -487,6 +569,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       const sources = await Promise.all(
         [req.path, ...(req.also ?? [])].map(async (file) => new Uint8Array(await readFile(file)))
       )
+      if (!req.saveAs) await rememberBefore(req.path)
       const bytes = await applyPagePlan(sources, req.plan)
       // Writing somewhere new never overwrites: extracting pages twice is a
       // thing people do, and the second attempt must not eat the first.
@@ -506,6 +589,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       expectedMtimeMs: z.number().nullable()
     }),
     async (_e, req) => {
+      await rememberBefore(req.path)
       const result = await fs.writeBytes(req.path, req.bytes, req.expectedMtimeMs)
       // The document has changed, so what it says has changed: the next search
       // must read it again rather than answer from what it used to say.

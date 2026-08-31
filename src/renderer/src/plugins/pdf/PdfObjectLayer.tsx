@@ -57,10 +57,20 @@ export function PdfObjectLayer({
    * the same key again.
    */
   const [warned, setWarned] = useState<string[]>([])
+  /** A drag in progress: which object, and how far it has come, in CSS pixels. */
+  const [dragging, setDragging] = useState<{ index: number; dx: number; dy: number } | null>(null)
+  /** Where a new line of text is being typed, in PDF coordinates. */
+  const [adding, setAdding] = useState<{ x: number; y: number; text: string } | null>(null)
 
   // What is on this page, and how its coordinates map to the drawn one.
+  //
+  // The mapping is remeasured whenever the drawn page changes size, because
+  // zooming changes every number in it — measured once, the boxes drift away
+  // from the words they belong to the first time somebody zooms in to read.
   useEffect(() => {
     let live = true
+    let observer: ResizeObserver | null = null
+
     void (async () => {
       try {
         const [found, pdfPage] = await Promise.all([
@@ -75,21 +85,29 @@ export function PdfObjectLayer({
           `.pdfViewer .page[data-page-number="${page}"]`
         )
         if (!drawn) return
-        const scale = width > 0 ? drawn.clientWidth / width : 1
+
+        const measure = (): void => {
+          if (!live) return
+          setGeometry({
+            scale: width > 0 ? drawn.clientWidth / width : 1,
+            height,
+            left: drawn.offsetLeft,
+            top: drawn.offsetTop,
+            width: drawn.clientWidth
+          })
+        }
         setObjects(found)
-        setGeometry({
-          scale,
-          height,
-          left: drawn.offsetLeft,
-          top: drawn.offsetTop,
-          width: drawn.clientWidth
-        })
+        measure()
+        observer = new ResizeObserver(measure)
+        observer.observe(drawn)
       } catch {
         if (live) setObjects([])
       }
     })()
+
     return () => {
       live = false
+      observer?.disconnect()
     }
   }, [doc, path, page])
 
@@ -126,6 +144,79 @@ export function PdfObjectLayer({
       onChanged(result.mtimeMs)
     } catch {
       useStore.getState().showToast('That text could not be changed', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Pick an object up and put it down somewhere else.
+   *
+   * The movement is followed in CSS pixels and converted once, at the end: a
+   * write per pixel of a drag would be a hundred rewrites of the document.
+   */
+  const startDrag = (object: PageObject, event: React.MouseEvent): void => {
+    if (busy) return
+    event.preventDefault()
+    event.stopPropagation()
+    const startX = event.clientX
+    const startY = event.clientY
+    setPicked(object)
+    setDraft(object.text)
+
+    const onMove = (move: MouseEvent): void =>
+      setDragging({ index: object.index, dx: move.clientX - startX, dy: move.clientY - startY })
+
+    const onUp = async (up: MouseEvent): Promise<void> => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setDragging(null)
+      const dx = up.clientX - startX
+      const dy = up.clientY - startY
+      // A click is not a drag. Below this it was somebody selecting the object.
+      if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return
+      setBusy(true)
+      try {
+        const result = await invoke('pdf:moveObject', {
+          path,
+          page: page - 1,
+          index: object.index,
+          // Screen pixels down are PDF units up.
+          dx: dx / geometry.scale,
+          dy: -dy / geometry.scale,
+          expectedMtimeMs: mtime
+        })
+        setPicked(null)
+        onChanged(result.mtimeMs)
+      } catch {
+        useStore.getState().showToast('That could not be moved', 'error')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  /** Write a new line onto the page, in a font every reader has. */
+  const addText = async (): Promise<void> => {
+    if (!adding || adding.text.trim() === '' || busy) return
+    setBusy(true)
+    try {
+      const result = await invoke('pdf:addText', {
+        path,
+        page: page - 1,
+        text: adding.text,
+        x: adding.x,
+        y: adding.y,
+        size: 12,
+        expectedMtimeMs: mtime
+      })
+      setAdding(null)
+      onChanged(result.mtimeMs)
+    } catch {
+      useStore.getState().showToast('That text could not be added', 'error')
     } finally {
       setBusy(false)
     }
@@ -168,16 +259,65 @@ export function PdfObjectLayer({
         const hit = objectAt(objects, x, y)
         setPicked(hit)
         setDraft(hit?.text ?? '')
+        setWarned([])
+        if (!hit) setAdding(null)
+      }}
+      onDoubleClick={(event) => {
+        // Nothing under the pointer: this is somewhere to write.
+        const host = event.currentTarget.getBoundingClientRect()
+        const x = (event.clientX - host.left) / geometry.scale
+        const y = geometry.height - (event.clientY - host.top) / geometry.scale
+        if (objectAt(objects, x, y)) return
+        setPicked(null)
+        setAdding({ x, y, text: '' })
       }}
     >
-      {objects.map((object) => (
+      {objects.map((object) => {
+        const shifted =
+          dragging?.index === object.index ? { x: dragging.dx, y: dragging.dy } : { x: 0, y: 0 }
+        return (
+          <div
+            key={object.index}
+            className={`pdfv__object${picked?.index === object.index ? ' pdfv__object--picked' : ''}`}
+            style={{
+              ...box(object),
+              transform:
+                shifted.x || shifted.y ? `translate(${shifted.x}px, ${shifted.y}px)` : undefined
+            }}
+            title={
+              object.kind === 'text'
+                ? `${object.text} — drag to move`
+                : `${object.kind} — drag to move`
+            }
+            onMouseDown={(event) => startDrag(object, event)}
+          />
+        )
+      })}
+
+      {adding && (
         <div
-          key={object.index}
-          className={`pdfv__object${picked?.index === object.index ? ' pdfv__object--picked' : ''}`}
-          style={box(object)}
-          title={object.kind === 'text' ? object.text : object.kind}
-        />
-      ))}
+          className="pdfv__object-edit"
+          style={{
+            left: adding.x * geometry.scale,
+            top: (geometry.height - adding.y) * geometry.scale - 24
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            className="pdfv__object-input"
+            aria-label="Write on the page"
+            placeholder="New text…"
+            autoFocus
+            value={adding.text}
+            disabled={busy}
+            onChange={(e) => setAdding({ ...adding, text: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void addText()
+              else if (e.key === 'Escape') setAdding(null)
+            }}
+          />
+        </div>
+      )}
 
       {picked && (
         <div className="pdfv__object-edit" style={box(picked)} onClick={(e) => e.stopPropagation()}>

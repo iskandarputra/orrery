@@ -34,8 +34,14 @@ export interface PageObject {
  *
  * Whitespace is never reported: a space is not drawn, and reporting it would
  * make the warning noise rather than information.
+ *
+ * An empty alphabet means there is no evidence — the document's text has not
+ * been read yet, or it is a scan with no text in it — and produces no warning
+ * at all. Saying "this document has never drawn an 'a'" because the extraction
+ * has not finished would be true, useless and alarming.
  */
 export function missingGlyphs(alphabet: string, text: string): string[] {
+  if (alphabet === '') return []
   const known = new Set(alphabet)
   const missing = new Set<string>()
   for (const character of text) {

@@ -14,6 +14,7 @@
 type Saver = () => Promise<boolean>
 
 const savers = new Map<string, Saver>()
+const undoers = new Map<string, { undo: Saver; redo: Saver }>()
 
 /** The open reader for this tab announces itself; unmounting clears it. */
 export function registerSaver(bufferId: string, save: Saver | null): void {
@@ -32,4 +33,30 @@ export async function savePdf(bufferId: string): Promise<boolean> {
   const save = savers.get(bufferId)
   if (!save) return true
   return save()
+}
+
+/**
+ * The open reader also owns stepping the document back and forward.
+ *
+ * Undo for a PDF is not a stack of edits in memory — every change rewrites the
+ * file — so it is the reader that knows which document is being stepped and
+ * what to do with the bytes that come back.
+ */
+export function registerUndo(
+  bufferId: string,
+  handlers: { undo: Saver; redo: Saver } | null
+): void {
+  if (handlers) undoers.set(bufferId, handlers)
+  else undoers.delete(bufferId)
+}
+
+/** False when this tab has nothing to undo, so the keystroke can go elsewhere. */
+export async function undoPdf(bufferId: string): Promise<boolean> {
+  const handlers = undoers.get(bufferId)
+  return handlers ? handlers.undo() : false
+}
+
+export async function redoPdf(bufferId: string): Promise<boolean> {
+  const handlers = undoers.get(bufferId)
+  return handlers ? handlers.redo() : false
 }

@@ -1,6 +1,6 @@
 import type { OrreryPlugin } from '../api'
 import { PdfViewer } from './PdfViewer'
-import { savePdf } from './saving'
+import { redoPdf, savePdf, undoPdf } from './saving'
 
 /**
  * PDFs as a document kind.
@@ -25,7 +25,11 @@ export const pdfPlugin: OrreryPlugin = {
       // And because the buffer is empty, the ordinary save would write nothing
       // over the file. The open reader holds the annotations and the form
       // values, so it is the thing that saves.
-      save: savePdf
+      save: savePdf,
+      // Ctrl+Z belongs to the editor when a note is open; this document is not
+      // text, so the surface is asked instead.
+      undo: undoPdf,
+      redo: redoPdf
     })
   }
 }

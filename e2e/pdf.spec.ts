@@ -498,3 +498,136 @@ test('the pages fill the height they are given', async () => {
   })
   expect(measured.used).toBeGreaterThan(measured.available - 2)
 })
+
+test('a change to the document can be taken back, and made again', async () => {
+  // Every change here rewrites the whole file, so undo cannot be a stack of
+  // edits in memory — and without it, retyping the wrong line is permanent.
+  const undoPath = join(vault, 'Undo.pdf')
+  writeFileSync(undoPath, makePdf({ pages: [['words before the change']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Undo.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('words before', {
+    timeout: 20_000
+  })
+  await expect(page.locator('button[aria-label="Undo"]')).toBeDisabled()
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const box = (await page.locator('.pdfv__object').first().boundingBox())!
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  const input = page.locator('.pdfv__object-input')
+  await expect(input).toBeVisible()
+  await input.fill('words after the change')
+  await input.press('Enter')
+  await expect(page.locator('.pdfViewer')).toContainText('words after the change', {
+    timeout: 30_000
+  })
+
+  // Back: the document says what it said before.
+  await expect(page.locator('button[aria-label="Undo"]')).toBeEnabled({ timeout: 20_000 })
+  await page.locator('button[aria-label="Undo"]').click()
+  await expect(page.locator('.pdfViewer')).toContainText('words before the change', {
+    timeout: 30_000
+  })
+  await expect(page.locator('.pdfViewer')).not.toContainText('words after the change')
+
+  // And forward again.
+  await expect(page.locator('button[aria-label="Redo"]')).toBeEnabled({ timeout: 20_000 })
+  await page.locator('button[aria-label="Redo"]').click()
+  await expect(page.locator('.pdfViewer')).toContainText('words after the change', {
+    timeout: 30_000
+  })
+})
+
+test('Ctrl+Z undoes on a PDF tab, where the editor has no say', async () => {
+  // The editor's undo belongs to CodeMirror and only fires while a text
+  // document has focus; this surface has to take the keystroke itself.
+  await page.locator('.pdfv').click({ position: { x: 8, y: 8 } })
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.pdfViewer')).toContainText('words before the change', {
+    timeout: 30_000
+  })
+})
+
+test('rearranging pages can be taken back too', async () => {
+  // Not only the content edits: a page removed by mistake is the change people
+  // most want back.
+  const pagesPath = join(vault, 'Undo2.pdf')
+  writeFileSync(pagesPath, makePdf({ pages: [['alpha page'], ['beta page']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Undo2.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
+
+  await page.locator('.pdfv__tab', { hasText: 'Pages' }).click()
+  await page.locator('.pdfv__thumb').first().click()
+  await page.locator('button[aria-label="Remove pages"]').click()
+  await page.locator('.pdfv__page-pending button', { hasText: 'Apply' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 1', { timeout: 30_000 })
+
+  await page.locator('button[aria-label="Undo"]').click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 30_000 })
+  await expect(page.locator('.pdfViewer')).toContainText('alpha page')
+})
+
+test('something on the page can be dragged somewhere else', async () => {
+  const movePath = join(vault, 'Move.pdf')
+  writeFileSync(movePath, makePdf({ pages: [['a line that will be moved']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Move.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('will be moved', {
+    timeout: 20_000
+  })
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const box = page.locator('.pdfv__object').first()
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const before = (await box.boundingBox())!
+
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(before.x + before.width / 2 + 60, before.y + before.height / 2 + 40, {
+    steps: 10
+  })
+  await page.mouse.up()
+
+  // The document is rewritten and re-read, so this is where it now sits.
+  await expect
+    .poll(async () => (await page.locator('.pdfv__object').first().boundingBox())?.x ?? 0, {
+      timeout: 30_000
+    })
+    .toBeGreaterThan(before.x + 40)
+  await expect(page.locator('.pdfViewer')).toContainText('a line that will be moved')
+})
+
+test('new text can be written onto the page', async () => {
+  // Not an annotation on top: an object in the page's own content, in a font
+  // every reader has, so it draws anywhere.
+  const writePath = join(vault, 'Write.pdf')
+  writeFileSync(writePath, makePdf({ pages: [['a page with room on it']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Write.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('room on it', {
+    timeout: 20_000
+  })
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+
+  const layer = page.locator('.pdfv__objects')
+  await expect(layer).toBeVisible({ timeout: 20_000 })
+  // Well inside the page: text does not wrap — a PDF has nowhere to wrap to —
+  // so a line started at the edge runs off it, and pdf.js does not report the
+  // part that is no longer on the page.
+  const host = (await layer.boundingBox())!
+  await page.mouse.dblclick(host.x + host.width * 0.25, host.y + host.height * 0.6)
+
+  const input = page.locator('input[aria-label="Write on the page"]')
+  await expect(input).toBeVisible()
+  await input.fill('written onto the page')
+  await input.press('Enter')
+
+  await expect(page.locator('.pdfViewer')).toContainText('written onto the page', {
+    timeout: 30_000
+  })
+  // And it is really in the document: undo takes it away again.
+  await page.locator('button[aria-label="Undo"]').click()
+  await expect(page.locator('.pdfViewer')).not.toContainText('written onto the page', {
+    timeout: 30_000
+  })
+})

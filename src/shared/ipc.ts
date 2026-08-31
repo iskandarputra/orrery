@@ -355,6 +355,46 @@ export interface IpcInvokeContract {
     req: { path: string; page: number; indexes: number[]; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }
   }
+  /**
+   * Step a document back, or forward again, through the changes made to it.
+   *
+   * A PDF's undo cannot be a stack of edits in memory: every change rewrites
+   * the whole file, so what is kept is what the bytes were. `null` means there
+   * was nothing to step to.
+   */
+  'pdf:undo': {
+    req: { path: string; direction: 'undo' | 'redo' }
+    res: { mtimeMs: number; undo: boolean; redo: boolean } | null
+  }
+  /** Whether stepping back or forward is possible, for a toolbar to say so. */
+  'pdf:canUndo': { req: { path: string }; res: { undo: boolean; redo: boolean } }
+  /** Throw away a document's history, when nothing is looking at it any more. */
+  'pdf:forgetHistory': { req: { path: string }; res: void }
+  /** Move an object on a page, in PDF units. Nothing else about it changes. */
+  'pdf:moveObject': {
+    req: {
+      path: string
+      page: number
+      index: number
+      dx: number
+      dy: number
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
+  /** Put new text on a page, in a font every reader has. */
+  'pdf:addText': {
+    req: {
+      path: string
+      page: number
+      text: string
+      x: number
+      y: number
+      size: number
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
   'pdf:save': {
     req: { path: string; bytes: Uint8Array; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }

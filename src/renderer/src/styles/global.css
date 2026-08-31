@@ -7119,7 +7119,9 @@ kbd {
   position: absolute;
   border: 1px dashed color-mix(in srgb, var(--or-accent) 55%, transparent);
   background: color-mix(in srgb, var(--or-accent) 6%, transparent);
-  pointer-events: none;
+  /* Draggable, so it takes the pointer — the layer under it still hears the
+     click, because a press that does not move is a selection. */
+  cursor: move;
 }
 
 .pdfv__object--picked {
