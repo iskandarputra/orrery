@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
-import { makePdf } from './fixtures/make-pdf'
+import { makePdf } from '../src/main/services/__fixtures__/make-pdf'
 
 /**
  * A PDF, opened in the app.
@@ -169,4 +169,100 @@ test('reading a PDF never writes to it', async () => {
   await expect(page.locator('.tab--active')).toContainText('Paper.pdf')
   await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0)
   expect(statSync(pdfPath).mtimeMs).toBe(openedAt)
+})
+
+test('vault search finds words that only exist inside a PDF', async () => {
+  // The blind spot a knowledge base usually has: every search walks the folder
+  // reading files as text, and to that walk a PDF is a binary to skip.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'view.toggleSearch'
+    })
+  })
+  await page.locator('.gsearch__input').fill('kestrels')
+  await page.locator('.gsearch__input').press('Enter')
+
+  const hit = page.locator('.result-group', { hasText: 'Paper.pdf' })
+  await expect(hit).toBeVisible({ timeout: 20_000 })
+  // A paper has pages where a note has lines, and the result says which.
+  await expect(hit.locator('.result-snippet__line').first()).toHaveText('p2')
+
+  await hit.locator('.result-snippet').first().click()
+  await expect(page.locator('.pdfv__page-input')).toHaveValue('2', { timeout: 15_000 })
+})
+
+test('a link can point at a page, and lands on it', async () => {
+  writeFileSync(
+    join(vault, 'Reading.md'),
+    '# Reading\n\nSee [[Paper.pdf#page=3]] for the last of it.\n'
+  )
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Reading.md' }).click()
+  await expect(page.locator('.cm-content')).toContainText('See', { timeout: 15_000 })
+
+  // A link to a file that exists is not drawn as a broken one.
+  const link = page.locator('.cm-or-wikilink').first()
+  await expect(link).toBeVisible()
+  await expect(link).not.toHaveClass(/cm-or-wikilink--missing/)
+
+  await link.click({ modifiers: ['Control'] })
+  await expect(page.locator('.pdfv')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.pdfv__page-input')).toHaveValue('3', { timeout: 15_000 })
+})
+
+test('a selection becomes a quote in a note beside the paper', async () => {
+  // Select the first line of page 1 by dragging across its text layer.
+  await page.locator('.pdfv__page-input').fill('1')
+  const line = page.locator('.pdfViewer .page').first().locator('.textLayer span').first()
+  await expect(line).toBeVisible({ timeout: 15_000 })
+  const box = (await line.boundingBox())!
+  await page.mouse.move(box.x + 1, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 8 })
+  await page.mouse.up()
+
+  await page.locator('button[aria-label="Quote the selection into a note"]').click()
+
+  // Beside the document, named after it, with the words and a link back.
+  await expect
+    .poll(() => readFileSync(join(vault, 'Paper.md'), 'utf-8'), { timeout: 20_000 })
+    .toContain('Orrery reads PDFs now.')
+  const note = readFileSync(join(vault, 'Paper.md'), 'utf-8')
+  expect(note).toContain('[[Paper.pdf#page=1]]')
+  expect(note.split('\n').some((l) => l.startsWith('> '))).toBe(true)
+})
+
+test('a page with no text on it is offered for recognition', async () => {
+  // A scan is a picture of writing: nothing to select, search or quote until
+  // somebody reads it. The offer only appears when there is something to read.
+  await expect(
+    page.locator('button[aria-label="Recognise the text on scanned pages"]')
+  ).toHaveCount(0)
+
+  const scanPath = join(vault, 'Scan.pdf')
+  writeFileSync(scanPath, makePdf({ pages: [['A page with words.'], []] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Scan.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
+
+  const offer = page.locator('button[aria-label="Recognise the text on scanned pages"]')
+  await expect(offer).toBeVisible({ timeout: 20_000 })
+  await expect(offer).toHaveAttribute('title', /1 page here (has|have) no text/)
+})
+
+test('recognition runs offline, on the engine that ships with the app', async () => {
+  // Tesseract fetches its worker, its wasm engine and its language data from a
+  // CDN unless told otherwise, which for an offline app is three ways to fail.
+  // The blank page here has nothing legible on it, so what this proves is the
+  // part that breaks silently: the bundled engine loads, runs, and reports.
+  writeFileSync(join(vault, 'Blank.pdf'), makePdf({ pages: [['A page with words.'], []] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Blank.pdf' }).click()
+  const offer = page.locator('button[aria-label="Recognise the text on scanned pages"]')
+  await expect(offer).toBeVisible({ timeout: 20_000 })
+
+  await offer.click()
+  await expect(page.locator('.toast__message')).toContainText(/Recognised|Nothing legible/, {
+    timeout: 120_000
+  })
 })

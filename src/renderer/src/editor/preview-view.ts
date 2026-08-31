@@ -3,7 +3,8 @@ import { appState } from '@/state/app-state-access'
 import { languages } from '@codemirror/language-data'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { resolveNote } from '@core/notes'
+import { resolveFile, resolveNote } from '@core/notes'
+import { pageFromAnchor } from '@core/pdf-text'
 import { wikilinks } from '@/plugins/wikilinks/extension'
 import { HighlightExtension } from './markdown/highlight-extension'
 import { composeLivePreview } from './live-preview/compose'
@@ -35,10 +36,19 @@ export function mountPreview(parent: HTMLElement, text: string): EditorView {
         wikilinks(
           {
             getIndex: () => appState().noteIndex,
-            openTarget: (target) => {
+            getFileIndex: () => appState().fileIndex,
+            openTarget: (target, anchor) => {
               const state = appState()
               const note = resolveNote(state.noteIndex, target)
-              if (note) void state.openPaths([note.path])
+              if (note) {
+                void state.openPaths([note.path])
+                return
+              }
+              const file = resolveFile(state.fileIndex, target)
+              if (!file) return
+              const page = /\.pdf$/i.test(file.path) ? pageFromAnchor(anchor ?? null) : null
+              if (page) state.openPdfAt(file.path, page)
+              else void state.openPaths([file.path])
             }
           },
           false

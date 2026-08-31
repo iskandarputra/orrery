@@ -21,6 +21,9 @@ const IGNORED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg'])
  */
 const BUILD_DIRS = new Set(['dist', 'build', 'out', 'target', 'vendor', '__pycache__', '.venv'])
 const MAX_FILE_BYTES = 2 * 1024 * 1024
+
+/** A document with pages, read by the PDF reader rather than as text. */
+const isPdf = (name: string): boolean => /\.pdf$/i.test(name)
 const MAX_HITS = 200
 
 /**
@@ -43,7 +46,17 @@ export class LinkScanner {
    * is strictly an optimisation: when the sidecar is absent, disabled or slow,
    * `search` runs the TypeScript below and nobody can tell.
    */
-  constructor(private readonly sidecar: SidecarClient | null = null) {}
+  constructor(
+    private readonly sidecar: SidecarClient | null = null,
+    /**
+     * What the vault's PDFs say, when there is anything to ask.
+     *
+     * Optional so the scanner still stands up in a test without one — but with
+     * it, a search covers the papers as well as the notes, which is the whole
+     * reason a knowledge base should be able to open a PDF at all.
+     */
+    private readonly pdfText: { read(path: string): Promise<{ pages: string[] }> } | null = null
+  ) {}
 
   async scan(rootPath: string, targetStem: string): Promise<BacklinkHit[]> {
     const hits: BacklinkHit[] = []
@@ -141,11 +154,20 @@ export class LinkScanner {
     query: string,
     options: SearchOptions & { include: string; exclude: string }
   ): Promise<BacklinkHit[]> {
-    const offloaded = await this.searchViaSidecar(rootPath, query, options)
-    if (offloaded) return offloaded
-
     const matcher = buildSearchMatcher(query, options)
     if (!matcher) return []
+
+    // PDFs are searched here whichever path finds the text files: the sidecar
+    // walks a folder reading files as text, and to it a PDF is a binary it
+    // skips — which is exactly the blind spot this is closing.
+    const inPdfs = await this.searchPdfs(rootPath, matcher, options)
+
+    const offloaded = await this.searchViaSidecar(rootPath, query, options)
+    // The sidecar reads files as text too, so its PDF hits are the same
+    // nonsense and are dropped for the real ones.
+    if (offloaded) {
+      return [...offloaded.filter((hit) => !isPdf(hit.path)), ...inPdfs].slice(0, MAX_HITS)
+    }
 
     const include = parsePatternList(options.include)
     const exclude = parsePatternList(options.exclude)
@@ -174,6 +196,11 @@ export class LinkScanner {
           continue
         }
         if (!entry.isFile()) continue
+        // A PDF is searched by what it says, not by what its bytes spell. Read
+        // as text, one with uncompressed streams matches on words buried in
+        // drawing instructions and reports them as lines of a file nobody can
+        // open at a line — and the same document is searched properly below.
+        if (isPdf(entry.name)) continue
         if (include.length > 0 && !matchesAnyGlob(relative, include)) continue
         if (exclude.length > 0 && matchesAnyGlob(relative, exclude)) continue
 
@@ -191,6 +218,71 @@ export class LinkScanner {
           }
         } catch {
           // unreadable — skip
+        }
+      }
+    }
+    await visit(rootPath)
+    return [...hits, ...inPdfs].slice(0, MAX_HITS)
+  }
+
+  /**
+   * The same query, against what the vault's PDFs say.
+   *
+   * A hit's `page` is what a PDF has instead of a line, and it is carried
+   * separately rather than squeezed into `line`: opening a result means opening
+   * a document at a page, and a reader that jumped to "line 34" of a paper
+   * would be guessing.
+   *
+   * Only PDFs already read are cheap here; the rest are parsed on the first
+   * search that reaches them and cached from then on.
+   */
+  private async searchPdfs(
+    rootPath: string,
+    matcher: RegExp,
+    options: { include: string; exclude: string }
+  ): Promise<BacklinkHit[]> {
+    if (!this.pdfText) return []
+    const include = parsePatternList(options.include)
+    const exclude = parsePatternList(options.exclude)
+    const hits: BacklinkHit[] = []
+
+    const visit = async (dir: string): Promise<void> => {
+      if (hits.length >= MAX_HITS) return
+      let entries
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        if (hits.length >= MAX_HITS) return
+        if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
+        const full = path.join(dir, entry.name)
+        const relative = path.relative(rootPath, full).split(path.sep).join('/')
+        if (entry.isDirectory()) {
+          if (exclude.length > 0 && matchesAnyGlob(relative + '/', exclude)) continue
+          await visit(full)
+          continue
+        }
+        if (!entry.isFile() || !isPdf(entry.name)) continue
+        if (include.length > 0 && !matchesAnyGlob(relative, include)) continue
+        if (exclude.length > 0 && matchesAnyGlob(relative, exclude)) continue
+
+        const { pages } = await this.pdfText!.read(full)
+        for (let index = 0; index < pages.length && hits.length < MAX_HITS; index++) {
+          for (const line of pages[index]!.split('\n')) {
+            matcher.lastIndex = 0
+            if (!matcher.test(line)) continue
+            hits.push({
+              path: full,
+              // A page, not a line — and `line` is what every caller reads, so
+              // it carries the page and `page` says that is what it is.
+              line: index + 1,
+              page: index + 1,
+              snippet: line.trim().slice(0, 200)
+            })
+            break // one hit per page: a result list is not a concordance
+          }
         }
       }
     }

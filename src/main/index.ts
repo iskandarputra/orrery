@@ -14,6 +14,7 @@ import { McpAudit } from './services/mcp-audit'
 import { McpClientService } from './services/mcp-client'
 import { McpHostService } from './services/mcp-host'
 import { SqliteService } from './services/sqlite'
+import { PdfTextService } from './services/pdf-text'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -69,7 +70,10 @@ if (!gotLock) {
   // the binary is absent, LinkScanner runs its TypeScript search exactly as before.
   const sidecar =
     process.env['ORRERY_RUST_SEARCH'] === '1' ? new SidecarClient(sidecarPath()) : null
-  const links = new LinkScanner(sidecar)
+  // What PDFs say, so search can look inside them. Cached under userData: a
+  // paper is parsed once and not on every search over the vault it lives in.
+  const pdfText = new PdfTextService(join(app.getPath('userData'), 'pdf-text'))
+  const links = new LinkScanner(sidecar, pdfText)
   const exporter = new ExportService()
   const ai = new AiService(() => settings.get())
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
@@ -181,7 +185,8 @@ if (!gotLock) {
       mcpHost,
       mcpAudit,
       askUser,
-      sqlite
+      sqlite,
+      pdfText
     })
     buildAppMenu(settings.get().keybindings, {
       files: settings.get().recentFiles,

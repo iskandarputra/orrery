@@ -1,4 +1,5 @@
-import { resolveNote } from '@core/notes'
+import { resolveFile, resolveNote } from '@core/notes'
+import { pageFromAnchor } from '@core/pdf-text'
 import { invoke } from '@/services/client'
 import type { OrreryPlugin } from '../api'
 import { wikilinks } from './extension'
@@ -15,11 +16,23 @@ export const wikilinksPlugin: OrreryPlugin = {
   activate(ctx) {
     const host = {
       getIndex: () => ctx.store.getState().noteIndex,
-      openTarget: (target: string): void => {
+      getFileIndex: () => ctx.store.getState().fileIndex,
+      openTarget: (target: string, anchor?: string | null): void => {
         const state = ctx.store.getState()
         const existing = resolveNote(state.noteIndex, target)
         if (existing) {
           void state.openPaths([existing.path])
+          return
+        }
+        // A target that names a file — `[[paper.pdf]]`, `[[diagram.excalidraw]]`
+        // — opens that file rather than minting a note beside it. For a PDF the
+        // anchor may name a page: `[[paper.pdf#page=12]]` is the fragment every
+        // PDF viewer already understands, and it opens there.
+        const file = /\.[a-z0-9]+$/i.test(target) ? resolveFile(state.fileIndex, target) : null
+        if (file) {
+          const page = /\.pdf$/i.test(file.path) ? pageFromAnchor(anchor ?? null) : null
+          if (page) state.openPdfAt(file.path, page)
+          else void state.openPaths([file.path])
           return
         }
         const root = state.rootPath

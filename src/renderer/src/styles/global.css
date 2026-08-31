@@ -6991,3 +6991,10 @@ kbd {
   border-bottom: 1px dotted currentcolor;
   cursor: help;
 }
+
+/* The recognise-text action names what it is doing while it does it, so a
+   minute of OCR does not look like a frozen button. */
+.pdfv__ocr-label {
+  font-size: 11px;
+  white-space: nowrap;
+}

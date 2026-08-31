@@ -88,3 +88,41 @@ if (!existsSync(pdfjs)) {
   await cp(join(pdfjs, 'LICENSE'), join(pdfjsTo, 'LICENSE'))
   console.log('sync-assets: pdf.js cmaps, standard fonts and wasm copied')
 }
+
+/**
+ * Tesseract's engine and its English training data, as `tesseract/`.
+ *
+ * All three parts of an OCR run are fetched from a CDN by default — the worker
+ * script, the wasm engine and the language data — which for an app that has to
+ * work on a train is three ways to fail. Bundled instead: about seven
+ * megabytes, none of it loaded until somebody asks to recognise a page.
+ *
+ * The `_best_int` training data rather than the standard one: a third of the
+ * size for the same alphabet, and the difference in accuracy on a page of
+ * printed text does not justify eight more megabytes in the installer.
+ */
+const tessTo = join(root, 'src/renderer/public/tesseract')
+const tessParts = [
+  ['node_modules/tesseract.js/dist/worker.min.js', 'worker.min.js'],
+  // One engine, named exactly, rather than the six the library would pick
+  // between at runtime. SIMD has been in every Chromium since 2021 and this app
+  // ships its own; the relaxed-SIMD build is a little faster and another four
+  // megabytes, which is not a trade worth making for a feature most vaults
+  // never use. The `.wasm.js` build carries its own wasm, so it is one file.
+  [
+    'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
+    'tesseract-core-simd-lstm.wasm.js'
+  ],
+  ['node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz', 'eng.traineddata.gz']
+]
+if (!existsSync(join(root, tessParts[0][0]))) {
+  console.log('sync-assets: no tesseract.js found; skipping')
+} else {
+  await rm(tessTo, { recursive: true, force: true })
+  await mkdir(tessTo, { recursive: true })
+  for (const [from, name] of tessParts) {
+    const source = join(root, from)
+    if (existsSync(source)) await cp(source, join(tessTo, name))
+  }
+  console.log('sync-assets: tesseract worker, engine and English data copied')
+}

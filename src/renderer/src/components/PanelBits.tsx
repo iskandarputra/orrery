@@ -24,7 +24,8 @@ export function ResultGroups({
   onOpen
 }: {
   hits: BacklinkHit[]
-  onOpen(path: string): void
+  /** `hit` is given so a result that knows its page can be opened at it. */
+  onOpen(path: string, hit?: BacklinkHit): void
 }): React.JSX.Element {
   const grouped = new Map<string, BacklinkHit[]>()
   for (const h of hits) {
@@ -45,10 +46,12 @@ export function ResultGroups({
             <button
               key={i}
               className="result-snippet"
-              title={`${path}:${hit.line}`}
-              onClick={() => onOpen(path)}
+              title={hit.page ? `${path}, page ${hit.page}` : `${path}:${hit.line}`}
+              onClick={() => onOpen(path, hit)}
             >
-              <span className="result-snippet__line">{hit.line}</span>
+              {/* A document with pages says which page; everything else says
+                  which line, as it always has. */}
+              <span className="result-snippet__line">{hit.page ? `p${hit.page}` : hit.line}</span>
               <span className="result-snippet__text">{hit.snippet}</span>
             </button>
           ))}

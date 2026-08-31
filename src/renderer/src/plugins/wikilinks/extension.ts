@@ -14,12 +14,15 @@ import {
   type ViewUpdate
 } from '@codemirror/view'
 import { findWikilinks } from '@core/wikilinks'
-import { resolveNote, type NoteRef } from '@core/notes'
+import { resolveFile, resolveNote, type NoteRef } from '@core/notes'
 
 export interface WikilinkHost {
   getIndex(): readonly NoteRef[]
   /** Open (or create, if missing) the note a wikilink points to. */
-  openTarget(target: string): void
+  /** `anchor` is the text after `#`, which for a PDF may name a page. */
+  openTarget(target: string, anchor?: string | null): void
+  /** Every file in the vault, so `[[paper.pdf]]` resolves to one. */
+  getFileIndex(): readonly { path: string; stem: string }[]
 }
 
 const concealDeco = Decoration.replace({})
@@ -61,23 +64,28 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
             // inside it would leave `![Source]` showing when the card is
             // revealed, instead of the markdown that produced it.
             if (link.embed) continue
-            const resolved = resolveNote(index, link.target) !== null
+            // A target with an extension is a file — a PDF, an image, a
+            // drawing — and resolves against the file index instead. Without
+            // this, `[[paper.pdf]]` draws as a broken link to a note nobody
+            // meant, and clicking it would offer to create `paper.pdf.md`.
+            const resolved =
+              resolveNote(index, link.target) !== null ||
+              (/\.[a-z0-9]+$/i.test(link.target) &&
+                resolveFile(host.getFileIndex(), link.target) !== null)
             const cls = `cm-or-wikilink${resolved ? '' : ' cm-or-wikilink--missing'}`
+            // `[[paper.pdf#page=12]]` names a place in a document, not only a
+            // document, and the click handler cannot ask the parser again.
+            const attributes = {
+              'data-target': link.target,
+              ...(link.heading ? { 'data-anchor': link.heading } : {})
+            }
             if (touches(link.from, link.to)) {
               // Revealed: style the whole raw link, keep syntax visible.
-              all.push(
-                Decoration.mark({ class: cls, attributes: { 'data-target': link.target } }).range(
-                  link.from,
-                  link.to
-                )
-              )
+              all.push(Decoration.mark({ class: cls, attributes }).range(link.from, link.to))
               continue
             }
             all.push(
-              Decoration.mark({ class: cls, attributes: { 'data-target': link.target } }).range(
-                link.labelFrom,
-                link.labelTo
-              )
+              Decoration.mark({ class: cls, attributes }).range(link.labelFrom, link.labelTo)
             )
             const hide = (a: number, b: number): void => {
               if (a < b) {
@@ -112,7 +120,7 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
       if (!(target instanceof HTMLElement)) return false
       const note = target.dataset['target']
       if (!note) return false
-      host.openTarget(note)
+      host.openTarget(note, target.dataset['anchor'] ?? null)
       event.preventDefault()
       return true
     }

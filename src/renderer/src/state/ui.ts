@@ -102,6 +102,15 @@ export interface UiSlice {
   paletteMode: PaletteMode | null
   /** Expanded directories in the file tree (transient, session-scoped). */
   expandedDirs: Record<string, true>
+  /**
+   * A PDF somebody asked to see a particular page of.
+   *
+   * A search hit and a `[[paper.pdf#page=12]]` link both mean "open this there",
+   * and the reader is a component that may not exist yet when the request is
+   * made. The token makes asking for the same page twice a new request rather
+   * than a no-op.
+   */
+  pdfTarget: { path: string; page: number; token: number } | null
   treeEdit: TreeEdit | null
   /** Formatting toolbar visibility. */
   showFormattingToolbar: boolean
@@ -158,6 +167,8 @@ export interface UiSlice {
   setThemeMode(mode: Settings['theme']): void
   /** Pick a palette: applies immediately and remembers it for its appearance. */
   selectTheme(themeId: string): void
+  /** Open a PDF and turn to a page. */
+  openPdfAt(path: string, page: number): void
   toggleDir(path: string): void
   collapseAllDirs(): void
   toggleFormattingToolbar(): void
@@ -189,6 +200,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   historyOpen: false,
   paletteMode: null,
   expandedDirs: {},
+  pdfTarget: null,
   treeEdit: null,
   showFormattingToolbar: false,
   toast: null,
@@ -307,6 +319,11 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     } else {
       get().updateSettings({ lightTheme: spec.id, theme: 'light' })
     }
+  },
+
+  openPdfAt(path, page) {
+    set((s) => ({ pdfTarget: { path, page, token: (s.pdfTarget?.token ?? 0) + 1 } }))
+    void get().openPaths([path])
   },
 
   toggleDir(path) {

@@ -160,6 +160,13 @@ export interface BacklinkHit {
   path: string
   line: number
   snippet: string
+  /**
+   * The page a hit is on, for documents that have pages instead of lines.
+   *
+   * Only PDFs set it. Present means "open this at that page"; absent means the
+   * hit is a line in a text file, as every hit used to be.
+   */
+  page?: number
 }
 
 /** One diagnostic from a language server, flattened to what the editor draws. */

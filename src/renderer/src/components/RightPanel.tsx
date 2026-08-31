@@ -134,6 +134,7 @@ function OutlineBody(): React.JSX.Element {
 function SearchBody(): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
   const openPaths = useStore((s) => s.openPaths)
+  const openPdfAt = useStore((s) => s.openPdfAt)
   const seed = useStore((s) => s.searchSeed)
   const handledSeed = useRef(0)
   const [query, setQuery] = useState(seed.query)
@@ -275,7 +276,10 @@ function SearchBody(): React.JSX.Element {
             <span className="rpanel-count__badge">{hits.length}</span> matches in {fileCount} file
             {fileCount === 1 ? '' : 's'}
           </div>
-          <ResultGroups hits={hits} onOpen={(path) => void openPaths([path])} />
+          <ResultGroups
+            hits={hits}
+            onOpen={(path, hit) => (hit?.page ? openPdfAt(path, hit.page) : void openPaths([path]))}
+          />
         </>
       )}
     </div>

@@ -276,6 +276,21 @@ export interface IpcInvokeContract {
    * checked before it gets there. `db:available` reports whether the runtime
    * has SQLite at all, so the surface can say so rather than look broken.
    */
+  /**
+   * What a PDF says, page by page, read once and cached.
+   *
+   * `emptyPages` are the ones with no text on them at all — a scan, waiting to
+   * be recognised.
+   */
+  'pdf:text': { req: { path: string }; res: { pages: string[]; emptyPages: number[] } }
+  /**
+   * Text recognised from pages that had none, merged into the same cache the
+   * extractor fills so search asks one question and gets one answer.
+   */
+  'pdf:recognised': {
+    req: { path: string; pages: { page: number; text: string }[] }
+    res: { pages: string[]; emptyPages: number[] }
+  }
   'db:available': { req: void; res: boolean }
   'db:tables': { req: { path: string }; res: DbTableInfo[] }
   'db:rows': {

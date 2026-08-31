@@ -17,6 +17,7 @@ import type { McpHostService } from '../services/mcp-host'
 import type { SqliteService } from '../services/sqlite'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
+import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
 import type { WindowManager } from '../windows'
@@ -39,6 +40,7 @@ export interface HandlerDeps {
   mcp: McpClientService
   mcpHost: McpHostService
   sqlite: SqliteService
+  pdfText: PdfTextService
   mcpAudit: McpAudit
   askUser: AskUser
 }
@@ -69,7 +71,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     mcpHost,
     mcpAudit,
     askUser,
-    sqlite
+    sqlite,
+    pdfText
   } = deps
 
   // --- dialogs -------------------------------------------------------------
@@ -426,6 +429,19 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
   // --- databases ------------------------------------------------------------
+  handle('pdf:text', pathReq, (_e, req) => pdfText.read(req.path))
+  handle(
+    'pdf:recognised',
+    z.object({
+      path: z.string().min(1),
+      pages: z
+        .array(z.object({ page: z.number().int().min(1), text: z.string().max(2_000_000) }))
+        .max(5000)
+    }),
+    (_e, req) =>
+      pdfText.merge(req.path, new Map(req.pages.map((entry) => [entry.page, entry.text])))
+  )
+
   handle('db:available', null, () => sqlite.available)
   handle('db:tables', pathReq, (_e, req) => sqlite.tables(req.path))
   handle(

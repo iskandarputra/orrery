@@ -63,6 +63,18 @@ export function filesFromPaths(paths: readonly string[]): NoteRef[] {
   return paths.map((filePath) => ({ path: filePath, stem: basename(filePath) }))
 }
 
+/**
+ * Resolve a link target to any file in the vault, by its whole name.
+ *
+ * Separate from `resolveNote` because the two are asked different questions.
+ * `[[Ideas]]` means the note called Ideas; `[[paper.pdf]]` names a file, and
+ * treating that as a note would offer to create `paper.pdf.md`.
+ */
+export function resolveFile(index: readonly NoteRef[], target: string): NoteRef | null {
+  const needle = target.trim().toLowerCase()
+  return index.find((f) => f.stem.toLowerCase() === needle) ?? null
+}
+
 /** Resolve a wikilink target to a note (case-insensitive stem match). */
 export function resolveNote(index: readonly NoteRef[], target: string): NoteRef | null {
   const needle = target.trim().toLowerCase()

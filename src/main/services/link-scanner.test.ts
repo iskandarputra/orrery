@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LinkScanner } from './link-scanner'
+import { PdfTextService } from './pdf-text'
+import { makePdf } from './__fixtures__/make-pdf'
 
 let vault: string
 let scanner: LinkScanner
@@ -72,5 +74,65 @@ describe('graph caching', () => {
     } finally {
       rmSync(other, { recursive: true, force: true })
     }
+  })
+})
+
+describe('searching inside PDFs', () => {
+  const options = {
+    regex: false,
+    caseSensitive: false,
+    wholeWord: false,
+    include: '',
+    exclude: ''
+  }
+
+  /** A vault where the papers say something the notes do not. */
+  const withPaper = (): LinkScanner => {
+    writeFileSync(
+      path.join(vault, 'Paper.pdf'),
+      makePdf({
+        pages: [['A first page about nothing much.'], ['The second page speaks of kestrels.']]
+      })
+    )
+    return new LinkScanner(null, new PdfTextService(path.join(vault, '.cache')))
+  }
+
+  it('finds a word that only exists inside a PDF', async () => {
+    // The blind spot this closes: every search walks a folder reading files as
+    // text, and to that walk a PDF is a binary to skip past.
+    const hits = await withPaper().search(vault, 'kestrels', options)
+    expect(hits.map((h) => path.basename(h.path))).toEqual(['Paper.pdf'])
+    expect(hits[0]?.snippet).toContain('kestrels')
+  })
+
+  it('says which page, because a paper has pages and not lines', async () => {
+    const [hit] = await withPaper().search(vault, 'kestrels', options)
+    expect(hit?.page).toBe(2)
+  })
+
+  it('still finds the notes, and leaves their hits alone', async () => {
+    const hits = await withPaper().search(vault, 'Links', options)
+    expect(hits.map((h) => path.basename(h.path))).toEqual(['A.md'])
+    expect(hits[0]?.page).toBeUndefined()
+  })
+
+  it('reports one hit per page rather than one per occurrence', async () => {
+    // A result list is a list of places to look, not a concordance.
+    writeFileSync(
+      path.join(vault, 'Repeats.pdf'),
+      makePdf({ pages: [['kestrels kestrels', 'and kestrels again']] })
+    )
+    const hits = await new LinkScanner(null, new PdfTextService(path.join(vault, '.c'))).search(
+      vault,
+      'kestrels',
+      options
+    )
+    expect(hits.filter((h) => h.path.endsWith('Repeats.pdf'))).toHaveLength(1)
+  })
+
+  it('finds nothing in a PDF when there is no reader for them', async () => {
+    // The scanner still has to stand up without one.
+    withPaper()
+    expect(await new LinkScanner().search(vault, 'kestrels', options)).toEqual([])
   })
 })

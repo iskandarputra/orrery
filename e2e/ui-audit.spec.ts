@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchApp, openVault } from './helpers'
-import { makePdf } from './fixtures/make-pdf'
+import { makePdf } from '../src/main/services/__fixtures__/make-pdf'
 
 let app: ElectronApplication
 let page: Page

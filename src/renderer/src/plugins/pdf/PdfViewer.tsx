@@ -6,10 +6,14 @@ import type {
   PDFViewer as PdfjsViewer
 } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { resolveAssetUrl } from '@core/asset'
+import { basename, stem } from '@core/paths'
+import { quoteFromPdf } from '@core/pdf-text'
+import { invoke } from '@/services/client'
 import { Icon } from '@/components/Icon'
 import { EmptyState } from '@/components/PanelBits'
 import { useStore } from '@/state/store'
 import { loadPdfjs } from './pdfjs-lazy'
+import { readPage, startReader } from './ocr'
 import { PdfSidebar } from './PdfSidebar'
 
 /**
@@ -49,6 +53,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   // here rather than in the effect: it is a pure function of the path, and a
   // path it cannot resolve is something to render, not something to remember.
   const url = path ? resolveAssetUrl(null, path) : null
+  // A search hit or a `[[paper.pdf#page=12]]` link, asking for a page.
+  const pdfTarget = useStore((s) => s.pdfTarget)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
@@ -66,6 +72,9 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const [finding, setFinding] = useState(false)
   const [query, setQuery] = useState('')
   const [matches, setMatches] = useState<{ current: number; total: number } | null>(null)
+  /** Pages with no text on them: a scan, until somebody recognises it. */
+  const [emptyPages, setEmptyPages] = useState<number[]>([])
+  const [reading, setReading] = useState<string | null>(null)
 
   useEffect(() => {
     if (!url) return
@@ -103,7 +112,13 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         const remembered = lastSeen.get(path)
         eventBus.on('pagesinit', () => {
           pdfViewer.currentScaleValue = remembered?.scale ?? 'auto'
-          if (remembered) pdfViewer.currentPageNumber = remembered.page
+          // An asked-for page beats where you left off. A search hit or a
+          // `#page=` link is a request about this moment; the remembered page
+          // is only where the tab happened to be last time, and letting it win
+          // sends the link to the wrong place.
+          const asked = useStore.getState().pdfTarget
+          const wanted = asked?.path === path ? asked.page : remembered?.page
+          if (wanted) pdfViewer.currentPageNumber = wanted
         })
         eventBus.on('pagechanging', (e: { pageNumber: number }) => {
           setPage(e.pageNumber)
@@ -168,6 +183,119 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       linksRef.current = null
     }
   }, [path, url])
+
+  // Which pages have nothing on them, from the same cache search reads. Asked
+  // once the document is up, because the answer is about this file and not
+  // about what is drawn.
+  useEffect(() => {
+    if (!path || !doc) return
+    let live = true
+    void invoke('pdf:text', { path })
+      .then((text) => live && setEmptyPages(text.emptyPages))
+      .catch(() => live && setEmptyPages([]))
+    return () => {
+      live = false
+    }
+  }, [path, doc])
+
+  /**
+   * Read the pages that have no text on them.
+   *
+   * Rendered at twice the size they are read at: recognition wants pixels, and
+   * a page drawn for a screen has about half of what it needs. The result goes
+   * into the same cache extraction fills, so a recognised scan is searchable
+   * from the vault immediately afterwards.
+   */
+  const recognise = async (): Promise<void> => {
+    if (!doc || !path || emptyPages.length === 0 || reading) return
+    setReading('starting')
+    try {
+      const worker = await startReader()
+      const found: { page: number; text: string }[] = []
+      try {
+        for (const [index, number] of emptyPages.entries()) {
+          setReading(`page ${index + 1} of ${emptyPages.length}`)
+          const pdfPage = await doc.getPage(number)
+          const viewport = pdfPage.getViewport({ scale: 2 })
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.ceil(viewport.width)
+          canvas.height = Math.ceil(viewport.height)
+          await pdfPage.render({ canvas, viewport }).promise
+          const text = await readPage(worker, canvas)
+          pdfPage.cleanup()
+          if (text) found.push({ page: number, text })
+        }
+      } finally {
+        await worker.terminate()
+      }
+      const merged = await invoke('pdf:recognised', { path, pages: found })
+      setEmptyPages(merged.emptyPages)
+      useStore
+        .getState()
+        .showToast(
+          found.length > 0
+            ? `Recognised ${found.length} page${found.length === 1 ? '' : 's'}`
+            : 'Nothing legible on those pages',
+          found.length > 0 ? 'success' : 'info'
+        )
+    } catch {
+      useStore.getState().showToast('Those pages could not be recognised', 'error')
+    } finally {
+      setReading(null)
+    }
+  }
+
+  // Turning to a requested page waits for the document: the request usually
+  // arrives with the tab, before there are any pages to turn to.
+  useEffect(() => {
+    if (!pdfTarget || !doc || pdfTarget.path !== path) return
+    const view = viewerRef.current
+    if (!view) return
+    view.currentPageNumber = Math.min(Math.max(1, pdfTarget.page), doc.numPages)
+  }, [pdfTarget, doc, path])
+
+  /**
+   * Send what is selected to a note beside the paper.
+   *
+   * A quotation with a link back to the page is the thing that makes a PDF part
+   * of a knowledge base rather than a file sitting next to one, and doing it by
+   * hand — copy, paste, tidy the column breaks, write down the page — is
+   * tedious enough that nobody keeps it up.
+   *
+   * The note is named after the document and lives beside it, so a paper and
+   * what you thought about it stay together.
+   */
+  const quoteSelection = async (): Promise<void> => {
+    const selection = window.getSelection()
+    const text = selection?.toString().trim() ?? ''
+    if (!text || !path) return
+
+    // Which page the selection started on, read off the page it is inside
+    // rather than from the scroll position, which may have moved since.
+    const node = selection?.anchorNode
+    const element = node instanceof Element ? node : node?.parentElement
+    const onPage = element?.closest<HTMLElement>('.page')
+    const pageNumber = Number(onPage?.dataset['pageNumber'] ?? page) || page
+
+    const notePath = `${path.replace(/\.pdf$/i, '')}.md`
+    const quote = quoteFromPdf(text, basename(path), pageNumber)
+    try {
+      await invoke('fs:ensureFile', {
+        path: notePath,
+        content: `# ${stem(path)}\n\nNotes on [[${basename(path)}]].\n\n`
+      })
+      const file = await invoke('fs:readFile', { path: notePath })
+      await invoke('fs:writeFile', {
+        path: notePath,
+        content: `${file.content.replace(/\s*$/, '')}\n\n${quote}`,
+        expectedMtimeMs: file.mtimeMs
+      })
+      await useStore.getState().openPaths([notePath])
+      useStore.getState().showToast(`Quoted to ${basename(notePath)}`, 'success')
+    } catch {
+      useStore.getState().showToast('That quote could not be saved', 'error')
+    }
+  }
 
   const zoomBy = (factor: number): void => {
     const view = viewerRef.current
@@ -282,6 +410,26 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
 
         <button className="pdfv__action" aria-label="Rotate the pages" onClick={rotate}>
           <Icon name="refresh" size={13} />
+        </button>
+        {emptyPages.length > 0 && (
+          <button
+            className="pdfv__action"
+            aria-label="Recognise the text on scanned pages"
+            title={`${emptyPages.length} page${emptyPages.length === 1 ? '' : 's'} here have no text. Read them?`}
+            disabled={reading !== null}
+            onClick={() => void recognise()}
+          >
+            <Icon name="eye" size={13} />
+            <span className="pdfv__ocr-label">{reading ?? 'Recognise text'}</span>
+          </button>
+        )}
+        <button
+          className="pdfv__action"
+          aria-label="Quote the selection into a note"
+          title="Send the selected text to a note beside this document"
+          onClick={() => void quoteSelection()}
+        >
+          <Icon name="quote" size={13} />
         </button>
         <button
           className={`pdfv__action${finding ? ' pdfv__action--active' : ''}`}
