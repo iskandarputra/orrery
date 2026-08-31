@@ -18,7 +18,7 @@ import type { SqliteService } from '../services/sqlite'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
 import { readFile } from 'node:fs/promises'
-import { applyPagePlan } from '../services/pdfium'
+import { applyPagePlan, editTextObject, pageObjects, removePageObjects } from '../services/pdfium'
 import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -238,6 +238,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   handle('fs:readTree', pathReq, (_e, req) => fs.readTree(req.path))
   handle('fs:readDir', pathReq, (_e, req) => fs.readDir(req.path))
+  handle('fs:stat', pathReq, (_e, req) => fs.stat(req.path))
   handle(
     'fs:listFiles',
     z.object({ path: z.string().min(1), limit: z.number().int().min(1).max(200_000) }),
@@ -432,6 +433,44 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
   // --- databases ------------------------------------------------------------
   handle('pdf:text', pathReq, (_e, req) => pdfText.read(req.path))
+  handle(
+    'pdf:objects',
+    z.object({ path: z.string().min(1), page: z.number().int().min(0) }),
+    async (_e, req) => pageObjects(new Uint8Array(await readFile(req.path)), req.page)
+  )
+  handle(
+    'pdf:editObject',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      index: z.number().int().min(0),
+      text: z.string().max(20_000),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const source = new Uint8Array(await readFile(req.path))
+      const bytes = await editTextObject(source, req.page, req.index, req.text)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle(
+    'pdf:removeObjects',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      indexes: z.array(z.number().int().min(0)).max(5000),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const source = new Uint8Array(await readFile(req.path))
+      const bytes = await removePageObjects(source, req.page, req.indexes)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
   handle(
     'pdf:pages',
     z.object({

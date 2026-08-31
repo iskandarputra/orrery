@@ -15,6 +15,7 @@ import { useStore } from '@/state/store'
 import { loadPdfjs } from './pdfjs-lazy'
 import { readPage, startReader } from './ocr'
 import { registerSaver } from './saving'
+import { PdfObjectLayer } from './PdfObjectLayer'
 import { annotationList, type AnnotationRef, type RawAnnotation } from '@core/pdf-annotations'
 import type { PagePlan } from '@core/pdf-pages'
 import { PdfSidebar } from './PdfSidebar'
@@ -67,10 +68,21 @@ const lastSeen = new Map<string, { page: number; scale: string }>()
 
 export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element {
   const path = useStore((s) => s.buffers[bufferId]?.filePath ?? '')
+  /** Bumped when the file has been rewritten and must be read again. */
+  const [reloadToken, setReload] = useState(0)
   // The protocol the renderer is allowed to read local files over. Worked out
   // here rather than in the effect: it is a pure function of the path, and a
   // path it cannot resolve is something to render, not something to remember.
-  const url = path ? resolveAssetUrl(null, path) : null
+  const base = path ? resolveAssetUrl(null, path) : null
+  /**
+   * The document's URL, with the reload count on the end.
+   *
+   * The same URL fetched twice is served from the cache, so a document that has
+   * just been rewritten comes back exactly as it was — the edit lands on disk
+   * and the reader keeps showing the old page. The protocol handler ignores the
+   * query; it is here only so the fetch is a different one.
+   */
+  const url = base ? `${base}?v=${reloadToken}` : null
   // A search hit or a `[[paper.pdf#page=12]]` link, asking for a page.
   const pdfTarget = useStore((s) => s.pdfTarget)
 
@@ -95,17 +107,27 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const [matches, setMatches] = useState<{ current: number; total: number } | null>(null)
   /** Pages with no text on them: a scan, until somebody recognises it. */
   const [emptyPages, setEmptyPages] = useState<number[]>([])
+  /** Everything the document says, for guessing what its fonts can draw. */
+  const [alphabet, setAlphabet] = useState('')
+  /** Whether the page's own contents are being edited rather than annotated. */
+  const [editing, setEditing] = useState(false)
   const [reading, setReading] = useState<string | null>(null)
   /** Which annotation tool is in hand, as pdf.js numbers them. */
   const [tool, setTool] = useState(0)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
-  const savedMtime = useRef<number | null>(null)
+  /**
+   * What the file's timestamp was when this reader last agreed with it.
+   *
+   * Recorded on open, not only after a save: without it the first write has
+   * nothing to compare against and would overwrite a document that changed on
+   * disk while it was being read.
+   */
+  const [savedMtime, setSavedMtime] = useState<number | null>(null)
   const [marks, setMarks] = useState<AnnotationRef[]>([])
   /** Bumped after a save, to read the document's marks again. */
   const [marksToken, rereadMarks] = useReducer((n: number) => n + 1, 0)
   /** Bumped when the file has been rewritten and must be read again. */
-  const [reloadToken, setReload] = useState(0)
 
   useEffect(() => {
     if (!url) return
@@ -182,6 +204,10 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         pdfViewer.setDocument(pdf)
         linkService.setDocument(pdf)
         docRef.current = pdf
+        // What the file looked like when this reader agreed with it.
+        void invoke('fs:stat', { path })
+          .then((stat) => live && setSavedMtime(stat.mtimeMs))
+          .catch(() => undefined)
         setDoc(pdf)
         setPageCount(pdf.numPages)
 
@@ -262,7 +288,11 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     if (!path || !doc) return
     let live = true
     void invoke('pdf:text', { path })
-      .then((text) => live && setEmptyPages(text.emptyPages))
+      .then((text) => {
+        if (!live) return
+        setEmptyPages(text.emptyPages)
+        setAlphabet(text.pages.join(''))
+      })
       .catch(() => live && setEmptyPages([]))
     return () => {
       live = false
@@ -343,9 +373,9 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       const result = await invoke('pdf:save', {
         path,
         bytes,
-        expectedMtimeMs: savedMtime.current
+        expectedMtimeMs: savedMtime
       })
-      savedMtime.current = result.mtimeMs
+      setSavedMtime(result.mtimeMs)
       pdf.annotationStorage.resetModified()
       setDirty(false)
       useStore.getState().setDirty(bufferId, false)
@@ -399,9 +429,9 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       const result = await invoke('pdf:pages', {
         path,
         plan,
-        expectedMtimeMs: savedMtime.current
+        expectedMtimeMs: savedMtime
       })
-      savedMtime.current = result.mtimeMs
+      setSavedMtime(result.mtimeMs)
       setReload((n) => n + 1)
       useStore.getState().showToast('The pages were rearranged', 'success')
     } catch {
@@ -607,6 +637,16 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         </span>
 
         <button
+          className={`pdfv__action${editing ? ' pdfv__action--active' : ''}`}
+          aria-label="Edit the page itself"
+          aria-pressed={editing}
+          title="Change the words and pictures on the page, rather than writing on top of them"
+          onClick={() => setEditing((on) => !on)}
+        >
+          <Icon name="sliders" size={13} />
+        </button>
+
+        <button
           className="pdfv__action"
           aria-label="Save this document"
           title="Write the annotations and form values back into the file (Ctrl+S)"
@@ -714,6 +754,20 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         <div className="pdfv__scroll-host">
           <div className="pdfv__scroll" ref={scrollRef}>
             <div className="pdfViewer" ref={pagesRef} />
+            {editing && doc && path && (
+              <PdfObjectLayer
+                key={`${page}:${reloadToken}`}
+                doc={doc}
+                path={path}
+                page={page}
+                alphabet={alphabet}
+                mtime={savedMtime}
+                onChanged={(mtimeMs) => {
+                  setSavedMtime(mtimeMs)
+                  setReload((n) => n + 1)
+                }}
+              />
+            )}
           </div>
         </div>
       </div>

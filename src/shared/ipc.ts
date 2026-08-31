@@ -135,6 +135,14 @@ export interface IpcInvokeContract {
    */
   'fs:readDir': { req: { path: string }; res: FileNode[] }
   /**
+   * When a file was last written, and how big it is.
+   *
+   * For a surface that reads its file itself: without it there is nothing to
+   * compare against on save, and the first write would overwrite a document
+   * that had changed on disk since it was opened.
+   */
+  'fs:stat': { req: { path: string }; res: { mtimeMs: number; size: number } }
+  /**
    * Every file in the vault as a flat list, for opening by name and resolving
    * links. Bounded — `truncated` says the vault was larger than the limit.
    */
@@ -310,6 +318,41 @@ export interface IpcInvokeContract {
       saveAs?: string
       expectedMtimeMs: number | null
     }
+    res: { path: string; mtimeMs: number }
+  }
+  /**
+   * Everything drawn on a page: what it is, what it says, and where it sits.
+   *
+   * Page and object numbers are 0-based, as the engine counts them — a click on
+   * a rendered page is only editable once it has become "object three on page
+   * two", and these are those numbers.
+   */
+  'pdf:objects': {
+    req: { path: string; page: number }
+    res: {
+      index: number
+      kind: string
+      bounds: { left: number; bottom: number; right: number; top: number }
+      text: string
+    }[]
+  }
+  /** Retype one text object in place, keeping its font, size and position. */
+  'pdf:editObject': {
+    req: {
+      path: string
+      page: number
+      index: number
+      text: string
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
+  /**
+   * Take objects off a page and out of the file — the difference between
+   * redaction and drawing a black rectangle over something.
+   */
+  'pdf:removeObjects': {
+    req: { path: string; page: number; indexes: number[]; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }
   }
   'pdf:save': {

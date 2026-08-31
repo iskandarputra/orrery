@@ -7,7 +7,7 @@ import {
   removePages,
   rotatePages
 } from '@core/pdf-pages'
-import { applyPagePlan } from './pdfium'
+import { applyPagePlan, editTextObject, pageObjects, removePageObjects } from './pdfium'
 import { makePdf } from './__fixtures__/make-pdf'
 
 /**
@@ -97,5 +97,57 @@ describe('applying a page plan', () => {
       const out = await applyPagePlan([doc('one', 'two')], movePages(initialPlan(2), [1], 0))
       expect((await readBack(out))[0]?.text).toBe('two')
     }
+  })
+})
+
+describe('editing what is on a page', () => {
+  it('lists what is drawn, with what it says and where it sits', async () => {
+    const objects = await pageObjects(doc('hello there'), 0)
+    expect(objects).toHaveLength(1)
+    expect(objects[0]?.kind).toBe('text')
+    expect(objects[0]?.text).toBe('hello there')
+    expect(objects[0]?.bounds.left).toBeGreaterThan(0)
+    expect(objects[0]?.bounds.top).toBeGreaterThan(objects[0]!.bounds.bottom)
+  })
+
+  it('retypes a line in place, and the other engine reads the new words', async () => {
+    const out = await editTextObject(doc('the original line'), 0, 0, 'the replacement line')
+    expect((await readBack(out)).map((p) => p.text)).toEqual(['the replacement line'])
+  })
+
+  it('leaves everything else on the page alone', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['first line', 'second line', 'third line']] }))
+    const out = await editTextObject(source, 0, 1, 'CHANGED')
+    const text = (await readBack(out))[0]?.text ?? ''
+    expect(text).toContain('first line')
+    expect(text).toContain('CHANGED')
+    expect(text).toContain('third line')
+    expect(text).not.toContain('second line')
+  })
+
+  it('takes an object out of the file rather than covering it', async () => {
+    // The whole difference between redaction and a black rectangle: a covered
+    // word is still in the document for anyone who selects the text.
+    const source = new Uint8Array(makePdf({ pages: [['keep me', 'remove me']] }))
+    const out = await removePageObjects(source, 0, [1])
+    const text = (await readBack(out))[0]?.text ?? ''
+    expect(text).toContain('keep me')
+    expect(text).not.toContain('remove me')
+  })
+
+  it('removes several at once, without the renumbering losing one', async () => {
+    // Removing an object renumbers the ones after it, so the order matters.
+    const source = new Uint8Array(makePdf({ pages: [['one', 'two', 'three', 'four']] }))
+    const out = await removePageObjects(source, 0, [0, 2])
+    const text = (await readBack(out))[0]?.text ?? ''
+    expect(text).toContain('two')
+    expect(text).toContain('four')
+    expect(text).not.toContain('one')
+    expect(text).not.toContain('three')
+  })
+
+  it('refuses to retype something that is not text', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['words']] }))
+    await expect(editTextObject(source, 0, 99, 'nope')).rejects.toThrow()
   })
 })

@@ -7097,3 +7097,70 @@ kbd {
 .pdfv__thumb-canvas {
   transition: transform var(--or-transition-fast);
 }
+
+/* Editing the page itself: a box over everything drawn on it, and the input
+   that replaces one when it is picked. Laid over the rendered page — and
+   scrolling with it, because it is inside the scroller. */
+.pdfv__objects {
+  position: absolute;
+  z-index: 3;
+  cursor: crosshair;
+}
+
+.pdfv__object {
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, var(--or-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--or-accent) 6%, transparent);
+  pointer-events: none;
+}
+
+.pdfv__object--picked {
+  border-style: solid;
+  background: color-mix(in srgb, var(--or-accent) 16%, transparent);
+}
+
+.pdfv__object-edit {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 120px;
+  min-height: 24px;
+  padding: 1px;
+  border: 1px solid var(--or-accent);
+  border-radius: var(--or-radius-sm);
+  background: var(--or-panel-bg);
+  cursor: default;
+}
+
+.pdfv__object-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  border: none;
+  background: transparent;
+  color: var(--or-fg);
+  font-size: 12px;
+}
+
+.pdfv__object-kind {
+  flex: 1;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--or-fg-muted);
+}
+
+/* Said beside the text being changed rather than in a dialog: a modal here
+   would take the keyboard away in the middle of an edit. */
+.pdfv__object-warning {
+  position: absolute;
+  z-index: 4;
+  max-width: 320px;
+  padding: 5px 8px;
+  border: 1px solid var(--or-border);
+  border-radius: var(--or-radius-sm);
+  background: var(--or-panel-bg);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--or-fg-muted);
+}

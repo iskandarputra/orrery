@@ -395,6 +395,13 @@ test('pages can be rearranged, and the file says so afterwards', async () => {
 })
 
 test('pages can be taken out into a document of their own', async () => {
+  // Stands on its own: opens the document and the rail rather than relying on
+  // the test before it having left them open.
+  await page.locator('.tree-row--file', { hasText: 'Pages.pdf' }).first().click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
+  await page.locator('.pdfv__tab', { hasText: 'Pages' }).click()
+  await expect(page.locator('.pdfv__thumb')).toHaveCount(2, { timeout: 20_000 })
+
   await page.locator('.pdfv__thumb').first().click()
   await page.locator('button[aria-label="Extract pages"]').click()
 
@@ -412,4 +419,64 @@ test('pages can be taken out into a document of their own', async () => {
   // And the document it came from still has both of its pages.
   await page.locator('.tree-row--file', { hasText: 'Pages.pdf' }).first().click()
   await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
+})
+
+test('a line of the document itself can be retyped', async () => {
+  // Not an annotation on top of the page: the words on the page, in the
+  // document's own font, at the position they were already in.
+  const editPath = join(vault, 'Edit.pdf')
+  writeFileSync(editPath, makePdf({ pages: [['the original wording', 'a second line']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Edit.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText(
+    'the original wording',
+    {
+      timeout: 20_000
+    }
+  )
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const boxes = page.locator('.pdfv__object')
+  await expect(boxes).toHaveCount(2, { timeout: 20_000 })
+
+  // Click the first line's box and retype it.
+  const first = (await boxes.first().boundingBox())!
+  await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2)
+  const input = page.locator('.pdfv__object-input')
+  await expect(input).toBeVisible()
+  await expect(input).toHaveValue('the original wording')
+  await input.fill('the replacement wording')
+  await input.press('Enter')
+
+  // "replacement" needs a p and an m, which this document has never drawn, so
+  // it says so instead of quietly producing a line with holes in it.
+  const warning = page.locator('.pdfv__object-warning')
+  await expect(warning).toBeVisible()
+  await expect(warning).toContainText('p')
+  await expect(warning).toContainText('Press Enter again')
+
+  // Enter again is the answer: the font may well have the glyph.
+  await input.press('Enter')
+
+  // The page is re-read from the file, so this is what the document now says.
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText(
+    'the replacement wording',
+    { timeout: 30_000 }
+  )
+  await expect(page.locator('.pdfViewer')).not.toContainText('the original wording')
+  // And the line beside it is untouched.
+  await expect(page.locator('.pdfViewer')).toContainText('a second line')
+})
+
+test('something can be taken out of the document, not merely covered', async () => {
+  // The difference between redaction and a black rectangle: a covered word is
+  // still in the file for anyone who selects the text or reads the bytes.
+  const boxes = page.locator('.pdfv__object')
+  await expect(boxes).toHaveCount(2, { timeout: 20_000 })
+  const second = (await boxes.nth(1).boundingBox())!
+  await page.mouse.click(second.x + second.width / 2, second.y + second.height / 2)
+
+  await page.locator('button[aria-label="Remove this from the page"]').click()
+  await expect(page.locator('.pdfViewer')).not.toContainText('a second line', { timeout: 30_000 })
+  await expect(page.locator('.pdfViewer')).toContainText('the replacement wording')
 })

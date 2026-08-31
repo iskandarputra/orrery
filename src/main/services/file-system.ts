@@ -69,6 +69,16 @@ export class FileSystemService {
     }
   }
 
+  /** When a file was last written, and how big it is. */
+  async stat(filePath: string): Promise<{ mtimeMs: number; size: number }> {
+    try {
+      const stat = await fs.stat(filePath)
+      return { mtimeMs: stat.mtimeMs, size: stat.size }
+    } catch (err) {
+      throw toIpcError(err)
+    }
+  }
+
   /** One directory's entries, sorted: directories first, then files, alphabetically. */
   async readDir(dirPath: string): Promise<FileNode[]> {
     try {

@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import type { PageObject } from '@core/pdf-edit'
 import type { PagePlan } from '@core/pdf-pages'
 
 /**
@@ -38,8 +39,28 @@ interface Pdfium {
   FPDF_ClosePage(page: number): void
   FPDF_SaveAsCopy(doc: number, writer: number, flags: number): boolean
   FPDF_CloseDocument(doc: number): void
+  FPDFPage_CountObjects(page: number): number
+  FPDFPage_GetObject(page: number, index: number): number
+  FPDFPage_RemoveObject(page: number, object: number): boolean
+  FPDFPage_GenerateContent(page: number): boolean
+  FPDFPageObj_GetType(object: number): number
+  FPDFPageObj_GetBounds(
+    object: number,
+    left: number,
+    bottom: number,
+    right: number,
+    top: number
+  ): boolean
+  FPDFPageObj_Destroy(object: number): void
+  FPDFText_LoadPage(page: number): number
+  FPDFText_ClosePage(textPage: number): void
+  FPDFTextObj_GetText(object: number, textPage: number, buffer: number, length: number): number
+  FPDFText_SetText(object: number, text: number): boolean
   pdfium: {
     HEAPU8: Uint8Array
+    UTF16ToString(ptr: number): string
+    stringToUTF16(text: string, ptr: number, max: number): void
+    getValue(ptr: number, type: string): number
     wasmExports: { malloc(size: number): number; free(ptr: number): void }
     addFunction(fn: (...args: number[]) => number, signature: string): number
     removeFunction(ptr: number): void
@@ -189,5 +210,201 @@ export async function applyPagePlan(
     for (const doc of documents) lib.FPDF_CloseDocument(doc)
     if (writeBlock) rt.removeFunction(writeBlock)
     for (const ptr of allocated) rt.wasmExports.free(ptr)
+  }
+}
+
+/** PDFium's object types. Only text is editable here; the rest can be removed. */
+const OBJECT_KINDS: Record<number, string> = {
+  1: 'text',
+  2: 'path',
+  3: 'image',
+  4: 'shading',
+  5: 'form'
+}
+
+/**
+ * Everything drawn on one page, with where it sits and what it says.
+ *
+ * This is what makes editing possible at all: a click on a rendered page means
+ * nothing until it can be turned into "the third object on page two", and only
+ * the engine that will do the editing can number them.
+ */
+export async function pageObjects(bytes: Uint8Array, pageIndex: number): Promise<PageObject[]> {
+  return withPage(bytes, pageIndex, (lib, page) => {
+    const rt = lib.pdfium
+    const textPage = lib.FPDFText_LoadPage(page)
+    const box = rt.wasmExports.malloc(16)
+    try {
+      const found: PageObject[] = []
+      const count = lib.FPDFPage_CountObjects(page)
+      for (let index = 0; index < count; index++) {
+        const object = lib.FPDFPage_GetObject(page, index)
+        if (!object) continue
+        const type = lib.FPDFPageObj_GetType(object)
+        lib.FPDFPageObj_GetBounds(object, box, box + 4, box + 8, box + 12)
+        let text = ''
+        if (type === 1 && textPage) {
+          const needed = lib.FPDFTextObj_GetText(object, textPage, 0, 0)
+          if (needed > 0) {
+            const buffer = rt.wasmExports.malloc(needed)
+            lib.FPDFTextObj_GetText(object, textPage, buffer, needed)
+            text = rt.UTF16ToString(buffer)
+            rt.wasmExports.free(buffer)
+          }
+        }
+        found.push({
+          index,
+          kind: OBJECT_KINDS[type] ?? 'other',
+          bounds: {
+            left: rt.getValue(box, 'float'),
+            bottom: rt.getValue(box + 4, 'float'),
+            right: rt.getValue(box + 8, 'float'),
+            top: rt.getValue(box + 12, 'float')
+          },
+          text
+        })
+      }
+      return found
+    } finally {
+      rt.wasmExports.free(box)
+      if (textPage) lib.FPDFText_ClosePage(textPage)
+    }
+  })
+}
+
+/**
+ * Retype one text object, in place.
+ *
+ * The font, the size and the position are the document's own — only the string
+ * changes — which is why this is exact where a text box drawn on top would be
+ * an approximation. What it cannot do is reflow: a longer line runs on past
+ * where the old one ended rather than pushing the paragraph down, because a PDF
+ * has no paragraphs to push.
+ */
+export async function editTextObject(
+  bytes: Uint8Array,
+  pageIndex: number,
+  objectIndex: number,
+  text: string
+): Promise<Uint8Array> {
+  return writeWithPage(bytes, pageIndex, (lib, page) => {
+    const rt = lib.pdfium
+    const object = lib.FPDFPage_GetObject(page, objectIndex)
+    if (!object) throw new Error('That object is no longer there')
+    if (lib.FPDFPageObj_GetType(object) !== 1) throw new Error('That is not text')
+
+    const size = (text.length + 1) * 2
+    const buffer = rt.wasmExports.malloc(size)
+    try {
+      rt.stringToUTF16(text, buffer, size)
+      if (!lib.FPDFText_SetText(object, buffer)) throw new Error('The text could not be replaced')
+    } finally {
+      rt.wasmExports.free(buffer)
+    }
+    if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+  })
+}
+
+/**
+ * Take objects off a page and out of the file.
+ *
+ * Removed rather than covered, which is the whole difference between redaction
+ * and a black rectangle: a covered word is still in the document for anyone who
+ * selects the text or reads the bytes.
+ *
+ * Removed from the end backwards, because removing an object renumbers the ones
+ * after it.
+ */
+export async function removePageObjects(
+  bytes: Uint8Array,
+  pageIndex: number,
+  objectIndexes: readonly number[]
+): Promise<Uint8Array> {
+  const going = [...new Set(objectIndexes)].sort((a, b) => b - a)
+  return writeWithPage(bytes, pageIndex, (lib, page) => {
+    for (const index of going) {
+      const object = lib.FPDFPage_GetObject(page, index)
+      if (!object) continue
+      if (!lib.FPDFPage_RemoveObject(page, object)) continue
+      // Removing detaches it; destroying it is what frees it.
+      lib.FPDFPageObj_Destroy(object)
+    }
+    if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+  })
+}
+
+/** Open a document, hand one page to the caller, and clean up afterwards. */
+async function withPage<T>(
+  bytes: Uint8Array,
+  pageIndex: number,
+  body: (lib: Pdfium, page: number) => T
+): Promise<T> {
+  const lib = await load()
+  const rt = lib.pdfium
+  const ptr = rt.wasmExports.malloc(bytes.length)
+  rt.HEAPU8.set(bytes, ptr)
+  const doc = lib.FPDF_LoadMemDocument(ptr, bytes.length, '')
+  if (!doc) {
+    rt.wasmExports.free(ptr)
+    throw new Error('This PDF could not be opened')
+  }
+  const page = lib.FPDF_LoadPage(doc, pageIndex)
+  try {
+    if (!page) throw new Error('That page is not in this document')
+    return body(lib, page)
+  } finally {
+    if (page) lib.FPDF_ClosePage(page)
+    lib.FPDF_CloseDocument(doc)
+    rt.wasmExports.free(ptr)
+  }
+}
+
+/** The same, but saving the document afterwards and returning its bytes. */
+async function writeWithPage(
+  bytes: Uint8Array,
+  pageIndex: number,
+  body: (lib: Pdfium, page: number) => void
+): Promise<Uint8Array> {
+  const lib = await load()
+  const rt = lib.pdfium
+  const ptr = rt.wasmExports.malloc(bytes.length)
+  rt.HEAPU8.set(bytes, ptr)
+  const doc = lib.FPDF_LoadMemDocument(ptr, bytes.length, '')
+  if (!doc) {
+    rt.wasmExports.free(ptr)
+    throw new Error('This PDF could not be opened')
+  }
+  let page = 0
+  let writeBlock = 0
+  const writer = rt.wasmExports.malloc(8)
+  try {
+    page = lib.FPDF_LoadPage(doc, pageIndex)
+    if (!page) throw new Error('That page is not in this document')
+    body(lib, page)
+
+    const chunks: Uint8Array[] = []
+    writeBlock = rt.addFunction((_self: number, data: number, size: number) => {
+      chunks.push(rt.HEAPU8.slice(data, data + size))
+      return 1
+    }, 'iiii')
+    rt.setValue(writer, 1, 'i32')
+    rt.setValue(writer + 4, writeBlock, 'i32')
+    if (!lib.FPDF_SaveAsCopy(doc, writer, 0)) throw new Error('The document could not be written')
+
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+    if (total === 0) throw new Error('The document came back empty')
+    const out = new Uint8Array(total)
+    let cursor = 0
+    for (const chunk of chunks) {
+      out.set(chunk, cursor)
+      cursor += chunk.length
+    }
+    return out
+  } finally {
+    if (page) lib.FPDF_ClosePage(page)
+    lib.FPDF_CloseDocument(doc)
+    if (writeBlock) rt.removeFunction(writeBlock)
+    rt.wasmExports.free(writer)
+    rt.wasmExports.free(ptr)
   }
 }
