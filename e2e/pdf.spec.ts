@@ -792,3 +792,44 @@ test('a shape bigger than the page is not offered as something to edit', async (
   const box = (await boxes.first().boundingBox())!
   expect(box.height).toBeLessThan(pageBox.height)
 })
+
+test('an edit keeps the zoom, the page and where you were reading', async () => {
+  // The whole reader used to be rebuilt after every change: the pages vanished
+  // while a large document re-rendered — which reads as the viewer going black
+  // — and the zoom fell back to automatic, because a new viewer knows nothing
+  // about the old one. Editing something should change that thing and nothing
+  // else about where you are.
+  const keepPath = join(vault, 'Keep.pdf')
+  writeFileSync(
+    keepPath,
+    makePdf({ pages: [['a line to change', 'and another line'], ['the second page']] })
+  )
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Keep.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('a line to change', {
+    timeout: 20_000
+  })
+
+  await page.locator('button[aria-label="Zoom in"]').click()
+  await page.locator('button[aria-label="Zoom in"]').click()
+  const zoom = await page.locator('.pdfv__zoom').textContent()
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const box = page.locator('.pdfv__object').first()
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const spot = (await box.boundingBox())!
+  await page.mouse.click(spot.x + spot.width / 2, spot.y + spot.height / 2)
+  const input = page.locator('.pdfv__object-input')
+  await expect(input).toBeVisible()
+  await input.fill('a line that changed')
+  await input.press('Enter')
+
+  await expect(page.locator('.pdfViewer')).toContainText('a line that changed', {
+    timeout: 30_000
+  })
+  // The zoom is where it was left, not back at automatic.
+  await expect(page.locator('.pdfv__zoom')).toHaveText(zoom ?? '')
+  // And the pages are still on screen: nothing was torn down to do it.
+  await expect(page.locator('.pdfViewer .page')).toHaveCount(2)
+  await expect(page.locator('.pdfViewer')).toContainText('and another line')
+})

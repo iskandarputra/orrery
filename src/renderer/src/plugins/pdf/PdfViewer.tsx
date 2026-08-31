@@ -74,15 +74,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   // here rather than in the effect: it is a pure function of the path, and a
   // path it cannot resolve is something to render, not something to remember.
   const base = path ? resolveAssetUrl(null, path) : null
-  /**
-   * The document's URL, with the reload count on the end.
-   *
-   * The same URL fetched twice is served from the cache, so a document that has
-   * just been rewritten comes back exactly as it was — the edit lands on disk
-   * and the reader keeps showing the old page. The protocol handler ignores the
-   * query; it is here only so the fetch is a different one.
-   */
-  const url = base ? `${base}?v=${reloadToken}` : null
+  const url = base
   // A search hit or a `[[paper.pdf#page=12]]` link, asking for a page.
   const pdfTarget = useStore((s) => s.pdfTarget)
 
@@ -98,6 +90,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   // The saver is registered once and outlives any particular render, so it
   // reads the document through a ref rather than closing over one.
   const docRef = useRef<PDFDocumentProxy | null>(null)
+  /** The loading task behind the open document, so a replaced one can be let go. */
+  const taskRef = useRef<{ destroy(): Promise<void> } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pageCount, setPageCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -175,8 +169,11 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         busRef.current = eventBus
         linksRef.current = linkService
 
-        const remembered = lastSeen.get(path)
         eventBus.on('pagesinit', () => {
+          // Read now, not when the viewer was built: this fires again every
+          // time the document is swapped for a rewritten one, and a snapshot
+          // taken at open time would put the zoom back to what it was then.
+          const remembered = lastSeen.get(path)
           pdfViewer.currentScaleValue = remembered?.scale ?? 'auto'
           // An asked-for page beats where you left off. A search hit or a
           // `#page=` link is a request about this moment; the remembered page
@@ -196,6 +193,14 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         eventBus.on('scalechanging', (e: { scale: number; presetValue?: string }) => {
           setScale(e.scale)
           setZoomMode(e.presetValue ?? 'custom')
+          // Remembered here as well as on a page change: zooming without
+          // turning a page is the common case, and without this the zoom was
+          // only ever recorded by accident — so a reload went back to whatever
+          // it had been when the page last changed.
+          lastSeen.set(path, {
+            page: pdfViewer.currentPageNumber,
+            scale: String(pdfViewer.currentScaleValue ?? 'auto')
+          })
         })
         eventBus.on(
           'updatefindmatchescount',
@@ -207,10 +212,11 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           setMatches(e.matchesCount.total > 0 ? { current: 0, ...e.matchesCount } : null)
         })
 
-        const task = api.getDocument({ url, ...documentOptions })
+        const task = api.getDocument({ url: `${url}?v=0`, ...documentOptions })
         // Tearing down the loading task is what releases the document, its
         // worker and every page it has drawn; the document proxy has no destroy
         // of its own.
+        taskRef.current = task
         destroy = () => void task.destroy()
         const pdf = await task.promise
         if (!live) return
@@ -264,7 +270,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       busRef.current = null
       linksRef.current = null
     }
-  }, [bufferId, path, url, reloadToken])
+  }, [bufferId, path, url])
 
   /**
    * Every mark already in the document, gathered when it opens and after each
@@ -293,6 +299,73 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       live = false
     }
   }, [doc, marksToken])
+
+  /**
+   * Read the file again after it has been changed, without rebuilding anything.
+   *
+   * The whole reader used to be torn down and made afresh: the pages vanished
+   * while a large document re-rendered — which on a real one reads as the
+   * viewer going black — and the zoom fell back to automatic because a new
+   * viewer knows nothing about the old one. Swapping the document into the
+   * viewer that is already there keeps the zoom, the page and the scroll
+   * position, and keeps the pages on screen while it happens.
+   */
+  useEffect(() => {
+    if (reloadToken === 0 || !url) return
+    const view = viewerRef.current
+    if (!view) return
+
+    let live = true
+    void (async () => {
+      try {
+        const { api, documentOptions } = await loadPdfjs()
+        // The same URL twice is served from the cache, so the count makes this
+        // a different fetch; the protocol handler ignores the query.
+        const task = api.getDocument({ url: `${url}?v=${reloadToken}`, ...documentOptions })
+        const pdf = await task.promise
+        if (!live) {
+          void task.destroy()
+          return
+        }
+
+        // Where the reader is now, kept where the restoring code looks for it.
+        // Setting the page and zoom directly after the swap does not work: the
+        // viewer initialises asynchronously, so the assignment lands before
+        // there are any pages — and `pagesinit`, which fires afterwards, would
+        // overwrite it anyway.
+        lastSeen.set(path, {
+          page: view.currentPageNumber,
+          scale: String(view.currentScaleValue ?? 'auto')
+        })
+        const scrolled = scrollRef.current?.scrollTop ?? 0
+
+        const previous = taskRef.current
+        taskRef.current = task
+        docRef.current = pdf
+        ;(pdf.annotationStorage as unknown as { onSetModified: () => void }).onSetModified = () => {
+          setDirty(true)
+          useStore.getState().setDirty(bufferId, true)
+        }
+        view.setDocument(pdf)
+        linksRef.current?.setDocument(pdf)
+        setDoc(pdf)
+        setPageCount(pdf.numPages)
+
+        // The page and zoom come back through `pagesinit`; the scroll position
+        // is put back once the pages it refers to are there.
+        requestAnimationFrame(() => {
+          if (live && scrollRef.current) scrollRef.current.scrollTop = scrolled
+        })
+        void previous?.destroy()
+      } catch {
+        useStore.getState().showToast('This document could not be read again', 'error')
+      }
+    })()
+
+    return () => {
+      live = false
+    }
+  }, [reloadToken, url, bufferId])
 
   // Which pages have nothing on them, from the same cache search reads. Asked
   // once the document is up, because the answer is about this file and not
