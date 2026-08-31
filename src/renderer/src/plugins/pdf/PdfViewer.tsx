@@ -141,7 +141,16 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         if (!live || !scrollRef.current || !pagesRef.current) return
 
         const eventBus = new components.EventBus()
-        const linkService = new components.PDFLinkService({ eventBus })
+        const linkService = new components.PDFLinkService({
+          eventBus,
+          // A link in a PDF opens in the browser, not in here. The window
+          // refuses to navigate — that is what stops a document taking the app
+          // somewhere — so a link left to open in place does nothing at all,
+          // silently. Asking for a new window routes it through the handler
+          // that hands http(s) to the operating system and denies the rest.
+          externalLinkTarget: components.LinkTarget.BLANK,
+          externalLinkRel: 'noopener noreferrer'
+        })
         const findController = new components.PDFFindController({ eventBus, linkService })
         const pdfViewer = new components.PDFViewer({
           container: scrollRef.current,

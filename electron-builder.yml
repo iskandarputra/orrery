@@ -7,6 +7,18 @@ directories:
 files:
   - out/**
   - '!**/*.map'
+  # The PDF and OCR engines ship as copies beside index.html, put there by
+  # scripts/sync-assets.mjs, and the renderer bundles the JavaScript it uses at
+  # build time. The packages themselves would ride along as a second copy —
+  # nearly sixty megabytes of it — so what the app does not load at runtime is
+  # left out.
+  #
+  # Kept deliberately: `pdfjs-dist/legacy` and its data, which the main process
+  # loads to read a PDF's text, and all of `@embedpdf/pdfium`, whose wasm is
+  # read from node_modules when a document's pages are rearranged.
+  - '!node_modules/tesseract.js-core/**'
+  - '!node_modules/@tesseract.js-data/**'
+  - '!node_modules/pdfjs-dist/{web,build,image_decoders,iccs,types}/**'
 asar: true
 # The sidecar is an executable, so it cannot live inside the asar — it is copied
 # alongside it and found through process.resourcesPath. Absent when the Rust

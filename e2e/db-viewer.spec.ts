@@ -124,3 +124,41 @@ test('the tab is a database, and never dirty', async () => {
   await expect(page.locator('.tab--active')).toContainText('vault.db')
   await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0)
 })
+
+test('the rows fill the height they are given', async () => {
+  // The same shape as the PDF reader had it wrong: a bar, an optional SQL box
+  // and the results. Three grid rows with two children put the results in the
+  // `auto` one, so they sized to their content and left the window empty.
+  // An earlier test left a failed query on screen; close the box and pick a
+  // table, so this measures a view with rows in it.
+  if (await page.locator('.db__sql-input').isVisible()) {
+    await page.locator('.db__action', { hasText: 'SQL' }).click()
+  }
+  await page.locator('.db__table', { hasText: 'notes' }).click()
+  await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 10_000 })
+
+  const measured = await page.evaluate(() => {
+    const main = document.querySelector('.db__main')!.getBoundingClientRect()
+    const bar = document.querySelector('.db__bar')!.getBoundingClientRect()
+    const scroll = document.querySelector('.db__scroll')!.getBoundingClientRect()
+    return { available: main.height - bar.height, used: scroll.height }
+  })
+  expect(measured.used).toBeGreaterThan(measured.available - 2)
+})
+
+test('a table shows its rows again after a query that failed', async () => {
+  // Picking the table you are already on has to mean "show me that table",
+  // not "nothing has changed": after a failed query it was the only way back
+  // and it did nothing.
+  await page.locator('.db__table', { hasText: 'notes' }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(3, { timeout: 10_000 })
+
+  await page.locator('.db__action', { hasText: 'SQL' }).click()
+  await page.locator('.db__sql-input').fill('select from where')
+  await page.locator('.db__sql-actions .btn').click()
+  await expect(page.locator('.db__error')).toBeVisible()
+
+  await page.locator('.db__table', { hasText: 'notes' }).click()
+  await expect(page.locator('.db__error')).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.locator('tbody tr')).toHaveCount(3)
+})

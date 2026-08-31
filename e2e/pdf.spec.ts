@@ -480,3 +480,21 @@ test('something can be taken out of the document, not merely covered', async () 
   await expect(page.locator('.pdfViewer')).not.toContainText('a second line', { timeout: 30_000 })
   await expect(page.locator('.pdfViewer')).toContainText('the replacement wording')
 })
+
+test('the pages fill the height they are given', async () => {
+  // The viewer is a column: a toolbar, sometimes a find bar, and the pages
+  // taking whatever is left. When that last row is sized to its content rather
+  // than to the space, the document sits in a short box with the theme's
+  // background below it — most visible on a large window, which is exactly
+  // when somebody has made the window large in order to read.
+  await page.locator('.tree-row--file', { hasText: 'Paper.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+
+  const measured = await page.evaluate(() => {
+    const root = document.querySelector('.pdfv')!.getBoundingClientRect()
+    const bar = document.querySelector('.pdfv__bar')!.getBoundingClientRect()
+    const host = document.querySelector('.pdfv__scroll-host')!.getBoundingClientRect()
+    return { available: root.height - bar.height, used: host.height }
+  })
+  expect(measured.used).toBeGreaterThan(measured.available - 2)
+})

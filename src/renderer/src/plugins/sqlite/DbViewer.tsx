@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import type { DbQueryResult, DbTableInfo } from '@shared/types'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
@@ -32,6 +32,14 @@ export function DbViewer({ bufferId }: { bufferId: string }): React.JSX.Element 
   const [sql, setSql] = useState('')
   const [showSql, setShowSql] = useState(false)
   const [busy, setBusy] = useState(false)
+  /**
+   * Bumped whenever a table is picked, so picking one always fetches.
+   *
+   * Without it, choosing the table you are already on changes nothing the
+   * effect below depends on — so after a query that failed, clicking that table
+   * left the error on screen and the rows never came back.
+   */
+  const [reload, again] = useReducer((n: number) => n + 1, 0)
 
   useEffect(() => {
     let live = true
@@ -94,7 +102,7 @@ export function DbViewer({ bufferId }: { bufferId: string }): React.JSX.Element 
     return () => {
       live = false
     }
-  }, [path, selected, offset, order])
+  }, [path, selected, offset, order, reload])
 
   const runSql = (): void => {
     if (!path || !sql.trim()) return
@@ -134,6 +142,7 @@ export function DbViewer({ bufferId }: { bufferId: string }): React.JSX.Element 
               setOffset(0)
               setOrder(null)
               setShowSql(false)
+              again()
             }}
           >
             <Icon name={table.kind === 'view' ? 'eye' : 'table'} size={13} />

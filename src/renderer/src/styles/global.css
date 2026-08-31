@@ -6444,9 +6444,11 @@ kbd {
   color: var(--or-fg-faint);
 }
 
+/* Same reason as `.pdfv`: the SQL box is optional, and a grid with three rows
+   and two children sizes the results to their content instead of the space. */
 .db__main {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -6544,8 +6546,10 @@ kbd {
 }
 
 .db__scroll {
+  flex: 1;
   overflow: auto;
   min-width: 0;
+  min-height: 0;
 }
 
 .db__grid {
@@ -6733,11 +6737,14 @@ kbd {
    styled by pdf_viewer.css, which the viewer imports for itself; the rules
    here are Orrery's — the toolbar, the rail, and the tokens that put pdf.js's
    own colours into whichever theme is on. */
+/* A column, not a fixed set of rows: the find bar comes and goes, and a grid
+   with three rows and two children puts the pages in the `auto` one — where
+   they size to their content and leave most of the window empty. */
 .pdfv {
   position: absolute;
   inset: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   background: var(--or-editor-bg);
 }
 
@@ -6848,6 +6855,7 @@ kbd {
 
 .pdfv__body {
   display: flex;
+  flex: 1;
   min-height: 0;
 }
 

@@ -186,6 +186,21 @@ matching passages from the vault, each cited as `[file:line]`. Semantic search
 runs over embeddings computed on your own machine. API keys stay in the main
 process and never reach the renderer.
 
+## PDFs, read and edited
+
+A PDF opens as a document rather than as bytes: pages, selectable text, find,
+an outline, thumbnails. Vault search reads _inside_ them, `[[paper.pdf#page=12]]`
+opens at that page, and a selection becomes a quotation in a note beside the
+paper with a link back. Scanned pages can be recognised on your machine.
+
+You can also change one. Highlight, draw, type, sign, fill a form; rearrange,
+remove and extract pages; or edit the page itself — click a line and retype it
+in the document's own font, or take something out of the file rather than
+covering it. Two limits are stated plainly rather than discovered: there is no
+paragraph reflow, and a font that never contained a character probably cannot
+draw it — the editor says so before you commit. Full details in
+[docs/pdf.md](docs/pdf.md).
+
 ## MCP, both ways
 
 Orrery speaks the Model Context Protocol in both directions. Full details in

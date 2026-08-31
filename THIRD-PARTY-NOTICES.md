@@ -57,6 +57,24 @@ Full terms for every dependency are in each package under `node_modules`.
 Electron bundles Chromium (BSD-3-Clause and others) and Node.js (MIT); their
 notices ship inside the Electron distribution.
 
+## Reading and editing PDFs
+
+Three engines, and the data they need, are shipped with the application rather
+than fetched: an editor that cannot open a document without a network is not one
+anybody can rely on.
+
+| Component                                    | Licence                              | What it does                             |
+| -------------------------------------------- | ------------------------------------ | ---------------------------------------- |
+| `pdfjs-dist` (PDF.js)                        | Apache-2.0 — Mozilla Foundation      | Draws pages, and reads their text        |
+| — its character maps and standard fonts      | Apache-2.0, and Adobe's CMap licence | CJK encodings, the fourteen base fonts   |
+| PDFium, through `@embedpdf/pdfium`           | BSD-3-Clause (wrapper MIT)           | Rearranges pages and edits their objects |
+| `tesseract.js`, `tesseract.js-core`          | Apache-2.0                           | Recognises text on scanned pages         |
+| `eng.traineddata` (`@tesseract.js-data/eng`) | Apache-2.0 — Google, tessdata        | The English training data                |
+
+PDFium carries Google's and Foxit's copyright notices in
+`node_modules/@embedpdf/pdfium`; PDF.js ships its Apache licence beside the
+copies of its data files, in `pdfjs/LICENSE` inside the application.
+
 ## The Rust sidecar
 
 `native/orrery-sidecar` depends on `serde`, `serde_json`, `regex` and `ignore`,
