@@ -294,6 +294,24 @@ export interface IpcInvokeContract {
    * document that changed on disk while it was open refuses rather than
    * overwriting.
    */
+  /**
+   * Rearrange a document's pages: reorder, remove, rotate, extract, merge.
+   *
+   * The plan comes from `core/pdf-pages.ts` and describes the whole result at
+   * once, so any number of rearrangements is one write. `also` names further
+   * documents whose pages the plan may draw on, numbered after the first one's;
+   * `saveAs` writes somewhere else, which is what extracting to a new file is.
+   */
+  'pdf:pages': {
+    req: {
+      path: string
+      plan: { order: number[]; rotate: number[] }
+      also?: string[]
+      saveAs?: string
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
   'pdf:save': {
     req: { path: string; bytes: Uint8Array; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }

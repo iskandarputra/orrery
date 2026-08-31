@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import type {
   EventBus,
@@ -15,6 +15,8 @@ import { useStore } from '@/state/store'
 import { loadPdfjs } from './pdfjs-lazy'
 import { readPage, startReader } from './ocr'
 import { registerSaver } from './saving'
+import { annotationList, type AnnotationRef, type RawAnnotation } from '@core/pdf-annotations'
+import type { PagePlan } from '@core/pdf-pages'
 import { PdfSidebar } from './PdfSidebar'
 
 /**
@@ -99,6 +101,11 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const savedMtime = useRef<number | null>(null)
+  const [marks, setMarks] = useState<AnnotationRef[]>([])
+  /** Bumped after a save, to read the document's marks again. */
+  const [marksToken, rereadMarks] = useReducer((n: number) => n + 1, 0)
+  /** Bumped when the file has been rewritten and must be read again. */
+  const [reloadToken, setReload] = useState(0)
 
   useEffect(() => {
     if (!url) return
@@ -218,7 +225,35 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       busRef.current = null
       linksRef.current = null
     }
-  }, [bufferId, path, url])
+  }, [bufferId, path, url, reloadToken])
+
+  /**
+   * Every mark already in the document, gathered when it opens and after each
+   * save.
+   *
+   * Read from the file rather than from the editor, so what is listed is what
+   * another reader would see. Marks made since the last save are not in the
+   * file yet, which is why the panel says so rather than pretending otherwise.
+   */
+  useEffect(() => {
+    if (!doc) return
+    let live = true
+    void (async () => {
+      try {
+        const pages: { page: number; annotations: RawAnnotation[] }[] = []
+        for (let number = 1; number <= doc.numPages; number++) {
+          const pdfPage = await doc.getPage(number)
+          pages.push({ page: number, annotations: await pdfPage.getAnnotations() })
+        }
+        if (live) setMarks(annotationList(pages))
+      } catch {
+        if (live) setMarks([])
+      }
+    })()
+    return () => {
+      live = false
+    }
+  }, [doc, marksToken])
 
   // Which pages have nothing on them, from the same cache search reads. Asked
   // once the document is up, because the answer is about this file and not
@@ -314,6 +349,9 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       pdf.annotationStorage.resetModified()
       setDirty(false)
       useStore.getState().setDirty(bufferId, false)
+      // What is in the file has changed, and the list is a list of what is in
+      // the file.
+      rereadMarks()
       return true
     } catch (err) {
       const message = err instanceof Error ? err.message : ''
@@ -343,6 +381,48 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     registerSaver(bufferId, () => saveRef.current())
     return () => registerSaver(bufferId, null)
   }, [bufferId])
+
+  /**
+   * Carry out a rearrangement of the pages.
+   *
+   * Anything unsaved goes into the file first: the rearrangement is applied to
+   * what is on disk, and losing an annotation because somebody rotated a page
+   * afterwards would be a hard thing to explain.
+   *
+   * The document is then reopened, because the file it was reading no longer
+   * exists in the form it read.
+   */
+  const applyPlan = async (plan: PagePlan): Promise<void> => {
+    if (!path) return
+    if (dirty && !(await save())) return
+    try {
+      const result = await invoke('pdf:pages', {
+        path,
+        plan,
+        expectedMtimeMs: savedMtime.current
+      })
+      savedMtime.current = result.mtimeMs
+      setReload((n) => n + 1)
+      useStore.getState().showToast('The pages were rearranged', 'success')
+    } catch {
+      useStore.getState().showToast('Those pages could not be rearranged', 'error')
+    }
+  }
+
+  /** Write some pages out as a document of their own, beside this one. */
+  const extract = async (plan: PagePlan): Promise<void> => {
+    if (!path) return
+    const saveAs = `${path.replace(/\.pdf$/i, '')} extract.pdf`
+    try {
+      // Main picks a free name rather than overwriting: extracting twice is a
+      // thing people do, and the second one must not eat the first.
+      const result = await invoke('pdf:pages', { path, plan, saveAs, expectedMtimeMs: null })
+      await useStore.getState().refreshTree()
+      useStore.getState().showToast(`Saved as ${basename(result.path)}`, 'success')
+    } catch {
+      useStore.getState().showToast('Those pages could not be extracted', 'error')
+    }
+  }
 
   /** Pick up or put down an annotation tool. */
   const pickTool = async (mode: number): Promise<void> => {
@@ -618,14 +698,23 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
           <PdfSidebar
             doc={doc}
             page={page}
+            marks={marks}
+            unsaved={dirty}
             onGoToPage={goToPage}
             onGoToDestination={(dest) => void linksRef.current?.goToDestination(dest)}
+            onApplyPlan={applyPlan}
+            onExtract={extract}
           />
         )}
-        {/* pdf.js measures against this element and refuses to run unless it is
-            absolutely positioned; the class carries that, not an inline style. */}
-        <div className="pdfv__scroll" ref={scrollRef}>
-          <div className="pdfViewer" ref={pagesRef} />
+        {/* pdf.js measures against its container and refuses to run unless that
+            container is absolutely positioned — so it is, inside a host the
+            layout can size normally. Positioning it against the whole body
+            instead meant hard-coding the rail's width, and the tab that did not
+            fit ended up underneath the pages. */}
+        <div className="pdfv__scroll-host">
+          <div className="pdfv__scroll" ref={scrollRef}>
+            <div className="pdfViewer" ref={pagesRef} />
+          </div>
         </div>
       </div>
     </div>

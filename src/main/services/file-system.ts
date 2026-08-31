@@ -177,6 +177,26 @@ export class FileSystemService {
   }
 
   /**
+   * The given name, or the first numbered variant of it that is free.
+   *
+   * For writing something new beside an existing document — pages extracted
+   * from it, say. Overwriting there is never what anybody meant.
+   */
+  async freeName(target: string): Promise<string> {
+    const ext = path.extname(target)
+    const stem = target.slice(0, target.length - ext.length)
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const candidate = attempt === 0 ? target : `${stem} ${attempt + 1}${ext}`
+      try {
+        await fs.access(candidate)
+      } catch {
+        return candidate
+      }
+    }
+    return target
+  }
+
+  /**
    * Write bytes over a file, with the same conflict check text saves use.
    *
    * Temp file and rename, so a save that fails halfway leaves the original

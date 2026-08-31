@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
+import { annotationLabel, type AnnotationRef } from '@core/pdf-annotations'
+import {
+  extractPages,
+  initialPlan,
+  isUnchanged,
+  movePages,
+  removePages,
+  rotatePages,
+  type PagePlan
+} from '@core/pdf-pages'
 import { Icon } from '@/components/Icon'
 
 /**
@@ -25,16 +35,38 @@ interface OutlineNode {
 export function PdfSidebar({
   doc,
   page,
+  marks,
+  unsaved,
   onGoToPage,
-  onGoToDestination
+  onGoToDestination,
+  onApplyPlan,
+  onExtract
 }: {
   doc: PDFDocumentProxy | null
   page: number
+  /** The marks already in the document, gathered by the reader. */
+  marks: AnnotationRef[]
+  /** True when there are marks made since the last save, which are not listed. */
+  unsaved: boolean
   onGoToPage: (page: number) => void
   onGoToDestination: (dest: string | unknown[]) => void
+  /** Carry out a rearrangement: the document is rewritten and reopened. */
+  onApplyPlan: (plan: PagePlan) => Promise<void>
+  /** Write these pages out as a document of their own. */
+  onExtract: (plan: PagePlan) => Promise<void>
 }): React.JSX.Element {
+  /**
+   * The rearrangement being assembled, and what is selected.
+   *
+   * Held here rather than written straight to the file: rotating four pages and
+   * deleting a fifth is one change to a document, not five rewrites of it, and
+   * a plan can be thrown away without having touched anything.
+   */
+  const [plan, setPlan] = useState<PagePlan | null>(null)
+  const [chosen, setChosen] = useState<number[]>([])
+  const [working, setWorking] = useState(false)
   const [outline, setOutline] = useState<OutlineNode[] | null>(null)
-  const [tab, setTab] = useState<'pages' | 'outline'>('pages')
+  const [tab, setTab] = useState<'pages' | 'outline' | 'marks'>('pages')
 
   useEffect(() => {
     if (!doc) return
@@ -56,6 +88,14 @@ export function PdfSidebar({
   }, [doc])
 
   const hasOutline = (outline?.length ?? 0) > 0
+  const pages = plan ?? initialPlan(doc?.numPages ?? 0)
+  const pending = doc ? !isUnchanged(pages, doc.numPages) : false
+
+  const change = (next: PagePlan): void => {
+    setPlan(next)
+    setChosen([])
+  }
+  const chosenOrAll = (): number[] => (chosen.length > 0 ? chosen : pages.order.map((_, i) => i))
 
   return (
     <aside className="pdfv__side">
@@ -74,20 +114,153 @@ export function PdfSidebar({
         >
           <Icon name="list" size={12} /> Outline
         </button>
+        <button
+          className={`pdfv__tab${tab === 'marks' ? ' pdfv__tab--active' : ''}`}
+          title="Everything marked on this document"
+          onClick={() => setTab('marks')}
+        >
+          <Icon name="quote" size={12} /> Notes
+          {marks.length > 0 && <span className="pdfv__tab-count">{marks.length}</span>}
+        </button>
       </div>
 
       {tab === 'pages' ? (
-        <div className="pdfv__thumbs">
-          {doc &&
-            Array.from({ length: doc.numPages }, (_, i) => (
-              <Thumbnail
-                key={i + 1}
-                doc={doc}
-                page={i + 1}
-                current={page === i + 1}
-                onSelect={() => onGoToPage(i + 1)}
-              />
-            ))}
+        <>
+          <div className="pdfv__page-tools">
+            <button
+              className="pdfv__action"
+              aria-label="Turn left"
+              title="Turn the selected pages a quarter to the left"
+              disabled={working}
+              onClick={() => change(rotatePages(pages, chosenOrAll(), -90))}
+            >
+              <Icon name="undo" size={12} />
+            </button>
+            <button
+              className="pdfv__action"
+              aria-label="Turn right"
+              title="Turn the selected pages a quarter to the right"
+              disabled={working}
+              onClick={() => change(rotatePages(pages, chosenOrAll(), 90))}
+            >
+              <Icon name="redo" size={12} />
+            </button>
+            <button
+              className="pdfv__action"
+              aria-label="Move up"
+              title="Move the selected pages earlier"
+              disabled={working || chosen.length === 0}
+              onClick={() => change(movePages(pages, chosen, Math.max(0, Math.min(...chosen) - 1)))}
+            >
+              <Icon name="chevron-up" size={12} />
+            </button>
+            <button
+              className="pdfv__action"
+              aria-label="Move down"
+              title="Move the selected pages later"
+              disabled={working || chosen.length === 0}
+              onClick={() =>
+                change(
+                  movePages(pages, chosen, Math.min(pages.order.length, Math.max(...chosen) + 2))
+                )
+              }
+            >
+              <Icon name="chevron-down" size={12} />
+            </button>
+            <button
+              className="pdfv__action"
+              aria-label="Remove pages"
+              title="Take the selected pages out of the document"
+              disabled={working || chosen.length === 0 || chosen.length >= pages.order.length}
+              onClick={() => change(removePages(pages, chosen))}
+            >
+              <Icon name="trash" size={12} />
+            </button>
+            <button
+              className="pdfv__action"
+              aria-label="Extract pages"
+              title="Save the selected pages as a document of their own"
+              disabled={working || chosen.length === 0}
+              onClick={() => {
+                setWorking(true)
+                void onExtract(extractPages(pages, chosen)).finally(() => setWorking(false))
+              }}
+            >
+              <Icon name="external-link" size={12} />
+            </button>
+          </div>
+
+          {pending && (
+            <div className="pdfv__page-pending">
+              <span>{pages.order.length} pages, rearranged</span>
+              <button
+                className="pdfv__action pdfv__action--active"
+                disabled={working}
+                onClick={() => {
+                  setWorking(true)
+                  void onApplyPlan(pages)
+                    .then(() => setPlan(null))
+                    .finally(() => setWorking(false))
+                }}
+              >
+                Apply
+              </button>
+              <button
+                className="pdfv__action"
+                disabled={working}
+                onClick={() => change(initialPlan(doc?.numPages ?? 0))}
+              >
+                Undo
+              </button>
+            </div>
+          )}
+
+          <div className="pdfv__thumbs">
+            {doc &&
+              pages.order.map((source, position) => (
+                <Thumbnail
+                  key={`${source}:${position}`}
+                  doc={doc}
+                  page={source + 1}
+                  label={position + 1}
+                  rotate={pages.rotate[position] ?? 0}
+                  current={!pending && page === position + 1}
+                  chosen={chosen.includes(position)}
+                  onSelect={(additive) => {
+                    if (additive) {
+                      setChosen((current) =>
+                        current.includes(position)
+                          ? current.filter((n) => n !== position)
+                          : [...current, position]
+                      )
+                      return
+                    }
+                    setChosen([position])
+                    if (!pending) onGoToPage(position + 1)
+                  }}
+                />
+              ))}
+          </div>
+        </>
+      ) : tab === 'marks' ? (
+        <div className="pdfv__marks">
+          {marks.length === 0 && !unsaved && (
+            <p className="pdfv__marks-empty">Nothing marked on this document yet.</p>
+          )}
+          {marks.map((entry) => (
+            <button
+              key={entry.id}
+              className="pdfv__mark"
+              title={`${entry.kind} on page ${entry.page}${entry.author ? ` — ${entry.author}` : ''}`}
+              onClick={() => onGoToPage(entry.page)}
+            >
+              <span className="pdfv__mark-page">p{entry.page}</span>
+              <span className="pdfv__mark-text">{annotationLabel(entry)}</span>
+            </button>
+          ))}
+          {unsaved && (
+            <p className="pdfv__marks-empty">New marks appear here once the document is saved.</p>
+          )}
         </div>
       ) : (
         <div className="pdfv__outline">
@@ -136,13 +309,22 @@ function OutlineRow({
 function Thumbnail({
   doc,
   page,
+  label,
+  rotate,
   current,
+  chosen,
   onSelect
 }: {
   doc: PDFDocumentProxy
+  /** Which page of the file this is, 1-based. */
   page: number
+  /** Where it sits in the arrangement, which is what the reader counts. */
+  label: number
+  /** How the plan turns it, in degrees. */
+  rotate: number
   current: boolean
-  onSelect: () => void
+  chosen: boolean
+  onSelect: (additive: boolean) => void
 }): React.JSX.Element {
   const hostRef = useRef<HTMLButtonElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -188,13 +370,20 @@ function Thumbnail({
   return (
     <button
       ref={hostRef}
-      className={`pdfv__thumb${current ? ' pdfv__thumb--current' : ''}`}
-      aria-label={`Page ${page}`}
+      className={`pdfv__thumb${current ? ' pdfv__thumb--current' : ''}${
+        chosen ? ' pdfv__thumb--chosen' : ''
+      }`}
+      aria-label={`Page ${label}`}
       aria-current={current ? 'page' : undefined}
-      onClick={onSelect}
+      aria-pressed={chosen}
+      onClick={(event) => onSelect(event.ctrlKey || event.metaKey || event.shiftKey)}
     >
-      <canvas ref={canvasRef} className="pdfv__thumb-canvas" />
-      <span className="pdfv__thumb-number">{page}</span>
+      <canvas
+        ref={canvasRef}
+        className="pdfv__thumb-canvas"
+        style={rotate ? { transform: `rotate(${rotate}deg)` } : undefined}
+      />
+      <span className="pdfv__thumb-number">{label}</span>
     </button>
   )
 }

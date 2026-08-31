@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -343,4 +343,73 @@ test('a form can be filled in, and the answer is saved into the file', async () 
   await expect
     .poll(() => readFileSync(formPath, 'latin1'), { timeout: 10_000 })
     .toContain('Ada Lovelace')
+})
+
+test('the notes panel lists what is marked on the document', async () => {
+  // A mark is attached to a place on a page, which is what you want while
+  // reading and useless when the question is "what did I mark in this paper".
+  await page.locator('.tree-row--file', { hasText: 'Notes.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+
+  await page.locator('.pdfv__tab', { hasText: 'Notes' }).click()
+  const mark = page.locator('.pdfv__mark')
+  await expect(mark).toHaveCount(1, { timeout: 20_000 })
+  await expect(mark.first()).toContainText('written by a test')
+  await expect(mark.first()).toContainText('p1')
+
+  // The count on the tab is the same number, so the panel is worth opening.
+  await expect(page.locator('.pdfv__tab-count')).toHaveText('1')
+})
+
+test('pages can be rearranged, and the file says so afterwards', async () => {
+  // The first structural write: this is not an annotation appended to a
+  // document but a new document built from its pages.
+  const pagesPath = join(vault, 'Pages.pdf')
+  writeFileSync(
+    pagesPath,
+    makePdf({ pages: [['Page one alpha.'], ['Page two beta.'], ['Page three gamma.']] })
+  )
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Pages.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 3', { timeout: 20_000 })
+
+  await page.locator('.pdfv__tab', { hasText: 'Pages' }).click()
+  await expect(page.locator('.pdfv__thumb')).toHaveCount(3)
+
+  // Take the first page out. Nothing is written until it is applied.
+  await page.locator('.pdfv__thumb').first().click()
+  await page.locator('button[aria-label="Remove pages"]').click()
+  await expect(page.locator('.pdfv__thumb')).toHaveCount(2)
+  const before = statSync(pagesPath).mtimeMs
+
+  await page.locator('.pdfv__page-pending button', { hasText: 'Apply' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 30_000 })
+  expect(statSync(pagesPath).mtimeMs).not.toBe(before)
+
+  // Read back through the reader rather than out of the bytes: the writing
+  // engine re-encodes the content streams, so the words are no longer a
+  // substring of the file — and what matters is what a reader makes of it.
+  const text = page.locator('.pdfViewer .page').first().locator('.textLayer')
+  await expect(text).toContainText('Page two beta.', { timeout: 20_000 })
+  await expect(page.locator('.pdfViewer')).not.toContainText('Page one alpha.')
+})
+
+test('pages can be taken out into a document of their own', async () => {
+  await page.locator('.pdfv__thumb').first().click()
+  await page.locator('button[aria-label="Extract pages"]').click()
+
+  await expect
+    .poll(() => existsSync(join(vault, 'Pages extract.pdf')), { timeout: 30_000 })
+    .toBe(true)
+
+  // Opened, it is exactly the page that was chosen and nothing else.
+  await page.locator('.tree-row--file', { hasText: 'Pages extract.pdf' }).click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 1', { timeout: 20_000 })
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('Page two beta.', {
+    timeout: 20_000
+  })
+
+  // And the document it came from still has both of its pages.
+  await page.locator('.tree-row--file', { hasText: 'Pages.pdf' }).first().click()
+  await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
 })

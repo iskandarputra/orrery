@@ -17,6 +17,8 @@ import type { McpHostService } from '../services/mcp-host'
 import type { SqliteService } from '../services/sqlite'
 import type { TerminalService } from '../services/terminal'
 import type { LinkScanner } from '../services/link-scanner'
+import { readFile } from 'node:fs/promises'
+import { applyPagePlan } from '../services/pdfium'
 import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -430,6 +432,33 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
   // --- databases ------------------------------------------------------------
   handle('pdf:text', pathReq, (_e, req) => pdfText.read(req.path))
+  handle(
+    'pdf:pages',
+    z.object({
+      path: z.string().min(1),
+      plan: z.object({
+        order: z.array(z.number().int().min(0)).max(20_000),
+        rotate: z.array(z.number().int()).max(20_000)
+      }),
+      also: z.array(z.string().min(1)).max(50).optional(),
+      saveAs: z.string().min(1).optional(),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const sources = await Promise.all(
+        [req.path, ...(req.also ?? [])].map(async (file) => new Uint8Array(await readFile(file)))
+      )
+      const bytes = await applyPagePlan(sources, req.plan)
+      // Writing somewhere new never overwrites: extracting pages twice is a
+      // thing people do, and the second attempt must not eat the first.
+      const target = req.saveAs ? await fs.freeName(req.saveAs) : req.path
+      // A new file has nothing to conflict with; writing over the original uses
+      // the same check every other save does.
+      const result = await fs.writeBytes(target, bytes, req.saveAs ? null : req.expectedMtimeMs)
+      await pdfText.forget(target)
+      return result
+    }
+  )
   handle(
     'pdf:save',
     z.object({
