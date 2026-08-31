@@ -14,6 +14,11 @@ long as the app is running.
 The text is real text: select it, copy it, search it with the toolbar's find,
 which reports how many matches there are and marks them on the page.
 
+Turning the pages turns them for looking at, not on disk — the page organiser
+does the permanent kind. The turn is remembered along with the page and the
+zoom, and it survives an edit: handing the viewer a rewritten document would
+otherwise spring the pages upright underneath you.
+
 ## PDFs in the vault
 
 This is what makes a PDF part of a knowledge base rather than a file beside one.
@@ -35,9 +40,15 @@ This is what makes a PDF part of a knowledge base rather than a file beside one.
 
 ## Marking up
 
-Five tools: highlight, text box, draw, image, signature. Form fields can be
-filled in. The rail's **Notes** tab lists every mark in the document with the
-page it is on, in reading order.
+Four tools: highlight, text box, draw and signature. Form fields can be filled
+in. The rail's **Notes** tab lists every mark in the document with the page it
+is on, in reading order.
+
+**Image** sits beside them but is not one of them: it puts a real picture into
+the page, not an annotation on top of it. Pick a file and it lands in the middle
+of the page you are on, ready to be dragged and resized like anything else the
+page is made of. Every reader draws it, because it is part of the document
+rather than a note attached to one.
 
 Saving writes an _incremental update_ — the original bytes are kept and the new
 objects appended — so what lands on disk is the document you were sent plus what
@@ -92,7 +103,9 @@ you about the second one itself:
   the font may well have them.
 
 **Dragging** an object moves it — the same glyphs or picture, somewhere else on
-the page — and the corner handle on a picked object resizes it in place. **Double-clicking empty space** starts a new line of text, written in
+the page — and the corner handle on a picked object resizes it in place. Both
+work on a page you have turned: the boxes are placed on the page as drawn rather
+than as stored, so what you click is what you get whichever way up it is. **Double-clicking empty space** starts a new line of text, written in
 Helvetica because a document's own fonts usually hold only the characters
 already on the page; new words in one of those would come out full of holes.
 Text does not wrap, so a line started near the edge runs off it.
@@ -118,10 +131,23 @@ in the document for anyone who selects the text or reads the bytes.
 | Text extraction and its cache      | main, `services/pdf-text.ts`            | search runs in main, over every PDF in a vault                 |
 | Pages, and editing objects         | main, `services/pdfium.ts`              | pdf.js reads and appends; taking a document apart needs PDFium |
 | Deciding _what_ to change          | `core/pdf-pages.ts`, `core/pdf-edit.ts` | pure, and tested without an engine anywhere near it            |
+| Page coordinates, at any rotation  | `core/pdf-geometry.ts`                  | one place for maths that nine call sites used to do inline     |
 
 Every write is read back with the _other_ engine in the tests: PDFium writes and
 pdf.js reads, and they share no code. Two independent implementations agreeing
-is the strongest cheap guarantee available for a format this fiddly.
+is the strongest cheap guarantee available for a format this fiddly. The same
+trick covers the geometry: `core/pdf-geometry.ts` is checked at all four
+rotations against pdf.js's own `convertToViewportPoint`, so the boxes the editor
+draws are placed by the transform pdf.js drew the pixels with rather than by a
+second opinion about what that transform is.
+
+That module exists because rotation and object editing were built without
+knowing about each other. Turned a quarter, the drawn page's width is the page's
+_height_ — so the scale was measured against the wrong side and every box was
+placed along the wrong axis. Since a click picks whatever box is under it,
+clicking a word retyped a different one. Worth remembering as the shape of the
+next bug in this area: a PDF editor's failures are usually silent and land in
+somebody's document.
 
 The engines and their data are copied beside `index.html` by
 `scripts/sync-assets.mjs`, and the packaged application leaves the original

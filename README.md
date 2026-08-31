@@ -8,7 +8,7 @@
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
   <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F.svg">
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-689%20unit%20%C2%B7%20180%20e2e-success.svg">
+  <img alt="tests" src="https://img.shields.io/badge/tests-1286%20unit%20%C2%B7%20387%20e2e-success.svg">
 </p>
 
 Point Orrery at a folder. Your notes stay ordinary markdown files on disk,
@@ -24,9 +24,9 @@ shows you git diffs, and gives you a shell in the same window.
 to treat links between documents as text. Orrery does both jobs, because in
 practice a folder of notes and a folder of code are the same folder.
 
-**Why you might not.** It is five days old: version 0.1.0, 91 commits, one
+**Why you might not.** It is eight days old: version 0.1.0, 139 commits, one
 developer, Linux packages only. The parts that could lose your work are covered
-by atomic writes, conflict detection on save, and 689 unit and 180 end-to-end
+by atomic writes, conflict detection on save, and 1,286 unit and 387 end-to-end
 tests. Everything else is early software that has been used in anger by exactly
 one person. Keep your vault in git, which you should be doing anyway, and which
 Orrery will now help you with.
@@ -115,7 +115,7 @@ this folder. Colour by "Notes or code" to tell them apart, or switch code off in
 the graph's own settings.
 
 `Ctrl+P` opens any note by fuzzy name, `Ctrl+Shift+R` reopens something you had
-open before, and `Ctrl+Shift+P` runs any of 69 commands. In the same box, `:`
+open before, and `Ctrl+Shift+P` runs any of 70 commands. In the same box, `:`
 jumps to a line and `@` jumps to a heading or a declaration inside the file you
 are looking at. Prompts from connected MCP servers are in there too, since a
 prompt is a command someone else wrote. Two of those commands are for when you
@@ -144,7 +144,11 @@ you ask for it.
 **Git is built in.** Status, stage, unstage, discard, commit, and change bars in
 the editor gutter. A diff opens as a tab holding two real editors side by side,
 with syntax highlighting, undo and selection across lines. The working-tree side
-is editable and saves with `Ctrl+S`.
+is editable and saves with `Ctrl+S`. Drag the line between the two columns to
+give one of them more room, and double-click it to even them up again. The
+minimap marks what changed as bands across its whole width rather than a sliver
+down one edge, so a small edit in a long file is visible from the other side of
+the room.
 
 **The commit graph** draws every branch. Hover a commit for its full message,
 author and hash. Click it to see which files it touched, and click a file to
@@ -165,6 +169,14 @@ and you have silently changed what the file appears to say.
 types, completion, diagnostics in the gutter, go-to-definition on `F12`. Orrery
 bundles none of them, and a language without one still gets highlighting and
 folding.
+
+**Pictures open as pictures.** A `.png`, `.jpg`, `.gif`, `.webp`, `.bmp`,
+`.avif` or `.ico` opens in a viewer: fit to the window or at its own size, zoom
+with the buttons or `Ctrl` and the wheel, and the dimensions in the bar, because
+"is this the big one or the thumbnail" is the question people actually have.
+Transparency reads as transparency over a chequerboard. The file is never
+written back, so no save can put text where a picture was. An `.svg` still opens
+as text, because it is also a file you edit.
 
 **Drawings** are a first-class file type. `.excalidraw` files open as an
 Excalidraw canvas and save in Excalidraw's own format, so a board made here
@@ -193,13 +205,17 @@ an outline, thumbnails. Vault search reads _inside_ them, `[[paper.pdf#page=12]]
 opens at that page, and a selection becomes a quotation in a note beside the
 paper with a link back. Scanned pages can be recognised on your machine.
 
-You can also change one. Highlight, draw, type, sign, fill a form; rearrange,
-remove and extract pages; or edit the page itself — click a line and retype it
-in the document's own font, or take something out of the file rather than
-covering it. Two limits are stated plainly rather than discovered: there is no
-paragraph reflow, and a font that never contained a character probably cannot
-draw it — the editor says so before you commit. Full details in
-[docs/pdf.md](docs/pdf.md).
+You can also change one. Highlight, draw, type, sign and fill a form; rearrange,
+remove, turn and extract pages; put a picture on a page; or edit the page itself
+— click a line and retype it in the document's own font, drag it somewhere else,
+resize it, write a new line where there was none, or take something out of the
+file rather than covering it. `Ctrl+Z` takes back anything on that list,
+including a rearrangement.
+
+Two limits are stated plainly rather than discovered: there is no paragraph
+reflow, and a font that never contained a character probably cannot draw it —
+the editor says so before you commit, and takes a second `Enter` as your answer.
+Full details in [docs/pdf.md](docs/pdf.md).
 
 ## MCP, both ways
 
@@ -311,7 +327,7 @@ Trusted local code, in the Obsidian sense.
 Electron · React 19 · TypeScript (strict) · CodeMirror 6 · Zustand · zod.
 
 ```
-src/core/      pure logic. No Electron, no DOM, no editor. 36 modules, 36 tested
+src/core/      pure logic. No Electron, no DOM, no editor. 61 modules, 61 tested
 src/shared/    the IPC contract both processes compile against
 src/main/      files, git, language servers, terminal, embeddings
 src/preload/   the one bridge
