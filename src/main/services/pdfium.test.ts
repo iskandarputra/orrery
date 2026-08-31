@@ -16,6 +16,7 @@ import {
   pageCount,
   pageObjects,
   removePageObjects,
+  rotateObject,
   resizeObject
 } from './pdfium'
 import { groupTargets } from '@core/pdf-edit'
@@ -344,5 +345,87 @@ describe('putting a picture on a page', () => {
     await expect(
       addImageObject(source, 0, { pixels: new Uint8Array(0), width: 0, height: 0 }, 0, 0, 10, 10)
     ).rejects.toThrow()
+  })
+})
+
+describe('turning an object', () => {
+  const blue = (): { pixels: Uint8Array; width: number; height: number } => {
+    const width = 4
+    const height = 4
+    const pixels = new Uint8Array(width * height * 4)
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = 200
+      pixels[i + 1] = 40
+      pixels[i + 2] = 20
+      pixels[i + 3] = 255
+    }
+    return { pixels, width, height }
+  }
+
+  /** The middle of an object's bounding box, which is what it turns about. */
+  const centreOf = (b: { left: number; right: number; top: number; bottom: number }) => ({
+    x: (b.left + b.right) / 2,
+    y: (b.bottom + b.top) / 2
+  })
+
+  it('keeps a picture where it stands', async () => {
+    // A bare rotation turns about the page's corner, which throws a stamp clean
+    // off the page. This is the assertion that catches that.
+    const source = new Uint8Array(makePdf({ pages: [['a page']] }))
+    const withPicture = await addImageObject(source, 0, blue(), 200, 400, 120, 60)
+    const before = (await pageObjects(withPicture, 0)).find((o) => o.kind === 'image')!
+
+    const turned = await rotateObject(withPicture, 0, before.index, 90)
+    const after = (await pageObjects(turned, 0)).find((o) => o.kind === 'image')!
+
+    expect(centreOf(after.bounds).x).toBeCloseTo(centreOf(before.bounds).x, 1)
+    expect(centreOf(after.bounds).y).toBeCloseTo(centreOf(before.bounds).y, 1)
+  })
+
+  it('swaps which way a wide picture is wide', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['a page']] }))
+    const withPicture = await addImageObject(source, 0, blue(), 100, 300, 120, 40)
+    const before = (await pageObjects(withPicture, 0)).find((o) => o.kind === 'image')!
+    expect(before.bounds.right - before.bounds.left).toBeGreaterThan(
+      before.bounds.top - before.bounds.bottom
+    )
+
+    const turned = await rotateObject(withPicture, 0, before.index, 90)
+    const after = (await pageObjects(turned, 0)).find((o) => o.kind === 'image')!
+    expect(after.bounds.top - after.bounds.bottom).toBeGreaterThan(
+      after.bounds.right - after.bounds.left
+    )
+  })
+
+  it('leaves the words on the page alone', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['a page with words']] }))
+    const withPicture = await addImageObject(source, 0, blue(), 100, 300, 60, 60)
+    const picture = (await pageObjects(withPicture, 0)).find((o) => o.kind === 'image')!
+    const turned = await rotateObject(withPicture, 0, picture.index, 45)
+    expect((await readBack(turned))[0]?.text).toContain('a page with words')
+  })
+
+  it('refuses an object that is no longer there', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['x']] }))
+    await expect(rotateObject(source, 0, 99, 90)).rejects.toThrow()
+  })
+})
+
+describe('turning a line of text', () => {
+  it('keeps the words, and moves the box they sit in', async () => {
+    // Rotation is offered on every object, not only on pictures, so the engine
+    // has to cope with a text run as well.
+    const source = new Uint8Array(makePdf({ pages: [['SIDEWAYS']] }))
+    const before = (await pageObjects(source, 0)).find((o) => o.kind === 'text')!
+    const wide = before.bounds.right - before.bounds.left
+    const tall = before.bounds.top - before.bounds.bottom
+    expect(wide).toBeGreaterThan(tall)
+
+    const turned = await rotateObject(source, 0, before.index, 90)
+    const after = (await pageObjects(turned, 0)).find((o) => o.kind === 'text')!
+    expect(after.bounds.top - after.bounds.bottom).toBeGreaterThan(
+      after.bounds.right - after.bounds.left
+    )
+    expect((await readBack(turned))[0]?.text).toContain('SIDEWAYS')
   })
 })

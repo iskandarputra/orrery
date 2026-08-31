@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 import { makePdf } from '../src/main/services/__fixtures__/make-pdf'
 import { makePng } from '../src/main/services/__fixtures__/make-png'
@@ -1018,4 +1018,141 @@ test('the boxes stay on the words when the page is zoomed', async () => {
   expect(middle.x).toBeLessThanOrEqual(after.x + after.width + 4)
   expect(middle.y).toBeGreaterThanOrEqual(after.y - 4)
   expect(middle.y).toBeLessThanOrEqual(after.y + after.height + 4)
+})
+
+/** The rectangle of something, once it has one. */
+async function boxOf(target: Locator): Promise<{
+  x: number
+  y: number
+  width: number
+  height: number
+}> {
+  // Each edit rewrites the file and remounts the layer over the page. A box
+  // asked for mid-swap comes back null — and worse, one measured on an element
+  // that is about to be replaced hands back a rectangle to press on with no
+  // handler behind it any more, which is a drag that quietly does nothing.
+  //
+  // So: wait for a rectangle that has stopped moving. Two identical readings
+  // mean the remount is over, and what is on screen will still be there when
+  // the mouse goes down.
+  await expect(target).toBeVisible({ timeout: 20_000 })
+  let box: { x: number; y: number; width: number; height: number } | null = null
+  let last = ''
+  await expect
+    .poll(
+      async () => {
+        const now = await target.boundingBox()
+        if (!now || now.width === 0 || now.height === 0) {
+          last = ''
+          return false
+        }
+        const here = `${now.x},${now.y},${now.width},${now.height}`
+        const settled = here === last
+        last = here
+        box = now
+        return settled
+      },
+      { timeout: 20_000, intervals: [120] }
+    )
+    .toBe(true)
+  return box!
+}
+
+test('a picture that has been added can be dragged, resized and turned', async () => {
+  // The complaint this comes from: the picture landed, the toast said "drag it
+  // where you want it", and nothing could be dragged. Adding one left the page
+  // editor switched off, so nothing on the page had handles — the engine held
+  // the image and the screen offered no way to touch it.
+  //
+  // Exercised on a picture rather than on a line of text, because they are
+  // different objects taking different paths through the editor.
+  const target = join(vault, 'Handled.pdf')
+  const png = join(vault, 'handle.png')
+  writeFileSync(target, makePdf({ pages: [['a page to decorate']] }))
+  writeFileSync(png, makePng(64, 64))
+  await app.evaluate(({ dialog }, chosen) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] }) as never
+  }, png)
+
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Handled.pdf' }).click()
+  await expect(page.locator('.pdfViewer:visible .page').first()).toBeVisible({ timeout: 20_000 })
+
+  await page.locator('button[aria-label="Image"]').click()
+  await expect(page.locator('.toast__message')).toContainText('picture was added', {
+    timeout: 30_000
+  })
+
+  // The editor is on without anybody having to go and find it, because the
+  // toast just told them to drag something.
+  await expect(page.locator('button[aria-label="Edit the page itself"]')).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+
+  const picture = async (): Promise<{ left: number; bottom: number; width: number }> => {
+    const objects = await page.evaluate(
+      (p) => window.orrery.invoke('pdf:objects', { path: p, page: 0 }),
+      target
+    )
+    const found = objects.find((o) => o.kind === 'image')!
+    return {
+      left: found.bounds.left,
+      bottom: found.bounds.bottom,
+      width: found.bounds.right - found.bounds.left
+    }
+  }
+  const before = await picture()
+
+  // Named by what it is rather than by position: the page holds a line of text
+  // as well, and which of the two comes first is the engine's business. Not by
+  // title — the tooltip service takes that attribute away while the pointer is
+  // over the box, so a selector reading it finds nothing mid-drag.
+  const stamp = page.locator('.pdfv__object[data-kind="image"]:visible')
+
+  // It arrives picked, so the handles are already there — nobody has to work
+  // out that the thing they just placed needs clicking before it can be sized.
+  await expect(stamp).toHaveClass(/pdfv__object--picked/)
+  await expect(page.locator('.pdfv__object-turn')).toBeVisible()
+
+  const start = await boxOf(stamp)
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(start.x + start.width / 2 + 60, start.y + start.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await expect
+    .poll(async () => (await picture()).left, { timeout: 20_000 })
+    .toBeGreaterThan(before.left + 20)
+
+  // Turning it. The handle sits above whatever is picked.
+  const moved = page.locator('.pdfv__object[data-kind="image"]:visible')
+  const put = await boxOf(moved)
+  await page.mouse.click(put.x + put.width / 2, put.y + put.height / 2)
+  const turn = page.locator('.pdfv__object-turn')
+  const grip = await boxOf(turn)
+  const middle = await boxOf(moved)
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  // Round to the right of the object's middle: a quarter turn clockwise.
+  await page.mouse.move(middle.x + middle.width / 2 + 120, middle.y + middle.height / 2, {
+    steps: 10
+  })
+  await page.mouse.up()
+  await expect(page.locator('.toast__message')).not.toContainText('could not be turned')
+
+  // Resizing it, by the corner grip on the picked object.
+  const wide = (await picture()).width
+  const again = page.locator('.pdfv__object[data-kind="image"]:visible')
+  const spot = await boxOf(again)
+  await page.mouse.click(spot.x + spot.width / 2, spot.y + spot.height / 2)
+  const handle = page.locator('.pdfv__object-handle')
+  const grab = await boxOf(handle)
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grab.x + grab.width / 2 + 70, grab.y + grab.height / 2 + 70, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(async () => (await picture()).width, { timeout: 20_000 }).toBeGreaterThan(wide)
+
+  // And the words underneath were never touched by any of it.
+  await expect(page.locator('.pdfViewer:visible')).toContainText('a page to decorate')
 })

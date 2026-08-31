@@ -69,6 +69,14 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const path = useStore((s) => s.buffers[bufferId]?.filePath ?? '')
   /** Bumped when the file has been rewritten and must be read again. */
   const [reloadToken, setReload] = useState(0)
+  /**
+   * The reload a picture was added on, so that picture arrives already picked.
+   *
+   * Dragging works on any box, but the handles that resize and turn one only
+   * appear on what is picked — and somebody who has just placed a picture
+   * should not have to work out that they need to click it first.
+   */
+  const [pickedAt, setPickedAt] = useState(-1)
   // The protocol the renderer is allowed to read local files over. Worked out
   // here rather than in the effect: it is a pure function of the path, and a
   // path it cannot resolve is something to render, not something to remember.
@@ -687,6 +695,11 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       })
       setSavedMtime(result.mtimeMs)
       setReload((n) => n + 1)
+      // Turn the page editor on with it. The picture is a page object, so the
+      // handles that move, resize and turn it live there — and telling somebody
+      // to drag something they cannot touch is worse than saying nothing.
+      setEditing(true)
+      setPickedAt(reloadToken + 1)
       useStore.getState().showToast('The picture was added — drag it where you want it', 'success')
     } catch {
       useStore.getState().showToast('That picture could not be added', 'error')
@@ -1041,6 +1054,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
                 page={page}
                 alphabet={alphabet}
                 rotation={rotation}
+                pickAdded={pickedAt === reloadToken}
                 mtime={savedMtime}
                 onChanged={(mtimeMs) => {
                   setSavedMtime(mtimeMs)

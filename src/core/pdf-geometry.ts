@@ -131,3 +131,33 @@ export function toCssBox(
     height: Math.max(2, Math.abs(a.y - b.y))
   }
 }
+
+/**
+ * The transform that turns an object about its own middle.
+ *
+ * PDFium applies a matrix to an object's existing one, and a bare rotation
+ * turns everything about the page's origin — the bottom-left corner — which
+ * throws a stamp off the page instead of spinning it where it sits. Moving the
+ * centre to the origin, turning, and putting it back is what "rotate this"
+ * actually means.
+ *
+ * `[a, b, c, d, e, f]` in PDF's order: x' = a·x + c·y + e, y' = b·x + d·y + f.
+ */
+export function rotationAbout(
+  degrees: number,
+  centre: Point
+): [number, number, number, number, number, number] {
+  const radians = (degrees * Math.PI) / 180
+  // Rounded because cos(90°) is 6.1e-17 rather than zero, and a matrix full of
+  // near-zeroes is written into the file exactly as given.
+  const cos = Math.abs(Math.cos(radians)) < 1e-12 ? 0 : Math.cos(radians)
+  const sin = Math.abs(Math.sin(radians)) < 1e-12 ? 0 : Math.sin(radians)
+  return [
+    cos,
+    sin,
+    -sin,
+    cos,
+    centre.x - centre.x * cos + centre.y * sin,
+    centre.y - centre.x * sin - centre.y * cos
+  ]
+}

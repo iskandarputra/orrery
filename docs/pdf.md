@@ -46,9 +46,10 @@ is on, in reading order.
 
 **Image** sits beside them but is not one of them: it puts a real picture into
 the page, not an annotation on top of it. Pick a file and it lands in the middle
-of the page you are on, ready to be dragged and resized like anything else the
-page is made of. Every reader draws it, because it is part of the document
-rather than a note attached to one.
+of the page you are on — and the page editor opens with it, already holding the
+picture, so its handles are there to drag, resize and turn straight away. Every
+reader draws it, because it is part of the document rather than a note attached
+to one.
 
 Saving writes an _incremental update_ — the original bytes are kept and the new
 objects appended — so what lands on disk is the document you were sent plus what
@@ -103,9 +104,15 @@ you about the second one itself:
   the font may well have them.
 
 **Dragging** an object moves it — the same glyphs or picture, somewhere else on
-the page — and the corner handle on a picked object resizes it in place. Both
-work on a page you have turned: the boxes are placed on the page as drawn rather
-than as stored, so what you click is what you get whichever way up it is. **Double-clicking empty space** starts a new line of text, written in
+the page. A picked object grows a handle at its corner, which resizes it in
+place, and one above it, which turns it about its own middle; hold Shift while
+turning to move in fifteen-degree steps. All three work on a page you have
+turned: the boxes are placed on the page as drawn rather than as stored, so what
+you click is what you get whichever way up it is.
+
+Turning applies to anything on the page, a line of text included — the engine
+has no notion of an object's current angle, only of a matrix applied to it, so
+every turn is relative to wherever the thing already sits. **Double-clicking empty space** starts a new line of text, written in
 Helvetica because a document's own fonts usually hold only the characters
 already on the page; new words in one of those would come out full of holes.
 Text does not wrap, so a line started near the edge runs off it.

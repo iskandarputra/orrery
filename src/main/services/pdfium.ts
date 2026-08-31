@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import type { PageObject } from '@core/pdf-edit'
+import { rotationAbout } from '@core/pdf-geometry'
 import type { PagePlan } from '@core/pdf-pages'
 
 /**
@@ -537,6 +538,44 @@ export async function addTextObject(
  * matrix here scales in place: shift the corner to the origin, scale, shift it
  * back, which is what dragging a handle is understood to mean.
  */
+/**
+ * Turn an object about its own middle.
+ *
+ * The angle is absolute nowhere — PDFium has no notion of "this object is at
+ * 30 degrees", only a matrix that has been applied to it — so this turns by
+ * however much is asked for, from wherever it is now. That is also what the
+ * handle in the editor does, so the two agree.
+ */
+export async function rotateObject(
+  bytes: Uint8Array,
+  pageIndex: number,
+  objectIndex: number,
+  degrees: number
+): Promise<Uint8Array> {
+  return writeWithPage(bytes, pageIndex, (lib, page) => {
+    const rt = lib.pdfium
+    const object = lib.FPDFPage_GetObject(page, objectIndex)
+    if (!object) throw new Error('That object is no longer there')
+
+    const box = rt.wasmExports.malloc(16)
+    try {
+      lib.FPDFPageObj_GetBounds(object, box, box + 4, box + 8, box + 12)
+      const left = rt.getValue(box, 'float')
+      const bottom = rt.getValue(box + 4, 'float')
+      const right = rt.getValue(box + 8, 'float')
+      const top = rt.getValue(box + 12, 'float')
+      const [a, b, c, d, e, f] = rotationAbout(degrees, {
+        x: (left + right) / 2,
+        y: (bottom + top) / 2
+      })
+      lib.FPDFPageObj_Transform(object, a, b, c, d, e, f)
+    } finally {
+      rt.wasmExports.free(box)
+    }
+    if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
+  })
+}
+
 export async function resizeObject(
   bytes: Uint8Array,
   pageIndex: number,

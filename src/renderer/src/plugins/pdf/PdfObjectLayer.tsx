@@ -51,6 +51,7 @@ export function PdfObjectLayer({
   page,
   alphabet,
   rotation,
+  pickAdded,
   mtime,
   onChanged
 }: {
@@ -62,6 +63,8 @@ export function PdfObjectLayer({
   alphabet: string
   /** How far the reader has turned the pages, on top of the page's own turn. */
   rotation: number
+  /** Something was just put on this page: pick it, so its handles are there. */
+  pickAdded?: boolean
   mtime: number | null
   onChanged: (mtimeMs: number) => void
 }): React.JSX.Element | null {
@@ -96,6 +99,8 @@ export function PdfObjectLayer({
   const [dragging, setDragging] = useState<{ key: string; dx: number; dy: number } | null>(null)
   /** A resize in progress: how much bigger, as a fraction of the original. */
   const [sizing, setSizing] = useState<{ sx: number; sy: number } | null>(null)
+  /** A turn in progress, in degrees clockwise on screen. */
+  const [turning, setTurning] = useState<number | null>(null)
   /** Where a new line of text is being typed, in PDF coordinates. */
   const [adding, setAdding] = useState<{ x: number; y: number; text: string } | null>(null)
 
@@ -139,7 +144,16 @@ export function PdfObjectLayer({
             top: drawn.offsetTop
           })
         }
-        setObjects(groupTargets(found, { width, height }))
+        const targets = groupTargets(found, { width, height })
+        setObjects(targets)
+        // Whatever was just added is the last object on the page, because that
+        // is where the engine appends. Only pictures and shapes are offered
+        // this way: a line of text picked on arrival would open its input and
+        // take the keyboard away from whatever else was being done.
+        if (pickAdded) {
+          const last = [...targets].reverse().find((target) => target.kind !== 'text')
+          if (last) setPicked(last)
+        }
         measure()
         observer = new ResizeObserver(measure)
         observer.observe(drawn)
@@ -364,6 +378,67 @@ export function PdfObjectLayer({
     }
   }
 
+  /**
+   * Drag the handle above an object to turn it.
+   *
+   * The angle is wherever the pointer is, measured from the object's middle,
+   * because that is the gesture every other rotate handle uses. Held with
+   * Shift it snaps to fifteen degrees, which is how somebody gets a stamp back
+   * to square after overshooting it.
+   */
+  const startRotate = (object: EditTarget, event: React.MouseEvent): void => {
+    if (busy) return
+    event.preventDefault()
+    event.stopPropagation()
+    const host = (event.currentTarget as HTMLElement).closest('.pdfv__objects')
+    if (!host) return
+    const area = host.getBoundingClientRect()
+    const drawnBox = toCssBox(geometry.page, object.bounds)
+    const middle = {
+      x: area.left + drawnBox.left + drawnBox.width / 2,
+      y: area.top + drawnBox.top + drawnBox.height / 2
+    }
+    // Straight up from the middle is nought, so the number on screen is the
+    // number somebody expects to see.
+    const angleAt = (x: number, y: number, snap: boolean): number => {
+      const raw = (Math.atan2(x - middle.x, middle.y - y) * 180) / Math.PI
+      return snap ? Math.round(raw / 15) * 15 : Math.round(raw)
+    }
+
+    const onMove = (move: MouseEvent): void =>
+      setTurning(angleAt(move.clientX, move.clientY, move.shiftKey))
+
+    const onUp = async (up: MouseEvent): Promise<void> => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setTurning(null)
+      const degrees = angleAt(up.clientX, up.clientY, up.shiftKey)
+      // A twitch is not a turn.
+      if (Math.abs(degrees) < 2) return
+      setBusy(true)
+      try {
+        const result = await invoke('pdf:rotateObject', {
+          path,
+          page: page - 1,
+          index: object.indexes[0]!,
+          // Clockwise on screen is anticlockwise in a page's own coordinates,
+          // whose y counts upwards.
+          degrees: -degrees,
+          expectedMtimeMs: mtime
+        })
+        setPicked(null)
+        onChanged(result.mtimeMs)
+      } catch {
+        useStore.getState().showToast('That could not be turned', 'error')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   return (
     <div
       className="pdfv__objects"
@@ -400,6 +475,11 @@ export function PdfObjectLayer({
           <div
             key={key}
             className={`pdfv__object${chosen ? ' pdfv__object--picked' : ''}`}
+            // What sort of thing this is, which the title cannot be relied on
+            // to say: the tooltip service borrows `title` for as long as the
+            // pointer is over an element, so anything reading it mid-hover
+            // finds nothing there.
+            data-kind={object.kind}
             style={{
               ...box(object),
               transform:
@@ -407,7 +487,8 @@ export function PdfObjectLayer({
                   shifted.x || shifted.y ? `translate(${shifted.x}px, ${shifted.y}px)` : '',
                   // From the bottom-left, which is the corner the engine scales
                   // about — so what is previewed is what will happen.
-                  scaled ? `scale(${scaled.sx}, ${scaled.sy})` : ''
+                  scaled ? `scale(${scaled.sx}, ${scaled.sy})` : '',
+                  chosen && turning !== null ? `rotate(${turning}deg)` : ''
                 ]
                   .filter(Boolean)
                   .join(' ') || undefined,
@@ -421,13 +502,23 @@ export function PdfObjectLayer({
             onMouseDown={(event) => startDrag(object, event)}
           >
             {chosen && (
-              <span
-                className="pdfv__object-handle"
-                role="button"
-                aria-label="Resize this"
-                title="Drag to resize"
-                onMouseDown={(event) => startResize(object, event)}
-              />
+              <>
+                <span
+                  className="pdfv__object-handle"
+                  role="button"
+                  aria-label="Resize this"
+                  title="Drag to resize"
+                  onMouseDown={(event) => startResize(object, event)}
+                />
+                <span
+                  className="pdfv__object-turn"
+                  role="button"
+                  aria-label="Turn this"
+                  title="Drag to turn — hold Shift for fifteen degrees at a time"
+                  onMouseDown={(event) => startRotate(object, event)}
+                />
+                {turning !== null && <span className="pdfv__object-angle">{turning}°</span>}
+              </>
             )}
           </div>
         )

@@ -208,8 +208,8 @@ paper with a link back. Scanned pages can be recognised on your machine.
 You can also change one. Highlight, draw, type, sign and fill a form; rearrange,
 remove, turn and extract pages; put a picture on a page; or edit the page itself
 — click a line and retype it in the document's own font, drag it somewhere else,
-resize it, write a new line where there was none, or take something out of the
-file rather than covering it. `Ctrl+Z` takes back anything on that list,
+resize it, turn it about its own middle, write a new line where there was none,
+or take something out of the file rather than covering it. `Ctrl+Z` takes back anything on that list,
 including a rearrangement.
 
 Two limits are stated plainly rather than discovered: there is no paragraph

@@ -705,6 +705,32 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    // Editing the page itself: a box around every line, the handles that move,
+    // resize and turn what is picked, and the panel that opens over it. All of
+    // it is drawn on top of a white page, which is the hard case for a dark
+    // theme, and none of it had ever been measured.
+    name: 'pdf page editor',
+    root: '.pdfv',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'audit.pdf' }).click()
+      await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 30_000 })
+      await page.locator('button[aria-label="Edit the page itself"]').click()
+      const box = page.locator('.pdfv__object').first()
+      await expect(box).toBeVisible({ timeout: 20_000 })
+      // Picked, so the handles and the panel are on screen to be measured.
+      const at = (await box.boundingBox())!
+      await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2)
+      await expect(page.locator('.pdfv__object-handle')).toBeVisible()
+      await expect(page.locator('.pdfv__object-turn')).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await page.locator('button[aria-label="Edit the page itself"]').click()
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await expect(page.locator('.cm-content').first()).toBeVisible()
+    }
+  },
+  {
     // The image viewer: a name, the dimensions and the zoom readout, all in
     // small text over whatever colour the picture happens to be.
     name: 'image viewer',

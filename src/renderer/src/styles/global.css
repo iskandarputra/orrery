@@ -7098,6 +7098,9 @@ kbd {
 .pdfv__object-input {
   flex: 1;
   min-width: 0;
+  /* 24px of height, which is what 2.5.8 asks of anything you point at. The
+     text stays 12px; the box around it is what grew. */
+  min-height: 24px;
   padding: 1px 4px;
   border: none;
   background: transparent;
@@ -7129,20 +7132,94 @@ kbd {
 
 /* The corner you drag to resize. Outside the box's bottom-right so it can be
    grabbed even when the object itself is only a few pixels tall. */
-.pdfv__object-handle {
+/* Both grips are 24px of hit area with a 10px dot drawn inside.
+   WCAG 2.5.8 asks for 24px of target, and a 10px square is a tenth of the area
+   — the audit had never measured these because the page editor was not one of
+   its surfaces, so they went four years' worth of standards unnoticed. What is
+   seen stays small; what can be grabbed does not. */
+.pdfv__object-handle,
+.pdfv__object-turn {
   position: absolute;
-  /* Above the box that opens over a picked object: the handle sits at that
-     object's corner, and the input was covering it — the grip was there to see
-     and nothing happened when it was dragged. */
+  /* Above the box that opens over a picked object: the grips sit at that
+     object's edge, and the input was covering them — they were there to see
+     and nothing happened when they were dragged. */
   z-index: 5;
-  right: -5px;
-  bottom: -5px;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.pdfv__object-handle::after,
+.pdfv__object-turn::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: 10px;
   height: 10px;
+  margin: -5px 0 0 -5px;
   border: 1px solid var(--or-accent);
-  border-radius: 2px;
   background: var(--or-panel-bg);
+}
+
+.pdfv__object-handle {
+  right: -12px;
+  bottom: -12px;
   cursor: nwse-resize;
+}
+
+.pdfv__object-handle::after {
+  border-radius: 2px;
+}
+
+/* The turn grip, above the object rather than on a corner, so it is never
+   mistaken for the one that resizes. */
+.pdfv__object-turn {
+  left: 50%;
+  top: -25px;
+  margin-left: -12px;
+  cursor: grab;
+}
+
+.pdfv__object-turn::after {
+  border-radius: 50%;
+}
+
+.pdfv__object-turn:active {
+  cursor: grabbing;
+}
+
+/* A stem joining the grip to the object, so it reads as belonging to it. */
+.pdfv__object-turn::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 17px;
+  width: 1px;
+  height: 8px;
+  margin-left: -0.5px;
+  background: var(--or-accent);
+}
+
+/* How far it has been turned, while it is being turned. */
+.pdfv__object-angle {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: -40px;
+  transform: translateX(-50%);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  /* The pair the theme test holds to AA against each other; `--or-accent` is
+     a line colour and has no guarantee about text sitting on it. */
+  background: var(--or-accent-fill);
+  color: var(--or-accent-ink);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Where a dragged page would land. A line rather than a gap: the rail is a

@@ -28,6 +28,7 @@ import {
   pageCount,
   pageObjects,
   removePageObjects,
+  rotateObject,
   resizeObject
 } from '../services/pdfium'
 import type { PdfHistory } from '../services/pdf-history'
@@ -607,6 +608,26 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       const source = new Uint8Array(await readFile(req.path))
       await pdfHistory.remember(req.path, source)
       const bytes = await resizeObject(source, req.page, req.index, req.sx, req.sy)
+      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
+      await pdfText.forget(req.path)
+      return result
+    }
+  )
+  handle(
+    'pdf:rotateObject',
+    z.object({
+      path: z.string().min(1),
+      page: z.number().int().min(0),
+      index: z.number().int().min(0),
+      // Any angle, but never so many turns that the matrix stops meaning
+      // anything; the editor sends what the handle was dragged to.
+      degrees: z.number().min(-360).max(360),
+      expectedMtimeMs: z.number().nullable()
+    }),
+    async (_e, req) => {
+      const source = new Uint8Array(await readFile(req.path))
+      await pdfHistory.remember(req.path, source)
+      const bytes = await rotateObject(source, req.page, req.index, req.degrees)
       const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
       await pdfText.forget(req.path)
       return result

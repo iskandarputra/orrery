@@ -413,6 +413,17 @@ export interface IpcInvokeContract {
     }
     res: { path: string; mtimeMs: number }
   }
+  /** Turn one object about its own middle, by however many degrees. */
+  'pdf:rotateObject': {
+    req: {
+      path: string
+      page: number
+      index: number
+      degrees: number
+      expectedMtimeMs: number | null
+    }
+    res: { path: string; mtimeMs: number }
+  }
   /** How many pages another document has, for planning a merge. */
   'pdf:pageCount': { req: { path: string }; res: number }
   /** Choose a PDF from disk — the other half of merging one in. */
