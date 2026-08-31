@@ -21,7 +21,7 @@ import { readFile } from 'node:fs/promises'
 import {
   addTextObject,
   applyPagePlan,
-  editTextObject,
+  editTextRun,
   moveObject,
   pageCount,
   pageObjects,
@@ -493,14 +493,14 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     z.object({
       path: z.string().min(1),
       page: z.number().int().min(0),
-      index: z.number().int().min(0),
+      indexes: z.array(z.number().int().min(0)).min(1).max(5000),
       text: z.string().max(20_000),
       expectedMtimeMs: z.number().nullable()
     }),
     async (_e, req) => {
       const source = new Uint8Array(await readFile(req.path))
       await pdfHistory.remember(req.path, source)
-      const bytes = await editTextObject(source, req.page, req.index, req.text)
+      const bytes = await editTextRun(source, req.page, req.indexes, req.text)
       const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
       await pdfText.forget(req.path)
       return result

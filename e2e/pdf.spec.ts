@@ -421,6 +421,51 @@ test('pages can be taken out into a document of their own', async () => {
   await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 20_000 })
 })
 
+test('a document that positions every character still edits a line at a time', async () => {
+  // The shape most real PDFs have, and the one that made the editor unusable
+  // before it grouped: a page of a real letter of offer held 4,662 text
+  // objects, one glyph each — four thousand boxes, and the most you could
+  // retype was a single letter.
+  const realPath = join(vault, 'PerChar.pdf')
+  writeFileSync(
+    realPath,
+    makePdf({ pages: [['LETTER OF OFFER', 'Date: 24/06/2026']], perCharacter: true })
+  )
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'PerChar.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('LETTER OF OFFER', {
+    timeout: 20_000
+  })
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  // Two lines, not thirty-one characters.
+  await expect(page.locator('.pdfv__object')).toHaveCount(2, { timeout: 20_000 })
+
+  const first = (await page.locator('.pdfv__object').first().boundingBox())!
+  await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2)
+  const input = page.locator('.pdfv__object-input')
+  await expect(input).toBeVisible()
+  // The whole line is in hand, not one glyph of it.
+  await expect(input).toHaveValue(/LETTER OF OFFER/)
+
+  await input.fill('LETTER OF ACCEPTANCE')
+  await input.press('Enter')
+  // This little document has never drawn a P, a C or an N, so the editor asks
+  // before writing letters its font may not have — which on a real document,
+  // with a real document's alphabet, almost never comes up.
+  await expect(page.locator('.pdfv__object-warning')).toBeVisible()
+  await input.press('Enter')
+
+  await expect(page.locator('.pdfViewer')).toContainText('LETTER OF ACCEPTANCE', {
+    timeout: 30_000
+  })
+  // The other line is untouched. Matched loosely because a page that positions
+  // every character leaves pdf.js to infer where the spaces are, and it puts a
+  // few more in than the document meant — that is its reading of the page, not
+  // a change to it.
+  await expect(page.locator('.pdfViewer')).toContainText(/24\/\s*06\/\s*2026/)
+})
+
 test('a line of the document itself can be retyped', async () => {
   // Not an annotation on top of the page: the words on the page, in the
   // document's own font, at the position they were already in.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import { missingGlyphs, objectAt, type PageObject } from '@core/pdf-edit'
+import { groupTargets, missingGlyphs, objectAt, type EditTarget } from '@core/pdf-edit'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 
@@ -37,7 +37,15 @@ export function PdfObjectLayer({
   mtime: number | null
   onChanged: (mtimeMs: number) => void
 }): React.JSX.Element | null {
-  const [objects, setObjects] = useState<PageObject[]>([])
+  /**
+   * What can be edited, as lines rather than as objects.
+   *
+   * Most PDFs position every character separately — one page of a real letter
+   * held 4,662 text objects, one glyph each — so the objects are put back into
+   * lines before anybody is shown them. Without it the page is four thousand
+   * boxes and the most you can retype is a letter.
+   */
+  const [objects, setObjects] = useState<EditTarget[]>([])
   const [geometry, setGeometry] = useState<{
     scale: number
     height: number
@@ -46,7 +54,7 @@ export function PdfObjectLayer({
     top: number
     width: number
   } | null>(null)
-  const [picked, setPicked] = useState<PageObject | null>(null)
+  const [picked, setPicked] = useState<EditTarget | null>(null)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   /**
@@ -58,7 +66,7 @@ export function PdfObjectLayer({
    */
   const [warned, setWarned] = useState<string[]>([])
   /** A drag in progress: which object, and how far it has come, in CSS pixels. */
-  const [dragging, setDragging] = useState<{ index: number; dx: number; dy: number } | null>(null)
+  const [dragging, setDragging] = useState<{ key: string; dx: number; dy: number } | null>(null)
   /** A resize in progress: how much bigger, as a fraction of the original. */
   const [sizing, setSizing] = useState<{ sx: number; sy: number } | null>(null)
   /** Where a new line of text is being typed, in PDF coordinates. */
@@ -98,7 +106,7 @@ export function PdfObjectLayer({
             width: drawn.clientWidth
           })
         }
-        setObjects(found)
+        setObjects(groupTargets(found))
         measure()
         observer = new ResizeObserver(measure)
         observer.observe(drawn)
@@ -116,7 +124,7 @@ export function PdfObjectLayer({
   if (!geometry || objects.length === 0) return null
 
   /** PDF space has its origin at the bottom left; the page on screen does not. */
-  const box = (object: PageObject): React.CSSProperties => ({
+  const box = (object: EditTarget): React.CSSProperties => ({
     left: object.bounds.left * geometry.scale,
     top: (geometry.height - object.bounds.top) * geometry.scale,
     width: Math.max(2, (object.bounds.right - object.bounds.left) * geometry.scale),
@@ -138,7 +146,9 @@ export function PdfObjectLayer({
       const result = await invoke('pdf:editObject', {
         path,
         page: page - 1,
-        index: picked.index,
+        // A line is usually many objects: the new text goes on the first and
+        // the rest are removed.
+        indexes: picked.indexes,
         text: draft,
         expectedMtimeMs: mtime
       })
@@ -157,7 +167,10 @@ export function PdfObjectLayer({
    * The movement is followed in CSS pixels and converted once, at the end: a
    * write per pixel of a drag would be a hundred rewrites of the document.
    */
-  const startDrag = (object: PageObject, event: React.MouseEvent): void => {
+  /** A run's identity, for telling one box from another while dragging. */
+  const keyOf = (target: EditTarget): string => target.indexes.join(',')
+
+  const startDrag = (object: EditTarget, event: React.MouseEvent): void => {
     if (busy) return
     event.preventDefault()
     event.stopPropagation()
@@ -167,7 +180,7 @@ export function PdfObjectLayer({
     setDraft(object.text)
 
     const onMove = (move: MouseEvent): void =>
-      setDragging({ index: object.index, dx: move.clientX - startX, dy: move.clientY - startY })
+      setDragging({ key: keyOf(object), dx: move.clientX - startX, dy: move.clientY - startY })
 
     const onUp = async (up: MouseEvent): Promise<void> => {
       window.removeEventListener('mousemove', onMove)
@@ -182,7 +195,9 @@ export function PdfObjectLayer({
         const result = await invoke('pdf:moveObject', {
           path,
           page: page - 1,
-          index: object.index,
+          // Moving acts on the first object of a run: a line that was split
+          // into characters moves as one only once it has been retyped.
+          index: object.indexes[0]!,
           // Screen pixels down are PDF units up.
           dx: dx / geometry.scale,
           dy: -dy / geometry.scale,
@@ -207,7 +222,7 @@ export function PdfObjectLayer({
    * Scaled about its own corner, so it grows where it is rather than sliding
    * away from the page's edge as it gets larger.
    */
-  const startResize = (object: PageObject, event: React.MouseEvent): void => {
+  const startResize = (object: EditTarget, event: React.MouseEvent): void => {
     if (busy) return
     event.preventDefault()
     event.stopPropagation()
@@ -236,7 +251,7 @@ export function PdfObjectLayer({
         const result = await invoke('pdf:resizeObject', {
           path,
           page: page - 1,
-          index: object.index,
+          index: object.indexes[0]!,
           sx,
           sy,
           expectedMtimeMs: mtime
@@ -277,14 +292,14 @@ export function PdfObjectLayer({
     }
   }
 
-  const remove = async (object: PageObject): Promise<void> => {
+  const remove = async (object: EditTarget): Promise<void> => {
     if (busy) return
     setBusy(true)
     try {
       const result = await invoke('pdf:removeObjects', {
         path,
         page: page - 1,
-        indexes: [object.index],
+        indexes: object.indexes,
         expectedMtimeMs: mtime
       })
       setPicked(null)
@@ -328,13 +343,13 @@ export function PdfObjectLayer({
       }}
     >
       {objects.map((object) => {
-        const chosen = picked?.index === object.index
-        const shifted =
-          dragging?.index === object.index ? { x: dragging.dx, y: dragging.dy } : { x: 0, y: 0 }
+        const key = keyOf(object)
+        const chosen = picked !== null && keyOf(picked) === key
+        const shifted = dragging?.key === key ? { x: dragging.dx, y: dragging.dy } : { x: 0, y: 0 }
         const scaled = chosen ? sizing : null
         return (
           <div
-            key={object.index}
+            key={key}
             className={`pdfv__object${chosen ? ' pdfv__object--picked' : ''}`}
             style={{
               ...box(object),

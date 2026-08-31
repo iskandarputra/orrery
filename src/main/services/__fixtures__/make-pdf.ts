@@ -18,6 +18,14 @@ export interface PdfSpec {
   /** Optional bookmarks, each pointing at a 1-based page. */
   outline?: { title: string; page: number }[]
   /**
+   * Draw each character as its own text object, as most real PDFs do.
+   *
+   * A producer that positions every glyph for kerning turns a line of twenty
+   * letters into twenty objects — one real page held 4,662 of them. A fixture
+   * with one object per line hides every problem that causes.
+   */
+  perCharacter?: boolean
+  /**
    * A single-line text field on page 1, for testing form filling.
    *
    * The smallest real AcroForm there is: a catalogue that declares one, a
@@ -29,7 +37,7 @@ export interface PdfSpec {
 /** Escape the characters a PDF literal string cannot carry raw. */
 const literal = (text: string): string => `(${text.replace(/([\\()])/g, '\\$1')})`
 
-export function makePdf({ pages, outline = [], textField }: PdfSpec): Buffer {
+export function makePdf({ pages, outline = [], textField, perCharacter }: PdfSpec): Buffer {
   const chunks: string[] = []
   const offsets: number[] = []
   let length = 0
@@ -70,14 +78,26 @@ export function makePdf({ pages, outline = [], textField }: PdfSpec): Buffer {
   )
 
   pages.forEach((lines, index) => {
-    const stream = [
-      'BT',
-      '/F1 18 Tf',
-      '24 TL',
-      '72 720 Td',
-      ...lines.map((line, i) => (i === 0 ? `${literal(line)} Tj` : `T* ${literal(line)} Tj`)),
-      'ET'
-    ].join('\n')
+    // One object per line, or one per character: a real producer positioning
+    // every glyph for kerning writes the second, and it is a different document
+    // to edit.
+    const drawn = perCharacter
+      ? lines.flatMap((line, row) =>
+          [...line].map(
+            (character, column) =>
+              `BT /F1 18 Tf 1 0 0 1 ${72 + column * 10} ${720 - row * 24} Tm ` +
+              `${literal(character)} Tj ET`
+          )
+        )
+      : [
+          'BT',
+          '/F1 18 Tf',
+          '24 TL',
+          '72 720 Td',
+          ...lines.map((line, i) => (i === 0 ? `${literal(line)} Tj` : `T* ${literal(line)} Tj`)),
+          'ET'
+        ]
+    const stream = drawn.join('\n')
 
     object(
       pageNumber(index),

@@ -288,23 +288,31 @@ export async function pageObjects(bytes: Uint8Array, pageIndex: number): Promise
 }
 
 /**
- * Retype one text object, in place.
+ * Retype a line, however many objects it turned out to be made of.
  *
- * The font, the size and the position are the document's own — only the string
- * changes — which is why this is exact where a text box drawn on top would be
- * an approximation. What it cannot do is reflow: a longer line runs on past
- * where the old one ended rather than pushing the paragraph down, because a PDF
- * has no paragraphs to push.
+ * The new text goes on the first object — which keeps the line's font, size and
+ * starting position — and the rest of the objects are removed. A page that
+ * positioned every character separately becomes one that positions the line,
+ * which is what retyping it means: the same words in the same place, laid out
+ * by the font's own advances rather than by the original's per-character
+ * nudges.
+ *
+ * The consequence is worth knowing and is the reason this is not silent about
+ * it elsewhere: a line rebuilt this way is spaced by its font rather than by
+ * whatever the producer chose, so a heavily kerned line will shift a little.
  */
-export async function editTextObject(
+export async function editTextRun(
   bytes: Uint8Array,
   pageIndex: number,
-  objectIndex: number,
+  objectIndexes: readonly number[],
   text: string
 ): Promise<Uint8Array> {
+  const [first, ...rest] = [...objectIndexes].sort((a, b) => a - b)
+  if (first === undefined) throw new Error('There is nothing there to retype')
+
   return writeWithPage(bytes, pageIndex, (lib, page) => {
     const rt = lib.pdfium
-    const object = lib.FPDFPage_GetObject(page, objectIndex)
+    const object = lib.FPDFPage_GetObject(page, first)
     if (!object) throw new Error('That object is no longer there')
     if (lib.FPDFPageObj_GetType(object) !== 1) throw new Error('That is not text')
 
@@ -315,6 +323,13 @@ export async function editTextObject(
       if (!lib.FPDFText_SetText(object, buffer)) throw new Error('The text could not be replaced')
     } finally {
       rt.wasmExports.free(buffer)
+    }
+
+    // Back to front: removing an object renumbers the ones after it.
+    for (const index of [...rest].sort((a, b) => b - a)) {
+      const extra = lib.FPDFPage_GetObject(page, index)
+      if (!extra) continue
+      if (lib.FPDFPage_RemoveObject(page, extra)) lib.FPDFPageObj_Destroy(extra)
     }
     if (!lib.FPDFPage_GenerateContent(page)) throw new Error('The page could not be redrawn')
   })

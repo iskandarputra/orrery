@@ -10,13 +10,14 @@ import {
 import {
   addTextObject,
   applyPagePlan,
-  editTextObject,
+  editTextRun,
   moveObject,
   pageCount,
   pageObjects,
   removePageObjects,
   resizeObject
 } from './pdfium'
+import { groupTargets } from '@core/pdf-edit'
 import { makePdf } from './__fixtures__/make-pdf'
 
 /**
@@ -120,13 +121,13 @@ describe('editing what is on a page', () => {
   })
 
   it('retypes a line in place, and the other engine reads the new words', async () => {
-    const out = await editTextObject(doc('the original line'), 0, 0, 'the replacement line')
+    const out = await editTextRun(doc('the original line'), 0, [0], 'the replacement line')
     expect((await readBack(out)).map((p) => p.text)).toEqual(['the replacement line'])
   })
 
   it('leaves everything else on the page alone', async () => {
     const source = new Uint8Array(makePdf({ pages: [['first line', 'second line', 'third line']] }))
-    const out = await editTextObject(source, 0, 1, 'CHANGED')
+    const out = await editTextRun(source, 0, [1], 'CHANGED')
     const text = (await readBack(out))[0]?.text ?? ''
     expect(text).toContain('first line')
     expect(text).toContain('CHANGED')
@@ -157,7 +158,7 @@ describe('editing what is on a page', () => {
 
   it('refuses to retype something that is not text', async () => {
     const source = new Uint8Array(makePdf({ pages: [['words']] }))
-    await expect(editTextObject(source, 0, 99, 'nope')).rejects.toThrow()
+    await expect(editTextRun(source, 0, [99], 'nope')).rejects.toThrow()
   })
 })
 
@@ -237,5 +238,69 @@ describe('counting pages', () => {
 
   it('refuses something that is not a PDF', async () => {
     await expect(pageCount(new Uint8Array(Buffer.from('nope')))).rejects.toThrow()
+  })
+})
+
+describe('editing a line made of many objects', () => {
+  /** A page that positions every character separately, as real PDFs do. */
+  const perCharacter = (word: string): Uint8Array =>
+    new Uint8Array(makePdf({ pages: [[...word].map((c) => c)] }))
+
+  it('retypes the whole line and leaves one object behind', async () => {
+    // The case real documents are full of: 4,662 single-glyph objects on a
+    // page, where editing one at a time means retyping single letters.
+    const source = perCharacter('ABC')
+    const objects = await pageObjects(source, 0)
+    expect(objects).toHaveLength(3)
+
+    const out = await editTextRun(
+      source,
+      0,
+      objects.map((o) => o.index),
+      'REPLACED'
+    )
+    const after = await pageObjects(out, 0)
+    expect(after).toHaveLength(1)
+    expect(after[0]?.text).toBe('REPLACED')
+    expect((await readBack(out))[0]?.text).toBe('REPLACED')
+  })
+
+  it('leaves the objects it was not given alone', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['keep this', 'A', 'B']] }))
+    const objects = await pageObjects(source, 0)
+    const run = objects.filter((o) => o.text === 'A' || o.text === 'B').map((o) => o.index)
+
+    const out = await editTextRun(source, 0, run, 'joined')
+    const text = (await readBack(out))[0]?.text ?? ''
+    expect(text).toContain('keep this')
+    expect(text).toContain('joined')
+  })
+
+  it('refuses an empty run rather than writing nothing', async () => {
+    await expect(editTextRun(perCharacter('AB'), 0, [], 'x')).rejects.toThrow()
+  })
+})
+
+describe('a document that positions every character', () => {
+  it('is what the fixture can now produce', async () => {
+    // The shape of a real PDF: one text object per glyph, so a line of ten
+    // letters is ten objects.
+    const source = new Uint8Array(makePdf({ pages: [['LETTER OF OFFER']], perCharacter: true }))
+    const objects = await pageObjects(source, 0)
+    expect(objects).toHaveLength('LETTER OF OFFER'.length)
+    // A glyph each — sometimes with a trailing space the engine infers from the
+    // gap to the next one, which is what it reports for real documents too.
+    expect(objects.every((o) => o.text.trim().length <= 1)).toBe(true)
+    expect(objects.some((o) => o.text.includes('LETTER'))).toBe(false)
+  })
+
+  it('groups back into one line, and retypes as one', async () => {
+    const source = new Uint8Array(makePdf({ pages: [['RENT']], perCharacter: true }))
+    const targets = groupTargets(await pageObjects(source, 0))
+    expect(targets).toHaveLength(1)
+    expect(targets[0]?.text).toBe('RENT')
+
+    const out = await editTextRun(source, 0, targets[0]!.indexes, 'LEASE')
+    expect((await readBack(out))[0]?.text).toBe('LEASE')
   })
 })

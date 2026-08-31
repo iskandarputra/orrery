@@ -336,12 +336,18 @@ export interface IpcInvokeContract {
       text: string
     }[]
   }
-  /** Retype one text object in place, keeping its font, size and position. */
+  /**
+   * Retype a line, keeping its font, size and position.
+   *
+   * `indexes` because a line is rarely one object: most PDFs position every
+   * character separately, so a line of twenty letters is twenty objects and
+   * retyping it means replacing the run.
+   */
   'pdf:editObject': {
     req: {
       path: string
       page: number
-      index: number
+      indexes: number[]
       text: string
       expectedMtimeMs: number | null
     }

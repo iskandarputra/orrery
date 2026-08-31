@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { missingGlyphs, objectAt, objectsWithin, type PageObject } from './pdf-edit'
+import { groupTargets, missingGlyphs, objectAt, objectsWithin, type PageObject } from './pdf-edit'
 
 const object = (
   index: number,
@@ -78,5 +78,81 @@ describe('objectsWithin', () => {
 
   it('does not count an object that merely shares an edge', () => {
     expect(objectsWithin([object(0, 60, 40, 80, 60)], rect)).toEqual([])
+  })
+})
+
+describe('groupTargets', () => {
+  /** A single-glyph text object, as real PDFs are full of. */
+  const glyph = (index: number, left: number, bottom: number, str: string): PageObject => ({
+    index,
+    kind: 'text',
+    bounds: { left, bottom, right: left + 6, top: bottom + 8 },
+    text: str
+  })
+
+  it('puts characters back into the line they belong to', () => {
+    // The case that made this necessary: a page holding 4,662 text objects,
+    // one glyph each, which as an editing surface is four thousand boxes and
+    // the ability to retype a single letter.
+    const targets = groupTargets([
+      glyph(0, 72, 700, 'R'),
+      glyph(1, 78, 700, 'E'),
+      glyph(2, 84, 700, 'N'),
+      glyph(3, 90, 700, 'T')
+    ])
+    expect(targets).toHaveLength(1)
+    expect(targets[0]?.text).toBe('RENT')
+    expect(targets[0]?.indexes).toEqual([0, 1, 2, 3])
+  })
+
+  it('does not double the spaces between words', () => {
+    // A glyph is reported with a trailing space when the gap to the next one is
+    // wide, and the space is usually an object of its own as well — joined
+    // naively, every space in the line comes out doubled, and retyping it would
+    // write those doubles into the document.
+    const targets = groupTargets([
+      glyph(0, 72, 700, 'A '),
+      glyph(1, 78, 700, ' '),
+      glyph(2, 84, 700, 'B')
+    ])
+    expect(targets[0]?.text).toBe('A B')
+  })
+
+  it('keeps separate lines separate', () => {
+    const targets = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 72, 680, 'b')])
+    expect(targets.map((t) => t.text)).toEqual(['a', 'b'])
+  })
+
+  it('does not join across a gap wide enough to be a column', () => {
+    // Two table cells on one line are two things to edit, and a run spanning
+    // both would be text that exists nowhere on the page.
+    const targets = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 300, 700, 'b')])
+    expect(targets).toHaveLength(2)
+  })
+
+  it('spans the whole line it gathered', () => {
+    const [target] = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 78, 700, 'b')])
+    expect(target!.bounds.left).toBe(72)
+    expect(target!.bounds.right).toBe(84)
+  })
+
+  it('leaves pictures as things of their own', () => {
+    const image: PageObject = {
+      index: 5,
+      kind: 'image',
+      bounds: { left: 0, bottom: 0, right: 100, top: 100 },
+      text: ''
+    }
+    const targets = groupTargets([image, glyph(0, 72, 700, 'a')])
+    expect(targets.find((t) => t.kind === 'image')?.indexes).toEqual([5])
+  })
+
+  it('reads down the page', () => {
+    const targets = groupTargets([glyph(0, 72, 100, 'low'), glyph(1, 72, 700, 'high')])
+    expect(targets.map((t) => t.text)).toEqual(['high', 'low'])
+  })
+
+  it('has nothing to say about an empty page', () => {
+    expect(groupTargets([])).toEqual([])
   })
 })

@@ -67,9 +67,16 @@ overwrites an existing one.
 ## Editing the page itself
 
 **Edit the page itself** (the slider icon) is the difference between writing on
-a document and changing it. Every object drawn on the page gets a box; click one
-to retype it in the document's own font at its own position, or to remove it
-from the file.
+a document and changing it. Every line on the page gets a box; click one to
+retype it in the document's own font at its own position, or to remove it from
+the file.
+
+A line, not a character. Most PDFs position every glyph separately for kerning —
+one page of a real letter of offer held 4,662 text objects, one letter each — so
+the characters are put back into lines before anything is shown. Retyping a line
+replaces the run: the words are laid out by the font's own advances rather than
+by the producer's per-character nudges, so a heavily kerned line may shift
+slightly as it is rewritten.
 
 Two limits are worth knowing before you rely on this, and the editor will tell
 you about the second one itself:
