@@ -106,7 +106,7 @@ export function PdfObjectLayer({
             width: drawn.clientWidth
           })
         }
-        setObjects(groupTargets(found))
+        setObjects(groupTargets(found, { width, height }))
         measure()
         observer = new ResizeObserver(measure)
         observer.observe(drawn)
@@ -410,7 +410,22 @@ export function PdfObjectLayer({
       )}
 
       {picked && (
-        <div className="pdfv__object-edit" style={box(picked)} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="pdfv__object-edit"
+          // Placed at the object's corner, sized by its own content. Stretched
+          // to the object it would be as large as the thing being edited — and
+          // this panel is opaque, so editing a full-page picture would paint
+          // the document out.
+          style={{
+            left: picked.bounds.left * geometry.scale,
+            top: (geometry.height - picked.bounds.top) * geometry.scale,
+            minWidth: Math.min(
+              360,
+              Math.max(120, (picked.bounds.right - picked.bounds.left) * geometry.scale)
+            )
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {picked.kind === 'text' ? (
             <input
               className="pdfv__object-input"

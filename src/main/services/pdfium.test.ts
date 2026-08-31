@@ -296,7 +296,7 @@ describe('a document that positions every character', () => {
 
   it('groups back into one line, and retypes as one', async () => {
     const source = new Uint8Array(makePdf({ pages: [['RENT']], perCharacter: true }))
-    const targets = groupTargets(await pageObjects(source, 0))
+    const targets = groupTargets(await pageObjects(source, 0), { width: 612, height: 792 })
     expect(targets).toHaveLength(1)
     expect(targets[0]?.text).toBe('RENT')
 

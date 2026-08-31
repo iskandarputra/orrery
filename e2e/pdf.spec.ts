@@ -769,3 +769,26 @@ test('another document can be added to the end of this one', async () => {
   await page.locator('.tree-row--file', { hasText: 'From.pdf' }).click()
   await expect(page.locator('.pdfv__count')).toHaveText('of 1', { timeout: 20_000 })
 })
+
+test('a shape bigger than the page is not offered as something to edit', async () => {
+  // What a real letter of offer contained: a path 2,250 points tall on a
+  // 792-point page — a clipping path rather than a thing on the page. Drawn as
+  // a box it covered the document, and picking it opened an edit panel across
+  // the whole page, which is what "the editor goes blank" turned out to be.
+  const clipPath = join(vault, 'Clip.pdf')
+  writeFileSync(clipPath, makePdf({ pages: [['a normal line of text']], hugePath: true }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Clip.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('a normal line', {
+    timeout: 20_000
+  })
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const boxes = page.locator('.pdfv__object')
+  await expect(boxes).toHaveCount(1, { timeout: 20_000 })
+
+  // And what is offered fits on the page.
+  const pageBox = (await page.locator('.pdfViewer .page').first().boundingBox())!
+  const box = (await boxes.first().boundingBox())!
+  expect(box.height).toBeLessThan(pageBox.height)
+})

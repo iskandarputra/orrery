@@ -82,6 +82,9 @@ describe('objectsWithin', () => {
 })
 
 describe('groupTargets', () => {
+  /** A letter-sized page, which is what the fixtures draw on. */
+  const PAGE = { width: 612, height: 792 }
+
   /** A single-glyph text object, as real PDFs are full of. */
   const glyph = (index: number, left: number, bottom: number, str: string): PageObject => ({
     index,
@@ -94,12 +97,15 @@ describe('groupTargets', () => {
     // The case that made this necessary: a page holding 4,662 text objects,
     // one glyph each, which as an editing surface is four thousand boxes and
     // the ability to retype a single letter.
-    const targets = groupTargets([
-      glyph(0, 72, 700, 'R'),
-      glyph(1, 78, 700, 'E'),
-      glyph(2, 84, 700, 'N'),
-      glyph(3, 90, 700, 'T')
-    ])
+    const targets = groupTargets(
+      [
+        glyph(0, 72, 700, 'R'),
+        glyph(1, 78, 700, 'E'),
+        glyph(2, 84, 700, 'N'),
+        glyph(3, 90, 700, 'T')
+      ],
+      PAGE
+    )
     expect(targets).toHaveLength(1)
     expect(targets[0]?.text).toBe('RENT')
     expect(targets[0]?.indexes).toEqual([0, 1, 2, 3])
@@ -110,28 +116,27 @@ describe('groupTargets', () => {
     // wide, and the space is usually an object of its own as well — joined
     // naively, every space in the line comes out doubled, and retyping it would
     // write those doubles into the document.
-    const targets = groupTargets([
-      glyph(0, 72, 700, 'A '),
-      glyph(1, 78, 700, ' '),
-      glyph(2, 84, 700, 'B')
-    ])
+    const targets = groupTargets(
+      [glyph(0, 72, 700, 'A '), glyph(1, 78, 700, ' '), glyph(2, 84, 700, 'B')],
+      PAGE
+    )
     expect(targets[0]?.text).toBe('A B')
   })
 
   it('keeps separate lines separate', () => {
-    const targets = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 72, 680, 'b')])
+    const targets = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 72, 680, 'b')], PAGE)
     expect(targets.map((t) => t.text)).toEqual(['a', 'b'])
   })
 
   it('does not join across a gap wide enough to be a column', () => {
     // Two table cells on one line are two things to edit, and a run spanning
     // both would be text that exists nowhere on the page.
-    const targets = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 300, 700, 'b')])
+    const targets = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 300, 700, 'b')], PAGE)
     expect(targets).toHaveLength(2)
   })
 
   it('spans the whole line it gathered', () => {
-    const [target] = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 78, 700, 'b')])
+    const [target] = groupTargets([glyph(0, 72, 700, 'a'), glyph(1, 78, 700, 'b')], PAGE)
     expect(target!.bounds.left).toBe(72)
     expect(target!.bounds.right).toBe(84)
   })
@@ -143,16 +148,47 @@ describe('groupTargets', () => {
       bounds: { left: 0, bottom: 0, right: 100, top: 100 },
       text: ''
     }
-    const targets = groupTargets([image, glyph(0, 72, 700, 'a')])
+    const targets = groupTargets([image, glyph(0, 72, 700, 'a')], PAGE)
     expect(targets.find((t) => t.kind === 'image')?.indexes).toEqual([5])
   })
 
   it('reads down the page', () => {
-    const targets = groupTargets([glyph(0, 72, 100, 'low'), glyph(1, 72, 700, 'high')])
+    const targets = groupTargets([glyph(0, 72, 100, 'low'), glyph(1, 72, 700, 'high')], PAGE)
     expect(targets.map((t) => t.text)).toEqual(['high', 'low'])
   })
 
   it('has nothing to say about an empty page', () => {
-    expect(groupTargets([])).toEqual([])
+    expect(groupTargets([], PAGE)).toEqual([])
+  })
+})
+
+describe('what is worth offering as a target', () => {
+  const PAGE = { width: 612, height: 792 }
+  const shape = (
+    kind: string,
+    left: number,
+    bottom: number,
+    right: number,
+    top: number
+  ): PageObject => ({ index: 0, kind, bounds: { left, bottom, right, top }, text: '' })
+
+  it('leaves out anything much bigger than the page', () => {
+    // A real letter of offer contained a path 2,250 points tall on a 792-point
+    // page — a clipping path, not a thing on the page. Drawn as a box it
+    // covered the document and everything on it.
+    expect(groupTargets([shape('path', 0, -700, 538, 1550)], PAGE)).toEqual([])
+  })
+
+  it('keeps a picture that fills the page, because removing a scan is a real thing to want', () => {
+    expect(groupTargets([shape('image', 0, 0, 612, 792)], PAGE)).toHaveLength(1)
+  })
+
+  it('leaves out a rule with no width, which nobody can click', () => {
+    expect(groupTargets([shape('path', 100, 100, 100, 300)], PAGE)).toEqual([])
+    expect(groupTargets([shape('path', 100, 100, 300, 100)], PAGE)).toEqual([])
+  })
+
+  it('keeps an ordinary shape', () => {
+    expect(groupTargets([shape('path', 100, 100, 300, 200)], PAGE)).toHaveLength(1)
   })
 })

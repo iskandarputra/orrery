@@ -26,6 +26,14 @@ export interface PdfSpec {
    */
   perCharacter?: boolean
   /**
+   * Draw a path far larger than the page, as real documents do.
+   *
+   * A clipping path or a rule drawn with a huge extent: it is in the content
+   * stream, it has bounds three times the page's height, and it is not a thing
+   * anybody means to point at.
+   */
+  hugePath?: boolean
+  /**
    * A single-line text field on page 1, for testing form filling.
    *
    * The smallest real AcroForm there is: a catalogue that declares one, a
@@ -37,7 +45,13 @@ export interface PdfSpec {
 /** Escape the characters a PDF literal string cannot carry raw. */
 const literal = (text: string): string => `(${text.replace(/([\\()])/g, '\\$1')})`
 
-export function makePdf({ pages, outline = [], textField, perCharacter }: PdfSpec): Buffer {
+export function makePdf({
+  pages,
+  outline = [],
+  textField,
+  perCharacter,
+  hugePath
+}: PdfSpec): Buffer {
   const chunks: string[] = []
   const offsets: number[] = []
   let length = 0
@@ -97,7 +111,11 @@ export function makePdf({ pages, outline = [], textField, perCharacter }: PdfSpe
           ...lines.map((line, i) => (i === 0 ? `${literal(line)} Tj` : `T* ${literal(line)} Tj`)),
           'ET'
         ]
-    const stream = drawn.join('\n')
+    // A path running far past the top and bottom of the page, as a producer's
+    // clipping rectangle does.
+    const stream = [...(hugePath && index === 0 ? ['0 -700 538 2250 re S'] : []), ...drawn].join(
+      '\n'
+    )
 
     object(
       pageNumber(index),

@@ -132,12 +132,39 @@ const SAME_LINE = 2
  */
 const GAP_RATIO = 0.9
 
-export function groupTargets(objects: readonly PageObject[]): EditTarget[] {
+/**
+ * Whether an object is something a person could point at and mean.
+ *
+ * Two kinds are dropped. A box with no width or no height cannot be clicked —
+ * documents are full of hairline rules, and a zero-width sliver is not an
+ * editing target. And anything substantially larger than the page is a
+ * background or a clipping path, not a thing on the page: one real letter of
+ * offer contained a path 2,250 points tall on a 792-point page, and drawing a
+ * box for it covered the document and everything on it.
+ *
+ * A full-page image is kept, because removing the scan *is* something people
+ * mean; only what spills past the page is dropped.
+ */
+function worthShowing(
+  bounds: PageObject['bounds'],
+  page: { width: number; height: number }
+): boolean {
+  const width = bounds.right - bounds.left
+  const height = bounds.top - bounds.bottom
+  if (width < 1 || height < 1) return false
+  return width <= page.width * 1.05 && height <= page.height * 1.05
+}
+
+export function groupTargets(
+  objects: readonly PageObject[],
+  page: { width: number; height: number }
+): EditTarget[] {
   const targets: EditTarget[] = []
   const lines: { bottom: number; items: PageObject[] }[] = []
 
   for (const object of objects) {
     if (object.kind !== 'text') {
+      if (!worthShowing(object.bounds, page)) continue
       targets.push({
         indexes: [object.index],
         kind: object.kind,
@@ -191,5 +218,7 @@ export function groupTargets(objects: readonly PageObject[]): EditTarget[] {
   }
 
   // Down the page, then across it: the order somebody reading would meet them.
-  return targets.sort((a, b) => b.bounds.top - a.bounds.top || a.bounds.left - b.bounds.left)
+  return targets
+    .filter((target) => worthShowing(target.bounds, page))
+    .sort((a, b) => b.bounds.top - a.bounds.top || a.bounds.left - b.bounds.left)
 }
