@@ -59,7 +59,7 @@ export function SidebarRail(): React.JSX.Element {
       {items.map((item) => (
         <button
           key={item.id}
-          className={`sidebar-rail__btn rail-tip${item.active ? ' sidebar-rail__btn--active' : ''}`}
+          className={`sidebar-rail__btn${item.active ? ' sidebar-rail__btn--active' : ''}`}
           aria-label={item.label}
           aria-pressed={item.active}
           // Drawn by the element rather than by the operating system: a native

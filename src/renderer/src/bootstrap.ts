@@ -10,6 +10,7 @@ import { builtinPlugins } from './plugins/builtins'
 import { activatePlugins } from './plugins/registry'
 import { surfaceCreateCommands } from './plugins/surface-commands'
 import { invoke, on } from './services/client'
+import { startTooltips } from './services/tooltips'
 import { useStore } from './state/store'
 
 /**
@@ -58,6 +59,11 @@ export function bootstrap(): CommandRegistry {
       }
     }
   })
+
+  // Every labelled control gets a tooltip that appears when you look at it
+  // rather than a second later; the operating system's own delay cannot be
+  // shortened from a page.
+  startTooltips()
 
   on('menu:command', ({ commandId }) => registry.execute(commandId))
   on('window:closeRequested', () => void useStore.getState().handleWindowCloseRequest())
