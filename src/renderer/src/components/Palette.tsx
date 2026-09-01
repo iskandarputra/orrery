@@ -11,12 +11,21 @@ import { getRegistry } from '@/bootstrap'
 import { useStore } from '@/state/store'
 import type { PaletteMode } from '@/state/ui'
 import { Icon, type IconName } from './Icon'
+import { FileTypeIcon } from './FileIcon'
 
 interface Entry {
   id: string
   label: string
   detail: string
   icon: IconName
+  /**
+   * A file this entry stands for, drawn with its own language's mark.
+   *
+   * Set instead of relying on `icon` alone, so a file listed here looks like
+   * the same file in the tree rather than like a command that happens to be
+   * about one.
+   */
+  fileName?: string
   badge?: string
   run(): void
   /** What Ctrl+Enter does, where that means something. */
@@ -127,6 +136,7 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           label: stem(path),
           detail: path,
           icon: fileIcon(basename(path)).shape,
+          fileName: basename(path),
           run: () => void openPaths([path]),
           runToSide: () => void useStore.getState().openToSide(path)
         })
@@ -177,6 +187,7 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           label: n.stem,
           detail: n.path,
           icon: fileIcon(n.stem).shape,
+          fileName: basename(n.path),
           run: () => void openPaths([n.path]),
           runToSide: () => void useStore.getState().openToSide(n.path)
         })
@@ -390,7 +401,15 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
                 onMouseEnter={() => setSelected(i)}
                 onClick={() => pick(entry)}
               >
-                <Icon name={entry.icon} size={15} className="palette__item-icon" />
+                {entry.fileName ? (
+                  <FileTypeIcon
+                    fileName={entry.fileName}
+                    size={15}
+                    className="palette__item-icon"
+                  />
+                ) : (
+                  <Icon name={entry.icon} size={15} className="palette__item-icon" />
+                )}
                 <span className="palette__label">{entry.label}</span>
                 <span className="palette__detail">{entry.detail}</span>
                 {entry.badge && <kbd className="palette__badge">{entry.badge}</kbd>}

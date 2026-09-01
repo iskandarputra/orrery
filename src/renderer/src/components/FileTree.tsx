@@ -1,12 +1,12 @@
 import { memo, useMemo } from 'react'
 import type { FileNode } from '@shared/types'
-import { fileIcon } from '@core/file-icons'
 import { isMarkdownFile } from '@core/paths'
 import { useStore } from '@/state/store'
 import { openContextMenu } from './context-menu/context-menu'
 import { Icon } from './Icon'
 import { buildTreeMenu } from './menus'
 import { TreeEditInput } from './TreeEditInput'
+import { FileTypeIcon, FolderTypeIcon } from './FileIcon'
 
 /**
  * One indent step per level, applied by the nested `.tree-children` box.
@@ -96,8 +96,8 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
               className={`tree-chevron${expanded ? ' tree-chevron--open' : ''}`}
             />
           </span>
-          <Icon
-            name={expanded ? 'folder-open' : 'folder'}
+          <FolderTypeIcon
+            folderName={node.name}
             size={15}
             className="tree-icon tree-icon--folder"
           />
@@ -128,7 +128,6 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
   }
 
   const isMd = isMarkdownFile(node.path)
-  const icon = fileIcon(node.name)
 
   return (
     <div
@@ -140,13 +139,10 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
       onClick={() => void openPaths([node.path])}
       onContextMenu={onMenu}
     >
-      <Icon
-        name={icon.shape}
+      <FileTypeIcon
+        fileName={node.name}
         size={14}
         className={`tree-icon${isActive ? ' tree-icon--active' : ''}`}
-        // The language's own colour. Left unset for prose and unknown files so
-        // they take the tree's colour and the coloured ones stand out.
-        {...(icon.colour ? { style: { color: icon.colour } } : {})}
       />
       <span className="tree-label">{node.name}</span>
       <div className="tree-row__actions" onClick={(e) => e.stopPropagation()}>

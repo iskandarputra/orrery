@@ -1,8 +1,8 @@
 import { basename, dirname } from '@core/paths'
-import { fileIcon } from '@core/file-icons'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
 import { EmptyState } from './PanelBits'
+import { FileTypeIcon } from './FileIcon'
 
 /**
  * Files pinned on purpose.
@@ -33,15 +33,10 @@ export function BookmarksBody(): React.JSX.Element {
         <span className="rpanel-count__badge">{bookmarks.length}</span> pinned
       </div>
       {bookmarks.map((path) => {
-        const icon = fileIcon(basename(path))
         return (
           <div className="bookmarks__row" key={path}>
             <button className="bookmarks__open" title={path} onClick={() => void openPaths([path])}>
-              <Icon
-                name={icon.shape}
-                size={13}
-                {...(icon.colour ? { style: { color: icon.colour } } : {})}
-              />
+              <FileTypeIcon fileName={basename(path)} size={13} />
               <span className="bookmarks__name">{basename(path)}</span>
               <span className="bookmarks__dir">{dirname(shown(path))}</span>
             </button>

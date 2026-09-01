@@ -1,8 +1,8 @@
-import { fileIcon } from '@core/file-icons'
 import { useStore } from '@/state/store'
 import { openContextMenu } from './context-menu/context-menu'
 import { Icon } from './Icon'
 import { buildTabMenu } from './menus'
+import { FileTypeIcon } from './FileIcon'
 
 export function TabBar(): React.JSX.Element | null {
   const tabOrder = useStore((s) => s.tabOrder)
@@ -41,14 +41,10 @@ export function TabBar(): React.JSX.Element | null {
                 openContextMenu(e, buildTabMenu(id))
               }}
             >
-              <Icon
-                name={fileIcon(buffer.fileName).shape}
+              <FileTypeIcon
+                fileName={buffer.fileName}
                 size={13}
                 className={`tab__icon${isActive ? ' tab__icon--active' : ''}`}
-                {...(() => {
-                  const colour = fileIcon(buffer.fileName).colour
-                  return colour ? { style: { color: colour } } : {}
-                })()}
               />
               <span className="tab__label">{buffer.fileName}</span>
               <button

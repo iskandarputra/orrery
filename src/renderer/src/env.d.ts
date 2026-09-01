@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 declare module '*.css'
 
 // Bundled font packages are imported for their side effect (injecting @font-face).

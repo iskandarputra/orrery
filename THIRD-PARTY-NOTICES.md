@@ -39,6 +39,28 @@ otherwise fetches them from a CDN that a desktop application cannot reach.
 The CJK face (Xiaolai) is deliberately not shipped: it is 13 MB of the 14 MB and
 is needed only for CJK text in a drawing, which falls back to a system font.
 
+## File-type icons
+
+The marks the file tree draws for each language, folder and file type come from
+the [Material Icon Theme](https://github.com/PKief/vscode-material-icon-theme),
+pinned to v5.38.1. Orrery drew its own before: nine stroke glyphs and a colour
+per language, which meant Python, C, C++, Rust and TypeScript were the same
+picture in five shades — in a tree of siblings, a list of identical files.
+
+Only the icons the app actually names are vendored — 76 of the 904 upstream,
+about 34 kB — by [`scripts/sync-file-icons.mjs`](scripts/sync-file-icons.mjs).
+They are committed to the repository, so a build never reaches the network.
+
+| Set                 | Licence | Copyright                |
+| ------------------- | ------- | ------------------------ |
+| Material Icon Theme | MIT     | 2025 Material Extensions |
+
+The full text is in [`licenses/MIT-material-icon-theme.txt`](licenses/MIT-material-icon-theme.txt)
+and beside the icons themselves in `src/renderer/src/assets/file-icons/LICENSE`.
+
+The logos within remain the trademarks of their respective owners; they are used
+here to identify a file's type, which is what they are for.
+
 ## Notable libraries
 
 Full terms for every dependency are in each package under `node_modules`.

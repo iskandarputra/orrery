@@ -162,24 +162,25 @@ test('the view-mode switch is offered only where it does something', async () =>
   await expect(page.locator('.header-viewmode')).toBeVisible()
 })
 
-test('the file tree gives each language its own icon and colour', async () => {
-  // Orrery draws its own set: real language logos are trademarks with their own
-  // terms, and shipping forty of them would undo the licensing work.
+test('the file tree draws each language as its own mark', async () => {
+  // The tree used to draw nine stroke glyphs tinted per language, so every
+  // curly-brace language was the same picture in a different shade. Each type
+  // now carries its own mark, and the mark brings its own colour.
   const icons = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.tree-row--file')).map((row) => {
       const label = row.textContent?.trim() ?? ''
-      const svg = row.querySelector('svg') as SVGElement | null
-      return { label, colour: svg ? getComputedStyle(svg).color : '' }
+      const svg = row.querySelector('svg')
+      return { label, drawn: svg?.innerHTML ?? '' }
     })
   )
   const ts = icons.find((i) => i.label.startsWith('script.ts'))
   const json = icons.find((i) => i.label.startsWith('data.json'))
   const note = icons.find((i) => i.label.startsWith('Note.md'))
 
-  // TypeScript blue, JSON yellow, and prose left in the tree's own colour so
-  // the coloured ones stand out.
-  expect(ts?.colour).toBe('rgb(49, 120, 198)')
-  expect(json?.colour).toBe('rgb(203, 203, 65)')
-  expect(note?.colour).not.toBe(ts?.colour)
-  expect(new Set([ts?.colour, json?.colour]).size).toBe(2)
+  for (const found of [ts, json, note]) expect(found?.drawn).not.toBe('')
+  // Three types, three different drawings.
+  expect(new Set([ts?.drawn, json?.drawn, note?.drawn]).size).toBe(3)
+  // Each in its own colour, carried in the mark rather than inherited.
+  expect(ts?.drawn).toContain('fill=')
+  expect(json?.drawn).toContain('fill=')
 })

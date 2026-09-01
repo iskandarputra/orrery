@@ -183,3 +183,62 @@ test('a file created on disk appears in the folder that is open', async () => {
 
   rmSync(fresh, { recursive: true, force: true })
 })
+
+test('each kind of file is drawn as its own language, not one shape in many shades', async () => {
+  // Every one of these used to be the same `braces` glyph in a different
+  // colour, which in a tree of siblings reads as a list of identical files.
+  // Its own vault: the tests above leave the app looking at one of theirs.
+  const fresh = mkdtempSync(join(tmpdir(), 'orrery-icons-'))
+  writeFileSync(join(fresh, 'Start.md'), '# Start\n')
+  for (const name of ['train.py', 'main.c', 'engine.cpp', 'index.ts', 'deploy.sh', 'build.log']) {
+    writeFileSync(join(fresh, name), '# x\n')
+  }
+  writeFileSync(join(fresh, 'Dockerfile'), 'FROM scratch\n')
+  // Folders worth telling apart, and one that is not.
+  for (const dir of ['src', 'docs', 'Reading list'])
+    mkdirSync(join(fresh, dir), { recursive: true })
+
+  await openVault(page, fresh, 'Start.md')
+  await expect(page.locator('.tree-row--file', { hasText: 'train.py' })).toBeVisible({
+    timeout: 20_000
+  })
+
+  /** What is actually drawn in a row's icon, as markup. */
+  const mark = async (fileName: string): Promise<string> =>
+    page.locator('.tree-row--file', { hasText: fileName }).first().locator('.tree-icon').innerHTML()
+
+  const names = [
+    'train.py',
+    'main.c',
+    'engine.cpp',
+    'index.ts',
+    'deploy.sh',
+    'build.log',
+    'Dockerfile'
+  ]
+  const marks = await Promise.all(names.map(mark))
+
+  // Every one drew something, and no two of them drew the same thing.
+  for (const [i, drawn] of marks.entries()) expect(drawn, names[i]).not.toBe('')
+  expect(new Set(marks).size).toBe(names.length)
+
+  // And the marks carry their own colour rather than the tree's, which is what
+  // makes them readable at a glance.
+  expect(marks.join('')).toContain('fill=')
+
+  const folderMark = async (name: string): Promise<string> =>
+    page
+      .locator('.tree-row--dir', { hasText: name })
+      .first()
+      .locator('.tree-icon--folder')
+      .innerHTML()
+
+  const [src, docs, plain] = await Promise.all(['src', 'docs', 'Reading list'].map(folderMark))
+  expect(src).not.toBe(docs)
+  expect(src).not.toBe(plain)
+  // A folder with no special meaning keeps the plain mark — one on every row
+  // would be the same as one on none.
+  expect(plain).not.toBe('')
+
+  rmSync(fresh, { recursive: true, force: true })
+})
