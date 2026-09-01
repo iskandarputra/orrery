@@ -1,0 +1,7 @@
+# Revisions to skip when reading blame: commits that changed formatting only,
+# never behaviour. GitHub honours this file automatically. Locally:
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: bring the whole tree under the formatter
+424ba2dd78477402b8c9f75521036384343f8dae
