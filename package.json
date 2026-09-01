@@ -5,6 +5,9 @@
   "main": "./out/main/index.js",
   "author": "Iskandar Putra",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "private": true,
   "scripts": {
     "build": "npm run typecheck && electron-vite build",
@@ -15,7 +18,8 @@
     "e2e": "npm run build && bash scripts/playwright.sh",
     "e2e:run": "bash scripts/playwright.sh",
     "format": "prettier --write .",
-    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
     "package:linux": "npm run build && electron-builder --linux",
     "package:mac": "npm run build && electron-builder --mac",
     "package:win": "npm run build && electron-builder --win",

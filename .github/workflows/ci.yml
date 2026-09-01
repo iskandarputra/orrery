@@ -27,6 +27,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       # --maxWorkers=1: list-layout.test.ts is order-dependent under parallel
@@ -85,14 +86,19 @@ jobs:
           sudo apt-get install -y xvfb libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils
       - run: npm run build
       - run: npm run build:native
+      # Through the wrapper, not `xvfb-run npx playwright test`. The wrapper is
+      # what marks a run as wrapped, and `e2e/global-setup.ts` refuses to start
+      # an unwrapped run that has a display — which is every run here, because
+      # xvfb provides one. Calling Playwright directly failed before the first
+      # test executed.
       - name: e2e with the sidecar off
-        run: xvfb-run -a npx playwright test --reporter=line
+        run: npm run e2e:run -- --reporter=line
       # Run the whole suite again against the Rust path. Search is the only
       # behaviour that changes, but the point is that nothing else does.
       - name: e2e with the sidecar on
         env:
           ORRERY_RUST_SEARCH: '1'
-        run: xvfb-run -a npx playwright test --reporter=line
+        run: npm run e2e:run -- --reporter=line
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

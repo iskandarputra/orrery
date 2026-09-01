@@ -130,6 +130,7 @@ cmd_build()   { npm run build; }
 cmd_native()  { bash scripts/build-native.sh; }
 
 cmd_check() {
+  step "format";    npm run format:check
   step "lint";      npm run lint
   step "typecheck"; npm run typecheck
   step "unit";      npx vitest run --maxWorkers=1

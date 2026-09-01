@@ -177,7 +177,10 @@ export function PdfObjectLayer({
       live = false
       observer?.disconnect()
     }
-  }, [doc, path, page, rotation])
+    // `pickAdded` is in here to satisfy the exhaustive-deps rule rather than
+    // because it moves: the layer is keyed by page, rotation and reload, so it
+    // is remounted rather than updated whenever that answer could change.
+  }, [doc, path, page, rotation, pickAdded])
 
   if (!geometry || objects.length === 0) return null
 
