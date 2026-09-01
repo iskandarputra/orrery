@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, test, expect } from '@playwright/test'
@@ -30,6 +30,9 @@ test('the packaged app reads, recognises and rearranges a PDF', async () => {
     env: launchEnv()
   })
   const page = await app.firstWindow()
+  // A window the toolbar fits in. Left at the default the reader's buttons
+  // overlap, and the one being clicked is the one underneath.
+  await page.setViewportSize({ width: 1300, height: 900 })
   await page.waitForSelector('.app', { timeout: 30_000 })
   await page.evaluate(async (v) => {
     await window.orrery.invoke('settings:set', {
@@ -61,8 +64,19 @@ test('the packaged app reads, recognises and rearranges a PDF', async () => {
   await page.locator('button[aria-label="Remove pages"]').click()
   await page.locator('.pdfv__page-pending button', { hasText: 'Apply' }).click()
   await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 60_000 })
+
+  // Applying changes the document, not the file, so this is what proves the
+  // packaged build can write one — the same PDFium and the same save path,
+  // from inside an asar where a missing binary is the failure mode.
+  const before = statSync(paper).mtimeMs
+  await page.locator('button[aria-label="Save this document"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0, { timeout: 60_000 })
+  expect(statSync(paper).mtimeMs).not.toBe(before)
   expect(readFileSync(paper).length).toBeGreaterThan(0)
 
+  // Nothing is left unsaved, so quitting has nothing to ask about. Closing with
+  // a dirty tab would raise the save prompt and hang, because nothing in a
+  // headless run can answer it.
   await app.close()
   rmSync(vault, { recursive: true, force: true })
   rmSync(userData, { recursive: true, force: true })

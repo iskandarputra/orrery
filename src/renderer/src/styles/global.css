@@ -6702,11 +6702,22 @@ kbd {
 .pdfv__bar {
   display: flex;
   align-items: center;
+  /* Onto a second row rather than on top of each other. A flex row that cannot
+     fit shrinks its children, and a button squeezed narrower than the label it
+     carries does not clip that label — it spills it across its neighbour. The
+     "Recognise text" button did exactly that to Save, which then took the
+     click. Wrapping keeps every control its own size and its own space. */
+  flex-wrap: wrap;
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
   border-bottom: 1px solid var(--or-border);
   font-size: 11.5px;
   color: var(--or-fg-muted);
+}
+
+/* The spacer is the only thing here that gives ground. */
+.pdfv__bar > *:not(.pdfv__spacer) {
+  flex-shrink: 0;
 }
 
 .pdfv__spacer {
