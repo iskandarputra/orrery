@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -22,7 +17,10 @@ async function runCommand(commandId: string): Promise<void> {
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-tags-'))
   writeFileSync(join(vault, 'Alpha.md'), '# Alpha\n\nAbout #rust and #project work.\n')
-  writeFileSync(join(vault, 'Beta.md'), '# Beta\n\nMore #rust, plus a fence:\n\n```\n#include <stdio.h>\n```\n')
+  writeFileSync(
+    join(vault, 'Beta.md'),
+    '# Beta\n\nMore #rust, plus a fence:\n\n```\n#include <stdio.h>\n```\n'
+  )
   writeFileSync(join(vault, 'Gamma.md'), '# Gamma\n\nNothing tagged here.\n')
 
   app = await launchApp()

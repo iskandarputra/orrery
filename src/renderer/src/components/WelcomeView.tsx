@@ -70,7 +70,9 @@ export function WelcomeView(): React.JSX.Element {
         <Logo size={56} />
         <div className="welcome__title">
           <h1 className="welcome__wordmark">orrery</h1>
-          <p className="welcome__tagline">High-performance, live-preview markdown editor &amp; knowledge base</p>
+          <p className="welcome__tagline">
+            High-performance, live-preview markdown editor &amp; knowledge base
+          </p>
         </div>
       </div>
 
@@ -147,10 +149,7 @@ export function WelcomeView(): React.JSX.Element {
 
       {/* Markdown Cheat Sheet Drawer / Toggle */}
       <div className="welcome__cheatsheet-section">
-        <button
-          className="welcome__cheatsheet-toggle"
-          onClick={() => setShowCheatSheet((s) => !s)}
-        >
+        <button className="welcome__cheatsheet-toggle" onClick={() => setShowCheatSheet((s) => !s)}>
           <Icon name="markdown" size={15} />
           <span>Markdown Syntax Guide</span>
           <Icon name={showCheatSheet ? 'chevron-up' : 'chevron-down'} size={13} />

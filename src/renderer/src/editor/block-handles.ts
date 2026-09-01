@@ -27,9 +27,10 @@ function dropIndexAt(view: EditorView, clientY: number): number | null {
   const pos = view.posAtCoords({ x: rect.left + 8, y }) ?? view.state.doc.length
 
   const index = blockIndexAt(blocks, pos)
-  if (index === -1) return blocks.findIndex((block) => block.from > pos) === -1
-    ? blocks.length
-    : blocks.findIndex((block) => block.from > pos)
+  if (index === -1)
+    return blocks.findIndex((block) => block.from > pos) === -1
+      ? blocks.length
+      : blocks.findIndex((block) => block.from > pos)
 
   // Past the middle of a block means "after it", which is "before the next".
   const block = blocks[index]!
@@ -71,10 +72,7 @@ export function blockHandles(): Extension {
             const target = dropIndexAt(view, clientY)
             if (target === null) return null
             const blocksNow = topLevelBlocks(view.state)
-            const pos =
-              target >= blocksNow.length
-                ? view.state.doc.length
-                : blocksNow[target]!.from
+            const pos = target >= blocksNow.length ? view.state.doc.length : blocksNow[target]!.from
             const coords = view.coordsAtPos(pos)
             if (coords) {
               const rect = view.dom.getBoundingClientRect()

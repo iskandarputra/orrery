@@ -23,11 +23,7 @@ export function Toast(): React.JSX.Element | null {
           <Icon name={iconName} size={15} />
         </span>
         <span className="toast__message">{toast.message}</span>
-        <button
-          className="toast__close"
-          aria-label="Dismiss notification"
-          onClick={clearToast}
-        >
+        <button className="toast__close" aria-label="Dismiss notification" onClick={clearToast}>
           <Icon name="x" size={13} />
         </button>
       </div>

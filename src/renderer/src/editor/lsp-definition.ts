@@ -33,9 +33,7 @@ export async function goToDefinition(view: EditorView): Promise<boolean> {
 
   const store = appState()
   await store.openPaths([target.path])
-  const bufferId = Object.values(appState().buffers).find(
-    (b) => b.filePath === target.path
-  )?.id
+  const bufferId = Object.values(appState().buffers).find((b) => b.filePath === target.path)?.id
   if (!bufferId) return false
   // The pane mounts its view after the store updates, so the jump waits a frame.
   await new Promise((resolve) => requestAnimationFrame(resolve))

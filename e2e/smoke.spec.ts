@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -190,11 +185,11 @@ test('focus mode dims inactive lines', async () => {
 test('reflow toggle applies and syncs across file switches', async () => {
   // Deterministic start (the app shares real userData settings): force reflow on.
   await page.evaluate(() =>
-    window.orrery
-      .invoke('settings:get', undefined)
-      .then((s) =>
-        window.orrery.invoke('settings:set', { markdown: { ...s.markdown, reflowParagraphs: true } })
-      )
+    window.orrery.invoke('settings:get', undefined).then((s) =>
+      window.orrery.invoke('settings:set', {
+        markdown: { ...s.markdown, reflowParagraphs: true }
+      })
+    )
   )
   await page.reload()
   await page.waitForSelector('.sidebar__title')

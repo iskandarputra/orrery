@@ -22,7 +22,9 @@ function lineStyle(state: EditorState, result: BuiltDecorations, lineNo: number)
   const line = state.doc.line(lineNo)
   return result.all
     .filter((r) => r.from === line.from && r.to === line.from)
-    .map((r) => (r.value.spec as { attributes?: Record<string, string> }).attributes?.['style'] ?? '')
+    .map(
+      (r) => (r.value.spec as { attributes?: Record<string, string> }).attributes?.['style'] ?? ''
+    )
     .join(' ')
 }
 

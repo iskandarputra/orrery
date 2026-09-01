@@ -61,10 +61,12 @@ describe('OpenAI-compatible provider', () => {
   it('tolerates a base URL with a trailing slash or an explicit /v1', async () => {
     const { calls } = stubFetch({ choices: [{ message: { content: 'ok' } }] })
 
-    await new AiService(() => settingsWith({ ...compatible, compatUrl: 'https://api.deepseek.com/' }))
-      .chat('s', [{ role: 'user', content: 'q' }])
-    await new AiService(() => settingsWith({ ...compatible, compatUrl: 'https://api.openai.com/v1' }))
-      .chat('s', [{ role: 'user', content: 'q' }])
+    await new AiService(() =>
+      settingsWith({ ...compatible, compatUrl: 'https://api.deepseek.com/' })
+    ).chat('s', [{ role: 'user', content: 'q' }])
+    await new AiService(() =>
+      settingsWith({ ...compatible, compatUrl: 'https://api.openai.com/v1' })
+    ).chat('s', [{ role: 'user', content: 'q' }])
 
     expect(calls[0]!.url).toBe('https://api.deepseek.com/chat/completions')
     expect(calls[1]!.url).toBe('https://api.openai.com/v1/chat/completions')

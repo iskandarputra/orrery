@@ -86,9 +86,7 @@ export class HistoryService {
       now
     })
     await Promise.all(
-      stale.map((snapshot) =>
-        fs.unlink(path.join(dir, `${snapshot.id}.md`)).catch(() => undefined)
-      )
+      stale.map((snapshot) => fs.unlink(path.join(dir, `${snapshot.id}.md`)).catch(() => undefined))
     )
     return true
   }

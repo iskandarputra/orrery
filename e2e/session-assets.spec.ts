@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, rmSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -69,7 +64,9 @@ test('a pasted image is filed into the vault and embedded', async () => {
     const file = new File([bytes], 'image.png', { type: 'image/png' })
     const data = new DataTransfer()
     data.items.add(file)
-    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    el.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+    )
   }, PNG_BASE64)
 
   // The caret lands after the insert, and live preview shows source on the

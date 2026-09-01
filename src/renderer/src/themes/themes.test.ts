@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { contrast } from './color'
-import {
-  generateThemeCss,
-  getTheme,
-  highContrastCodeTokens,
-  resolveTheme,
-  THEMES
-} from './themes'
+import { generateThemeCss, getTheme, highContrastCodeTokens, resolveTheme, THEMES } from './themes'
 
 const HEX = /^#[0-9a-f]{6}$/i
 

@@ -207,7 +207,11 @@ function relativeTo(root: string, path: string): string {
  *
  * Placement is by index, so seeding the same notes twice gives the same board.
  */
-export function seedCanvasFromNotes(graph: LinkGraph, ids: readonly string[], root = ''): JsonCanvas {
+export function seedCanvasFromNotes(
+  graph: LinkGraph,
+  ids: readonly string[],
+  root = ''
+): JsonCanvas {
   const wanted = ids.filter((id) => graph.nodes.some((n) => n.id === id))
   const columns = Math.max(1, Math.ceil(Math.sqrt(wanted.length)))
   const idOf = new Map<string, string>()
@@ -232,7 +236,13 @@ export function seedCanvasFromNotes(graph: LinkGraph, ids: readonly string[], ro
     const to = idOf.get(edge.to)
     // Links to notes left off the board would dangle.
     if (!from || !to || from === to) continue
-    edges.push({ id: `e${edges.length + 1}`, fromNode: from, fromSide: 'right', toNode: to, toSide: 'left' })
+    edges.push({
+      id: `e${edges.length + 1}`,
+      fromNode: from,
+      fromSide: 'right',
+      toNode: to,
+      toSide: 'left'
+    })
   }
 
   return { nodes, edges }
@@ -261,7 +271,10 @@ export function sideAnchor(node: CanvasNode, side: CanvasSide): Point {
  * The sides two cards should connect through when the file doesn't say: the
  * pair that faces the other card, so a link never loops around a box.
  */
-export function chooseSides(from: CanvasNode, to: CanvasNode): { from: CanvasSide; to: CanvasSide } {
+export function chooseSides(
+  from: CanvasNode,
+  to: CanvasNode
+): { from: CanvasSide; to: CanvasSide } {
   const dx = to.x + to.width / 2 - (from.x + from.width / 2)
   const dy = to.y + to.height / 2 - (from.y + from.height / 2)
   if (Math.abs(dx) >= Math.abs(dy)) {

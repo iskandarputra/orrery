@@ -172,7 +172,7 @@ function computeBetweenness(neighbors: number[][], size: number): number[] {
   // back to full size and normalise to 0–1 against the theoretical maximum.
   const sampleScale = size / sources.length
   const pairs = ((size - 1) * (size - 2)) / 2
-  for (let i = 0; i < size; i++) score[i] = (score[i]! / 2) * sampleScale / pairs
+  for (let i = 0; i < size; i++) score[i] = ((score[i]! / 2) * sampleScale) / pairs
   return score
 }
 
@@ -243,11 +243,7 @@ function computeCommunities(neighbors: number[][], size: number): number[] {
   })
 }
 
-function computeStats(
-  nodes: AnalyzedGraphNode[],
-  component: number[],
-  now: number
-): VaultStats {
+function computeStats(nodes: AnalyzedGraphNode[], component: number[], now: number): VaultStats {
   const real = nodes.filter((n) => n.exists)
   const links = nodes.reduce((sum, n) => sum + n.outDegree, 0)
 
@@ -289,16 +285,10 @@ function computeStats(
 
 /** Score desc, then id — so equal scores don't reshuffle between runs. */
 function rank(candidates: RankedNote[], top: number): RankedNote[] {
-  return candidates
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
-    .slice(0, top)
+  return candidates.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id)).slice(0, top)
 }
 
-function computeInsights(
-  nodes: AnalyzedGraphNode[],
-  into: number[][],
-  top: number
-): GraphInsights {
+function computeInsights(nodes: AnalyzedGraphNode[], into: number[][], top: number): GraphInsights {
   const orphans: RankedNote[] = []
   const deadEnds: RankedNote[] = []
   const brokenLinks: BrokenLink[] = []
@@ -329,7 +319,9 @@ function computeInsights(
   return {
     orphans: rank(orphans, top),
     deadEnds: rank(deadEnds, top),
-    brokenLinks: brokenLinks.sort((a, b) => b.from.length - a.from.length || a.id.localeCompare(b.id)).slice(0, top),
+    brokenLinks: brokenLinks
+      .sort((a, b) => b.from.length - a.from.length || a.id.localeCompare(b.id))
+      .slice(0, top),
     hubs: rank(hubs, top),
     connectors: rank(connectors, top)
   }

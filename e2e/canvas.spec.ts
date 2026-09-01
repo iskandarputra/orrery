@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -110,9 +105,9 @@ test('moving a card writes the board back to disk, and one gesture is one undo',
 
   // A single undo returns the card to where the drag started.
   await page.keyboard.press('Control+z')
-  await expect.poll(async () => Math.round((await card.boundingBox())!.x)).toBe(
-    Math.round(before.x)
-  )
+  await expect
+    .poll(async () => Math.round((await card.boundingBox())!.x))
+    .toBe(Math.round(before.x))
 })
 
 test('double-clicking empty space adds a card', async () => {
@@ -165,7 +160,9 @@ test('a marquee selects several cards, and delete removes them together', async 
   // Drag a box across the whole board.
   await page.mouse.move(surface.x + 8, surface.y + 8)
   await page.mouse.down()
-  await page.mouse.move(surface.x + surface.width - 8, surface.y + surface.height - 8, { steps: 10 })
+  await page.mouse.move(surface.x + surface.width - 8, surface.y + surface.height - 8, {
+    steps: 10
+  })
   await page.mouse.up()
   await expect(page.locator('.canvas__card--selected')).toHaveCount(total)
 
@@ -211,6 +208,8 @@ test('text cards render their markdown', async () => {
 
   // Double-clicking still edits the underlying markdown, markers and all.
   await card.dblclick()
-  await expect(page.locator('.canvas__card-input')).toHaveValue('# First card\n\nWith **bold** text.')
+  await expect(page.locator('.canvas__card-input')).toHaveValue(
+    '# First card\n\nWith **bold** text.'
+  )
   await page.keyboard.press('Escape')
 })

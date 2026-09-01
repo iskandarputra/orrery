@@ -5,7 +5,8 @@ import type { IpcErrorPayload, OrreryApi } from '@shared/ipc'
  * this module instead of touching `window.orrery`, so tests can swap it for an
  * in-memory fake with `setClient`.
  */
-let client: OrreryApi = typeof window !== 'undefined' && window.orrery ? window.orrery : (null as never)
+let client: OrreryApi =
+  typeof window !== 'undefined' && window.orrery ? window.orrery : (null as never)
 
 export function setClient(next: OrreryApi): void {
   client = next

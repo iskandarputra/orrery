@@ -36,7 +36,9 @@ function move(direction: 'up' | 'down'): Command {
     const offsetInBlock = head - blocks[index]!.from
     view.dispatch({
       changes: { from: 0, to: text.length, insert: moved.text },
-      selection: EditorSelection.cursor(moved.from + Math.min(offsetInBlock, moved.to - moved.from)),
+      selection: EditorSelection.cursor(
+        moved.from + Math.min(offsetInBlock, moved.to - moved.from)
+      ),
       scrollIntoView: true,
       userEvent: 'move.block'
     })

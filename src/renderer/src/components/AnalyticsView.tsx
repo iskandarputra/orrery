@@ -302,7 +302,11 @@ interface Bucket {
 function Histogram({ buckets, total }: { buckets: Bucket[]; total: number }): React.JSX.Element {
   const peak = Math.max(...buckets.map((b) => b.notes), 1)
   return (
-    <div className="analytics__hist" role="img" aria-label="Distribution of outgoing links per note">
+    <div
+      className="analytics__hist"
+      role="img"
+      aria-label="Distribution of outgoing links per note"
+    >
       {buckets.map((bucket) => {
         const share = total > 0 ? Math.round((bucket.notes / total) * 100) : 0
         const label = bucket.capped ? `${bucket.links}+` : String(bucket.links)
@@ -352,7 +356,10 @@ function summariseClusters(nodes: AnalyzedGraphNode[]): ClusterSummary[] {
     else groups.set(node.community, [node])
   }
   return [...groups.values()]
-    .sort((a, b) => b.length - a.length || String(a[0]?.community).localeCompare(String(b[0]?.community)))
+    .sort(
+      (a, b) =>
+        b.length - a.length || String(a[0]?.community).localeCompare(String(b[0]?.community))
+    )
     .slice(0, VIZ_SLOTS + 2)
     .map((members, rank) => {
       const lead = [...members].sort(

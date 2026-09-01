@@ -29,7 +29,10 @@ const TRIGGER = /(^|\s)\/([A-Za-z]*)$/
  * and `24/7` all contain one, and a menu that opened on those would be worse
  * than no menu at all.
  */
-export function matchSlashQuery(lineText: string, cursor: number): { from: number; query: string } | null {
+export function matchSlashQuery(
+  lineText: string,
+  cursor: number
+): { from: number; query: string } | null {
   const before = lineText.slice(0, cursor)
   const match = TRIGGER.exec(before)
   if (!match) return null

@@ -43,7 +43,12 @@ const PREVIEW_CHARS = 240
 type Gesture =
   | { kind: 'pan'; startX: number; startY: number; originX: number; originY: number }
   /** Dragging a selection: every moving card's starting position, by id. */
-  | { kind: 'move'; startX: number; startY: number; origins: Record<string, { x: number; y: number }> }
+  | {
+      kind: 'move'
+      startX: number
+      startY: number
+      origins: Record<string, { x: number; y: number }>
+    }
   | { kind: 'resize'; id: string; grabX: number; grabY: number; width: number; height: number }
   | { kind: 'connect'; from: string; x: number; y: number }
   | { kind: 'marquee'; startX: number; startY: number; box: Box }
@@ -251,7 +256,10 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
         .reverse()
         .find(
           (n) =>
-            point.x >= n.x && point.x <= n.x + n.width && point.y >= n.y && point.y <= n.y + n.height
+            point.x >= n.x &&
+            point.x <= n.x + n.width &&
+            point.y >= n.y &&
+            point.y <= n.y + n.height
         )
       if (target && target.id !== gesture.from) {
         const already = canvas.edges.some(
@@ -299,7 +307,10 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
 
   const centre = (): { x: number; y: number } => {
     const rect = surfaceRef.current?.getBoundingClientRect()
-    return toScene((rect?.left ?? 0) + (rect?.width ?? 0) / 2, (rect?.top ?? 0) + (rect?.height ?? 0) / 2)
+    return toScene(
+      (rect?.left ?? 0) + (rect?.width ?? 0) / 2,
+      (rect?.top ?? 0) + (rect?.height ?? 0) / 2
+    )
   }
 
   return (
@@ -330,21 +341,13 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
           <Icon name="layers" size={15} />
         </button>
         <span className="canvas__toolbar-gap" />
-        <button
-          className="icon-btn"
-          title="Zoom out"
-          onClick={() => zoomBy(1 / 1.2)}
-        >
+        <button className="icon-btn" title="Zoom out" onClick={() => zoomBy(1 / 1.2)}>
           <span style={{ fontWeight: 700 }}>−</span>
         </button>
         <button className="icon-btn" title="Fit to screen" onClick={fit}>
           <Icon name="maximize" size={14} />
         </button>
-        <button
-          className="icon-btn"
-          title="Zoom in"
-          onClick={() => zoomBy(1.2)}
-        >
+        <button className="icon-btn" title="Zoom in" onClick={() => zoomBy(1.2)}>
           <Icon name="plus" size={14} />
         </button>
         <span className="canvas__count">
@@ -418,104 +421,105 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
           {[...canvas.nodes]
             .sort((a, b) => Number(b.type === 'group') - Number(a.type === 'group'))
             .map((node) => (
-            <div
-              key={node.id}
-              className={`canvas__card canvas__card--${node.type}${
-                selection.includes(node.id) ? ' canvas__card--selected' : ''
-              }`}
-              style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
-              onPointerDown={(e) => {
-                if ((e.target as HTMLElement).closest('.canvas__handle')) return
-                e.stopPropagation()
+              <div
+                key={node.id}
+                className={`canvas__card canvas__card--${node.type}${
+                  selection.includes(node.id) ? ' canvas__card--selected' : ''
+                }`}
+                style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+                onPointerDown={(e) => {
+                  if ((e.target as HTMLElement).closest('.canvas__handle')) return
+                  e.stopPropagation()
 
-                // Dragging an unselected card selects it alone; dragging one
-                // that is already selected moves the whole selection.
-                const additive = e.shiftKey || e.metaKey || e.ctrlKey
-                let moving = selection
-                if (additive) {
-                  moving = selection.includes(node.id)
-                    ? selection.filter((id) => id !== node.id)
-                    : [...selection, node.id]
-                } else if (!selection.includes(node.id)) {
-                  moving = [node.id]
-                }
-                setSelection(moving)
-                if (additive) return // a modifier click adjusts the set, it doesn't drag
-
-                // A group carries the cards that sit inside it.
-                const dragging = new Set(moving)
-                for (const id of moving) {
-                  const candidate = canvas.nodes.find((n) => n.id === id)
-                  if (candidate?.type === 'group') {
-                    for (const child of nodesInGroup(canvas.nodes, candidate)) dragging.add(child.id)
+                  // Dragging an unselected card selects it alone; dragging one
+                  // that is already selected moves the whole selection.
+                  const additive = e.shiftKey || e.metaKey || e.ctrlKey
+                  let moving = selection
+                  if (additive) {
+                    moving = selection.includes(node.id)
+                      ? selection.filter((id) => id !== node.id)
+                      : [...selection, node.id]
+                  } else if (!selection.includes(node.id)) {
+                    moving = [node.id]
                   }
-                }
+                  setSelection(moving)
+                  if (additive) return // a modifier click adjusts the set, it doesn't drag
 
-                const point = toScene(e.clientX, e.clientY)
-                const origins: Record<string, { x: number; y: number }> = {}
-                for (const n of canvas.nodes) {
-                  if (dragging.has(n.id)) origins[n.id] = { x: n.x, y: n.y }
-                }
-                e.currentTarget.setPointerCapture(e.pointerId)
-                setGesture({ kind: 'move', startX: point.x, startY: point.y, origins })
-              }}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                if (node.type === 'text') setEditing(node.id)
-                else if (node.type === 'file' && rootPath) {
-                  void openPaths([`${rootPath}/${node.file}`])
-                }
-              }}
-            >
-              <CardBody
-                node={node}
-                editing={editing === node.id}
-                preview={node.type === 'file' ? previews[node.file] : undefined}
-                onText={(text) => {
-                  commit({
-                    ...canvas,
-                    nodes: canvas.nodes.map((n) =>
-                      n.id === node.id && n.type === 'text' ? { ...n, text } : n
-                    )
-                  })
-                  setEditing(null)
-                }}
-              />
+                  // A group carries the cards that sit inside it.
+                  const dragging = new Set(moving)
+                  for (const id of moving) {
+                    const candidate = canvas.nodes.find((n) => n.id === id)
+                    if (candidate?.type === 'group') {
+                      for (const child of nodesInGroup(canvas.nodes, candidate))
+                        dragging.add(child.id)
+                    }
+                  }
 
-              <span
-                className="canvas__handle canvas__handle--connect"
-                title="Drag to another card to link them"
-                onPointerDown={(e) => {
-                  e.stopPropagation()
                   const point = toScene(e.clientX, e.clientY)
-                  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-                  setGesture({ kind: 'connect', from: node.id, x: point.x, y: point.y })
+                  const origins: Record<string, { x: number; y: number }> = {}
+                  for (const n of canvas.nodes) {
+                    if (dragging.has(n.id)) origins[n.id] = { x: n.x, y: n.y }
+                  }
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  setGesture({ kind: 'move', startX: point.x, startY: point.y, origins })
                 }}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-              />
-              <span
-                className="canvas__handle canvas__handle--resize"
-                onPointerDown={(e) => {
+                onDoubleClick={(e) => {
                   e.stopPropagation()
-                  const point = toScene(e.clientX, e.clientY)
-                  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-                  setGesture({
-                    kind: 'resize',
-                    id: node.id,
-                    grabX: point.x,
-                    grabY: point.y,
-                    width: node.width,
-                    height: node.height
-                  })
+                  if (node.type === 'text') setEditing(node.id)
+                  else if (node.type === 'file' && rootPath) {
+                    void openPaths([`${rootPath}/${node.file}`])
+                  }
                 }}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-              />
-            </div>
-          ))}
+              >
+                <CardBody
+                  node={node}
+                  editing={editing === node.id}
+                  preview={node.type === 'file' ? previews[node.file] : undefined}
+                  onText={(text) => {
+                    commit({
+                      ...canvas,
+                      nodes: canvas.nodes.map((n) =>
+                        n.id === node.id && n.type === 'text' ? { ...n, text } : n
+                      )
+                    })
+                    setEditing(null)
+                  }}
+                />
+
+                <span
+                  className="canvas__handle canvas__handle--connect"
+                  title="Drag to another card to link them"
+                  onPointerDown={(e) => {
+                    e.stopPropagation()
+                    const point = toScene(e.clientX, e.clientY)
+                    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+                    setGesture({ kind: 'connect', from: node.id, x: point.x, y: point.y })
+                  }}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={onPointerUp}
+                />
+                <span
+                  className="canvas__handle canvas__handle--resize"
+                  onPointerDown={(e) => {
+                    e.stopPropagation()
+                    const point = toScene(e.clientX, e.clientY)
+                    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+                    setGesture({
+                      kind: 'resize',
+                      id: node.id,
+                      grabX: point.x,
+                      grabY: point.y,
+                      width: node.width,
+                      height: node.height
+                    })
+                  }}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={onPointerUp}
+                />
+              </div>
+            ))}
         </div>
 
         {canvas.nodes.length === 0 && (
@@ -548,7 +552,13 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
 }
 
 /** Links between cards, plus the rubber band while one is being drawn. */
-function Edges({ canvas, gesture }: { canvas: JsonCanvas; gesture: Gesture | null }): React.JSX.Element {
+function Edges({
+  canvas,
+  gesture
+}: {
+  canvas: JsonCanvas
+  gesture: Gesture | null
+}): React.JSX.Element {
   const byId = new Map(canvas.nodes.map((n) => [n.id, n]))
   const box = canvasBounds(canvas.nodes)
   // The SVG spans the board's extent plus room for a card being dragged out.
@@ -582,7 +592,12 @@ function Edges({ canvas, gesture }: { canvas: JsonCanvas; gesture: Gesture | nul
           const from = byId.get(gesture.from)
           if (!from) return null
           const a = sideAnchor(from, 'right')
-          return <path className="canvas__edge canvas__edge--draft" d={path(a.x, a.y, gesture.x, gesture.y)} />
+          return (
+            <path
+              className="canvas__edge canvas__edge--draft"
+              d={path(a.x, a.y, gesture.x, gesture.y)}
+            />
+          )
         })()}
     </svg>
   )

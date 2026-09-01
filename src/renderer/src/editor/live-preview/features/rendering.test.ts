@@ -45,7 +45,9 @@ function lineAttrs(state: EditorState, result: BuiltDecorations, lineNo: number)
   const line = state.doc.line(lineNo)
   return result.all
     .filter((r) => r.from === line.from && r.to === line.from)
-    .map((r) => (r.value.spec as { attributes?: Record<string, string> }).attributes?.['style'] ?? '')
+    .map(
+      (r) => (r.value.spec as { attributes?: Record<string, string> }).attributes?.['style'] ?? ''
+    )
     .join(' ')
 }
 
@@ -165,7 +167,12 @@ describe('fence marks', () => {
       extensions: [markdown({ base: markdownLanguage })]
     })
     parseFully(state)
-    const result = buildDecorationRanges(state, FEATURES, [{ from: 0, to: state.doc.length }], false)
+    const result = buildDecorationRanges(
+      state,
+      FEATURES,
+      [{ from: 0, to: state.doc.length }],
+      false
+    )
     expect(concealedSpans(doc, result).filter((s) => s === '```')).toHaveLength(2)
   })
 
@@ -255,7 +262,12 @@ describe('html comments', () => {
       extensions: [markdown({ base: markdownLanguage })]
     })
     parseFully(state)
-    const result = buildDecorationRanges(state, FEATURES, [{ from: 0, to: state.doc.length }], false)
+    const result = buildDecorationRanges(
+      state,
+      FEATURES,
+      [{ from: 0, to: state.doc.length }],
+      false
+    )
     expect(concealedSpans(doc, result)).toContain('<!-- a note to self -->')
   })
 

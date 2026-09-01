@@ -29,7 +29,9 @@ function when(at: number): string {
 export function HistoryModal(): React.JSX.Element | null {
   const open = useStore((s) => s.historyOpen)
   const close = useStore((s) => s.toggleHistory)
-  const activePath = useStore((s) => (s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null))
+  const activePath = useStore((s) =>
+    s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null
+  )
   const showToast = useStore((s) => s.showToast)
 
   const [versions, setVersions] = useState<Version[] | null>(null)

@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -80,10 +75,12 @@ test('the vault scan returns a structural analysis', async () => {
   expect(analysis.stats.words).toBeGreaterThan(0)
 
   // Rust and Cooking are the two cluster centres, so they lead on influence.
-  expect(analysis.insights.hubs.slice(0, 2).map((h) => h.label).sort()).toEqual([
-    'Cooking',
-    'Rust'
-  ])
+  expect(
+    analysis.insights.hubs
+      .slice(0, 2)
+      .map((h) => h.label)
+      .sort()
+  ).toEqual(['Cooking', 'Rust'])
   // PageRank is a distribution over the vault.
   const total = analysis.nodes.reduce((sum, n) => sum + n.pagerank, 0)
   expect(total).toBeCloseTo(1, 5)

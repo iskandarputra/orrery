@@ -50,11 +50,7 @@ describe('reflowParagraphs decorations', () => {
     const doc = 'one two\nthree four\nfive'
     const state = EditorState.create({
       doc,
-      extensions: [
-        markdown({ base: markdownLanguage }),
-        reflowField,
-        reflowParagraphs(true)
-      ]
+      extensions: [markdown({ base: markdownLanguage }), reflowField, reflowParagraphs(true)]
     })
     const view = new EditorView({ state })
     const lines = view.dom.querySelectorAll('.cm-line')

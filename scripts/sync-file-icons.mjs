@@ -25,7 +25,15 @@ import { fileURLToPath } from 'node:url'
 
 const VERSION = 'v5.38.1'
 const REPO = 'PKief/vscode-material-icon-theme'
-const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'renderer', 'src', 'assets', 'file-icons')
+const OUT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'src',
+  'renderer',
+  'src',
+  'assets',
+  'file-icons'
+)
 
 /**
  * Every icon the tree can draw, by its upstream name.
@@ -35,26 +43,89 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'renderer
  */
 const ICONS = [
   // Languages
-  'python', 'typescript', 'javascript', 'react', 'react_ts', 'c', 'cpp', 'csharp',
-  'rust', 'go', 'java', 'kotlin', 'swift', 'ruby', 'php', 'lua', 'r', 'dart',
-  'elixir', 'haskell', 'scala', 'zig', 'vim',
+  'python',
+  'typescript',
+  'javascript',
+  'react',
+  'react_ts',
+  'c',
+  'cpp',
+  'csharp',
+  'rust',
+  'go',
+  'java',
+  'kotlin',
+  'swift',
+  'ruby',
+  'php',
+  'lua',
+  'r',
+  'dart',
+  'elixir',
+  'haskell',
+  'scala',
+  'zig',
+  'vim',
   // Shells and things you run
-  'console', 'powershell', 'makefile', 'docker', 'exe',
+  'console',
+  'powershell',
+  'makefile',
+  'docker',
+  'exe',
   // Markup, styles and the web
-  'html', 'css', 'sass', 'less', 'vue', 'svelte', 'svg', 'xml', 'nodejs',
+  'html',
+  'css',
+  'sass',
+  'less',
+  'vue',
+  'svelte',
+  'svg',
+  'xml',
+  'nodejs',
   // Data and configuration
-  'json', 'yaml', 'toml', 'database', 'table', 'settings', 'lock', 'key',
-  'tsconfig', 'npm', 'git', 'prettier', 'eslint',
+  'json',
+  'yaml',
+  'toml',
+  'database',
+  'table',
+  'settings',
+  'lock',
+  'key',
+  'tsconfig',
+  'npm',
+  'git',
+  'prettier',
+  'eslint',
   // Documents
-  'markdown', 'document', 'readme', 'license', 'todo', 'log', 'pdf',
+  'markdown',
+  'document',
+  'readme',
+  'license',
+  'todo',
+  'log',
+  'pdf',
   // Opaque things
-  'image', 'video', 'audio', 'font', 'zip',
+  'image',
+  'video',
+  'audio',
+  'font',
+  'zip',
   // Orrery's own
   'excalidraw',
   // Folders
-  'folder-base', 'folder-src', 'folder-node', 'folder-git', 'folder-docs',
-  'folder-test', 'folder-dist', 'folder-images', 'folder-config',
-  'folder-scripts', 'folder-public', 'folder-github', 'folder-vscode'
+  'folder-base',
+  'folder-src',
+  'folder-node',
+  'folder-git',
+  'folder-docs',
+  'folder-test',
+  'folder-dist',
+  'folder-images',
+  'folder-config',
+  'folder-scripts',
+  'folder-public',
+  'folder-github',
+  'folder-vscode'
 ]
 
 const raw = (path) => `https://raw.githubusercontent.com/${REPO}/${VERSION}/${path}`
@@ -97,4 +168,6 @@ await writeFile(join(OUT, 'LICENSE'), await fetchText(raw('LICENSE')), 'utf-8')
 
 const written = (await readdir(OUT)).filter((f) => f.endsWith('.svg'))
 if (written.length !== ICONS.length) throw new Error('not every icon was written')
-console.log(`${written.length} icons from Material Icon Theme ${VERSION}, ${(bytes / 1024).toFixed(1)} kB`)
+console.log(
+  `${written.length} icons from Material Icon Theme ${VERSION}, ${(bytes / 1024).toFixed(1)} kB`
+)

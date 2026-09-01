@@ -61,7 +61,8 @@ export function selectContext(params: SelectContextParams): ScoredChunk[] {
 
   const boosted = ranked.map((chunk) => ({
     chunk,
-    rank: chunk.score + (neighbours.has(chunk.path) && !seedNotes.has(chunk.path) ? neighbourBonus : 0)
+    rank:
+      chunk.score + (neighbours.has(chunk.path) && !seedNotes.has(chunk.path) ? neighbourBonus : 0)
   }))
   boosted.sort((a, b) => b.rank - a.rank || a.chunk.path.localeCompare(b.chunk.path))
 

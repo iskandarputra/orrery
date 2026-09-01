@@ -52,9 +52,9 @@ describe('HistoryService', () => {
     await history.record('/vault/Other.md', 'theirs', 10 * MINUTE)
 
     expect(await history.list(NOTE)).toHaveLength(1)
-    expect(await history.read('/vault/Other.md', (await history.list('/vault/Other.md'))[0]!.id)).toBe(
-      'theirs'
-    )
+    expect(
+      await history.read('/vault/Other.md', (await history.list('/vault/Other.md'))[0]!.id)
+    ).toBe('theirs')
   })
 
   it('trims old versions but never the newest', async () => {

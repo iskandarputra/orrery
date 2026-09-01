@@ -25,11 +25,7 @@ export function DocStatsModal(): React.JSX.Element | null {
             <Icon name="file-text" size={16} />
             <h3 className="doc-stats-modal__title">{buffer.fileName}</h3>
           </div>
-          <button
-            className="icon-btn"
-            aria-label="Close"
-            onClick={() => setOpen(false)}
-          >
+          <button className="icon-btn" aria-label="Close" onClick={() => setOpen(false)}>
             <Icon name="x" size={15} />
           </button>
         </div>

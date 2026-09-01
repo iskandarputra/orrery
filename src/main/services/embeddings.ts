@@ -106,8 +106,7 @@ export class EmbeddingService {
   private async load(rootPath: string): Promise<IndexedFile[]> {
     try {
       const raw = JSON.parse(await fs.readFile(this.indexPath(rootPath), 'utf-8')) as
-        | IndexFile
-        | IndexedChunk[]
+        IndexFile | IndexedChunk[]
       // A v1 index was a flat chunk array with no fingerprints — nothing to
       // reuse from it, so it is simply rebuilt on the next pass.
       if (Array.isArray(raw)) return []

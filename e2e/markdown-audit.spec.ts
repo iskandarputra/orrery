@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -127,16 +122,41 @@ test.afterAll(async () => {
 test('every construct renders its decoration', async () => {
   const present = await classesThroughDocument()
   const expected = [
-    'cm-or-h1', 'cm-or-h2', 'cm-or-h3', 'cm-or-h4', 'cm-or-h5', 'cm-or-h6',
-    'cm-or-inline-code', 'cm-or-mark', 'cm-or-tag', 'cm-or-link-text',
-    'cm-or-wikilink', 'cm-or-wikilink--missing', 'cm-or-image', 'cm-or-image--broken',
-    'cm-or-bullet', 'cm-or-task-checkbox', 'cm-or-li', 'cm-or-li--first',
-    'cm-or-blockquote', 'cm-or-blockquote--first',
-    'cm-or-callout', 'cm-or-callout--note', 'cm-or-callout--warning', 'cm-or-callout--tip',
+    'cm-or-h1',
+    'cm-or-h2',
+    'cm-or-h3',
+    'cm-or-h4',
+    'cm-or-h5',
+    'cm-or-h6',
+    'cm-or-inline-code',
+    'cm-or-mark',
+    'cm-or-tag',
+    'cm-or-link-text',
+    'cm-or-wikilink',
+    'cm-or-wikilink--missing',
+    'cm-or-image',
+    'cm-or-image--broken',
+    'cm-or-bullet',
+    'cm-or-task-checkbox',
+    'cm-or-li',
+    'cm-or-li--first',
+    'cm-or-blockquote',
+    'cm-or-blockquote--first',
+    'cm-or-callout',
+    'cm-or-callout--note',
+    'cm-or-callout--warning',
+    'cm-or-callout--tip',
     'cm-or-callout-title',
-    'cm-or-code-card', 'cm-or-code-card__lang', 'cm-or-code-card__pre',
-    'cm-or-table', 'cm-or-math', 'cm-or-math--block', 'cm-or-hr',
-    'cm-or-properties-card', 'cm-or-property-key', 'cm-or-property-val'
+    'cm-or-code-card',
+    'cm-or-code-card__lang',
+    'cm-or-code-card__pre',
+    'cm-or-table',
+    'cm-or-math',
+    'cm-or-math--block',
+    'cm-or-hr',
+    'cm-or-properties-card',
+    'cm-or-property-key',
+    'cm-or-property-val'
   ]
   const missing = expected.filter((c) => !present.has(c))
   expect(missing).toEqual([])
@@ -148,7 +168,10 @@ test('every construct renders its decoration', async () => {
   await page.waitForTimeout(400)
   const editing = await classesThroughDocument()
   const editingMissing = [
-    'cm-or-code-line', 'cm-or-code-first', 'cm-or-code-last', 'cm-or-code-info'
+    'cm-or-code-line',
+    'cm-or-code-first',
+    'cm-or-code-last',
+    'cm-or-code-info'
   ].filter((c) => !editing.has(c))
   expect(editingMissing).toEqual([])
   await runCommand('view.modeReading')
@@ -198,9 +221,7 @@ test('block containers all start at the text column', async () => {
 
   await page.locator('.cm-scroller').evaluate((el) => el.scrollTo(0, 0))
   await page.waitForTimeout(150)
-  const column = Math.round(
-    (await page.locator('.cm-or-h1 span').first().boundingBox())!.x
-  )
+  const column = Math.round((await page.locator('.cm-or-h1 span').first().boundingBox())!.x)
 
   // A card starting further left than the prose reads as misaligned.
   for (const selector of [
@@ -265,9 +286,9 @@ test('every list marker shares one grid', async () => {
   expect(new Set(gaps).size, 'marker-to-text gap per depth').toBe(1)
   expect(gaps[0]).toBeGreaterThan(12)
 
-  const steps = depths.slice(1).map((d, i) =>
-    byDepth.get(d)![0]!.markerX! - byDepth.get(depths[i]!)![0]!.markerX!
-  )
+  const steps = depths
+    .slice(1)
+    .map((d, i) => byDepth.get(d)![0]!.markerX! - byDepth.get(depths[i]!)![0]!.markerX!)
   expect(new Set(steps).size, 'indent step per level').toBe(1)
   expect(steps[0]).toBeGreaterThan(12)
 })

@@ -263,7 +263,11 @@ export function Toolbar(): React.JSX.Element | null {
         <button className="toolbar__btn" title="Insert Table" onClick={() => insertTableTemplate()}>
           <Icon name="table" size={14} />
         </button>
-        <button className="toolbar__btn" title="Insert Code Block" onClick={() => insertCodeBlock('')}>
+        <button
+          className="toolbar__btn"
+          title="Insert Code Block"
+          onClick={() => insertCodeBlock('')}
+        >
           <Icon name="file-text" size={14} />
         </button>
         <button

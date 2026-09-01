@@ -1,12 +1,7 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
 
 let app: ElectronApplication
@@ -69,7 +64,10 @@ test('searching the vault from the menu fills and runs the search', async () => 
   const word = page.locator('.cm-content').getByText('Ownership', { exact: false }).first()
   await word.dblclick()
   await word.click({ button: 'right' })
-  await page.locator('.ctx-menu').getByText(/Search vault/).click()
+  await page
+    .locator('.ctx-menu')
+    .getByText(/Search vault/)
+    .click()
   await expect(page.locator('.rpanel')).toBeVisible()
   // It ran on its own: results are already there.
   await expect(page.locator('.result-group__file').first()).toBeVisible({ timeout: 10_000 })

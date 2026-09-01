@@ -18,15 +18,15 @@ describe('shouldSnapshot', () => {
   })
 
   it('skips rapid saves, so autosave does not make hundreds of versions', () => {
-    expect(
-      shouldSnapshot({ last: { content: 'a', at: now - 30_000 }, next: 'ab', now })
-    ).toBe(false)
+    expect(shouldSnapshot({ last: { content: 'a', at: now - 30_000 }, next: 'ab', now })).toBe(
+      false
+    )
   })
 
   it('takes one once the gap has passed', () => {
-    expect(
-      shouldSnapshot({ last: { content: 'a', at: now - 3 * MINUTE }, next: 'ab', now })
-    ).toBe(true)
+    expect(shouldSnapshot({ last: { content: 'a', at: now - 3 * MINUTE }, next: 'ab', now })).toBe(
+      true
+    )
   })
 
   it('always keeps a big change, however soon it lands', () => {
@@ -52,7 +52,9 @@ describe('prune', () => {
 
   it('drops anything past the age, whatever the order it arrives in', () => {
     const all = [snap('ancient', now - 90 * MINUTE), snap('fresh', now - MINUTE)]
-    expect(prune(all, { keep: 10, maxAgeMs: 60 * MINUTE, now }).map((s) => s.id)).toEqual(['ancient'])
+    expect(prune(all, { keep: 10, maxAgeMs: 60 * MINUTE, now }).map((s) => s.id)).toEqual([
+      'ancient'
+    ])
   })
 
   it('never drops the most recent, however old it is', () => {

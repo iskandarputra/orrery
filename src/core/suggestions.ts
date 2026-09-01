@@ -48,8 +48,13 @@ export function noteCentroid(chunks: readonly number[][]): number[] {
  * nothing left to suggest.
  */
 export function suggestLinks(params: SuggestLinksParams): LinkSuggestion[] {
-  const { from, vectors, graph, limit = DEFAULT_LIMIT, minSimilarity = DEFAULT_MIN_SIMILARITY } =
-    params
+  const {
+    from,
+    vectors,
+    graph,
+    limit = DEFAULT_LIMIT,
+    minSimilarity = DEFAULT_MIN_SIMILARITY
+  } = params
   const source = vectors.get(from)
   if (!source?.length) return [] // not indexed yet — nothing to compare
 

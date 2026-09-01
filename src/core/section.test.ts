@@ -21,7 +21,9 @@ beta body
 
 describe('extractSection', () => {
   it('returns the body under a heading, up to the next heading of the same level', () => {
-    expect(extractSection(DOC, 'Alpha')).toBe('alpha body\nmore alpha\n\n### Alpha child\n\nnested body')
+    expect(extractSection(DOC, 'Alpha')).toBe(
+      'alpha body\nmore alpha\n\n### Alpha child\n\nnested body'
+    )
   })
 
   it('stops at a higher-level heading too', () => {

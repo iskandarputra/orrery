@@ -38,10 +38,16 @@ export function extractSection(markdown: string, heading: string): string | null
       continue
     }
     if (level <= startLevel) {
-      return lines.slice(startLine + 1, i).join('\n').trim()
+      return lines
+        .slice(startLine + 1, i)
+        .join('\n')
+        .trim()
     }
   }
 
   if (startLine === -1) return null
-  return lines.slice(startLine + 1).join('\n').trim()
+  return lines
+    .slice(startLine + 1)
+    .join('\n')
+    .trim()
 }

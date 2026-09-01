@@ -27,7 +27,11 @@ process.stdin.on('data', (chunk) => {
     if (mode === 'silent') continue
     if (mode === 'die') process.exit(1)
 
-    const body = JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { echoed: message.params } })
+    const body = JSON.stringify({
+      jsonrpc: '2.0',
+      id: message.id,
+      result: { echoed: message.params }
+    })
     process.stdout.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`)
   }
 })

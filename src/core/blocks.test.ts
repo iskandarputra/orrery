@@ -29,7 +29,15 @@ describe('blockIndexAt', () => {
   })
 
   it('returns -1 between blocks', () => {
-    expect(blockIndexAt([{ from: 0, to: 3 }, { from: 10, to: 14 }], 6)).toBe(-1)
+    expect(
+      blockIndexAt(
+        [
+          { from: 0, to: 3 },
+          { from: 10, to: 14 }
+        ],
+        6
+      )
+    ).toBe(-1)
   })
 })
 

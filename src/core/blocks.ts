@@ -41,7 +41,8 @@ export function moveBlock(
     text.slice(0, first.from) + secondText + between + firstText + text.slice(second.to)
 
   // Where the block the user asked to move now sits.
-  const movedFrom = direction === 'up' ? first.from : first.from + secondText.length + between.length
+  const movedFrom =
+    direction === 'up' ? first.from : first.from + secondText.length + between.length
   const moved = direction === 'up' ? secondText : firstText
   return { text: swapped, from: movedFrom, to: movedFrom + moved.length }
 }
