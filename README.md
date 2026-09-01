@@ -8,7 +8,7 @@
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
   <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F.svg">
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6.svg">
-  <img alt="tests" src="https://img.shields.io/badge/tests-1286%20unit%20%C2%B7%20387%20e2e-success.svg">
+  <a href="https://github.com/iskandarputra/orrery/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/iskandarputra/orrery/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
 Point Orrery at a folder. Your notes stay ordinary markdown files on disk,
@@ -24,10 +24,9 @@ shows you git diffs, and gives you a shell in the same window.
 to treat links between documents as text. Orrery does both jobs, because in
 practice a folder of notes and a folder of code are the same folder.
 
-**Why you might not.** It is eight days old: version 0.1.0, 139 commits, one
-developer, Linux packages only. The parts that could lose your work are covered
-by atomic writes, conflict detection on save, and 1,286 unit and 387 end-to-end
-tests. Everything else is early software that has been used in anger by exactly
+**Why you might not.** It is eight days old: version 0.1.0, one developer,
+Linux packages only. The parts that could lose your work are covered by atomic
+writes, conflict detection on save, and 1,331 unit and 397 end-to-end tests. Everything else is early software that has been used in anger by exactly
 one person. Keep your vault in git, which you should be doing anyway, and which
 Orrery will now help you with.
 
@@ -346,6 +345,8 @@ is asked when you close the note, not when you close Orrery.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the longer version: what the layers are,
 where new code goes, and which rules a test will hold you to.
+[SECURITY.md](SECURITY.md) says which parts of a vault are trusted, which are
+not, and how to report something privately.
 
 ## Contributing
 

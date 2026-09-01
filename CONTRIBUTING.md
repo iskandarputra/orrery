@@ -48,10 +48,12 @@ added later tend to be surfaces that were never measured.
 
 ## Formatting
 
-Run Prettier **only on files you created**. Much of the existing tree predates
-it, so a broad `prettier --write` rewrites hundreds of unrelated lines and
-buries your actual change. Match the surrounding style when editing an existing
-file.
+`npm run format` — the whole tree is Prettier-clean, and `npm run format:check`
+runs in CI, so a change that is not formatted fails there rather than in review.
+
+This advice used to be the opposite: run Prettier only on files you created,
+because most of the tree predated it and a broad rewrite buried the actual
+change. That is no longer true, and there is nothing left to bury.
 
 ## Commits
 
