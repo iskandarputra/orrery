@@ -47,6 +47,10 @@ run_windowed() {
     "$@"
   elif have xvfb-run; then
     step "virtual display, so nothing steals focus"
+    # Without this the virtual display is set up and then ignored: Electron 36
+    # and later prefer Wayland whenever WAYLAND_DISPLAY is set, so the app went
+    # to the real compositor and the windows opened on your screen anyway.
+    unset WAYLAND_DISPLAY
     xvfb-run -a "$@"
   elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
     warn "xvfb-run is missing — windows will open on your display"

@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, test, expect } from '@playwright/test'
+import { LAUNCH_ARGS, launchEnv } from './helpers'
 import { makePdf } from '../src/main/services/__fixtures__/make-pdf'
 
 /**
@@ -25,8 +26,8 @@ test('the packaged app reads, recognises and rearranges a PDF', async () => {
 
   const app = await electron.launch({
     executablePath: PACKAGED,
-    args: ['--no-sandbox', `--user-data-dir=${userData}`],
-    env: { ...process.env, ORRERY_HEADLESS: '1' }
+    args: [...LAUNCH_ARGS, `--user-data-dir=${userData}`],
+    env: launchEnv()
   })
   const page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })

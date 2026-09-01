@@ -12,6 +12,15 @@ import { join } from 'node:path'
  *
  * So the wrappers mark themselves, and running without one stops here with the
  * command that would have worked.
+ *
+ * Being wrapped is necessary and was, for a while, not sufficient. xvfb-run
+ * points DISPLAY at a virtual X server, but Electron 36 and later default to
+ * "use Wayland if WAYLAND_DISPLAY is set" — so on a Wayland desktop the app
+ * went to the real compositor and every window opened on the screen anyway,
+ * with xvfb running beside it doing nothing. `helpers.ts` now pins each launch
+ * to X11, which is why DISPLAY is checked here: it is the only display the app
+ * is allowed to find, so a run without one would fail deep inside Electron
+ * rather than here.
  */
 /**
  * Sweep temporary vaults left by earlier runs.
@@ -52,6 +61,23 @@ export default function globalSetup(): void {
   const wrapped = process.env['ORRERY_E2E_WRAPPED'] === '1'
   const headed = process.env['ORRERY_HEADED'] === '1'
   const hasDisplay = Boolean(process.env['DISPLAY'] || process.env['WAYLAND_DISPLAY'])
+
+  if ((wrapped || headed) && !process.env['DISPLAY']) {
+    throw new Error(
+      [
+        '',
+        'No DISPLAY, and the suite only ever talks X11.',
+        '',
+        'Electron would otherwise pick Wayland and open its windows on your',
+        'desktop instead of the virtual display. Install xvfb, or start the',
+        'run under one:',
+        '',
+        '  ./orrery.sh setup',
+        '  ./orrery.sh e2e',
+        ''
+      ].join('\n')
+    )
+  }
 
   if (wrapped || headed || !hasDisplay) return
 

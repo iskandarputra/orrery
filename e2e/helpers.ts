@@ -12,6 +12,54 @@ process.on('exit', () => {
 })
 
 /**
+ * The environment the app is launched into, with the display pinned to X11.
+ *
+ * Electron 36 and later default `--ozone-platform-hint` to `auto`, which means
+ * "use Wayland if `WAYLAND_DISPLAY` is set". On a Wayland desktop — which is
+ * every current Ubuntu and Fedora — that variable is set, and it is inherited
+ * by the app however the suite is started. So the app connected to the real
+ * compositor and the `DISPLAY=:99` that xvfb-run had just set was ignored:
+ * every window opened on the desktop of whoever was working on the machine,
+ * once per spec file, exactly as if xvfb were not there at all.
+ *
+ * It also broke the fallback. A window is parked at -20000,-20000 so that it
+ * cannot be seen even when it is shown, and positioning your own window is
+ * something only an X11 client can do — under Wayland the compositor decides,
+ * so the window landed in the middle of the screen and took the keyboard.
+ *
+ * Both are fixed by refusing Wayland outright: the hint is pinned, the switch
+ * is passed as well because a command line beats an environment variable, and
+ * `WAYLAND_DISPLAY` is removed so there is nothing left to find. X11 is then
+ * the only option, `DISPLAY` is honoured, and under xvfb-run that is the
+ * virtual server.
+ */
+export function launchEnv(extra: Record<string, string> = {}): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) env[key] = value
+  }
+  delete env['WAYLAND_DISPLAY']
+  return {
+    ...env,
+    ELECTRON_OZONE_PLATFORM_HINT: 'x11',
+    ELECTRON_DISABLE_SANDBOX: '1',
+    // Keeps the window off the developer's screen: a suite run otherwise pops
+    // up and grabs focus once per spec file.
+    ORRERY_HEADLESS: '1',
+    ...extra
+  }
+}
+
+/**
+ * The switches every launch needs, whether it runs `out/` or a packaged build.
+ *
+ * `--ozone-platform=x11` is here rather than only in the environment because a
+ * command line beats an environment variable, and a window that escapes onto
+ * somebody's desktop is the kind of thing that should take two mistakes.
+ */
+export const LAUNCH_ARGS = ['--no-sandbox', '--ozone-platform=x11']
+
+/**
  * Launch the app against a userData directory of its own.
  *
  * Without this every spec shares the developer's real userData, so settings,
@@ -23,10 +71,8 @@ export async function launchApp(): Promise<ElectronApplication> {
   const userData = mkdtempSync(join(tmpdir(), 'orrery-userdata-'))
   userDataDirs.push(userData)
   return electron.launch({
-    args: ['./out/main/index.js', '--no-sandbox', `--user-data-dir=${userData}`],
-    // ORRERY_HEADLESS keeps the window off the developer's screen: a suite run
-    // otherwise pops up and grabs focus once per spec file.
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ORRERY_HEADLESS: '1' }
+    args: ['./out/main/index.js', ...LAUNCH_ARGS, `--user-data-dir=${userData}`],
+    env: launchEnv()
   })
 }
 

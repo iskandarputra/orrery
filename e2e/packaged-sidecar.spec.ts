@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, test, expect } from '@playwright/test'
+import { LAUNCH_ARGS, launchEnv } from './helpers'
 
 /**
  * Proves the sidecar is found in a *packaged* layout.
@@ -28,8 +29,8 @@ test('the packaged app finds and uses the sidecar', async () => {
 
   const app = await electron.launch({
     executablePath: PACKAGED,
-    args: ['--no-sandbox', `--user-data-dir=${userData}`],
-    env: { ...process.env, ORRERY_HEADLESS: '1', ORRERY_RUST_SEARCH: '1' }
+    args: [...LAUNCH_ARGS, `--user-data-dir=${userData}`],
+    env: launchEnv({ ORRERY_RUST_SEARCH: '1' })
   })
   const page = await app.firstWindow()
   await page.waitForSelector('.app', { timeout: 30_000 })
