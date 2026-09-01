@@ -56,25 +56,50 @@ objects appended — so what lands on disk is the document you were sent plus wh
 you added, and any other PDF reader can open both. Ctrl+S saves, the tab carries
 a dirty dot, and closing an unsaved document asks first.
 
+## Nothing is written until you save it
+
+Every change described below — marking up, filling a form, rearranging pages,
+and editing the page itself — changes the document Orrery is showing you, not
+the file. Ctrl+S is what writes, the tab carries a dirty dot until it does, and
+closing without saving throws the changes away and leaves the file as it was.
+
+This is worth stating plainly because it did not used to be true of one half of
+it. Editing the page itself wrote to disk the moment you did anything: a picture
+placed to see how it looked was already in your document, a word dragged by
+accident was saved before you noticed, and the tab said "Saved" throughout. The
+only way back was an undo stack that did not survive closing the tab.
+
+The unsaved document lives in the main process, and the reader is served it in
+place of the file, so what you see is what you have done. Two panes onto the
+same PDF share it and both carry the dot. The one exception is **Extract**,
+which makes a new file rather than changing this one; it writes what you can
+see, unsaved changes included.
+
 ## Undo
 
 Ctrl+Z takes back the last change, Ctrl+Shift+Z makes it again, and the toolbar
 has both. It covers everything that changes the document — retyping, moving,
 removing, adding, and rearranging pages.
 
-A PDF's undo cannot be a stack of edits held in memory, because every change
-rewrites the whole file: what is kept is what the bytes were, on disk, under
-`pdf-undo` in the application's data folder. Twenty steps per document, and no
-more than 256 MB of them, because a scanned document reaches the second limit
-long before the first. Closing the tab throws them away.
+A PDF's undo cannot be a stack of edits held in memory, because the engine
+rewrites the whole document for every change: what is kept is what the bytes
+were, on disk, under `pdf-undo` in the application's data folder. Twenty steps
+per document, and no more than 256 MB of them, because a scanned document
+reaches the second limit long before the first. Closing the tab throws them
+away.
+
+Stepping back changes the document, not the file — taking back a change that was
+never written is not a reason to write one. Undoing past your last save leaves
+the tab with something to save again, which is exactly what it has.
 
 ## Organising pages
 
 The **Pages** tab is a page organiser. Select pages and turn, move, remove or
 extract them, drag a thumbnail to reorder it, or add another document's pages to
-the end of this one. Nothing is written until you press **Apply**; **Undo** puts the
-arrangement back. Extracting writes a new file beside the original and never
-overwrites an existing one.
+the end of this one. **Apply** carries the arrangement out on the document —
+Ctrl+S is still what writes it — and **Undo** puts the arrangement back.
+Extracting writes a new file beside the original and never overwrites an
+existing one.
 
 ## Editing the page itself
 

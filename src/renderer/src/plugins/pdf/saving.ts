@@ -38,9 +38,9 @@ export async function savePdf(bufferId: string): Promise<boolean> {
 /**
  * The open reader also owns stepping the document back and forward.
  *
- * Undo for a PDF is not a stack of edits in memory — every change rewrites the
- * file — so it is the reader that knows which document is being stepped and
- * what to do with the bytes that come back.
+ * Undo for a PDF is not a stack of edits in memory — the engine rewrites the
+ * whole document for every change — so it is the reader that knows which
+ * document is being stepped and what to do with the bytes that come back.
  */
 export function registerUndo(
   bufferId: string,
@@ -59,4 +59,23 @@ export async function undoPdf(bufferId: string): Promise<boolean> {
 export async function redoPdf(bufferId: string): Promise<boolean> {
   const handlers = undoers.get(bufferId)
   return handlers ? handlers.redo() : false
+}
+
+/**
+ * What to let go of when this tab closes.
+ *
+ * An edit to a PDF is held as a draft in main until somebody saves it. Closing
+ * the tab is one of the two ways of answering the question "do you want this?",
+ * and if nothing says so the draft outlives the tab — so the next time that
+ * file is opened it comes back showing changes somebody had already declined.
+ */
+const closers = new Map<string, () => void>()
+
+export function registerCloser(bufferId: string, close: (() => void) | null): void {
+  if (close) closers.set(bufferId, close)
+  else closers.delete(bufferId)
+}
+
+export function closePdf(bufferId: string): void {
+  closers.get(bufferId)?.()
 }

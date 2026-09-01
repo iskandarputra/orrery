@@ -104,10 +104,24 @@ export async function openVault(page: Page, vault: string, sentinelFile: string)
  * Save every dirty tab, then close. A test that leaves unsaved work makes the
  * app raise its "save changes?" prompt on quit — correct behaviour, but nothing
  * in a headless run can answer it, so teardown would hang until it times out.
+ *
+ * The loop is bounded by the tabs actually left dirty rather than by a small
+ * fixed number. A spec file that edits a dozen documents without saving them —
+ * which is what a suite for a surface where saving is deliberate looks like —
+ * ran past the old limit of twelve, and the tabs that were left then hung the
+ * quit on the prompt this exists to avoid.
+ *
+ * And the prompt is answered anyway, as a backstop. Teardown must not be able
+ * to hang: a save that fails for its own reasons is a thing for the test that
+ * caused it to report, not something that should cost the whole run its
+ * afterAll and leave an Electron process behind.
  */
 export async function closeCleanly(app: ElectronApplication, page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 12; attempt++) {
-    if ((await page.locator('.tab__close--dirty').count()) === 0) break
+  const dirty = (): Promise<number> => page.locator('.tab__close--dirty').count()
+  // One pass per dirty tab, plus a little slack for one that needs a second go.
+  const attempts = (await dirty()) + 5
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if ((await dirty()) === 0) break
     await page
       .locator('.tab__close--dirty')
       .first()
@@ -118,5 +132,10 @@ export async function closeCleanly(app: ElectronApplication, page: Page): Promis
     })
     await page.waitForTimeout(150)
   }
+  // "Don't Save", for anything still unsaved. The vault is a temporary
+  // directory that is about to be removed, so there is nothing here to lose.
+  await app.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async () => ({ response: 1 }) as never
+  })
   await app.close()
 }

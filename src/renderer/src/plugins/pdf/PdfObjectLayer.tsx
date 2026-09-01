@@ -52,7 +52,7 @@ export function PdfObjectLayer({
   alphabet,
   rotation,
   pickAdded,
-  mtime,
+  beforeEdit,
   onChanged
 }: {
   doc: PDFDocumentProxy
@@ -65,8 +65,19 @@ export function PdfObjectLayer({
   rotation: number
   /** Something was just put on this page: pick it, so its handles are there. */
   pickAdded?: boolean
-  mtime: number | null
-  onChanged: (mtimeMs: number) => void
+  /**
+   * Fold anything the reader is holding into the document first.
+   *
+   * The engine that carries these edits out lives in main and rebuilds the
+   * document from bytes main has. An annotation made a moment ago is not in
+   * those bytes — it is in pdf.js's storage — so without this the rebuild
+   * quietly leaves it out and re-reading the page takes it off the screen.
+   * False when that could not be done, in which case the edit does not happen
+   * either: better nothing than a change that costs somebody a mark.
+   */
+  beforeEdit: () => Promise<boolean>
+  /** The document has changed. It is not on disk: saving is still Ctrl+S. */
+  onChanged: () => void
 }): React.JSX.Element | null {
   /**
    * What can be edited, as lines rather than as objects.
@@ -194,17 +205,17 @@ export function PdfObjectLayer({
     }
     setBusy(true)
     try {
-      const result = await invoke('pdf:editObject', {
+      if (!(await beforeEdit())) return
+      await invoke('pdf:editObject', {
         path,
         page: page - 1,
         // A line is usually many objects: the new text goes on the first and
         // the rest are removed.
         indexes: picked.indexes,
-        text: draft,
-        expectedMtimeMs: mtime
+        text: draft
       })
       setPicked(null)
-      onChanged(result.mtimeMs)
+      onChanged()
     } catch {
       useStore.getState().showToast('That text could not be changed', 'error')
     } finally {
@@ -246,18 +257,18 @@ export function PdfObjectLayer({
       // along: sideways across a page on its side is up and down the page.
       const moved = dragToPdf(geometry.page, { x: dx, y: dy })
       try {
-        const result = await invoke('pdf:moveObject', {
+        if (!(await beforeEdit())) return
+        await invoke('pdf:moveObject', {
           path,
           page: page - 1,
           // Moving acts on the first object of a run: a line that was split
           // into characters moves as one only once it has been retyped.
           index: object.indexes[0]!,
           dx: moved.x,
-          dy: moved.y,
-          expectedMtimeMs: mtime
+          dy: moved.y
         })
         setPicked(null)
-        onChanged(result.mtimeMs)
+        onChanged()
       } catch {
         useStore.getState().showToast('That could not be moved', 'error')
       } finally {
@@ -315,16 +326,16 @@ export function PdfObjectLayer({
       if (Math.abs(sx - 1) < 0.02 && Math.abs(sy - 1) < 0.02) return
       setBusy(true)
       try {
-        const result = await invoke('pdf:resizeObject', {
+        if (!(await beforeEdit())) return
+        await invoke('pdf:resizeObject', {
           path,
           page: page - 1,
           index: object.indexes[0]!,
           sx,
-          sy,
-          expectedMtimeMs: mtime
+          sy
         })
         setPicked(null)
-        onChanged(result.mtimeMs)
+        onChanged()
       } catch {
         useStore.getState().showToast('That could not be resized', 'error')
       } finally {
@@ -341,17 +352,17 @@ export function PdfObjectLayer({
     if (!adding || adding.text.trim() === '' || busy) return
     setBusy(true)
     try {
-      const result = await invoke('pdf:addText', {
+      if (!(await beforeEdit())) return
+      await invoke('pdf:addText', {
         path,
         page: page - 1,
         text: adding.text,
         x: adding.x,
         y: adding.y,
-        size: 12,
-        expectedMtimeMs: mtime
+        size: 12
       })
       setAdding(null)
-      onChanged(result.mtimeMs)
+      onChanged()
     } catch {
       useStore.getState().showToast('That text could not be added', 'error')
     } finally {
@@ -363,14 +374,14 @@ export function PdfObjectLayer({
     if (busy) return
     setBusy(true)
     try {
-      const result = await invoke('pdf:removeObjects', {
+      if (!(await beforeEdit())) return
+      await invoke('pdf:removeObjects', {
         path,
         page: page - 1,
-        indexes: object.indexes,
-        expectedMtimeMs: mtime
+        indexes: object.indexes
       })
       setPicked(null)
-      onChanged(result.mtimeMs)
+      onChanged()
     } catch {
       useStore.getState().showToast('That could not be removed', 'error')
     } finally {
@@ -417,17 +428,17 @@ export function PdfObjectLayer({
       if (Math.abs(degrees) < 2) return
       setBusy(true)
       try {
-        const result = await invoke('pdf:rotateObject', {
+        if (!(await beforeEdit())) return
+        await invoke('pdf:rotateObject', {
           path,
           page: page - 1,
           index: object.indexes[0]!,
           // Clockwise on screen is anticlockwise in a page's own coordinates,
           // whose y counts upwards.
-          degrees: -degrees,
-          expectedMtimeMs: mtime
+          degrees: -degrees
         })
         setPicked(null)
-        onChanged(result.mtimeMs)
+        onChanged()
       } catch {
         useStore.getState().showToast('That could not be turned', 'error')
       } finally {

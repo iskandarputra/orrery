@@ -16,6 +16,7 @@ import { McpHostService } from './services/mcp-host'
 import { SqliteService } from './services/sqlite'
 import { PdfTextService } from './services/pdf-text'
 import { PdfHistory } from './services/pdf-history'
+import { PdfDrafts } from './services/pdf-drafts'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -78,6 +79,10 @@ if (!gotLock) {
   // memory: a scan is tens of megabytes and twenty of those is a quarter of a
   // gigabyte for a feature nobody thinks about until they need it.
   const pdfHistory = new PdfHistory(join(app.getPath('userData'), 'pdf-undo'))
+  // Changes to a PDF that have not been saved yet. The asset protocol serves
+  // them in place of the file, so the reader shows what you have done without
+  // any of it being written.
+  const pdfDrafts = new PdfDrafts()
   const links = new LinkScanner(sidecar, pdfText)
   const exporter = new ExportService()
   const ai = new AiService(() => settings.get())
@@ -172,7 +177,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     await settings.load()
-    handleAssetProtocol()
+    handleAssetProtocol((filePath) => pdfDrafts.peek(filePath))
     registerIpcHandlers({
       fs,
       watcher,
@@ -192,7 +197,8 @@ if (!gotLock) {
       askUser,
       sqlite,
       pdfText,
-      pdfHistory
+      pdfHistory,
+      pdfDrafts
     })
     buildAppMenu(settings.get().keybindings, {
       files: settings.get().recentFiles,

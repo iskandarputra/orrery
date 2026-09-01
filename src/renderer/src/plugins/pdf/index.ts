@@ -1,6 +1,6 @@
 import type { OrreryPlugin } from '../api'
 import { PdfViewer } from './PdfViewer'
-import { redoPdf, savePdf, undoPdf } from './saving'
+import { closePdf, redoPdf, savePdf, undoPdf } from './saving'
 
 /**
  * PDFs as a document kind.
@@ -29,7 +29,10 @@ export const pdfPlugin: OrreryPlugin = {
       // Ctrl+Z belongs to the editor when a note is open; this document is not
       // text, so the surface is asked instead.
       undo: undoPdf,
-      redo: redoPdf
+      redo: redoPdf,
+      // An unsaved edit is a draft in main; a tab closed without saving is
+      // somebody saying they do not want it.
+      close: closePdf
     })
   }
 }

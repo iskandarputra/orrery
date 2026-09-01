@@ -517,6 +517,10 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       }
     }
     cancelAutosave(id)
+    // A surface that holds unsaved work of its own is told the tab has gone, so
+    // "close without saving" actually throws it away. After the prompt above:
+    // whatever the answer was, it has been given.
+    if (buffer.kind) surfaceForKind(buffer.kind)?.close?.(id)
     // Let the language server drop the file too; a server that is never told
     // keeps analysing documents nobody has open.
     if (buffer.filePath) closeDocument(id, buffer.filePath)

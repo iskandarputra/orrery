@@ -362,9 +362,9 @@ test('the notes panel lists what is marked on the document', async () => {
   await expect(page.locator('.pdfv__tab-count')).toHaveText('1')
 })
 
-test('pages can be rearranged, and the file says so afterwards', async () => {
-  // The first structural write: this is not an annotation appended to a
-  // document but a new document built from its pages.
+test('pages can be rearranged, and the file says so once it is saved', async () => {
+  // Not an annotation appended to a document but a new document built from its
+  // pages — and, like every other change here, one that waits for Ctrl+S.
   const pagesPath = join(vault, 'Pages.pdf')
   writeFileSync(
     pagesPath,
@@ -385,6 +385,13 @@ test('pages can be rearranged, and the file says so afterwards', async () => {
 
   await page.locator('.pdfv__page-pending button', { hasText: 'Apply' }).click()
   await expect(page.locator('.pdfv__count')).toHaveText('of 2', { timeout: 30_000 })
+  // Applied to the document, not to the file: the reader shows two pages and
+  // the file still has three until somebody says to write it.
+  expect(statSync(pagesPath).mtimeMs).toBe(before)
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(1)
+
+  await page.locator('button[aria-label="Save this document"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0, { timeout: 20_000 })
   expect(statSync(pagesPath).mtimeMs).not.toBe(before)
 
   // Read back through the reader rather than out of the bytes: the writing
@@ -1155,4 +1162,199 @@ test('a picture that has been added can be dragged, resized and turned', async (
 
   // And the words underneath were never touched by any of it.
   await expect(page.locator('.pdfViewer:visible')).toContainText('a page to decorate')
+})
+
+test('putting a picture on a page changes the document, not the file', async () => {
+  // The contract for editing a PDF, in one test. Every change to a page used to
+  // be written the moment it was made: a picture placed to see how it looked
+  // was in somebody's document before they had decided to keep it, with nothing
+  // on the tab to say so and no way to say no.
+  const deferred = join(vault, 'Deferred.pdf')
+  const png = join(vault, 'deferred.png')
+  writeFileSync(deferred, makePdf({ pages: [['a page to decorate']] }))
+  writeFileSync(png, makePng(48, 48))
+  await app.evaluate(({ dialog }, chosen) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] }) as never
+  }, png)
+
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Deferred.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+  const before = statSync(deferred).mtimeMs
+  const sizeBefore = readFileSync(deferred).length
+
+  await page.locator('button[aria-label="Image"]').click()
+  await expect(page.locator('.toast__message')).toContainText('picture was added', {
+    timeout: 30_000
+  })
+
+  // It is on the page: the editor finds it, so the document the app is showing
+  // really does have a picture in it.
+  await expect
+    .poll(
+      async () => {
+        const objects = await page.evaluate(
+          (p) => window.orrery.invoke('pdf:objects', { path: p, page: 0 }),
+          deferred
+        )
+        return objects.filter((o) => o.kind === 'image').length
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(1)
+
+  // And it is not in the file. Byte for byte the document is the one that was
+  // opened, and the tab carries the dot instead.
+  expect(statSync(deferred).mtimeMs).toBe(before)
+  expect(readFileSync(deferred).length).toBe(sizeBefore)
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(1)
+
+  // Saving is what writes it, as it is for a note.
+  await page.locator('button[aria-label="Save this document"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0, { timeout: 20_000 })
+  expect(statSync(deferred).mtimeMs).not.toBe(before)
+  await expect
+    .poll(
+      async () => {
+        const objects = await page.evaluate(
+          (p) => window.orrery.invoke('pdf:objects', { path: p, page: 0 }),
+          deferred
+        )
+        return objects.filter((o) => o.kind === 'image').length
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(1)
+})
+
+test('editing the page keeps a note that has not been saved yet', async () => {
+  // Two kinds of change, held in two different places: a note lives in pdf.js's
+  // storage until it is serialised, and the page's own contents are rebuilt by
+  // an engine in main that knows nothing about that storage. Editing the page
+  // used to rebuild the document from bytes the note was never in — so the note
+  // came off the screen without a word, while the tab went on saying there was
+  // something to save.
+  const both = join(vault, 'Both.pdf')
+  writeFileSync(both, makePdf({ pages: [['a line that will be moved']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Both.pdf' }).click()
+  await expect(page.locator('.pdfViewer .page').first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.annotationLayer section')).toHaveCount(0)
+
+  // Write a note on the page, and put the tool down again.
+  await page.locator('button[aria-label="Text box"]').click()
+  const sheet = (await page.locator('.pdfViewer .page').first().boundingBox())!
+  await page.mouse.click(sheet.x + 140, sheet.y + 240)
+  await page.keyboard.type('a note that must survive')
+  await page.keyboard.press('Escape')
+  await page.locator('button[aria-label="Text box"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(1, { timeout: 10_000 })
+
+  // Now change the page itself, which rebuilds the whole document.
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const target = page.locator('.pdfv__object').first()
+  await expect(target).toBeVisible({ timeout: 20_000 })
+  const at = (await target.boundingBox())!
+  await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(at.x + at.width / 2 + 70, at.y + at.height / 2 + 30, { steps: 10 })
+  await page.mouse.up()
+  await expect
+    .poll(async () => (await page.locator('.pdfv__object').first().boundingBox())?.x ?? 0, {
+      timeout: 30_000
+    })
+    .toBeGreaterThan(at.x + 40)
+
+  // The note is part of the document that came back, rather than something the
+  // rebuild left behind — and it is the note that was written, once, rather
+  // than an empty annotation that happens to be there.
+  const note = page.locator('.annotationLayer .freeTextAnnotation')
+  await expect(note).toHaveCount(1, { timeout: 20_000 })
+  await expect(note).toContainText('a note that must survive')
+
+  // And it is in the file once the document is saved.
+  await page.locator('button[aria-label="Save this document"]').click()
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0, { timeout: 20_000 })
+  expect(readFileSync(both, 'latin1')).toContain('/FreeText')
+})
+
+test('a document closed without saving is the document that was opened', async () => {
+  // The other half of deferring the write: saying no has to mean something.
+  // While every edit went straight to disk there was nothing to say no to.
+  const declined = join(vault, 'Declined.pdf')
+  writeFileSync(declined, makePdf({ pages: [['the wording as it was sent']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Declined.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText(
+    'the wording as it was sent',
+    { timeout: 20_000 }
+  )
+  const before = statSync(declined).mtimeMs
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const box = page.locator('.pdfv__object').first()
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const at = (await box.boundingBox())!
+  await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2)
+  await page.locator('button[aria-label="Remove this from the page"]').click()
+  await expect(page.locator('.pdfViewer')).not.toContainText('the wording as it was sent', {
+    timeout: 30_000
+  })
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(1)
+
+  // Close the tab and answer "Don't Save".
+  await app.evaluate(({ dialog }) => {
+    const held = globalThis as { __realMessageBox?: typeof dialog.showMessageBox }
+    held.__realMessageBox ??= dialog.showMessageBox
+    dialog.showMessageBox = async () => ({ response: 1 }) as never
+  })
+  await page.locator('.tab--active .tab__close').click()
+  await expect(page.locator('.tab', { hasText: 'Declined.pdf' })).toHaveCount(0, {
+    timeout: 20_000
+  })
+  await app.evaluate(({ dialog }) => {
+    const held = globalThis as { __realMessageBox?: typeof dialog.showMessageBox }
+    if (held.__realMessageBox) dialog.showMessageBox = held.__realMessageBox
+  })
+
+  // Nothing was written, and opening it again shows the document as it was —
+  // the draft went when the tab did, rather than waiting to surprise somebody.
+  expect(statSync(declined).mtimeMs).toBe(before)
+  await page.locator('.tree-row--file', { hasText: 'Declined.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText(
+    'the wording as it was sent',
+    { timeout: 20_000 }
+  )
+  await expect(page.locator('.tab--active .tab__dirty-dot')).toHaveCount(0)
+})
+
+test('taking a change back does not write one', async () => {
+  // Undo puts the bytes the document used to have back into the draft. Doing it
+  // by writing them would mean a document could reach the disk by way of an
+  // undo, having never been saved at all.
+  const stepped = join(vault, 'Stepped.pdf')
+  writeFileSync(stepped, makePdf({ pages: [['a line to take away']] }))
+  await page.locator('.sidebar__actions button[title*="Refresh"]').click()
+  await page.locator('.tree-row--file', { hasText: 'Stepped.pdf' }).click()
+  await expect(page.locator('.pdfViewer .textLayer').first()).toContainText('a line to take away', {
+    timeout: 20_000
+  })
+  const before = statSync(stepped).mtimeMs
+
+  await page.locator('button[aria-label="Edit the page itself"]').click()
+  const box = page.locator('.pdfv__object').first()
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const at = (await box.boundingBox())!
+  await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2)
+  await page.locator('button[aria-label="Remove this from the page"]').click()
+  await expect(page.locator('.pdfViewer')).not.toContainText('a line to take away', {
+    timeout: 30_000
+  })
+
+  await expect(page.locator('button[aria-label="Undo"]')).toBeEnabled({ timeout: 20_000 })
+  await page.locator('button[aria-label="Undo"]').click()
+  await expect(page.locator('.pdfViewer')).toContainText('a line to take away', { timeout: 30_000 })
+
+  // Neither the change nor taking it back went anywhere near the file.
+  expect(statSync(stepped).mtimeMs).toBe(before)
 })

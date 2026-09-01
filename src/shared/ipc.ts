@@ -292,32 +292,42 @@ export interface IpcInvokeContract {
    */
   'pdf:text': { req: { path: string }; res: { pages: string[]; emptyPages: number[] } }
   /**
-   * Write a PDF back, bytes and all.
+   * Every channel below that changes a document changes the *draft* of it, not
+   * the file: the bytes are kept in main, the reader is served them in place of
+   * what is on disk, and only `pdf:save` writes. That is what makes a PDF
+   * behave like every other document in the app — a dot on the tab, Ctrl+S to
+   * commit, close without saving to throw the changes away — and it is why
+   * none of them carries `expectedMtimeMs` any more. There is one check against
+   * the file changing underneath, and it happens at the save.
    *
-   * The bytes rather than a base64 string: a scanned document runs to tens of
-   * megabytes and encoding it would cost a third again in memory on both sides
-   * for no benefit — Electron's own serialisation carries a `Uint8Array`.
-   *
-   * `expectedMtimeMs` is the same optimistic check every other save uses, so a
-   * document that changed on disk while it was open refuses rather than
-   * overwriting.
+   * They answer `{ version }`: a number that changes whenever the draft does,
+   * for the reader to hang its reload off.
    */
   /**
-   * Rearrange a document's pages: reorder, remove, rotate, extract, merge.
+   * Rearrange a document's pages: reorder, remove, rotate, merge.
    *
    * The plan comes from `core/pdf-pages.ts` and describes the whole result at
-   * once, so any number of rearrangements is one write. `also` names further
-   * documents whose pages the plan may draw on, numbered after the first one's;
-   * `saveAs` writes somewhere else, which is what extracting to a new file is.
+   * once, so any number of rearrangements is one change. `also` names further
+   * documents whose pages the plan may draw on, numbered after the first one's.
    */
   'pdf:pages': {
     req: {
       path: string
       plan: { order: number[]; rotate: number[] }
       also?: string[]
-      saveAs?: string
-      expectedMtimeMs: number | null
     }
+    res: { version: number }
+  }
+  /**
+   * Write some of this document's pages out as a document of their own.
+   *
+   * The one page operation that is not a draft: it makes a new file rather than
+   * changing this one, so there is nothing to defer and nothing to overwrite —
+   * main picks a free name. The pages come from the draft, so what is extracted
+   * is what you can see.
+   */
+  'pdf:extractPages': {
+    req: { path: string; plan: { order: number[]; rotate: number[] }; saveAs: string }
     res: { path: string; mtimeMs: number }
   }
   /**
@@ -344,85 +354,61 @@ export interface IpcInvokeContract {
    * retyping it means replacing the run.
    */
   'pdf:editObject': {
-    req: {
-      path: string
-      page: number
-      indexes: number[]
-      text: string
-      expectedMtimeMs: number | null
-    }
-    res: { path: string; mtimeMs: number }
+    req: { path: string; page: number; indexes: number[]; text: string }
+    res: { version: number }
   }
   /**
    * Take objects off a page and out of the file — the difference between
    * redaction and drawing a black rectangle over something.
    */
   'pdf:removeObjects': {
-    req: { path: string; page: number; indexes: number[]; expectedMtimeMs: number | null }
-    res: { path: string; mtimeMs: number }
+    req: { path: string; page: number; indexes: number[] }
+    res: { version: number }
   }
   /**
    * Step a document back, or forward again, through the changes made to it.
    *
-   * A PDF's undo cannot be a stack of edits in memory: every change rewrites
-   * the whole file, so what is kept is what the bytes were. `null` means there
-   * was nothing to step to.
+   * A PDF's undo cannot be a stack of edits in memory: the engine rewrites the
+   * whole document for every change, so what is kept is what the bytes were.
+   * It steps the draft and writes nothing — undoing an unsaved change leaves
+   * the file alone, and undoing past the last save makes the tab dirty again.
+   * `null` means there was nothing to step to.
    */
   'pdf:undo': {
     req: { path: string; direction: 'undo' | 'redo' }
-    res: { mtimeMs: number; undo: boolean; redo: boolean } | null
+    res: { version: number; undo: boolean; redo: boolean } | null
   }
-  /** Whether stepping back or forward is possible, for a toolbar to say so. */
-  'pdf:canUndo': { req: { path: string }; res: { undo: boolean; redo: boolean } }
-  /** Throw away a document's history, when nothing is looking at it any more. */
-  'pdf:forgetHistory': { req: { path: string }; res: void }
+  /**
+   * Where this document stands: what can be stepped through, and whether it
+   * says something the file does not.
+   *
+   * `drafted` is asked on open as well as after every change, because a second
+   * pane onto a document that is already being edited is shown the draft — and
+   * a tab showing unsaved work has to know that is what it is showing.
+   */
+  'pdf:canUndo': {
+    req: { path: string }
+    res: { undo: boolean; redo: boolean; drafted: boolean }
+  }
   /** Move an object on a page, in PDF units. Nothing else about it changes. */
   'pdf:moveObject': {
-    req: {
-      path: string
-      page: number
-      index: number
-      dx: number
-      dy: number
-      expectedMtimeMs: number | null
-    }
-    res: { path: string; mtimeMs: number }
+    req: { path: string; page: number; index: number; dx: number; dy: number }
+    res: { version: number }
   }
   /** Put new text on a page, in a font every reader has. */
   'pdf:addText': {
-    req: {
-      path: string
-      page: number
-      text: string
-      x: number
-      y: number
-      size: number
-      expectedMtimeMs: number | null
-    }
-    res: { path: string; mtimeMs: number }
+    req: { path: string; page: number; text: string; x: number; y: number; size: number }
+    res: { version: number }
   }
   /** Scale an object about its own corner, so it grows in place. */
   'pdf:resizeObject': {
-    req: {
-      path: string
-      page: number
-      index: number
-      sx: number
-      sy: number
-      expectedMtimeMs: number | null
-    }
-    res: { path: string; mtimeMs: number }
+    req: { path: string; page: number; index: number; sx: number; sy: number }
+    res: { version: number }
   }
   /** Turn one object about its own middle, by however many degrees. */
   'pdf:rotateObject': {
-    req: {
-      path: string
-      page: number
-      index: number
-      degrees: number
-      expectedMtimeMs: number | null
-    }
-    res: { path: string; mtimeMs: number }
+    req: { path: string; page: number; index: number; degrees: number }
+    res: { version: number }
   }
   /** How many pages another document has, for planning a merge. */
   'pdf:pageCount': { req: { path: string }; res: number }
@@ -446,14 +432,47 @@ export interface IpcInvokeContract {
       y: number
       width: number
       height: number
-      expectedMtimeMs: number | null
     }
-    res: { path: string; mtimeMs: number }
+    res: { version: number }
   }
+  /**
+   * Write this document to disk — the only channel that does.
+   *
+   * `bytes` when the reader has something the draft does not: annotations and
+   * form values live in pdf.js's storage and only it can serialise them, so it
+   * hands over the whole document. The bytes rather than a base64 string: a
+   * scanned document runs to tens of megabytes and encoding it would cost a
+   * third again in memory on both sides for no benefit — Electron's own
+   * serialisation carries a `Uint8Array`. `null` when there is nothing to add
+   * and the draft is already the answer, which saves sending a document across
+   * the boundary to be written back unchanged.
+   *
+   * `expectedMtimeMs` is the same optimistic check every other save uses, so a
+   * document that changed on disk while it was open refuses rather than
+   * overwriting.
+   */
   'pdf:save': {
-    req: { path: string; bytes: Uint8Array; expectedMtimeMs: number | null }
+    req: { path: string; bytes: Uint8Array | null; expectedMtimeMs: number | null }
     res: { path: string; mtimeMs: number }
   }
+  /**
+   * Fold what the reader is holding into the draft, without writing anything.
+   *
+   * An annotation lives in pdf.js's storage until it is saved, and an edit to
+   * the page itself is carried out by an engine in main that reads the draft
+   * and knows nothing about that storage. Without this, editing the page after
+   * marking it up would rebuild the document from bytes the annotation was
+   * never in, and the reload would take the annotation away — silently, with
+   * the tab still claiming there was something to save.
+   */
+  'pdf:stage': { req: { path: string; bytes: Uint8Array }; res: { version: number } }
+  /**
+   * Throw away a document's draft and its history, when its tab has gone.
+   *
+   * Closing without saving is how you say no to changes you have made, and this
+   * is what makes that mean something.
+   */
+  'pdf:discard': { req: { path: string }; res: void }
   /**
    * Text recognised from pages that had none, merged into the same cache the
    * extractor fills so search asks one question and gets one answer.

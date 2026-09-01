@@ -32,6 +32,7 @@ import {
   resizeObject
 } from '../services/pdfium'
 import type { PdfHistory } from '../services/pdf-history'
+import type { PdfDrafts } from '../services/pdf-drafts'
 import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -57,6 +58,7 @@ export interface HandlerDeps {
   sqlite: SqliteService
   pdfText: PdfTextService
   pdfHistory: PdfHistory
+  pdfDrafts: PdfDrafts
   mcpAudit: McpAudit
   askUser: AskUser
 }
@@ -89,8 +91,19 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     askUser,
     sqlite,
     pdfText,
-    pdfHistory
+    pdfHistory,
+    pdfDrafts
   } = deps
+
+  /**
+   * Bumped whenever any document's draft changes.
+   *
+   * The reader hangs its reload off this: the same URL twice is served from the
+   * cache, so a number that moves is what makes the pages redraw. One counter
+   * across every document rather than one each — it only has to change, not to
+   * mean anything.
+   */
+  let pdfVersion = 0
 
   // --- dialogs -------------------------------------------------------------
   handle('dialog:pickImage', null, async () => {
@@ -462,34 +475,71 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   )
 
   const exportReq = z.object({ title: z.string(), markdown: z.string() })
-  // --- databases ------------------------------------------------------------
-  /** Keep the bytes that are about to be replaced, so the change can be undone. */
-  const rememberBefore = async (target: string): Promise<void> => {
-    try {
-      await pdfHistory.remember(target, new Uint8Array(await readFile(target)))
-    } catch {
-      // A document that cannot be read has no history worth keeping, and this
-      // must never be the reason a save fails.
-    }
+
+  // --- PDFs -----------------------------------------------------------------
+
+  /**
+   * A PDF, as the app currently shows it.
+   *
+   * Every change below reads through this and writes back to it, so a second
+   * edit lands on top of the first and none of them touches the file. `pdf:save`
+   * is the only thing that writes.
+   */
+  const currentPdf = (target: string): Promise<Uint8Array> =>
+    pdfDrafts.read(target, async (file) => new Uint8Array(await readFile(file)))
+
+  /**
+   * Carry out one change to a document, keeping what it said before.
+   *
+   * Every one of these is the same three steps — read what the document says
+   * now, remember it so the change can be taken back, put the result where the
+   * reader will find it — and doing them in nine places is how they end up
+   * being done nine slightly different ways.
+   */
+  const changePdf = async (
+    target: string,
+    change: (source: Uint8Array) => Promise<Uint8Array>
+  ): Promise<{ version: number }> => {
+    const source = await currentPdf(target)
+    await pdfHistory.remember(target, source)
+    pdfDrafts.set(target, await change(source))
+    return { version: ++pdfVersion }
   }
 
-  handle('pdf:canUndo', pathReq, (_e, req) => pdfHistory.can(req.path))
-  handle('pdf:forgetHistory', pathReq, (_e, req) => pdfHistory.forget(req.path))
+  handle('pdf:canUndo', pathReq, (_e, req) => ({
+    ...pdfHistory.can(req.path),
+    drafted: pdfDrafts.has(req.path)
+  }))
+  handle('pdf:discard', pathReq, async (_e, req) => {
+    pdfDrafts.discard(req.path)
+    await pdfHistory.forget(req.path)
+  })
+  handle(
+    'pdf:stage',
+    z.object({ path: z.string().min(1), bytes: z.instanceof(Uint8Array) }),
+    (_e, req) => {
+      // No history step: this is not a change somebody made, it is the change
+      // they already made arriving from the other side. The edit that follows
+      // remembers these bytes, so undo goes back to the annotated document
+      // rather than to one the annotation was never in.
+      pdfDrafts.set(req.path, req.bytes)
+      return { version: ++pdfVersion }
+    }
+  )
   handle(
     'pdf:undo',
     z.object({ path: z.string().min(1), direction: z.enum(['undo', 'redo']) }),
     async (_e, req) => {
-      const current = new Uint8Array(await readFile(req.path))
+      const current = await currentPdf(req.path)
       const bytes =
         req.direction === 'undo'
           ? await pdfHistory.undo(req.path, current)
           : await pdfHistory.redo(req.path, current)
       if (!bytes) return null
-      // No conflict check: this is putting back bytes this app itself wrote a
-      // moment ago, and refusing would leave somebody with no way back.
-      const result = await fs.writeBytes(req.path, bytes, null)
-      await pdfText.forget(req.path)
-      return { mtimeMs: result.mtimeMs, ...pdfHistory.can(req.path) }
+      // Into the draft, not onto the disk: taking back a change that was never
+      // written must not be the thing that writes one.
+      pdfDrafts.set(req.path, bytes)
+      return { version: ++pdfVersion, ...pdfHistory.can(req.path) }
     }
   )
 
@@ -497,7 +547,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle(
     'pdf:objects',
     z.object({ path: z.string().min(1), page: z.number().int().min(0) }),
-    async (_e, req) => pageObjects(new Uint8Array(await readFile(req.path)), req.page)
+    async (_e, req) => pageObjects(await currentPdf(req.path), req.page)
   )
   handle(
     'pdf:editObject',
@@ -505,17 +555,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       path: z.string().min(1),
       page: z.number().int().min(0),
       indexes: z.array(z.number().int().min(0)).min(1).max(5000),
-      text: z.string().max(20_000),
-      expectedMtimeMs: z.number().nullable()
+      text: z.string().max(20_000)
     }),
-    async (_e, req) => {
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await editTextRun(source, req.page, req.indexes, req.text)
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
-    }
+    (_e, req) =>
+      changePdf(req.path, (source) => editTextRun(source, req.page, req.indexes, req.text))
   )
   handle(
     'pdf:moveObject',
@@ -525,17 +568,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       index: z.number().int().min(0),
       // Bounded to a page's worth of movement in either direction.
       dx: z.number().min(-20_000).max(20_000),
-      dy: z.number().min(-20_000).max(20_000),
-      expectedMtimeMs: z.number().nullable()
+      dy: z.number().min(-20_000).max(20_000)
     }),
-    async (_e, req) => {
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await moveObject(source, req.page, req.index, req.dx, req.dy)
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
-    }
+    (_e, req) =>
+      changePdf(req.path, (source) => moveObject(source, req.page, req.index, req.dx, req.dy))
   )
   handle(
     'pdf:addImage',
@@ -546,30 +582,26 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       x: z.number(),
       y: z.number(),
       width: z.number().min(1).max(20_000),
-      height: z.number().min(1).max(20_000),
-      expectedMtimeMs: z.number().nullable()
+      height: z.number().min(1).max(20_000)
     }),
-    async (_e, req) => {
+    (_e, req) => {
       // Decoded by Electron, which reads every format the app can show. The
       // renderer sends a path, not pixels: a screenshot is megabytes, and there
       // is no reason for them to cross the boundary twice.
       const picture = nativeImage.createFromPath(req.image)
       if (picture.isEmpty()) throw new IpcError('UNKNOWN', 'That image could not be read')
       const { width, height } = picture.getSize()
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await addImageObject(
-        source,
-        req.page,
-        { pixels: new Uint8Array(picture.toBitmap()), width, height },
-        req.x,
-        req.y,
-        req.width,
-        req.height
+      return changePdf(req.path, (source) =>
+        addImageObject(
+          source,
+          req.page,
+          { pixels: new Uint8Array(picture.toBitmap()), width, height },
+          req.x,
+          req.y,
+          req.width,
+          req.height
+        )
       )
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
     }
   )
   handle(
@@ -580,17 +612,12 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       text: z.string().min(1).max(20_000),
       x: z.number(),
       y: z.number(),
-      size: z.number().min(1).max(400),
-      expectedMtimeMs: z.number().nullable()
+      size: z.number().min(1).max(400)
     }),
-    async (_e, req) => {
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await addTextObject(source, req.page, req.text, req.x, req.y, req.size)
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
-    }
+    (_e, req) =>
+      changePdf(req.path, (source) =>
+        addTextObject(source, req.page, req.text, req.x, req.y, req.size)
+      )
   )
   handle(
     'pdf:resizeObject',
@@ -601,17 +628,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       // A hundredth to a hundred times: past either end is a mistake, not a
       // resize, and an object scaled to nothing cannot be got back by dragging.
       sx: z.number().min(0.01).max(100),
-      sy: z.number().min(0.01).max(100),
-      expectedMtimeMs: z.number().nullable()
+      sy: z.number().min(0.01).max(100)
     }),
-    async (_e, req) => {
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await resizeObject(source, req.page, req.index, req.sx, req.sy)
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
-    }
+    (_e, req) =>
+      changePdf(req.path, (source) => resizeObject(source, req.page, req.index, req.sx, req.sy))
   )
   handle(
     'pdf:rotateObject',
@@ -621,63 +641,50 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       index: z.number().int().min(0),
       // Any angle, but never so many turns that the matrix stops meaning
       // anything; the editor sends what the handle was dragged to.
-      degrees: z.number().min(-360).max(360),
-      expectedMtimeMs: z.number().nullable()
+      degrees: z.number().min(-360).max(360)
     }),
-    async (_e, req) => {
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await rotateObject(source, req.page, req.index, req.degrees)
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
-    }
+    (_e, req) =>
+      changePdf(req.path, (source) => rotateObject(source, req.page, req.index, req.degrees))
   )
-  handle('pdf:pageCount', pathReq, async (_e, req) =>
-    pageCount(new Uint8Array(await readFile(req.path)))
-  )
+  handle('pdf:pageCount', pathReq, async (_e, req) => pageCount(await currentPdf(req.path)))
   handle(
     'pdf:removeObjects',
     z.object({
       path: z.string().min(1),
       page: z.number().int().min(0),
-      indexes: z.array(z.number().int().min(0)).max(5000),
-      expectedMtimeMs: z.number().nullable()
+      indexes: z.array(z.number().int().min(0)).max(5000)
     }),
-    async (_e, req) => {
-      const source = new Uint8Array(await readFile(req.path))
-      await pdfHistory.remember(req.path, source)
-      const bytes = await removePageObjects(source, req.page, req.indexes)
-      const result = await fs.writeBytes(req.path, bytes, req.expectedMtimeMs)
-      await pdfText.forget(req.path)
-      return result
-    }
+    (_e, req) => changePdf(req.path, (source) => removePageObjects(source, req.page, req.indexes))
   )
+  const pagePlan = z.object({
+    order: z.array(z.number().int().min(0)).max(20_000),
+    rotate: z.array(z.number().int()).max(20_000)
+  })
   handle(
     'pdf:pages',
     z.object({
       path: z.string().min(1),
-      plan: z.object({
-        order: z.array(z.number().int().min(0)).max(20_000),
-        rotate: z.array(z.number().int()).max(20_000)
-      }),
-      also: z.array(z.string().min(1)).max(50).optional(),
-      saveAs: z.string().min(1).optional(),
-      expectedMtimeMs: z.number().nullable()
+      plan: pagePlan,
+      also: z.array(z.string().min(1)).max(50).optional()
     }),
     async (_e, req) => {
-      const sources = await Promise.all(
-        [req.path, ...(req.also ?? [])].map(async (file) => new Uint8Array(await readFile(file)))
-      )
-      if (!req.saveAs) await rememberBefore(req.path)
-      const bytes = await applyPagePlan(sources, req.plan)
+      // The other documents are read as they are on disk unless they are open
+      // and being edited too, in which case what you can see is what gets
+      // merged in.
+      const others = await Promise.all((req.also ?? []).map((file) => currentPdf(file)))
+      return changePdf(req.path, (source) => applyPagePlan([source, ...others], req.plan))
+    }
+  )
+  handle(
+    'pdf:extractPages',
+    z.object({ path: z.string().min(1), plan: pagePlan, saveAs: z.string().min(1) }),
+    async (_e, req) => {
+      const bytes = await applyPagePlan([await currentPdf(req.path)], req.plan)
       // Writing somewhere new never overwrites: extracting pages twice is a
-      // thing people do, and the second attempt must not eat the first.
-      const target = req.saveAs ? await fs.freeName(req.saveAs) : req.path
-      // A new file has nothing to conflict with; writing over the original uses
-      // the same check every other save does.
-      const result = await fs.writeBytes(target, bytes, req.saveAs ? null : req.expectedMtimeMs)
-      await pdfText.forget(target)
+      // thing people do, and the second attempt must not eat the first. A new
+      // file has nothing to conflict with, so there is no check to make.
+      const result = await fs.writeBytes(await fs.freeName(req.saveAs), bytes, null)
+      await pdfText.forget(result.path)
       return result
     }
   )
@@ -685,12 +692,22 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     'pdf:save',
     z.object({
       path: z.string().min(1),
-      bytes: z.instanceof(Uint8Array),
+      bytes: z.instanceof(Uint8Array).nullable(),
       expectedMtimeMs: z.number().nullable()
     }),
     async (_e, req) => {
-      await rememberBefore(req.path)
-      const result = await fs.writeBytes(req.path, req.bytes, req.expectedMtimeMs)
+      // What the reader is holding, when it is holding anything: annotations
+      // and form values are pdf.js's to serialise, and they arrive here as the
+      // whole document with those folded in. It becomes the draft first, so a
+      // save that fails the conflict check leaves the app showing what it was
+      // showing rather than quietly dropping the marks.
+      if (req.bytes) {
+        await pdfHistory.remember(req.path, await currentPdf(req.path))
+        pdfDrafts.set(req.path, req.bytes)
+      }
+      const result = await fs.writeBytes(req.path, await currentPdf(req.path), req.expectedMtimeMs)
+      // The file is now what the draft said, so there is no longer a draft.
+      pdfDrafts.discard(req.path)
       // The document has changed, so what it says has changed: the next search
       // must read it again rather than answer from what it used to say.
       await pdfText.forget(req.path)
@@ -708,6 +725,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     (_e, req) =>
       pdfText.merge(req.path, new Map(req.pages.map((entry) => [entry.page, entry.text])))
   )
+
+  // --- databases ------------------------------------------------------------
 
   handle('db:available', null, () => sqlite.available)
   handle('db:tables', pathReq, (_e, req) => sqlite.tables(req.path))

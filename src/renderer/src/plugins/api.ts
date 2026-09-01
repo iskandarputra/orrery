@@ -64,6 +64,16 @@ export interface DocumentSurface {
   undo?(bufferId: string): Promise<boolean>
   redo?(bufferId: string): Promise<boolean>
   /**
+   * The tab has gone: let go of anything being held for it.
+   *
+   * Called after the prompt that asks about unsaved work, so by this point the
+   * answer is in — either it was saved or it was given up on. A surface that
+   * keeps changes somewhere other than the buffer has to be told, or "close
+   * without saving" leaves them sitting there to be picked up by the next tab
+   * that opens the same file.
+   */
+  close?(bufferId: string): void
+  /**
    * How to make a new one, if that makes sense for the format.
    *
    * Without this a surface can only open files that already exist — which,

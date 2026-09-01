@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/PanelBits'
 import { useStore } from '@/state/store'
 import { loadPdfjs } from './pdfjs-lazy'
 import { readPage, startReader } from './ocr'
-import { registerSaver, registerUndo } from './saving'
+import { registerCloser, registerSaver, registerUndo } from './saving'
 import { PdfObjectLayer } from './PdfObjectLayer'
 import { annotationList, type AnnotationRef, type RawAnnotation } from '@core/pdf-annotations'
 import type { PagePlan } from '@core/pdf-pages'
@@ -33,8 +33,11 @@ import { PdfSidebar } from './PdfSidebar'
  * local files to the renderer, so the bytes are streamed by the protocol
  * handler rather than copied through an IPC message.
  *
- * Nothing here writes. A PDF opened in Orrery today is a document being read;
- * the tab is never dirty and the file on disk is never touched.
+ * Nothing here writes to the file except the save. Marking a page up, filling a
+ * form and editing the page's own contents all change a document held elsewhere
+ * — pdf.js's annotation storage for the first two, a draft in main for the
+ * third — and the tab carries the dot that says so. Ctrl+S is what puts any of
+ * it on disk, and closing without saving throws it away, exactly as for a note.
  */
 
 /**
@@ -67,8 +70,17 @@ const lastSeen = new Map<string, { page: number; scale: string; rotation: number
 
 export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element {
   const path = useStore((s) => s.buffers[bufferId]?.filePath ?? '')
-  /** Bumped when the file has been rewritten and must be read again. */
+  /** Bumped when the document has changed and must be read again. */
   const [reloadToken, setReload] = useState(0)
+  /**
+   * The same count, readable from a callback.
+   *
+   * `reloadToken` in a handler is whatever it was when that handler was made,
+   * and a reload triggered while one is awaiting leaves it a step behind — so
+   * anything that has to name the *next* reload asks this instead of adding one
+   * to a number that may already have moved.
+   */
+  const reloadRef = useRef(0)
   /**
    * The reload a picture was added on, so that picture arrives already picked.
    *
@@ -127,7 +139,34 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   const [reading, setReading] = useState<string | null>(null)
   /** Which annotation tool is in hand, as pdf.js numbers them. */
   const [tool, setTool] = useState(0)
+  /**
+   * Whether this document says something the file does not.
+   *
+   * Two things can put it here and they are held in different places: an
+   * annotation or a form value, which lives in pdf.js's storage until it is
+   * serialised, and a change to the page itself, which lives as a draft in
+   * main. Either one is a dot on the tab and a Ctrl+S that has work to do.
+   */
   const [dirty, setDirty] = useState(false)
+  /**
+   * The same answer, readable straight away.
+   *
+   * An edit sets the state and a re-render then hands the new `save` to Ctrl+S.
+   * Between those two the keystroke would still be holding the old one, which
+   * believed there was nothing to write — so a save pressed the instant after
+   * an edit would do nothing at all. The ref has no such gap.
+   */
+  const dirtyRef = useRef(false)
+  /**
+   * Whether pdf.js in particular is holding something.
+   *
+   * Kept apart from `dirty` because it decides two things `dirty` cannot: that
+   * a save has to send the whole document over rather than letting main write
+   * the draft it already has, and that an edit to the page must fold the marks
+   * in first — an engine that rebuilt the document from the draft alone would
+   * take them away.
+   */
+  const marksDirty = useRef(false)
   const [saving, setSaving] = useState(false)
   /**
    * What the file's timestamp was when this reader last agreed with it.
@@ -260,6 +299,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         // pdf.js types this hook as `null`; it is a callback slot, and this is
         // how the viewer it ships with uses it too.
         ;(pdf.annotationStorage as unknown as { onSetModified: () => void }).onSetModified = () => {
+          marksDirty.current = true
+          dirtyRef.current = true
           setDirty(true)
           useStore.getState().setDirty(bufferId, true)
         }
@@ -367,7 +408,13 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         const previous = taskRef.current
         taskRef.current = task
         docRef.current = pdf
+        // The document that comes back already has whatever was staged into it,
+        // so this storage starts empty and stays quiet until somebody marks the
+        // page again.
+        marksDirty.current = false
         ;(pdf.annotationStorage as unknown as { onSetModified: () => void }).onSetModified = () => {
+          marksDirty.current = true
+          dirtyRef.current = true
           setDirty(true)
           useStore.getState().setDirty(bufferId, true)
         }
@@ -457,6 +504,27 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     }
   }
 
+  useEffect(() => {
+    reloadRef.current = reloadToken
+  }, [reloadToken])
+
+  /**
+   * The document has changed and is not on disk: read it again, and say so.
+   *
+   * Every edit ends here. The reader is served the draft rather than the file,
+   * so re-reading shows the change; the dot on the tab is what says it has not
+   * been written yet.
+   */
+  const changed = (): number => {
+    const next = reloadRef.current + 1
+    reloadRef.current = next
+    setReload(next)
+    dirtyRef.current = true
+    setDirty(true)
+    useStore.getState().setDirty(bufferId, true)
+    return next
+  }
+
   // Turning to a requested page waits for the document: the request usually
   // arrives with the tab, before there are any pages to turn to.
   useEffect(() => {
@@ -467,20 +535,51 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   }, [pdfTarget, doc, path])
 
   /**
-   * Write the annotations and form values back into the file.
+   * Fold what pdf.js is holding into the draft in main, writing nothing.
    *
-   * pdf.js serialises them as an incremental update — the original bytes are
-   * kept and the new objects appended — so what comes out is the document
-   * somebody sent plus what was added to it, and every other reader can open
-   * both. The mtime check is the one every save in this app uses: a file
-   * changed underneath is refused rather than overwritten.
+   * Annotations and form values live in pdf.js's storage, and the engine that
+   * edits the page itself lives in main and reads the draft. Without this step
+   * an edit made after marking a page up would rebuild the document from bytes
+   * the mark was never in, and re-reading would take it away — silently, with
+   * the tab still claiming there was something to save. So the reader hands its
+   * version over first, and the edit lands on top of it.
+   */
+  const stage = async (): Promise<boolean> => {
+    const pdf = docRef.current
+    if (!pdf || !path || !marksDirty.current) return true
+    try {
+      await invoke('pdf:stage', { path, bytes: await pdf.saveDocument() })
+      pdf.annotationStorage.resetModified()
+      marksDirty.current = false
+      return true
+    } catch {
+      useStore.getState().showToast('That change could not be made', 'error')
+      return false
+    }
+  }
+
+  /**
+   * Write this document to disk. The only thing here that does.
+   *
+   * What goes out is the draft in main with pdf.js's marks folded in, and the
+   * marks are serialised as an incremental update — the bytes underneath are
+   * kept and the new objects appended — so a document that has only been
+   * annotated comes out as the one somebody sent plus what was added to it. The
+   * mtime check is the one every save in this app uses: a file changed
+   * underneath is refused rather than overwritten.
    */
   const save = async (): Promise<boolean> => {
     const pdf = docRef.current
     if (!pdf || !path) return true
+    // Nothing to write. Saving anyway would rewrite somebody's document to say
+    // exactly what it already said, and move its timestamp for nothing.
+    if (!dirtyRef.current) return true
     setSaving(true)
     try {
-      const bytes = await pdf.saveDocument()
+      // Only when pdf.js has something the draft does not: otherwise main
+      // already holds the answer, and sending a scanned document across the
+      // boundary to be written back unchanged is a copy for nothing.
+      const bytes = marksDirty.current ? await pdf.saveDocument() : null
       const result = await invoke('pdf:save', {
         path,
         bytes,
@@ -488,6 +587,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       })
       setSavedMtime(result.mtimeMs)
       pdf.annotationStorage.resetModified()
+      marksDirty.current = false
+      dirtyRef.current = false
       setDirty(false)
       useStore.getState().setDirty(bufferId, false)
       // What is in the file has changed, and the list is a list of what is in
@@ -524,27 +625,39 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   }, [bufferId])
 
   /**
+   * Let go of the draft when this tab closes without saving.
+   *
+   * Unless another pane is showing the same document: the draft belongs to the
+   * file, not to the tab, so two views of one PDF share it — and closing one of
+   * them must not take the other's unsaved work away.
+   */
+  useEffect(() => {
+    if (!path) return
+    registerCloser(bufferId, () => {
+      const elsewhere = Object.values(useStore.getState().buffers).some(
+        (buffer) => buffer.id !== bufferId && buffer.filePath === path
+      )
+      if (!elsewhere) void invoke('pdf:discard', { path })
+    })
+    return () => registerCloser(bufferId, null)
+  }, [bufferId, path])
+
+  /**
    * Carry out a rearrangement of the pages.
    *
-   * Anything unsaved goes into the file first: the rearrangement is applied to
-   * what is on disk, and losing an annotation because somebody rotated a page
-   * afterwards would be a hard thing to explain.
+   * Anything pdf.js is holding is folded in first: the rearrangement is applied
+   * to the document as a whole, and losing an annotation because somebody
+   * rotated a page afterwards would be a hard thing to explain.
    *
-   * The document is then reopened, because the file it was reading no longer
-   * exists in the form it read.
+   * The document is then read again, because the one it was showing has a
+   * different shape now. Nothing is written — Ctrl+S is still what does that.
    */
   const applyPlan = async (plan: PagePlan): Promise<void> => {
-    if (!path) return
-    if (dirty && !(await save())) return
+    if (!path || !(await stage())) return
     try {
-      const result = await invoke('pdf:pages', {
-        path,
-        plan,
-        expectedMtimeMs: savedMtime
-      })
-      setSavedMtime(result.mtimeMs)
-      setReload((n) => n + 1)
-      useStore.getState().showToast('The pages were rearranged', 'success')
+      await invoke('pdf:pages', { path, plan })
+      changed()
+      useStore.getState().showToast('The pages were rearranged — Ctrl+S to save', 'success')
     } catch {
       useStore.getState().showToast('Those pages could not be rearranged', 'error')
     }
@@ -553,36 +666,34 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   /**
    * Rebuild this document from itself and another one.
    *
-   * The same path as any other rearrangement — one plan, one write — with the
-   * second document named as a further source. Anything unsaved goes in first,
-   * as it does before rearranging.
+   * The same path as any other rearrangement — one plan, one change — with the
+   * second document named as a further source.
    */
   const mergeIn = async (other: string, plan: PagePlan): Promise<void> => {
-    if (!path) return
-    if (dirty && !(await save())) return
+    if (!path || !(await stage())) return
     try {
-      const result = await invoke('pdf:pages', {
-        path,
-        plan,
-        also: [other],
-        expectedMtimeMs: savedMtime
-      })
-      setSavedMtime(result.mtimeMs)
-      setReload((n) => n + 1)
-      useStore.getState().showToast('Those pages were added', 'success')
+      await invoke('pdf:pages', { path, plan, also: [other] })
+      changed()
+      useStore.getState().showToast('Those pages were added — Ctrl+S to save', 'success')
     } catch {
       useStore.getState().showToast('Those pages could not be added', 'error')
     }
   }
 
-  /** Write some pages out as a document of their own, beside this one. */
+  /**
+   * Write some pages out as a document of their own, beside this one.
+   *
+   * The one page operation that does touch the disk, because it makes a file
+   * rather than changing this one — and what it writes is what you can see,
+   * unsaved changes included, which is why the marks are folded in first.
+   */
   const extract = async (plan: PagePlan): Promise<void> => {
-    if (!path) return
+    if (!path || !(await stage())) return
     const saveAs = `${path.replace(/\.pdf$/i, '')} extract.pdf`
     try {
       // Main picks a free name rather than overwriting: extracting twice is a
       // thing people do, and the second one must not eat the first.
-      const result = await invoke('pdf:pages', { path, plan, saveAs, expectedMtimeMs: null })
+      const result = await invoke('pdf:extractPages', { path, plan, saveAs })
       await useStore.getState().refreshTree()
       useStore.getState().showToast(`Saved as ${basename(result.path)}`, 'success')
     } catch {
@@ -593,20 +704,22 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
   /**
    * Step the document back, or forward again.
    *
-   * Every change here rewrote the whole file, so undo is not a stack of edits
-   * in memory: main keeps what the bytes were and puts them back. The reader
-   * then re-reads, because the file it was showing is a different one.
+   * The engine rewrites the whole document for every change, so undo is not a
+   * stack of edits in memory: main keeps what the bytes were and puts them
+   * back. It puts them back into the draft, so taking back a change that was
+   * never written does not become the thing that writes one — and stepping past
+   * the last save leaves the tab with something to save again, which is exactly
+   * what it now has.
    */
   const step = async (direction: 'undo' | 'redo'): Promise<boolean> => {
-    if (!path) return false
+    if (!path || !(await stage())) return false
     try {
       const result = await invoke('pdf:undo', { path, direction })
+      // Nothing of this document's own to step through: the keystroke is left
+      // alone so pdf.js's annotation editor can have it.
       if (!result) return false
-      setSavedMtime(result.mtimeMs)
       setSteps({ undo: result.undo, redo: result.redo })
-      setDirty(false)
-      useStore.getState().setDirty(bufferId, false)
-      setReload((n) => n + 1)
+      changed()
       return true
     } catch {
       useStore.getState().showToast('That change could not be taken back', 'error')
@@ -626,17 +739,27 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     return () => registerUndo(bufferId, null)
   }, [bufferId])
 
-  // What can be stepped, asked whenever the document is (re)read.
+  // What can be stepped, asked whenever the document is (re)read — and with it,
+  // whether main is holding changes this tab has not made itself. It will be,
+  // when a second pane opens a document somebody is already editing: what that
+  // pane is shown is the draft, so its tab has to carry the dot too.
   useEffect(() => {
     if (!path) return
     let live = true
     void invoke('pdf:canUndo', { path })
-      .then((can) => live && setSteps(can))
+      .then((can) => {
+        if (!live) return
+        setSteps(can)
+        if (!can.drafted) return
+        dirtyRef.current = true
+        setDirty(true)
+        useStore.getState().setDirty(bufferId, true)
+      })
       .catch(() => undefined)
     return () => {
       live = false
     }
-  }, [path, reloadToken])
+  }, [path, reloadToken, bufferId])
 
   /**
    * Ctrl+Z here, rather than through the application's keymap.
@@ -667,13 +790,17 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
    * nothing at all. This adds a real image object instead — part of the page
    * like the words around it, drawn by every reader, and taken away by the same
    * undo as everything else.
+   *
+   * Added to the document, not to the file. Putting a picture down used to
+   * write it straight to disk, which meant a picture placed to see how it
+   * looked was already in somebody's document before they had decided.
    */
   const addImage = async (): Promise<void> => {
     if (!path || !doc) return
     try {
       const file = await invoke('dialog:pickImage', undefined)
       if (!file) return
-      if (dirty && !(await save())) return
+      if (!(await stage())) return
 
       const pdfPage = await doc.getPage(page)
       const view = pdfPage.view as number[]
@@ -683,24 +810,23 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       // drag from, rather than a guess at what size was wanted.
       const width = pageWidth / 3
       const height = width
-      const result = await invoke('pdf:addImage', {
+      await invoke('pdf:addImage', {
         path,
         page: page - 1,
         image: file,
         x: (pageWidth - width) / 2,
         y: (pageHeight - height) / 2,
         width,
-        height,
-        expectedMtimeMs: savedMtime
+        height
       })
-      setSavedMtime(result.mtimeMs)
-      setReload((n) => n + 1)
       // Turn the page editor on with it. The picture is a page object, so the
       // handles that move, resize and turn it live there — and telling somebody
       // to drag something they cannot touch is worse than saying nothing.
       setEditing(true)
-      setPickedAt(reloadToken + 1)
-      useStore.getState().showToast('The picture was added — drag it where you want it', 'success')
+      setPickedAt(changed())
+      useStore
+        .getState()
+        .showToast('The picture was added — drag it where you want it, then Ctrl+S', 'success')
     } catch {
       useStore.getState().showToast('That picture could not be added', 'error')
     }
@@ -940,7 +1066,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         <button
           className="pdfv__action"
           aria-label="Save this document"
-          title="Write the annotations and form values back into the file (Ctrl+S)"
+          title="Write the changes back into the file (Ctrl+S)"
           disabled={!dirty || saving}
           onClick={() => void save()}
         >
@@ -1055,11 +1181,8 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
                 alphabet={alphabet}
                 rotation={rotation}
                 pickAdded={pickedAt === reloadToken}
-                mtime={savedMtime}
-                onChanged={(mtimeMs) => {
-                  setSavedMtime(mtimeMs)
-                  setReload((n) => n + 1)
-                }}
+                beforeEdit={stage}
+                onChanged={changed}
               />
             )}
           </div>
