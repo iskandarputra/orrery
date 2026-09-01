@@ -1,13 +1,12 @@
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  test,
-  expect,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { closeCleanly, launchApp, openVault } from './helpers'
+import { makePng } from '../src/main/services/__fixtures__/make-png'
+
+/** A one-pixel GIF89a — enough to prove an animated format loads at all. */
+const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
 
 let app: ElectronApplication
 let page: Page
@@ -109,4 +108,46 @@ test('clicking a card reveals the markdown that produced it', async () => {
   await expect(hostContent()).toContainText('![[Source]]')
 
   await runCommand('view.modeReading')
+})
+
+test('a picture embedded by name is found wherever it lives in the vault', async () => {
+  // `![[diagram.png]]` is how a knowledge base writes an image, and it used to
+  // be answered with "doesn't exist yet": the embed only looked in the note
+  // index, which is markdown matched by stem — so a picture was never found,
+  // and had it been it would have been read as text and rendered as markdown.
+  const pics = mkdtempSync(join(tmpdir(), 'orrery-embed-img-'))
+  mkdirSync(join(pics, 'notes'), { recursive: true })
+  mkdirSync(join(pics, 'assets'), { recursive: true })
+  writeFileSync(join(pics, 'assets', 'diagram.png'), makePng(90, 40))
+  writeFileSync(join(pics, 'assets', 'loop.gif'), GIF)
+  writeFileSync(join(pics, 'Start.md'), '# Start\n')
+  // The note is in one folder and the pictures in another, which is the whole
+  // point of naming a file rather than pointing at it.
+  writeFileSync(
+    join(pics, 'notes', 'Gallery.md'),
+    '# Gallery\n\n![[diagram.png]]\n\n![[loop.gif]]\n\n![[missing.png]]\n'
+  )
+
+  await openVault(page, pics, 'Start.md')
+  await page.locator('.tree-row--dir', { hasText: 'notes' }).first().click()
+  await page.locator('.tree-row--file', { hasText: 'Gallery.md' }).click()
+  await expect(page.locator('.cm-or-embed--image img')).toHaveCount(2, { timeout: 20_000 })
+
+  // Actually drawn, not merely an <img> with a src that resolves to nothing.
+  const sizes = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.cm-or-embed--image img')).map(
+      (img) =>
+        `${(img as HTMLImageElement).naturalWidth}x${(img as HTMLImageElement).naturalHeight}`
+    )
+  )
+  expect(sizes).toContain('90x40')
+  // The GIF too, which is a picture like any other.
+  expect(sizes.filter((s) => s !== '0x0')).toHaveLength(2)
+
+  // And one that really is absent still says so.
+  await expect(page.locator('.cm-or-embed--missing')).toContainText('missing.png', {
+    timeout: 10_000
+  })
+
+  rmSync(pics, { recursive: true, force: true })
 })

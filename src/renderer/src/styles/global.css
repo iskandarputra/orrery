@@ -7318,3 +7318,19 @@ kbd {
   image-rendering: pixelated;
   max-width: none;
 }
+
+/* A picture embedded with `![[name.png]]`. The card's padding and border would
+   frame a picture that is already a thing in its own right, so it is dropped
+   and the picture is simply placed. */
+.cm-or-embed--image {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.cm-or-embed--image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}

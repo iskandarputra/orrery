@@ -1,6 +1,8 @@
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { EditorView as EditorViewType } from '@codemirror/view'
+import { resolveAssetUrl } from '@core/asset'
+import { resolveFile } from '@core/notes'
 import { extractSection } from '@core/section'
 import { findWikilinks } from '@core/wikilinks'
 import { mountPreview } from '@/editor/preview-view'
@@ -21,7 +23,51 @@ function resolveNotePath(target: string): string | null {
   return noteIndex.find((note) => note.stem.toLowerCase() === wanted)?.path ?? null
 }
 
+/**
+ * The pictures an embed can show. SVG is here and not in the image surface's
+ * own list: it is a file somebody may want to edit, but embedded in a note it
+ * is only ever a picture.
+ */
+const EMBEDDABLE_IMAGE = /\.(png|jpe?g|gif|webp|bmp|avif|ico|svg)$/i
+
+/**
+ * Show a picture that lives somewhere in the vault.
+ *
+ * `![[diagram.png]]` is how a knowledge base writes an image, and it was being
+ * answered with "doesn't exist yet". The embed only ever looked in the note
+ * index — markdown files, matched by stem — so a picture was neither found nor,
+ * had it been, drawn: it would have been read as text and rendered as markdown.
+ *
+ * Resolved by whole name across the vault rather than relative to the note,
+ * which is the point of the double-bracket form: where the file actually sits
+ * is not something you should have to remember when writing.
+ */
+function showImage(target: string, el: HTMLElement): boolean {
+  if (!EMBEDDABLE_IMAGE.test(target.trim())) return false
+  const found = resolveFile(appState().fileIndex, target)
+  const url = found ? resolveAssetUrl(null, found.path) : null
+  if (!url) {
+    el.classList.add('cm-or-embed--missing')
+    el.textContent = `“${target}” is not in this vault`
+    return true
+  }
+  el.textContent = ''
+  el.classList.add('cm-or-embed--image')
+  const img = document.createElement('img')
+  img.src = url
+  img.alt = target
+  img.loading = 'lazy'
+  img.addEventListener('error', () => {
+    el.classList.add('cm-or-embed--missing')
+    el.textContent = `Could not read “${target}”`
+  })
+  el.appendChild(img)
+  return true
+}
+
 async function loadEmbed(target: string, heading: string | null, el: HTMLElement): Promise<void> {
+  // A picture is shown, not read: it has no sections and no markdown in it.
+  if (showImage(target, el)) return
   const path = resolveNotePath(target)
   if (!path) {
     el.classList.add('cm-or-embed--missing')
