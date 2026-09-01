@@ -12,9 +12,13 @@ import { useStore } from './store'
 function createFakeMain(): {
   api: OrreryApi
   files: Map<string, { content: string; mtimeMs: number }>
+  drafts: Map<string, { n: number; content: string }>
+  confirmClose: () => number
   readyToClose: () => boolean
 } {
   const files = new Map<string, { content: string; mtimeMs: number }>()
+  const drafts = new Map<string, { n: number; content: string }>()
+  let confirmClose = 0
   const closeChoice: 'save' | 'discard' | 'cancel' = 'discard'
   let readyToClose = false
   let clock = 1000
@@ -38,7 +42,18 @@ function createFakeMain(): {
       files.set(req.path, { content: req.content, mtimeMs: clock })
       return { path: req.path, mtimeMs: clock }
     },
-    'dialog:confirmClose': () => closeChoice,
+    'dialog:confirmClose': () => {
+      confirmClose += 1
+      return closeChoice
+    },
+    'drafts:list': () =>
+      [...drafts].map(([id, draft]) => ({ id, n: draft.n, content: draft.content })),
+    'drafts:put': (req) => {
+      drafts.set(req.id, { n: req.n, content: req.content })
+    },
+    'drafts:forget': (req) => {
+      drafts.delete(req.id)
+    },
     'dialog:saveAs': () => '/ws/untitled.md',
     'app:addRecentFile': () => undefined,
     'settings:get': () => useStore.getState().settings,
@@ -64,6 +79,8 @@ function createFakeMain(): {
   return {
     api,
     files,
+    drafts,
+    confirmClose: () => confirmClose,
     readyToClose: () => readyToClose
   }
 }
@@ -287,5 +304,135 @@ describe('a surface that saves itself', () => {
     // knows what its bytes are.
     expect(fake.files.get('/ws/thing.fake')?.content).toBe('')
     expect(fake.files.get('/ws/thing.fake')?.mtimeMs).toBe(1)
+  })
+})
+
+/**
+ * An unsaved note across a quit.
+ *
+ * Writing something and closing the app used to be two clicks from losing it:
+ * "Save All" opened a file picker before the app would go, and "Don't Save"
+ * threw the note away for good, because the session remembers tabs by path and
+ * an untitled note has none.
+ */
+describe('a note that has never been given a file', () => {
+  /** Type into a buffer the way the editor does, and tell the store about it. */
+  const type = (id: string, text: string): void => {
+    const runtime = bufferRegistry.get(id)!
+    bufferRegistry.setState(id, runtime.state.update({ changes: { from: 0, insert: text } }).state)
+    useStore.getState().setDirty(id, true)
+  }
+
+  it('is kept where a restart can find it, as it is typed', async () => {
+    useStore.getState().newUntitled()
+    const id = useStore.getState().activeId!
+    type(id, '# half an idea')
+
+    await vi.waitFor(() => expect(fake.drafts.get(id)?.content).toBe('# half an idea'))
+    expect(fake.drafts.get(id)?.n).toBe(1)
+  })
+
+  it('does not make quitting a decision about it', async () => {
+    useStore.getState().newUntitled()
+    const id = useStore.getState().activeId!
+    type(id, 'written, not saved')
+
+    await useStore.getState().handleWindowCloseRequest()
+
+    // No prompt, the app closed, and the note is kept.
+    expect(fake.confirmClose()).toBe(0)
+    expect(fake.readyToClose()).toBe(true)
+    expect(fake.drafts.get(id)?.content).toBe('written, not saved')
+  })
+
+  it('is written on the way out even if the timer has not fired', async () => {
+    useStore.getState().newUntitled()
+    const id = useStore.getState().activeId!
+    const runtime = bufferRegistry.get(id)!
+    bufferRegistry.setState(
+      id,
+      runtime.state.update({ changes: { from: 0, insert: 'typed' } }).state
+    )
+    useStore.getState().setDirty(id, true)
+    // Quit immediately, before the debounce could have run.
+    await useStore.getState().handleWindowCloseRequest()
+
+    expect(fake.drafts.get(id)?.content).toBe('typed')
+  })
+
+  it('comes back with its name, its text and its dot', async () => {
+    fake.drafts.set('kept-1', { n: 1, content: '# first' })
+    fake.drafts.set('kept-3', { n: 3, content: '# third' })
+
+    await useStore.getState().restoreUntitled()
+
+    const s = useStore.getState()
+    expect(s.tabOrder).toHaveLength(2)
+    const restored = s.tabOrder.map((id) => s.buffers[id]!)
+    expect(restored.map((b) => b.fileName)).toEqual(['Untitled', 'Untitled 3'])
+    expect(restored.every((b) => b.filePath === null)).toBe(true)
+    // Unsaved, so it still carries the dot that says so.
+    expect(restored.every((b) => b.isDirty)).toBe(true)
+    expect(bufferRegistry.get('kept-1')?.state.doc.toString()).toBe('# first')
+  })
+
+  it('does not let a new note take a restored one’s name', async () => {
+    fake.drafts.set('kept-2', { n: 2, content: 'restored' })
+    await useStore.getState().restoreUntitled()
+
+    useStore.getState().newUntitled()
+
+    const s = useStore.getState()
+    const names = s.tabOrder.map((id) => s.buffers[id]?.fileName)
+    expect(names).toEqual(['Untitled 2', 'Untitled 3'])
+  })
+
+  it('keeps typing in the same place rather than leaving the old copy behind', async () => {
+    fake.drafts.set('kept-1', { n: 1, content: 'before' })
+    await useStore.getState().restoreUntitled()
+    type('kept-1', 'after ')
+
+    await vi.waitFor(() => expect(fake.drafts.get('kept-1')?.content).toBe('after before'))
+    // One note, not one per restart.
+    expect(fake.drafts.size).toBe(1)
+  })
+
+  it('stops being kept once it has a file of its own', async () => {
+    useStore.getState().newUntitled()
+    const id = useStore.getState().activeId!
+    type(id, 'about to be saved')
+    await vi.waitFor(() => expect(fake.drafts.has(id)).toBe(true))
+
+    await useStore.getState().save(id)
+
+    expect(fake.drafts.has(id)).toBe(false)
+    expect(fake.files.has('/ws/untitled.md')).toBe(true)
+  })
+
+  it('stops being kept when the note itself is closed', async () => {
+    useStore.getState().newUntitled()
+    const id = useStore.getState().activeId!
+    type(id, 'thrown away on purpose')
+    await vi.waitFor(() => expect(fake.drafts.has(id)).toBe(true))
+
+    // Closing a note is still a decision about it: the prompt asks, and the
+    // fake answers "Don't Save". Quitting is the case that no longer asks.
+    await useStore.getState().closeTab(id)
+
+    expect(fake.confirmClose()).toBe(1)
+    expect(fake.drafts.has(id)).toBe(false)
+  })
+
+  it('still asks about a note that does have a file', async () => {
+    fake.files.set('/ws/a.md', { content: 'original', mtimeMs: 1 })
+    await useStore.getState().openPaths(['/ws/a.md'])
+    const id = useStore.getState().activeId!
+    type(id, 'edited ')
+
+    await useStore.getState().handleWindowCloseRequest()
+
+    // The file on disk would go on saying something else, and search and
+    // backlinks read the file — so this one is still worth asking about.
+    expect(fake.confirmClose()).toBe(1)
   })
 })

@@ -67,9 +67,12 @@ export const LAUNCH_ARGS = ['--no-sandbox', '--ozone-platform=x11']
  * which is both a source of order-dependent failures and a way for a test run
  * to overwrite the settings of the machine it runs on.
  */
-export async function launchApp(): Promise<ElectronApplication> {
-  const userData = mkdtempSync(join(tmpdir(), 'orrery-userdata-'))
-  userDataDirs.push(userData)
+export async function launchApp(options: { userData?: string } = {}): Promise<ElectronApplication> {
+  // A caller may bring its own, for a spec that has to stop the app and start
+  // it again on the same data — which is the only way to test what survives a
+  // quit. It cleans up after itself; the ones made here are cleaned up above.
+  const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'orrery-userdata-'))
+  if (!options.userData) userDataDirs.push(userData)
   return electron.launch({
     args: ['./out/main/index.js', ...LAUNCH_ARGS, `--user-data-dir=${userData}`],
     env: launchEnv()

@@ -17,6 +17,7 @@ import { SqliteService } from './services/sqlite'
 import { PdfTextService } from './services/pdf-text'
 import { PdfHistory } from './services/pdf-history'
 import { PdfDrafts } from './services/pdf-drafts'
+import { DraftNotes } from './services/draft-notes'
 import { TerminalService } from './services/terminal'
 import { SidecarClient } from './services/sidecar'
 import { sidecarPath } from './services/sidecar-path'
@@ -83,6 +84,8 @@ if (!gotLock) {
   // them in place of the file, so the reader shows what you have done without
   // any of it being written.
   const pdfDrafts = new PdfDrafts()
+  // Notes written but never given a file, kept across a quit.
+  const draftNotes = new DraftNotes(join(app.getPath('userData'), 'drafts'))
   const links = new LinkScanner(sidecar, pdfText)
   const exporter = new ExportService()
   const ai = new AiService(() => settings.get())
@@ -198,7 +201,8 @@ if (!gotLock) {
       sqlite,
       pdfText,
       pdfHistory,
-      pdfDrafts
+      pdfDrafts,
+      draftNotes
     })
     buildAppMenu(settings.get().keybindings, {
       files: settings.get().recentFiles,

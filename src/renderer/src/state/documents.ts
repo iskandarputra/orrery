@@ -37,6 +37,14 @@ export interface DocumentBuffer {
   savedMtimeMs: number | null
   isDirty: boolean
   kind: DocumentKind
+  /**
+   * Which untitled note this is: 1 is "Untitled", 2 is "Untitled 2".
+   *
+   * Only set while the note has no file. It is what names the tab and what a
+   * kept note is restored under, and it lives on the buffer rather than in a
+   * map beside it so that it goes when the buffer does.
+   */
+  untitledNumber?: number
   /** What this tab is a diff of (kind 'diff' only). */
   diff?: { path: string; staged: boolean; commit?: string }
 }
@@ -64,6 +72,8 @@ export interface DocumentsSlice {
   openPaths(paths: string[]): Promise<void>
   openFileDialog(): Promise<void>
   newUntitled(): void
+  /** Reopen the unsaved notes a previous run left behind. */
+  restoreUntitled(): Promise<void>
   setActive(id: string): void
   /** Open a second pane beside the first, or close it. */
   toggleSplit(): void
@@ -102,7 +112,78 @@ export interface DocumentsSlice {
   handleWindowCloseRequest(): Promise<void>
 }
 
-let untitledCounter = 0
+/** "Untitled", then "Untitled 2". The first one does not need a number. */
+function untitledName(n: number): string {
+  return n === 1 ? 'Untitled' : `Untitled ${n}`
+}
+
+/** Every note currently open that has never been given a file. */
+function untitledBuffers(state: AppState): DocumentBuffer[] {
+  return state.tabOrder
+    .map((id) => state.buffers[id])
+    .filter((b): b is DocumentBuffer => !!b && !b.filePath && b.untitledNumber !== undefined)
+}
+
+/**
+ * The number the next new note gets: one past the highest already open.
+ *
+ * Counted from what is there rather than from a running total, so it survives
+ * notes being restored at start-up — a counter beginning at nought would hand
+ * the next note a name a restored one is already using.
+ */
+function nextUntitledNumber(state: AppState): number {
+  return (
+    untitledBuffers(state).reduce((highest, b) => Math.max(highest, b.untitledNumber ?? 0), 0) + 1
+  )
+}
+
+const draftTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function cancelDraft(id: string): void {
+  const timer = draftTimers.get(id)
+  if (timer) clearTimeout(timer)
+  draftTimers.delete(id)
+}
+
+/**
+ * Keep an unsaved note where a restart can find it.
+ *
+ * Debounced, because this runs on every keystroke and a note is written whole
+ * each time. Nothing is asked of the user: the note comes back with the app,
+ * and the question is asked when the note itself is closed.
+ */
+function rememberDraft(state: AppState, id: string): void {
+  const buffer = state.buffers[id]
+  const n = buffer?.untitledNumber
+  if (!buffer || buffer.filePath || n === undefined) return
+  cancelDraft(id)
+  draftTimers.set(
+    id,
+    setTimeout(() => {
+      draftTimers.delete(id)
+      void writeDraft(state, id, n)
+    }, 500)
+  )
+}
+
+/** The same, now rather than in half a second — for quitting. */
+async function writeDraft(state: AppState, id: string, n: number): Promise<void> {
+  const editor = getBufferEditorState(id, state.activeId)
+  if (!editor) return
+  try {
+    await invoke('drafts:put', { id, n, content: editor.doc.toString() })
+  } catch {
+    // A note that could not be kept is one that will ask on quit, as it always
+    // did. Never a reason to stop the thing that was being done.
+  }
+}
+
+/** It has a file now, or somebody threw it away: stop keeping it. */
+function forgetDraft(state: AppState, id: string): void {
+  cancelDraft(id)
+  if (state.buffers[id]?.untitledNumber === undefined) return
+  void invoke('drafts:forget', { id }).catch(() => undefined)
+}
 
 /** Debounced autosave timers, keyed by buffer id (Settings → General). */
 const autosaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -253,7 +334,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
 
   newUntitled() {
     const id = crypto.randomUUID()
-    untitledCounter += 1
+    const n = nextUntitledNumber(get())
     const state = createDocumentState({
       id,
       content: '',
@@ -267,10 +348,11 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         [id]: {
           id,
           filePath: null,
-          fileName: untitledCounter === 1 ? 'Untitled' : `Untitled ${untitledCounter}`,
+          fileName: untitledName(n),
           savedMtimeMs: null,
           isDirty: false,
-          kind: 'markdown' as const
+          kind: 'markdown' as const,
+          untitledNumber: n
         }
       },
       tabOrder: [...s.tabOrder, id],
@@ -281,6 +363,59 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       // looked open but could not be typed into.
       paneIds: s.paneIds.map((pane, i) => (i === s.focusedPane ? id : pane))
     }))
+  },
+
+  async restoreUntitled() {
+    let drafts: { id: string; n: number; content: string }[]
+    try {
+      drafts = await invoke('drafts:list', undefined)
+    } catch {
+      return
+    }
+    if (drafts.length === 0) return
+
+    for (const draft of drafts) {
+      // Its own id, not a fresh one: the note keeps the file it is kept in, so
+      // typing into it after a restart replaces what is there rather than
+      // leaving the old copy behind to be restored a second time.
+      const { id, n, content } = draft
+      if (get().buffers[id]) continue
+      const state = createDocumentState({
+        id,
+        content,
+        settings: get().settings,
+        onDirtyChange: (dirty) => get().setDirty(id, dirty)
+      })
+      // No saved document to compare against, which is what an unsaved note is:
+      // it comes back with its dot, because it still has nowhere to be.
+      bufferRegistry.create(id, state, null)
+      set((s) => ({
+        buffers: {
+          ...s.buffers,
+          [id]: {
+            id,
+            filePath: null,
+            fileName: untitledName(n),
+            savedMtimeMs: null,
+            isDirty: content.length > 0,
+            kind: 'markdown' as const,
+            // Kept, so the next new note is named past this one rather than
+            // over it.
+            untitledNumber: n
+          }
+        },
+        tabOrder: [...s.tabOrder, id]
+      }))
+    }
+
+    // Focused only if there was nothing else to look at. Coming back to a vault
+    // and being put in front of a note you left half-written is worse than
+    // finding it waiting in the tab bar.
+    const state = get()
+    if (!state.activeId) {
+      const first = drafts[0]
+      if (first && state.buffers[first.id]) state.setActive(first.id)
+    }
   },
 
   setActive(id) {
@@ -429,6 +564,9 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       cancelAutosave(id)
     }
 
+    // A note with no file cannot be autosaved anywhere, so it is kept instead.
+    if (!buffer.filePath) rememberDraft(get(), id)
+
     if (buffer.isDirty === dirty) return
     set((s) => ({ buffers: { ...s.buffers, [id]: { ...buffer, isDirty: dirty } } }))
   },
@@ -461,6 +599,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     try {
       const result = await invoke('fs:writeFile', { path: targetPath, content, expectedMtimeMs })
       bufferRegistry.markSaved(id, state.doc)
+      // It has a file now, so it is no longer a note being kept for want of one.
+      forgetDraft(get(), id)
       // Any embed showing this note is now stale.
       invalidateEmbed(targetPath)
       set((s) => ({
@@ -471,7 +611,10 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
             filePath: targetPath,
             fileName: basename(targetPath),
             savedMtimeMs: result.mtimeMs,
-            isDirty: false
+            isDirty: false,
+            // It has a name of its own now, so it is not an untitled note and
+            // must not be counted as one when the next is named.
+            untitledNumber: undefined
           }
         }
       }))
@@ -517,6 +660,10 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       }
     }
     cancelAutosave(id)
+    // Closing a note is still a decision about it — the prompt above asked, and
+    // this is the answer being carried out. Quitting is the case that no longer
+    // asks, and quitting does not come through here.
+    forgetDraft(get(), id)
     // A surface that holds unsaved work of its own is told the tab has gone, so
     // "close without saving" actually throws it away. After the prompt above:
     // whatever the answer was, it has been given.
@@ -618,7 +765,18 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   },
 
   async handleWindowCloseRequest() {
-    const dirty = Object.values(get().buffers).filter((b) => b.isDirty)
+    // Every unsaved note goes to where a restart will find it, now rather than
+    // on the timer it was scheduled on — the process is about to end.
+    await Promise.all(
+      untitledBuffers(get()).map((buffer) => {
+        cancelDraft(buffer.id)
+        return writeDraft(get(), buffer.id, buffer.untitledNumber!)
+      })
+    )
+    // And they are not asked about. A note with no file has nothing on disk to
+    // overwrite and nothing to lose by waiting; a note that has one is a
+    // different question, and still worth asking.
+    const dirty = Object.values(get().buffers).filter((b) => b.isDirty && b.filePath)
     if (dirty.length === 0) {
       await invoke('window:readyToClose', undefined)
       return

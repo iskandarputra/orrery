@@ -481,6 +481,17 @@ export interface IpcInvokeContract {
     req: { path: string; pages: { page: number; text: string }[] }
     res: { pages: string[]; emptyPages: number[] }
   }
+  /**
+   * Notes that have been written but never given a file.
+   *
+   * Kept so that quitting with a new note open is not a decision about it: the
+   * note comes back with the app, and the question is asked when you close the
+   * note rather than when you close the application. Untitled notes only —
+   * anything with a file already has somewhere to be.
+   */
+  'drafts:list': { req: void; res: { id: string; n: number; content: string }[] }
+  'drafts:put': { req: { id: string; n: number; content: string }; res: void }
+  'drafts:forget': { req: { id: string }; res: void }
   'db:available': { req: void; res: boolean }
   'db:tables': { req: { path: string }; res: DbTableInfo[] }
   'db:rows': {

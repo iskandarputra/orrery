@@ -33,6 +33,7 @@ import {
 } from '../services/pdfium'
 import type { PdfHistory } from '../services/pdf-history'
 import type { PdfDrafts } from '../services/pdf-drafts'
+import type { DraftNotes } from '../services/draft-notes'
 import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
@@ -59,6 +60,7 @@ export interface HandlerDeps {
   pdfText: PdfTextService
   pdfHistory: PdfHistory
   pdfDrafts: PdfDrafts
+  draftNotes: DraftNotes
   mcpAudit: McpAudit
   askUser: AskUser
 }
@@ -92,7 +94,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     sqlite,
     pdfText,
     pdfHistory,
-    pdfDrafts
+    pdfDrafts,
+    draftNotes
   } = deps
 
   /**
@@ -724,6 +727,24 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     }),
     (_e, req) =>
       pdfText.merge(req.path, new Map(req.pages.map((entry) => [entry.page, entry.text])))
+  )
+
+  // --- unsaved notes --------------------------------------------------------
+
+  handle('drafts:list', null, () => draftNotes.list())
+  handle(
+    'drafts:put',
+    z.object({
+      id: z.string().min(1).max(64),
+      n: z.number().int().min(1),
+      // Long enough for anything somebody has actually typed, bounded so a
+      // renderer cannot ask main to hold an arbitrary amount of it.
+      content: z.string().max(20_000_000)
+    }),
+    (_e, req) => draftNotes.put(req)
+  )
+  handle('drafts:forget', z.object({ id: z.string().min(1).max(64) }), (_e, req) =>
+    draftNotes.forget(req.id)
   )
 
   // --- databases ------------------------------------------------------------

@@ -92,23 +92,29 @@ export function bootstrap(): CommandRegistry {
   void useStore
     .getState()
     .loadSettings()
-    .then(() => {
+    .then(async () => {
       const { lastOpenedFolder, general, session } = useStore.getState().settings
-      if (!lastOpenedFolder || !general.restoreLastFolder) return
-      useStore
-        .getState()
-        .openFolder(lastOpenedFolder)
-        .then(async () => {
+      if (lastOpenedFolder && general.restoreLastFolder) {
+        try {
+          await useStore.getState().openFolder(lastOpenedFolder)
           // Reopen last session's tabs. Files deleted since are skipped by
           // openPaths, so a stale entry costs a warning, not a failure.
-          if (session.openPaths.length === 0) return
-          await useStore.getState().openPaths(session.openPaths)
-          const active = Object.values(useStore.getState().buffers).find(
-            (b) => b.filePath === session.activePath
-          )
-          if (active) useStore.getState().setActive(active.id)
-        })
-        .catch(() => useStore.getState().updateSettings({ lastOpenedFolder: null }))
+          if (session.openPaths.length > 0) {
+            await useStore.getState().openPaths(session.openPaths)
+            const active = Object.values(useStore.getState().buffers).find(
+              (b) => b.filePath === session.activePath
+            )
+            if (active) useStore.getState().setActive(active.id)
+          }
+        } catch {
+          useStore.getState().updateSettings({ lastOpenedFolder: null })
+        }
+      }
+      // Last, and whatever happened above. An unsaved note belongs to the app
+      // rather than to a vault, so it comes back even when no folder is
+      // restored — and it is added after the remembered tabs so those keep the
+      // positions they were left in.
+      await useStore.getState().restoreUntitled()
     })
 
   return registry

@@ -339,7 +339,10 @@ layer crossing or a runtime import cycle turns a test red. Document text lives
 in CodeMirror state, so no large string travels through a React re-render on a
 keystroke. Every IPC channel is declared once and validated with zod at the
 boundary. Saves go through a temporary file and check the mtime first, so a
-write cannot silently discard a change made outside the editor.
+write cannot silently discard a change made outside the editor. A note you have
+written but not yet given a file is kept in the application's data folder and
+comes back with the app, so quitting is never a decision about it — the question
+is asked when you close the note, not when you close Orrery.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the longer version: what the layers are,
 where new code goes, and which rules a test will hold you to.
