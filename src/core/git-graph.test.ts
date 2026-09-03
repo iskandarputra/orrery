@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { graphWidth, layoutGraph, parseGitLog, type Commit } from './git-graph'
+import { graphWidth, laneRuns, layoutGraph, parseGitLog, type Commit } from './git-graph'
 
 /** The field separator the log command asks git for. */
 const F = '\u001f'
@@ -179,5 +179,70 @@ describe('the message body', () => {
   it('is empty when the field is absent entirely', () => {
     // Older output, or a truncated record: a missing body is not a crash.
     expect(parseGitLog(z(entry('h', '', 'A', 'now', '', 'subject')))[0]!.body).toBe('')
+  })
+})
+
+describe('laneRuns: what each row has to draw', () => {
+  /**
+   * The graph is one SVG per row, so a line crossing a row has to be drawn by
+   * that row. Every row knew which lanes left it downward and none knew which
+   * arrived from above, so a lane passing through was drawn from its middle
+   * only — half a row of line, then half a row of nothing, all the way down.
+   * The leftmost lane crosses the most rows, so it looked the most broken.
+   */
+  it('runs a line the full height of a row it only passes through', () => {
+    // B is a branch tip beside a lane already waiting for C, so B sits in lane
+    // 1 while lane 0 crosses its row untouched.
+    const rows = layoutGraph([commit('A', ['C']), commit('B', ['C']), commit('C')])
+    const [a, b] = rows
+    expect(b!.lane).toBe(1)
+
+    const runs = laneRuns(a!, b!)
+    expect(runs.arriving, 'lane 0 enters this row from above').toContain(0)
+    expect(runs.leaving, 'and carries on below it').toContain(0)
+  })
+
+  it('draws nothing above the newest commit', () => {
+    // Nothing is waiting for it, so a line to the top edge points at no row.
+    const rows = layoutGraph([commit('A', ['B']), commit('B')])
+    expect(laneRuns(null, rows[0]!).arriving).toEqual([])
+  })
+
+  it('draws nothing above a branch tip', () => {
+    const rows = layoutGraph([commit('A', ['C']), commit('B', ['C']), commit('C')])
+    const [a, b] = rows
+    expect(laneRuns(a!, b!).arriving).not.toContain(b!.lane)
+  })
+
+  it('carries a line into the row below through the commit it belongs to', () => {
+    const rows = layoutGraph([commit('A', ['B']), commit('B', ['C']), commit('C')])
+    const runs = laneRuns(rows[0]!, rows[1]!)
+    expect(runs.arriving).toContain(0)
+    expect(runs.leaving).toContain(0)
+  })
+
+  it('leaves a lane it opens for a merge to the curve alone', () => {
+    // The curve already travels from the dot to the bottom edge of the new
+    // lane. A straight segment down that lane as well encloses a lens between
+    // the two, which is the merge reading as a blot rather than a join.
+    const rows = layoutGraph([commit('M', ['P', 'Q']), commit('P'), commit('Q')])
+    const m = rows[0]!
+    expect(m.parentLanes).toEqual([0, 1])
+    expect(laneRuns(null, m).leaving).toEqual([0])
+  })
+
+  it('keeps the straight line of a lane that was already there', () => {
+    // Converging, not opening: lane 1 existed above this row and carries on
+    // below it, and the curve is only this commit joining it. Dropping its
+    // segment here would break the line it has every right to.
+    const rows = layoutGraph([commit('A', ['B', 'C']), commit('B', ['C']), commit('C')])
+    const [a, b] = rows
+    expect(b!.parentLanes).toEqual([1])
+    expect(laneRuns(a!, b!).leaving).toEqual([1])
+  })
+
+  it('stops at the last commit, which no lane waits past', () => {
+    const rows = layoutGraph([commit('A', ['B']), commit('B')])
+    expect(laneRuns(rows[0]!, rows[1]!).leaving).toEqual([])
   })
 })

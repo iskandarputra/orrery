@@ -126,6 +126,49 @@ export function layoutGraph(commits: Commit[]): GraphCommit[] {
   return out
 }
 
+/**
+ * The lines one row has to draw: which lanes enter it from above, and which
+ * leave it below.
+ *
+ * The graph is drawn as one SVG per row — a row is a fixed height and can draw
+ * itself without knowing where the others ended up — and the cost of that is
+ * this: a line crossing a row belongs to that row, so the row must be told
+ * about it. `lanes` only ever said what continues *downward*, so a lane
+ * passing through was drawn from the middle of the row to its bottom and the
+ * top half was left empty. Half a line, then half a gap, for every row a lane
+ * crossed.
+ *
+ * `previous` is the row above, or null for the newest commit. Its lanes are
+ * exactly the lines arriving here, which also settles the other half of the
+ * question: a branch tip has nothing waiting for it above, so nothing is drawn
+ * running off the top edge towards a row that does not exist.
+ */
+export function laneRuns(
+  previous: GraphCommit | null,
+  commit: GraphCommit
+): { arriving: number[]; leaving: number[] } {
+  const active = (lanes: (string | null)[]): number[] =>
+    lanes.flatMap((waiting, lane) => (waiting ? [lane] : []))
+
+  const arriving = active(previous?.lanes ?? [])
+
+  /**
+   * Lanes this commit opens for a merge, which the curve draws instead.
+   *
+   * Only the ones that are new: a lane already running through this row is
+   * converging rather than opening, and it keeps the straight line it has
+   * every right to — the curve there is just this commit joining it.
+   */
+  const opened = commit.parentLanes.filter(
+    (lane) => lane !== commit.lane && !arriving.includes(lane)
+  )
+
+  return {
+    arriving,
+    leaving: active(commit.lanes).filter((lane) => !opened.includes(lane))
+  }
+}
+
 /** How many columns the whole graph needs. */
 export function graphWidth(commits: GraphCommit[]): number {
   return commits.reduce(

@@ -23,7 +23,6 @@ export const sidePanelSchema = z.enum([
   'stats',
   'analysis',
   'tags',
-  'git',
   'mcp'
 ])
 
@@ -56,7 +55,16 @@ export const mcpServerSchema: z.ZodType<McpServerConfig> = z.union([
 ])
 
 export const settingsSchema = z.object({
-  schemaVersion: z.literal(1).default(1),
+  /**
+   * A stamp, not a gate.
+   *
+   * It was `z.literal(1)`, which meant that raising it — the very thing the
+   * note above says to do when the shape changes — would reject every file
+   * already on disk, and `load()` answers a rejected file by throwing all of
+   * it away. Permissive, so the version can move without costing anyone their
+   * settings.
+   */
+  schemaVersion: z.number().int().default(1).catch(1),
   /** Appearance mode; the concrete palette comes from lightTheme/darkTheme. */
   theme: z.enum(['light', 'dark', 'system']).default('system'),
   lightTheme: z.string().default('zinc-light'),
@@ -177,7 +185,8 @@ export const settingsSchema = z.object({
         panePaths: z.array(z.string()).default([]),
         activePath: z.string().default(''),
         focusedPane: z.number().int().min(0).default(0),
-        sidePanel: sidePanelSchema.nullable().default(null),
+        /** Retired panel names degrade here too — see `rightPanel.panel`. */
+        sidePanel: sidePanelSchema.nullable().default(null).catch(null),
         /** Column widths as fractions. Absent in workspaces saved before them. */
         paneSizes: z.array(z.number()).default([])
       })
@@ -225,7 +234,15 @@ export const settingsSchema = z.object({
   sidebar: z
     .object({
       visible: z.boolean().default(true),
-      width: z.number().min(160).max(600).default(260)
+      width: z.number().min(160).max(600).default(260),
+      /**
+       * Which view the sidebar is showing: the file tree, or source control.
+       *
+       * Remembered for the same reason the open right-hand panel is — closing
+       * the app should not lose which view somebody was working in. `files` by
+       * default, which is what the sidebar has always opened on.
+       */
+      view: z.enum(['files', 'git']).default('files').catch('files')
     })
     .prefault({}),
   diff: z
@@ -250,7 +267,26 @@ export const settingsSchema = z.object({
        * sticks; the outline is the default because a note's own structure is
        * the most useful thing to see beside it on a first run.
        */
-      panel: sidePanelSchema.nullable().default('outline')
+      /**
+       * `.catch(null)` because this field is a name that has been retired
+       * before: `'git'` was one of these until source control moved to the left
+       * sidebar. A whole document must not fail over a panel name, so an
+       * unknown one reads as "no panel open".
+       */
+      panel: sidePanelSchema.nullable().default('outline').catch(null)
+    })
+    .prefault({}),
+  /** Source control: how the panel presents the files a change touches. */
+  git: z
+    .object({
+      /**
+       * Flat paths, or folded into folders.
+       *
+       * `list` by default because it is what the panel has always shown, and a
+       * view mode is not the sort of thing that should change under someone on
+       * an upgrade. Settings written before this field parse to it anyway.
+       */
+      fileViewMode: z.enum(['list', 'tree']).default('list')
     })
     .prefault({}),
   /**

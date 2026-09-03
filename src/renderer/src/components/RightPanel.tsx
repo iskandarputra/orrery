@@ -17,7 +17,6 @@ import { NoteAnalysisBody } from './NoteAnalysisPanel'
 import { TagsBody } from './TagsPanel'
 import { Icon, type IconName } from './Icon'
 import { EmptyState, ResultGroups } from './PanelBits'
-import { SourceControlPanel } from './SourceControlPanel'
 
 /**
  * The outline: headings in a note, declarations in a code file.
@@ -347,7 +346,6 @@ const TABS: { id: SidePanel; label: string; icon: IconName }[] = [
   { id: 'stats', label: 'Stats', icon: 'info' },
   { id: 'analysis', label: 'Analysis', icon: 'bar-chart' },
   { id: 'tags', label: 'Tags', icon: 'hash' },
-  { id: 'git', label: 'Git', icon: 'git-branch' },
   { id: 'mcp', label: 'Tools', icon: 'zap' }
 ]
 
@@ -422,7 +420,6 @@ export function RightPanel(): React.JSX.Element {
             {panel === 'stats' && <DocStatsBody />}
             {panel === 'analysis' && <NoteAnalysisBody />}
             {panel === 'tags' && <TagsBody />}
-            {panel === 'git' && <SourceControlPanel />}
           </div>
         </aside>
       )}

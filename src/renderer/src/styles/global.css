@@ -3177,14 +3177,6 @@ textarea {
   min-height: 0;
 }
 
-.scm__bar {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid var(--or-border);
-}
-
 .scm__branch {
   display: inline-flex;
   align-items: center;
@@ -3201,10 +3193,6 @@ textarea {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--or-fg-muted);
-}
-
-.scm__bar .icon-btn {
-  margin-left: auto;
 }
 
 .scm__commit {
@@ -3280,6 +3268,34 @@ textarea {
 
 .scm__group-act:hover {
   text-decoration: underline;
+}
+
+/* Folder rows, shared by the working-tree lists and a commit's files. The
+   indent itself is inline on the wrapper: it is one constant, stepped per
+   level, and CSS cannot count ancestors. */
+.change-tree__dir {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  /* 2.5.8: a pointer target is at least 24px on a side. */
+  min-height: 24px;
+  padding: 1px 6px;
+  font-size: 11.5px;
+  color: var(--or-fg-faint);
+  text-align: left;
+  cursor: pointer;
+}
+
+.change-tree__dir:hover {
+  background: var(--or-hover-bg);
+  color: var(--or-fg);
+}
+
+.change-tree__dir-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scm-row {
