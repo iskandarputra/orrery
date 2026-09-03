@@ -7,6 +7,7 @@ import { codeBlock } from './code-block'
 import { htmlComment } from './html-comment'
 import { links } from './links'
 import { lists } from './lists'
+import { buildCommentHiding } from '../comment-block'
 import { buildDecorationRanges, type BuiltDecorations } from '../plugin'
 import { parseFully } from '../parse-fully'
 
@@ -256,19 +257,33 @@ describe('html comments', () => {
   const doc = 'before\n\n<!-- a note to self -->\n\nafter'
 
   it('is hidden in Reading mode, the way a rendered document hides it', () => {
+    // By the Reading-mode state field, not by the plugin. A comment can span
+    // line breaks and a ViewPlugin may not replace those, so hiding it from
+    // there threw `RangeError` the moment the view mounted — see
+    // `comment-block.ts` and `mount.test.ts`.
     const state = EditorState.create({
       doc,
       selection: EditorSelection.cursor(0),
       extensions: [markdown({ base: markdownLanguage })]
     })
     parseFully(state)
+
+    const hidden: string[] = []
+    buildCommentHiding(state).between(
+      0,
+      state.doc.length,
+      (from, to) => void hidden.push(doc.slice(from, to))
+    )
+    expect(hidden).toContain('<!-- a note to self -->')
+
+    // And the plugin must not be hiding it as well: that is the bug returning.
     const result = buildDecorationRanges(
       state,
       FEATURES,
       [{ from: 0, to: state.doc.length }],
       false
     )
-    expect(concealedSpans(doc, result)).toContain('<!-- a note to self -->')
+    expect(concealedSpans(doc, result)).not.toContain('<!-- a note to self -->')
   })
 
   it('stays visible while editing — hidden text you cannot see is worse', () => {

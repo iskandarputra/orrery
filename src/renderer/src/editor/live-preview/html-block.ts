@@ -68,8 +68,9 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
       if (revealed(from, to)) return false
 
       const html = state.doc.sliceString(node.from, node.to)
-      // An HTML comment is a block too, and has a feature of its own that
-      // knows to hide it rather than render it.
+      // An HTML comment is a block too, and is hidden rather than rendered:
+      // `comment-block.ts` in Reading mode, `features/html-comment.ts` while
+      // editing.
       if (/^\s*<!--/.test(html)) return false
 
       decos.push(
