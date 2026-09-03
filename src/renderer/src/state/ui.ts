@@ -40,7 +40,6 @@ export type PaletteMode =
 /** Tabs of the right side panel. */
 export type SidePanel =
   | 'outline'
-  | 'git'
   | 'backlinks'
   | 'outgoing'
   | 'bookmarks'
@@ -160,6 +159,15 @@ export interface UiSlice {
   closePalette(): void
   setTreeEdit(edit: TreeEdit | null): void
   toggleSidebar(): void
+  /**
+   * Show a sidebar view, or hide the sidebar if it is already showing it.
+   *
+   * Both rail icons go through this. The folder icon used to call
+   * `toggleSidebar` directly, which was right while the sidebar had one view
+   * and wrong the moment it had two: asking for the file tree while source
+   * control was showing hid the sidebar instead of switching to it.
+   */
+  showSidebarView(view: Settings['sidebar']['view']): void
   setSidebarWidth(width: number): void
   setRightPanelWidth(width: number): void
   /** The left column's share of a side-by-side diff. */
@@ -292,6 +300,13 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   toggleSidebar() {
     const { sidebar } = get().settings
     get().updateSettings({ sidebar: { ...sidebar, visible: !sidebar.visible } })
+  },
+
+  showSidebarView(view) {
+    const { sidebar } = get().settings
+    // Hiding leaves `view` alone, so reopening returns to what was last read.
+    const hiding = sidebar.visible && sidebar.view === view
+    get().updateSettings({ sidebar: { ...sidebar, visible: !hiding, view } })
   },
 
   setSidebarWidth(width) {

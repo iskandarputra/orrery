@@ -204,6 +204,13 @@ const PATHS = {
       <path d="M6.5 4.5h7.5M6.5 8h7.5M6.5 11.5h7.5M2 3.5l1.5-.75v3.25M1.75 10a1.25 1.25 0 0 1 2.2-.8c.4.4.2 1.1-.3 1.6L1.75 12.5h2.5" />
     </>
   ),
+  /** The tree half of the source-control view toggle; `list` is the other. */
+  'list-tree': (
+    <>
+      <path d="M6.5 3.5h7.5M9.5 8h4.5M9.5 12.5h4.5" />
+      <path d="M3 3.5v8a1 1 0 0 0 1 1h2.5M4 8h2.5" />
+    </>
+  ),
   'check-square': (
     <>
       <rect x="2" y="2" width="12" height="12" rx="2" />

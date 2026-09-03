@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { graphWidth, layoutGraph, type Commit, type GraphCommit } from '@core/git-graph'
+import { graphWidth, laneRuns, layoutGraph, type Commit, type GraphCommit } from '@core/git-graph'
 import {
   EMPTY_COMMIT_DETAIL,
   statusLetter,
   type CommitDetail,
   type CommitFile
 } from '@core/commit-detail'
+import { basename } from '@core/paths'
 import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
+import { ChangeTree } from './ChangeTree'
 import { openContextMenu, type MenuItem } from './context-menu/context-menu'
 import { Icon } from './Icon'
 
@@ -98,38 +100,60 @@ function CommitMessage({
  * so each can draw its own dot and the segments passing through it without any
  * row needing to know where the others ended up.
  */
-function Row({ commit, width }: { commit: GraphCommit; width: number }): React.JSX.Element {
+/** Centre of a lane, in the row's own coordinates. */
+const laneX = (lane: number): number => lane * LANE_WIDTH + LANE_WIDTH / 2
+
+function Row({
+  commit,
+  previous,
+  width
+}: {
+  commit: GraphCommit
+  /** The row above, whose lanes are the lines arriving into this one. */
+  previous: GraphCommit | null
+  width: number
+}): React.JSX.Element {
   const w = width * LANE_WIDTH
-  const cx = commit.lane * LANE_WIDTH + LANE_WIDTH / 2
+  const cx = laneX(commit.lane)
   const mid = ROW_HEIGHT / 2
+  const { arriving, leaving } = laneRuns(previous, commit)
 
   return (
     <svg className="gitgraph__lanes" width={w} height={ROW_HEIGHT} aria-hidden="true">
-      {/* Lines continuing downward through this row, one per still-active lane. */}
-      {commit.lanes.map((waiting, lane) =>
-        waiting ? (
-          <line
-            key={`t${lane}`}
-            x1={lane * LANE_WIDTH + LANE_WIDTH / 2}
-            y1={mid}
-            x2={lane * LANE_WIDTH + LANE_WIDTH / 2}
-            y2={ROW_HEIGHT}
-            stroke={laneColour(lane)}
-            strokeWidth="1.5"
-          />
-        ) : null
-      )}
-      {/* The line arriving from the row above. */}
-      <line x1={cx} y1={0} x2={cx} y2={mid} stroke={laneColour(commit.lane)} strokeWidth="1.5" />
+      {/* Every line entering this row from above, down to the row's middle.
+          These were missing for any lane but the commit's own, which is what
+          made a line crossing several rows look like a dashed one. */}
+      {arriving.map((lane) => (
+        <line
+          key={`a${lane}`}
+          x1={laneX(lane)}
+          y1={0}
+          x2={laneX(lane)}
+          y2={mid}
+          stroke={laneColour(lane)}
+          strokeWidth="1.5"
+        />
+      ))}
+      {/* And every line leaving it below, from the middle down. Together the
+          two halves meet at the middle of every row a lane crosses. */}
+      {leaving.map((lane) => (
+        <line
+          key={`l${lane}`}
+          x1={laneX(lane)}
+          y1={mid}
+          x2={laneX(lane)}
+          y2={ROW_HEIGHT}
+          stroke={laneColour(lane)}
+          strokeWidth="1.5"
+        />
+      ))}
       {/* An edge to each parent that continues in a different lane — a merge. */}
       {commit.parentLanes
         .filter((lane) => lane !== commit.lane)
         .map((lane) => (
           <path
             key={`p${lane}`}
-            d={`M ${cx} ${mid} C ${cx} ${ROW_HEIGHT}, ${lane * LANE_WIDTH + LANE_WIDTH / 2} ${mid}, ${
-              lane * LANE_WIDTH + LANE_WIDTH / 2
-            } ${ROW_HEIGHT}`}
+            d={`M ${cx} ${mid} C ${cx} ${ROW_HEIGHT}, ${laneX(lane)} ${mid}, ${laneX(lane)} ${ROW_HEIGHT}`}
             fill="none"
             stroke={laneColour(lane)}
             strokeWidth="1.5"
@@ -157,6 +181,7 @@ function Row({ commit, width }: { commit: GraphCommit; width: number }): React.J
 function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
   const openDiff = useStore((s) => s.openDiff)
+  const viewMode = useStore((s) => s.settings.git.fileViewMode)
   const [detail, setDetail] = useState<CommitDetail | null>(null)
 
   useEffect(() => {
@@ -177,9 +202,12 @@ function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
       {detail.files.length === 0 ? (
         <p className="gitgraph__note">This commit changed no files.</p>
       ) : (
-        <ul className="commit-detail__files">
-          {detail.files.map((file: CommitFile) => (
-            <li key={file.path}>
+        <div className="commit-detail__files">
+          <ChangeTree
+            items={detail.files}
+            getPath={(file) => file.path}
+            mode={viewMode}
+            renderRow={(file: CommitFile) => (
               <button
                 className="commit-detail__file"
                 title={file.from ? `${file.from} → ${file.path}` : file.path}
@@ -188,11 +216,13 @@ function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
                 <span className={`commit-detail__status commit-detail__status--${file.status}`}>
                   {statusLetter(file.status)}
                 </span>
-                <span className="commit-detail__path">{file.path}</span>
+                <span className="commit-detail__path">
+                  {viewMode === 'tree' ? basename(file.path) : file.path}
+                </span>
               </button>
-            </li>
-          ))}
-        </ul>
+            )}
+          />
+        </div>
       )}
     </div>
   )
@@ -310,7 +340,7 @@ export function GitGraph(): React.JSX.Element {
   return (
     <div className="gitgraph">
       {reading && <CommitMessage commit={reading} onClose={() => setReading(null)} />}
-      {rows.map((commit) => (
+      {rows.map((commit, index) => (
         <div key={commit.hash}>
           <button
             className={`gitgraph__row${selected === commit.hash ? ' gitgraph__row--selected' : ''}`}
@@ -323,7 +353,7 @@ export function GitGraph(): React.JSX.Element {
               openContextMenu(e, menuFor(commit))
             }}
           >
-            <Row commit={commit} width={width} />
+            <Row commit={commit} previous={rows[index - 1] ?? null} width={width} />
             <div className="gitgraph__meta">
               <div className="gitgraph__subject">
                 {commit.refs.map((ref) => (

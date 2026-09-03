@@ -290,6 +290,54 @@ test('a branch is drawn in its own lane', async () => {
   await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
 })
 
+test('a lane crossing a row is drawn without a gap in it', async () => {
+  // Each row is its own SVG, so a line crossing several rows is drawn in
+  // pieces. Every row only ever drew the half below its middle, so the piece
+  // above it was missing and a long-running lane — the leftmost one, which
+  // crosses the most rows — came out as a column of dashes.
+  //
+  // Measured on the rendered geometry rather than on the markup: what matters
+  // is that the painted segments meet, not how many elements say so.
+  await openPanel()
+  await page.locator('.scm__section').filter({ hasText: 'Graph' }).click()
+  await expect(page.locator('.gitgraph')).toBeVisible({ timeout: 10_000 })
+
+  const gaps = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('.gitgraph__lanes')) as SVGSVGElement[]
+    const holes: string[] = []
+
+    rows.forEach((svg, index) => {
+      const height = Number(svg.getAttribute('height'))
+      // Leftmost lane only. It is the one a linear history runs down, so in
+      // every row but the first and the last it is passing through.
+      const segments = (Array.from(svg.querySelectorAll('line')) as SVGLineElement[])
+        .filter((l) => Math.abs(Number(l.getAttribute('x1')) - 6) < 0.01)
+        .map((l) => [Number(l.getAttribute('y1')), Number(l.getAttribute('y2'))] as const)
+        .sort((a, b) => a[0] - b[0])
+      if (segments.length === 0) return
+
+      const top = Math.min(...segments.map((sg) => sg[0]))
+      const bottom = Math.max(...segments.map((sg) => sg[1]))
+      const covered = segments.reduce((sum, sg) => sum + (sg[1] - sg[0]), 0)
+
+      // Contiguous: the pieces add up to the span they cover, so none of the
+      // middle is missing.
+      if (covered < bottom - top - 0.01) holes.push(`row ${index}: pieces do not meet`)
+      // A row in the middle of a run is crossed, so it is covered end to end.
+      const middleRow = index > 0 && index < rows.length - 1
+      if (middleRow && (top > 0.01 || bottom < height - 0.01)) {
+        holes.push(`row ${index}: covers ${top}–${bottom} of 0–${height}`)
+      }
+    })
+    return { holes, rows: rows.length }
+  })
+
+  expect(gaps.rows, 'several commits, so several rows to cross').toBeGreaterThan(2)
+  expect(gaps.holes, 'the leftmost lane is one unbroken line').toEqual([])
+
+  await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
+})
+
 test('commit is refused without a message or staged work', async () => {
   await openPanel()
   await refresh()

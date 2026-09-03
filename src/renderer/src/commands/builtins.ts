@@ -116,9 +116,18 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => store().toggleTerminal()
   },
   {
+    id: 'view.toggleFiles',
+    title: 'Files',
+    // The counterpart to Source Control below. The sidebar has two views now,
+    // and a command that reaches only one of them is a one-way door.
+    run: ({ store }) => store().showSidebarView('files')
+  },
+  {
     id: 'view.toggleGit',
     title: 'Source Control',
-    run: ({ store }) => store().toggleSidePanel('git')
+    // On the left, with the file tree, since the work it does is work on those
+    // files. It was a right-hand panel until then.
+    run: ({ store }) => store().showSidebarView('git')
   },
   {
     id: 'view.toggleSearch',

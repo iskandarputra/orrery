@@ -48,6 +48,35 @@ async function runCommand(commandId: string): Promise<void> {
   }, commandId)
 }
 
+/**
+ * Leave the outline showing, whether or not it already is.
+ *
+ * `view.toggleOutline` is a toggle, and source control no longer displaces the
+ * right-hand panel — it moved to the left sidebar — so after a source-control
+ * surface the outline is still open and toggling would close the very thing
+ * the next surface measures.
+ */
+async function showOutline(): Promise<void> {
+  if (!(await page.locator('.outline-filter__input').isVisible())) {
+    await runCommand('view.toggleOutline')
+  }
+  await expect(page.locator('.outline-filter__input')).toBeVisible()
+}
+
+/**
+ * Leave the sidebar on the file tree.
+ *
+ * Also a toggle, for the same reason, and it matters between themes: the
+ * workspace surface each theme opens with types into the tree's filter, which
+ * only exists on this view.
+ */
+async function showFiles(): Promise<void> {
+  if (!(await page.locator('.sidebar__filter-input').isVisible())) {
+    await runCommand('view.toggleFiles')
+  }
+  await expect(page.locator('.sidebar__filter-input')).toBeVisible()
+}
+
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-ui-audit-'))
   mkdirSync(join(vault, 'Folder'), { recursive: true })
@@ -912,11 +941,11 @@ const SURFACES: Surface[] = [
       await page.locator('.scm__message').fill('')
       await page.locator('[aria-label^="Unstage "]').first().click()
       await expect(page.locator('[aria-label^="Stage "]').first()).toBeVisible({ timeout: 10_000 })
-      // Back to the outline rather than toggling git off, which would leave the
-      // side panel closed — and the workspace surface, which every later theme
-      // opens first, measures the outline filter inside it.
-      await runCommand('view.toggleOutline')
-      await expect(page.locator('.outline-filter__input')).toBeVisible()
+      // Both views put back: source control leaves the sidebar off the file
+      // tree, and the workspace surface every later theme opens first types
+      // into that tree's filter.
+      await showFiles()
+      await showOutline()
     }
   },
   {
@@ -932,8 +961,9 @@ const SURFACES: Surface[] = [
     },
     close: async () => {
       await page.locator('.diff button[aria-label="Close"]').click()
-      await runCommand('view.toggleOutline')
-      await expect(page.locator('.outline-filter__input')).toBeVisible()
+      // Reached through source control, so this leaves the sidebar on it too.
+      await showFiles()
+      await showOutline()
     }
   },
   {

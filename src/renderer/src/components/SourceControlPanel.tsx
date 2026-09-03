@@ -10,6 +10,7 @@ import { basename } from '@core/paths'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { EmptyState } from './PanelBits'
+import { ChangeTree } from './ChangeTree'
 import { GitGraph } from './GitGraph'
 import { Icon } from './Icon'
 
@@ -27,11 +28,14 @@ const LETTER: Record<NonNullable<GitChange['staged']>, string> = {
 function Row({
   change,
   side,
+  nested,
   onPrimary,
   onDiscard
 }: {
   change: GitChange
   side: 'staged' | 'unstaged'
+  /** Under a folder row, which has already said where the file lives. */
+  nested: boolean
   onPrimary: (change: GitChange) => void
   onDiscard?: (change: GitChange) => void
 }): React.JSX.Element {
@@ -44,7 +48,9 @@ function Row({
           file is what the file tree is for, and the question here is what changed. */}
       <button className="scm-row__name" onClick={() => openDiff(change.path, side === 'staged')}>
         <span className="scm-row__file">{basename(change.path)}</span>
-        <span className="scm-row__dir">{change.path.includes('/') ? change.path : ''}</span>
+        <span className="scm-row__dir">
+          {!nested && change.path.includes('/') ? change.path : ''}
+        </span>
       </button>
       <div className="scm-row__actions">
         {onDiscard && (
@@ -84,6 +90,9 @@ function Row({
 export function SourceControlPanel(): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
   const showToast = useStore((s) => s.showToast)
+  const git = useStore((s) => s.settings.git)
+  const viewMode = git.fileViewMode
+  const updateSettings = useStore((s) => s.updateSettings)
   const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS)
   const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
@@ -132,6 +141,7 @@ export function SourceControlPanel(): React.JSX.Element {
     )
   }
 
+  const tree = viewMode === 'tree'
   const staged = stagedChanges(status)
   const unstaged = unstagedChanges(status)
   const clean = staged.length === 0 && unstaged.length === 0
@@ -170,20 +180,48 @@ export function SourceControlPanel(): React.JSX.Element {
 
   return (
     <div className="scm">
-      <div className="scm__bar">
-        <span className="scm__branch" title="Current branch">
-          <Icon name="git-branch" size={13} />
-          {status.branch ?? 'detached'}
-        </span>
-        {(status.ahead > 0 || status.behind > 0) && (
-          <span className="scm__ab" title={`${status.ahead} ahead, ${status.behind} behind`}>
-            {status.ahead > 0 && `↑${status.ahead}`}
-            {status.behind > 0 && `↓${status.behind}`}
-          </span>
-        )}
-        <button className="icon-btn" aria-label="Refresh status" title="Refresh" onClick={refresh}>
-          <Icon name="refresh" size={13} />
-        </button>
+      {/* This view's own header, built like the file tree's so the two views
+          match: the branch is the title, and the actions that belong to source
+          control sit where the tree's actions sit. */}
+      <div className="sidebar__header">
+        <div className="sidebar__header-top">
+          <div className="sidebar__workspace-info">
+            <span className="sidebar__eyebrow">Source Control</span>
+            <div className="sidebar__title-row">
+              <span className="scm__branch" title="Current branch">
+                <Icon name="git-branch" size={13} />
+                {status.branch ?? 'detached'}
+              </span>
+              {(status.ahead > 0 || status.behind > 0) && (
+                <span className="scm__ab" title={`${status.ahead} ahead, ${status.behind} behind`}>
+                  {status.ahead > 0 && `↑${status.ahead}`}
+                  {status.behind > 0 && `↓${status.behind}`}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="sidebar__actions">
+            <button
+              className="icon-btn"
+              aria-label={tree ? 'View as list' : 'View as tree'}
+              aria-pressed={tree}
+              title={tree ? 'View as list' : 'View as tree'}
+              onClick={() =>
+                updateSettings({ git: { ...git, fileViewMode: tree ? 'list' : 'tree' } })
+              }
+            >
+              <Icon name={tree ? 'list-tree' : 'list'} size={13} />
+            </button>
+            <button
+              className="icon-btn"
+              aria-label="Refresh status"
+              title="Refresh"
+              onClick={refresh}
+            >
+              <Icon name="refresh" size={13} />
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="scm__commit">
@@ -234,14 +272,19 @@ export function SourceControlPanel(): React.JSX.Element {
                     Unstage all
                   </button>
                 </div>
-                {staged.map((c) => (
-                  <Row
-                    key={`s-${c.path}`}
-                    change={c}
-                    side="staged"
-                    onPrimary={(x) => void unstage([x.path])}
-                  />
-                ))}
+                <ChangeTree
+                  items={staged}
+                  getPath={(c) => c.path}
+                  mode={viewMode}
+                  renderRow={(c) => (
+                    <Row
+                      change={c}
+                      side="staged"
+                      nested={tree}
+                      onPrimary={(x) => void unstage([x.path])}
+                    />
+                  )}
+                />
               </>
             )}
             {unstaged.length > 0 && (
@@ -256,15 +299,20 @@ export function SourceControlPanel(): React.JSX.Element {
                     Stage all
                   </button>
                 </div>
-                {unstaged.map((c) => (
-                  <Row
-                    key={`u-${c.path}`}
-                    change={c}
-                    side="unstaged"
-                    onPrimary={(x) => void stage([x.path])}
-                    onDiscard={(x) => void discard(x)}
-                  />
-                ))}
+                <ChangeTree
+                  items={unstaged}
+                  getPath={(c) => c.path}
+                  mode={viewMode}
+                  renderRow={(c) => (
+                    <Row
+                      change={c}
+                      side="unstaged"
+                      nested={tree}
+                      onPrimary={(x) => void stage([x.path])}
+                      onDiscard={(x) => void discard(x)}
+                    />
+                  )}
+                />
               </>
             )}
           </>

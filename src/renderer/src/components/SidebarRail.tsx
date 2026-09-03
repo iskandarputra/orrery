@@ -24,19 +24,30 @@ interface RailItem {
 
 export function SidebarRail(): React.JSX.Element {
   const visible = useStore((s) => s.settings.sidebar.visible)
-  const toggleSidebar = useStore((s) => s.toggleSidebar)
+  const view = useStore((s) => s.settings.sidebar.view)
+  const showSidebarView = useStore((s) => s.showSidebarView)
   const openPalette = useStore((s) => s.openPalette)
   const toggleGraph = useStore((s) => s.toggleGraph)
   const openSettings = useStore((s) => s.openSettings)
   const setSidePanel = useStore((s) => s.setSidePanel)
 
+  const showingFiles = visible && view === 'files'
+  const showingGit = visible && view === 'git'
+
   const items: RailItem[] = [
     {
       id: 'files',
-      label: visible ? 'Hide files (Ctrl+B)' : 'Show files (Ctrl+B)',
+      label: showingFiles ? 'Hide files (Ctrl+B)' : 'Show files (Ctrl+B)',
       icon: 'folder',
-      active: visible,
-      run: toggleSidebar
+      active: showingFiles,
+      run: () => showSidebarView('files')
+    },
+    {
+      id: 'source-control',
+      label: showingGit ? 'Hide Source Control' : 'Source Control',
+      icon: 'git-branch',
+      active: showingGit,
+      run: () => showSidebarView('git')
     },
     {
       id: 'search',
