@@ -2,12 +2,12 @@ import { renderMath } from '../katex-lazy'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { expandButton } from './expand-button'
+import { revealSource } from './reveal-source'
 
 class MathWidget extends WidgetType {
   constructor(
     readonly expr: string,
     readonly display: boolean,
-    readonly from: number,
     readonly interactive: boolean
   ) {
     super()
@@ -37,8 +37,7 @@ class MathWidget extends WidgetType {
     if (this.interactive) {
       el.addEventListener('mousedown', (event) => {
         event.preventDefault()
-        view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true })
-        view.focus()
+        revealSource(view, el)
       })
     }
     return el
@@ -89,7 +88,7 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
     const wholeLines = state.doc.lineAt(from).from === from && state.doc.lineAt(to).to === to
     decos.push(
       Decoration.replace({
-        widget: new MathWidget(m[1]!.trim(), true, from, reveal),
+        widget: new MathWidget(m[1]!.trim(), true, reveal),
         ...(wholeLines && m[0].includes('\n') ? { block: true } : {})
       }).range(from, to)
     )
@@ -102,9 +101,7 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
     if (touches(from, to) || inFence(from, to)) continue
     const expr = m[1]!
     if (/^\s|\s$/.test(expr) || /^\d+$/.test(expr)) continue // avoid $5 and $10 prices
-    decos.push(
-      Decoration.replace({ widget: new MathWidget(expr, false, from, reveal) }).range(from, to)
-    )
+    decos.push(Decoration.replace({ widget: new MathWidget(expr, false, reveal) }).range(from, to))
   }
   return Decoration.set(decos, true)
 }

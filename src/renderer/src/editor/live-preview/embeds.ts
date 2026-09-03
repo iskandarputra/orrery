@@ -8,6 +8,7 @@ import { findWikilinks } from '@core/wikilinks'
 import { mountPreview } from '@/editor/preview-view'
 import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
+import { revealSource } from './reveal-source'
 
 /** Longest embedded excerpt shown before it is cut off. */
 const MAX_EMBED_CHARS = 1200
@@ -16,6 +17,22 @@ const MAX_EMBED_CHARS = 1200
 const cache = new Map<string, string>()
 /** Nested preview editors by card, so they can be torn down with the card. */
 const mounted = new WeakMap<HTMLElement, EditorViewType>()
+/**
+ * Cards whose widget was torn down while their note was still being read.
+ *
+ * An embed's body arrives from disk, so there is a gap between asking for it
+ * and having it, and the card can be dropped inside that gap — moving the
+ * cursor onto the embed's line is enough, because that reveals the source and
+ * removes the decoration. `destroy` then has nothing to tear down: the editor
+ * it would have destroyed has not been made yet.
+ *
+ * Without this the read goes on to finish, mounts a whole CodeMirror view into
+ * an element no longer in the document, and files it under a card nothing will
+ * ever ask about again. It is unreachable and it is never destroyed — not by
+ * the next edit, not by closing the tab, not by `view.destroy()`. One per
+ * embed, every time a cursor move beats a file read.
+ */
+const discarded = new WeakSet<HTMLElement>()
 
 function resolveNotePath(target: string): string | null {
   const { noteIndex } = appState()
@@ -96,6 +113,10 @@ async function loadEmbed(target: string, heading: string | null, el: HTMLElement
     }
   }
 
+  // The card may have gone while the file was being read. Checked after every
+  // await rather than once at the top: before the await it is always alive.
+  if (discarded.has(el)) return
+
   el.textContent = ''
   const title = document.createElement('div')
   title.className = 'cm-or-embed-title'
@@ -117,7 +138,6 @@ class EmbedWidget extends WidgetType {
   constructor(
     readonly target: string,
     readonly heading: string | null,
-    readonly from: number,
     readonly interactive: boolean
   ) {
     super()
@@ -142,15 +162,16 @@ class EmbedWidget extends WidgetType {
       // rendered construct here.
       el.addEventListener('mousedown', (event) => {
         event.preventDefault()
-        view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true })
-        view.focus()
+        revealSource(view, el)
       })
     }
     return el
   }
 
   override destroy(dom: HTMLElement): void {
+    discarded.add(dom)
     mounted.get(dom)?.destroy()
+    mounted.delete(dom)
   }
 
   override ignoreEvent(event: Event): boolean {
@@ -173,7 +194,7 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
       if (link.from !== line.from || link.to !== line.to) continue
       decos.push(
         Decoration.replace({
-          widget: new EmbedWidget(link.target, link.heading, link.from, reveal),
+          widget: new EmbedWidget(link.target, link.heading, reveal),
           block: true
         }).range(link.from, link.to)
       )

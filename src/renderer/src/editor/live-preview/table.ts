@@ -2,6 +2,7 @@ import { syntaxTree } from '@codemirror/language'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { parseTable } from '@core/markdown-table'
+import { revealSource } from './reveal-source'
 
 /** Containers that can hold a Table node — everything else is pruned. */
 const TABLE_PARENTS = new Set(['Document', 'Blockquote', 'ListItem', 'BulletList', 'OrderedList'])
@@ -63,7 +64,6 @@ function rememberWidths(view: EditorView, key: string, widths: number[]): void {
 class TableWidget extends WidgetType {
   constructor(
     readonly source: string,
-    readonly from: number,
     readonly interactive: boolean
   ) {
     super()
@@ -181,8 +181,7 @@ class TableWidget extends WidgetType {
         // source underneath.
         if ((event.target as HTMLElement).classList.contains('cm-or-table-grip')) return
         event.preventDefault()
-        view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true })
-        view.focus()
+        revealSource(view, wrap)
       })
     }
     return wrap
@@ -227,7 +226,7 @@ function buildTableDecorations(state: EditorState, reveal: boolean): DecorationS
         } else {
           decorations.push(
             Decoration.replace({
-              widget: new TableWidget(state.doc.sliceString(from, to), from, reveal),
+              widget: new TableWidget(state.doc.sliceString(from, to), reveal),
               block: true
             }).range(from, to)
           )

@@ -4,12 +4,12 @@ import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemir
 import { resolveAssetUrl } from '@core/asset'
 import { docPathFacet } from '../doc-context'
 import { expandButton } from './expand-button'
+import { revealSource } from './reveal-source'
 
 class ImageWidget extends WidgetType {
   constructor(
     readonly url: string,
     readonly alt: string,
-    readonly from: number,
     readonly interactive: boolean
   ) {
     super()
@@ -38,8 +38,7 @@ class ImageWidget extends WidgetType {
       wrap.addEventListener('mousedown', (event) => {
         // Click reveals the source for editing (not in reading mode).
         event.preventDefault()
-        view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true })
-        view.focus()
+        revealSource(view, wrap)
       })
     }
     return wrap
@@ -70,9 +69,7 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
       // Alt text sits between "![" and "]".
       const marks = node.node.getChildren('LinkMark')
       const alt = marks[0] && marks[1] ? state.doc.sliceString(marks[0].to, marks[1].from) : ''
-      decos.push(
-        Decoration.replace({ widget: new ImageWidget(url, alt, from, reveal) }).range(from, to)
-      )
+      decos.push(Decoration.replace({ widget: new ImageWidget(url, alt, reveal) }).range(from, to))
     }
   })
   return Decoration.set(decos, true)
