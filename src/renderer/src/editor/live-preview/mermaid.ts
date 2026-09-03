@@ -2,6 +2,7 @@ import { syntaxTree } from '@codemirror/language'
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { expandButton } from './expand-button'
+import { revealSource } from './reveal-source'
 
 let seq = 0
 
@@ -22,7 +23,6 @@ export async function renderMermaid(code: string, el: HTMLElement): Promise<void
 class MermaidWidget extends WidgetType {
   constructor(
     readonly code: string,
-    readonly from: number,
     readonly interactive: boolean
   ) {
     super()
@@ -46,8 +46,7 @@ class MermaidWidget extends WidgetType {
     if (this.interactive) {
       el.addEventListener('mousedown', (event) => {
         event.preventDefault()
-        view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true })
-        view.focus()
+        revealSource(view, el)
       })
     }
     return el
@@ -76,7 +75,7 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
       const code = body ? state.doc.sliceString(body.from, body.to) : ''
       if (code.trim()) {
         decos.push(
-          Decoration.replace({ widget: new MermaidWidget(code, from, reveal), block: true }).range(
+          Decoration.replace({ widget: new MermaidWidget(code, reveal), block: true }).range(
             from,
             to
           )
