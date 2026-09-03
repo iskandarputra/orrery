@@ -180,6 +180,15 @@ export function buildAppMenu(
               label: 'Cycle View Mode',
               accelerator: acc('view.cycleViewMode', 'CmdOrCtrl+/'),
               click: dispatch('view.cycleViewMode')
+            },
+            { type: 'separator' },
+            {
+              // The three above are about a note. This one is about an HTML
+              // file, which has a source and a rendered page of its own — the
+              // shortcut editors use for exactly this.
+              label: 'Toggle HTML Preview',
+              accelerator: acc('view.toggleHtmlPreview', 'CmdOrCtrl+Shift+V'),
+              click: dispatch('view.toggleHtmlPreview')
             }
           ]
         },

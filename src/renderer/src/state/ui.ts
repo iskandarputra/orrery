@@ -129,6 +129,19 @@ export interface UiSlice {
   zenMode: boolean
   /** Document statistics drawer/modal. */
   docStatsOpen: boolean
+  /**
+   * HTML files currently being read rather than edited, and which of them have
+   * been allowed to fetch their remote pictures.
+   *
+   * Per buffer rather than a setting, unlike the markdown view mode. Reading
+   * one page is not a statement about how every other file should open, and
+   * with the editor split in two, "read this one" has to be able to mean the
+   * pane it was asked in. Allowing remote content is per buffer for a stronger
+   * reason: it is consent about one file from one place, and it should not
+   * quietly carry over to the next file opened.
+   */
+  htmlReading: Record<string, true>
+  htmlRemote: Record<string, true>
   /** Integrated terminal panel, along the bottom of the workspace. */
   terminalOpen: boolean
   /**
@@ -190,6 +203,13 @@ export interface UiSlice {
   setFileTreeSort(sort: 'name' | 'modified'): void
   toggleZenMode(): void
   setDocStatsOpen(open: boolean): void
+  /** Switch one HTML buffer between its source and the rendered page. */
+  setHtmlReading(bufferId: string, reading: boolean): void
+  toggleHtmlReading(bufferId: string): void
+  /** Let one HTML buffer fetch the remote pictures it asks for. */
+  allowHtmlRemote(bufferId: string): void
+  /** Drop what was being remembered about a buffer that has gone. */
+  forgetHtmlView(bufferId: string): void
   toggleTerminal(): void
   closeTerminal(): void
   openMediaViewer(target: MediaViewerTarget): void
@@ -217,6 +237,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   fileTreeSort: 'name',
   zenMode: false,
   docStatsOpen: false,
+  htmlReading: {},
+  htmlRemote: {},
   terminalOpen: false,
   mediaViewer: null,
 
@@ -396,6 +418,40 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   setDocStatsOpen(open) {
     set({ docStatsOpen: open })
+  },
+
+  setHtmlReading(bufferId, reading) {
+    set((state) => {
+      if (!!state.htmlReading[bufferId] === reading) return {}
+      const htmlReading = { ...state.htmlReading }
+      if (reading) htmlReading[bufferId] = true
+      else delete htmlReading[bufferId]
+      return { htmlReading }
+    })
+  },
+
+  toggleHtmlReading(bufferId) {
+    get().setHtmlReading(bufferId, !get().htmlReading[bufferId])
+  },
+
+  allowHtmlRemote(bufferId) {
+    set((state) => ({ htmlRemote: { ...state.htmlRemote, [bufferId]: true } }))
+  },
+
+  /**
+   * Buffer ids are not reused, but a map nothing ever removes from is a leak
+   * with a long fuse — and consent to fetch a page's remote content should end
+   * when the tab holding that page does.
+   */
+  forgetHtmlView(bufferId) {
+    set((state) => {
+      if (!state.htmlReading[bufferId] && !state.htmlRemote[bufferId]) return {}
+      const htmlReading = { ...state.htmlReading }
+      const htmlRemote = { ...state.htmlRemote }
+      delete htmlReading[bufferId]
+      delete htmlRemote[bufferId]
+      return { htmlReading, htmlRemote }
+    })
   },
 
   toggleTerminal() {

@@ -11,13 +11,32 @@ import {
   openRandomNote
 } from '@/notes/canvas-commands'
 import { openDailyNote } from '@/notes/daily'
+import { isHtmlFile } from '@core/html-document'
 import { stem } from '@core/paths'
 import { toggleHighlight } from '@/editor/inline-format'
 import { mediaAtCursor } from '@/editor/live-preview/media-at-cursor'
 import { goToDefinition } from '@/editor/lsp-definition'
 import { invoke } from '@/services/client'
 import { THEMES } from '@/themes/themes'
+import type { AppState } from '@/state/store'
 import type { Command } from './registry'
+
+/**
+ * The active buffer, when it is an HTML file the reader can render.
+ *
+ * The view-mode commands below write a setting shared by every markdown
+ * document. An HTML file has its own two views and its own per-buffer switch,
+ * so the shortcut on the menu has to reach whichever of the two the front tab
+ * actually has — otherwise Ctrl+Shift+3 over a web page silently reformats
+ * every note instead.
+ */
+function activeHtmlBuffer(state: AppState): string | null {
+  const id = state.activeId
+  if (!id) return null
+  const buffer = state.buffers[id]
+  if (!buffer || buffer.kind !== 'code' || !isHtmlFile(buffer.fileName)) return null
+  return id
+}
 
 /** Built-in commands referenced by menu items (src/main/menu.ts) by id. */
 export const builtinCommands: Command[] = [
@@ -164,6 +183,8 @@ export const builtinCommands: Command[] = [
     id: 'view.modeEdit',
     title: 'View Mode: Edit (source)',
     run: ({ store }) => {
+      const html = activeHtmlBuffer(store())
+      if (html) return store().setHtmlReading(html, false)
       const e = store().settings.editor
       store().updateSettings({ editor: { ...e, viewMode: 'source' } })
     }
@@ -180,6 +201,8 @@ export const builtinCommands: Command[] = [
     id: 'view.modeReading',
     title: 'View Mode: Reading (view only)',
     run: ({ store }) => {
+      const html = activeHtmlBuffer(store())
+      if (html) return store().setHtmlReading(html, true)
       const e = store().settings.editor
       store().updateSettings({ editor: { ...e, viewMode: 'reading' } })
     }
@@ -188,9 +211,21 @@ export const builtinCommands: Command[] = [
     id: 'view.cycleViewMode',
     title: 'Cycle View Mode',
     run: ({ store }) => {
+      // An HTML file has two views, not three; cycling it is toggling it.
+      const html = activeHtmlBuffer(store())
+      if (html) return store().toggleHtmlReading(html)
       const e = store().settings.editor
       const next = e.viewMode === 'live' ? 'reading' : e.viewMode === 'reading' ? 'source' : 'live'
       store().updateSettings({ editor: { ...e, viewMode: next } })
+    }
+  },
+  {
+    id: 'view.toggleHtmlPreview',
+    title: 'Toggle HTML Preview',
+    run: ({ store }) => {
+      const html = activeHtmlBuffer(store())
+      if (html) store().toggleHtmlReading(html)
+      else store().showToast('Only an HTML file can be previewed', 'info')
     }
   },
   {
