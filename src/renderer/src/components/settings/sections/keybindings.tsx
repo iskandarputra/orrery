@@ -22,7 +22,8 @@ const BINDABLE: { id: string; label: string; dflt: string }[] = [
   { id: 'view.toggleOutline', label: 'Outline panel', dflt: 'CmdOrCtrl+Shift+U' },
   { id: 'view.toggleSearch', label: 'Workspace search', dflt: 'CmdOrCtrl+Shift+F' },
   { id: 'ai.openChat', label: 'AI chat', dflt: 'CmdOrCtrl+Shift+A' },
-  { id: 'view.toggleGraph', label: 'Graph view', dflt: 'CmdOrCtrl+Shift+G' }
+  { id: 'view.toggleGraph', label: 'Graph view', dflt: 'CmdOrCtrl+Shift+G' },
+  { id: 'view.toggleHtmlPreview', label: 'HTML preview', dflt: 'CmdOrCtrl+Shift+V' }
 ]
 
 export function KeybindingsSection(): React.JSX.Element {

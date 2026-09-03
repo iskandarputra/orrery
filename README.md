@@ -181,6 +181,21 @@ as text, because it is also a file you edit.
 Excalidraw canvas and save in Excalidraw's own format, so a board made here
 opens on excalidraw.com and one made there opens here.
 
+**Web pages, read or edited.** A `.html` file opens as source, highlighted, and
+the **Read** switch in the header renders it — `Ctrl+Shift+V`, or **View → View
+Mode → Toggle HTML Preview**. It renders what is in the buffer rather than what
+is on disk, so an edit shows without a save, and switching back finds the same
+document with its cursor and undo history intact. Reading is remembered per
+file: turning it on for one page does not change how the next one opens, and it
+does not touch the view mode notes use.
+
+The page is somebody else's document, so it is treated as one. It renders in a
+sandboxed frame with no scripting, no forms and nowhere to navigate, under a
+policy that starts by refusing everything: its own stylesheet, pictures and
+fonts load from the folder beside it, and nothing loads from the internet until
+you press the button that says how many things are waiting. Scripts do not run,
+and the bar says so rather than letting you wonder.
+
 **Tables and databases.** A `.csv` opens as a grid you can sort, filter, resize
 and rearrange by dragging, edited in place. Sorting and filtering never touch
 the file: they choose an order to draw in, and an edit goes back to the row it

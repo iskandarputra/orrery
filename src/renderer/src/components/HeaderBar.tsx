@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { isHtmlFile } from '@core/html-document'
 import { basename, dirname, stem } from '@core/paths'
 import { getActiveView } from '@/editor/active-view'
 import { formatAndUnwrapNote } from '@/editor/format-helpers'
@@ -16,6 +17,8 @@ export function HeaderBar(): React.JSX.Element | null {
   const showFormattingToolbar = useStore((s) => s.showFormattingToolbar)
   const toggleFormattingToolbar = useStore((s) => s.toggleFormattingToolbar)
   const viewMode = useStore((s) => s.settings.editor.viewMode)
+  const htmlReading = useStore((s) => (s.activeId ? !!s.htmlReading[s.activeId] : false))
+  const setHtmlReading = useStore((s) => s.setHtmlReading)
   const updateSettings = useStore((s) => s.updateSettings)
   const editorSettings = useStore((s) => s.settings.editor)
   const sidePanel = useStore((s) => s.sidePanel)
@@ -60,6 +63,11 @@ export function HeaderBar(): React.JSX.Element | null {
   // mode is read for anything but markdown, which is the same fact from the
   // other end.
   const isProse = buffer.kind === 'markdown'
+  // An HTML file has the same two things to be looked at — its source and the
+  // page it makes — so it gets a switch of its own. Not the one above: that
+  // writes a setting shared by every document, and reading one page is not a
+  // decision about how the next note opens. This one is about this buffer.
+  const isHtml = buffer.kind === 'code' && isHtmlFile(buffer.fileName)
   const readingTimeMin = Math.max(1, Math.ceil(stats.words / 200))
 
   const handleExportHtml = async (): Promise<void> => {
@@ -219,6 +227,32 @@ export function HeaderBar(): React.JSX.Element | null {
               className={`header-viewmode__btn${viewMode === 'reading' ? ' header-viewmode__btn--active' : ''}`}
               title="Reading mode (rendered read-only)"
               onClick={() => updateSettings({ editor: { ...editorSettings, viewMode: 'reading' } })}
+            >
+              <Icon name="eye" size={12} />
+              <span>Read</span>
+            </button>
+          </div>
+        )}
+
+        {/* The same choice for an HTML file, over its own buffer. */}
+        {isHtml && (
+          <div className="header-viewmode" role="radiogroup" aria-label="View mode">
+            <button
+              role="radio"
+              aria-checked={!htmlReading}
+              className={`header-viewmode__btn${!htmlReading ? ' header-viewmode__btn--active' : ''}`}
+              title="Edit mode (HTML source)"
+              onClick={() => setHtmlReading(activeId, false)}
+            >
+              <Icon name="pencil" size={12} />
+              <span>Edit</span>
+            </button>
+            <button
+              role="radio"
+              aria-checked={htmlReading}
+              className={`header-viewmode__btn${htmlReading ? ' header-viewmode__btn--active' : ''}`}
+              title="Reading mode (the rendered page)"
+              onClick={() => setHtmlReading(activeId, true)}
             >
               <Icon name="eye" size={12} />
               <span>Read</span>

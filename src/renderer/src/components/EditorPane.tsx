@@ -12,8 +12,10 @@ import { lineWidthCss } from '@/editor/line-width'
 import { equalSizes, fitSizes, resizePanes, toColumns } from '@core/pane-sizes'
 import { useStore } from '@/state/store'
 import { surfaceForKind } from '@/plugins/registry'
+import { isHtmlFile } from '@core/html-document'
 import { CanvasEditor } from './CanvasEditor'
 import { DiffView } from './DiffView'
+import { HtmlPreview } from './HtmlPreview'
 import { EmptyState } from './PanelBits'
 
 /**
@@ -43,8 +45,15 @@ function Pane({
   const isDiff = kind === 'diff'
   // A surface contributed by a plugin, rendered in place of the text editor.
   const surface = kind ? surfaceForKind(kind) : null
-  // Neither surface is a CodeMirror view, so the editor host stays hidden.
-  const isCustom = isCanvas || isDiff || surface !== null
+  // An HTML file being read rather than edited. Unlike everything else here it
+  // is a mode rather than a kind: the buffer stays a code document with its own
+  // editor, history and unsaved changes, and the rendered page is drawn over
+  // the top of it until it is switched back.
+  const fileName = useStore((s) => (bufferId ? s.buffers[bufferId]?.fileName : undefined))
+  const reading = useStore((s) => (bufferId ? !!s.htmlReading[bufferId] : false))
+  const isReadingHtml = reading && !!fileName && isHtmlFile(fileName)
+  // None of these is a CodeMirror view, so the editor host stays hidden.
+  const isCustom = isCanvas || isDiff || surface !== null || isReadingHtml
 
   useEffect(() => {
     const view = new EditorView({ parent: containerRef.current! })
@@ -169,6 +178,7 @@ function Pane({
       {isCanvas && bufferId && <CanvasEditor key={bufferId} bufferId={bufferId} />}
       {surface && bufferId && <surface.Component key={bufferId} bufferId={bufferId} />}
       {isDiff && bufferId && <DiffView key={bufferId} bufferId={bufferId} />}
+      {isReadingHtml && bufferId && <HtmlPreview key={bufferId} bufferId={bufferId} />}
       {!bufferId && <EmptyState icon="file-text">Open a note in this pane.</EmptyState>}
     </div>
   )
