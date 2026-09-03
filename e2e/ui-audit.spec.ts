@@ -117,6 +117,17 @@ test.beforeAll(async () => {
     join(vault, 'lexer.ts'),
     'export function parse(a: string) {\n  // counts the characters\n  return a.length + 1\n}\n'
   )
+  // A web page with a script and a picture it would fetch from the internet, so
+  // the reader's bar is measured with every chip it can show on it — the mode
+  // pill, the note that scripts did not run, and the offer to load what was
+  // refused — rather than in the one state that happens to have the least text.
+  writeFileSync(
+    join(vault, 'audit.html'),
+    '<!doctype html>\n<html><head><meta charset="utf-8"><title>Audit</title></head>\n' +
+      '<body><h1>A page</h1><p>Some prose in it.</p>\n' +
+      '<img src="https://example.invalid/pixel.png" alt="">\n' +
+      '<script>document.title = "ran"</script>\n</body></html>\n'
+  )
   // A PDF, so the reader's toolbar, its page rail and its outline are measured
   // rather than assumed.
   writeFileSync(
@@ -770,6 +781,37 @@ const SURFACES: Surface[] = [
       await expect(page.locator('.imgv__size')).toContainText('64')
     },
     close: async () => {
+      await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
+      await expect(page.locator('.cm-content').first()).toBeVisible()
+    }
+  },
+  {
+    // The HTML reader's bar: the mode pill, what it refused to run, and the
+    // offer to fetch what it refused to load. Small text and small targets over
+    // the page's own white ground, which no theme controls. The page inside the
+    // frame is somebody else's document and is deliberately not audited — a DOM
+    // scan cannot enter a sandboxed frame, and what it looks like is not this
+    // app's to answer for.
+    name: 'html reader',
+    root: '.htmlv',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'audit.html' }).click()
+      await expect(page.locator('.header-viewmode__btn', { hasText: 'Read' })).toBeVisible({
+        timeout: 20_000
+      })
+      await page.locator('.header-viewmode__btn', { hasText: 'Read' }).click()
+      await expect(page.locator('.htmlv__frame')).toBeVisible({ timeout: 20_000 })
+      await expect(page.locator('.htmlv__action', { hasText: /Load 1 remote/ })).toBeVisible()
+    },
+    close: async () => {
+      await page.locator('.htmlv__action', { hasText: 'Edit' }).click()
+      // The tab goes too, not just the view. Every open tab takes room from the
+      // ones beside it, and the close control on a tab is already at the size
+      // 2.5.8 asks for with nothing to spare — so a surface that opens a file
+      // and only navigates away leaves the tab strip a little tighter than it
+      // found it, and the audit reads that as the *tab bar* failing.
+      await page.getByRole('button', { name: 'Close audit.html' }).click()
+      await expect(page.locator('.tab', { hasText: 'audit.html' })).toHaveCount(0)
       await page.locator('.tree-row--file', { hasText: 'Index.md' }).click()
       await expect(page.locator('.cm-content').first()).toBeVisible()
     }
