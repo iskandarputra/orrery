@@ -151,6 +151,24 @@ function Pane({
     <div
       className={`editor-pane-host${focused ? ' editor-pane-host--focused' : ''}`}
       onMouseDownCapture={onFocus}
+      style={{
+        /**
+         * Page zoom, as a factor every surface in the pane can read.
+         *
+         * The setting is a type size, which is the right control for a text
+         * document and no control at all for a table, or for a rendered page
+         * in a frame. Those cannot take a font size from the outside — one
+         * lays out to its own, the other is a whole document with opinions of
+         * its own — but both can be scaled. So the size is published here as a
+         * ratio against the size a document starts at, and each surface uses
+         * whichever of the two it can.
+         *
+         * Without it the keystroke still moved the setting on those surfaces
+         * and nothing on screen changed, which reads as a shortcut that does
+         * not work while quietly drifting the size of every other document.
+         */
+        ['--or-page-zoom' as string]: String(settings.editor.fontSize / DEFAULT_FONT_SIZE)
+      }}
     >
       <div
         ref={containerRef}
@@ -183,6 +201,9 @@ function Pane({
     </div>
   )
 }
+
+/** The size a document starts at; page zoom is measured against it. */
+const DEFAULT_FONT_SIZE = 16
 
 /** Width of the grab area between two panes, matching `.pane-divider`. */
 const DIVIDER = '5px'

@@ -42,6 +42,9 @@ const windowZoom = (): Promise<number> =>
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-zoom-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nSome prose to measure.\n')
+  // The surfaces that are documents but are not the text editor.
+  writeFileSync(join(vault, 'data.csv'), 'name,value\nalpha,1\nbeta,2\n')
+  writeFileSync(join(vault, 'page.html'), '<h1>Page</h1><p>Body text to measure.</p>')
   app = await launchApp()
   page = await app.firstWindow()
   await page.setViewportSize({ width: 1200, height: 800 })
@@ -102,4 +105,53 @@ test('page zoom stops rather than running away', async () => {
   expect(await documentSize()).toBe(8)
   await run('view.pageZoomReset')
   expect(await documentSize()).toBe(16)
+})
+
+test('a table follows page zoom too', async () => {
+  // A sheet is a document, and the shortcut that grows the prose in a note
+  // should grow the figures in a table. It laid out to its own fixed size
+  // before, so the key moved the setting and nothing on screen changed.
+  await page.locator('.tree-row--file', { hasText: 'data.csv' }).click()
+  await expect(page.locator('.csv__table')).toBeVisible({ timeout: 15_000 })
+  const size = (): Promise<number> =>
+    page.locator('.csv__table').evaluate((e) => parseFloat(getComputedStyle(e).fontSize))
+
+  const before = await size()
+  await run('view.pageZoomIn')
+  await run('view.pageZoomIn')
+  expect(await size()).toBeGreaterThan(before)
+  await run('view.pageZoomReset')
+  expect(await size()).toBeCloseTo(before, 1)
+})
+
+test('a rendered page follows it, and still fits its pane', async () => {
+  await page.locator('.tree-row--file', { hasText: 'page.html' }).click()
+  await expect(page.locator('.cm-content')).toContainText('Body text', { timeout: 15_000 })
+  await page.locator('.header-viewmode__btn', { hasText: 'Read' }).click()
+  await expect(page.locator('.htmlv__frame')).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(800)
+
+  // A whole document with a type scale of its own cannot be handed a font
+  // size, so it is scaled. The frame's inner viewport shrinking in CSS pixels
+  // is the content getting bigger.
+  const inner = (): Promise<number> =>
+    page
+      .frameLocator('.htmlv__frame')
+      .locator('body')
+      .evaluate(() => document.documentElement.clientWidth)
+  const box = (): Promise<number> =>
+    page.locator('.htmlv__frame').evaluate((e) => Math.round(e.getBoundingClientRect().width))
+
+  const beforeInner = await inner()
+  const paneWidth = await box()
+  await run('view.pageZoomIn')
+  await run('view.pageZoomIn')
+  await page.waitForTimeout(500)
+  expect(await inner()).toBeLessThan(beforeInner)
+  // And scaling it must not push it out of the pane it is read in.
+  expect(await box()).toBe(paneWidth)
+
+  await run('view.pageZoomReset')
+  await page.waitForTimeout(500)
+  expect(await inner()).toBe(beforeInner)
 })

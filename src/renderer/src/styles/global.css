@@ -5383,7 +5383,9 @@ kbd {
   table-layout: fixed;
   width: max-content;
   font-family: var(--or-mono-font);
-  font-size: 12px;
+  /* Follows page zoom: a table is a document too, and the shortcut that grows
+     the prose in a note should grow the figures in a sheet. */
+  font-size: calc(12px * var(--or-page-zoom, 1));
 }
 
 .csv__table th,
@@ -7484,6 +7486,10 @@ kbd {
   border: 0;
   background: #fff;
   color-scheme: light;
+  /* The page is a whole document with its own type scale, so it is scaled
+     rather than given a font size — which is what page zoom means for it, and
+     what a browser's own zoom would do to the same file. */
+  zoom: var(--or-page-zoom, 1);
 }
 
 /* The page's own code is running. Said in the accent rather than the warning
