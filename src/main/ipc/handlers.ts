@@ -40,6 +40,7 @@ import type { WatcherService } from '../services/watcher'
 import type { WindowManager } from '../windows'
 import { buildAppMenu } from '../menu'
 import { handle, send } from './registry'
+import { dropPreview, putPreview } from '../preview-protocol'
 
 export interface HandlerDeps {
   fs: FileSystemService
@@ -783,6 +784,12 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('db:close', pathReq, (_e, req) => sqlite.close(req.path))
 
   handle('export:html', exportReq, (_e, req) => exporter.exportHtml(req.title, req.markdown))
+  handle(
+    'preview:put',
+    z.object({ id: z.string().min(1), html: z.string(), policy: z.string().min(1) }),
+    (_e, req) => putPreview(req.id, { html: req.html, policy: req.policy })
+  )
+  handle('preview:drop', z.object({ id: z.string().min(1) }), (_e, req) => dropPreview(req.id))
   handle('export:pdf', exportReq, (_e, req) => exporter.exportPdf(req.title, req.markdown))
   handle('export:print', exportReq, (_e, req) => exporter.print(req.title, req.markdown))
   handle('editor:replaceMisspelling', z.object({ word: z.string() }), (event, req) => {

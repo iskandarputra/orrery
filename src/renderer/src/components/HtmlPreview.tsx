@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { buildPreview, type PreviewDocument } from '@core/html-document'
+import { buildPreview } from '@core/html-document'
 import { preparePage } from '@/editor/html-page'
+import { invoke } from '@/services/client'
 import { viewForBuffer } from '@/editor/active-view'
 import { useDocVersion } from '@/state/doc-version'
 import { useStore } from '@/state/store'
@@ -36,6 +37,8 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
   const filePath = useStore((s) => s.buffers[bufferId]?.filePath ?? null)
   const allowRemote = useStore((s) => !!s.htmlRemote[bufferId])
   const allowHtmlRemote = useStore((s) => s.allowHtmlRemote)
+  const allowScripts = useStore((s) => !!s.htmlScripts[bufferId])
+  const allowHtmlScripts = useStore((s) => s.allowHtmlScripts)
   const setHtmlReading = useStore((s) => s.setHtmlReading)
 
   /** null until the pane's editor has been found and read. */
@@ -107,9 +110,13 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
    * rather than blanking: re-reading a page you are looking at should not make
    * it disappear and come back.
    */
-  const [page, setPage] = useState<
-    (PreviewDocument & { diagrams: number; equations: number }) | null
-  >(null)
+  const [page, setPage] = useState<{
+    url: string
+    hasScripts: boolean
+    remoteCount: number
+    diagrams: number
+    equations: number
+  } | null>(null)
 
   useEffect(() => {
     if (source === null) return
@@ -117,12 +124,35 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
     void (async () => {
       const prepared = await preparePage(source, filePath)
       if (!live) return
-      setPage({ ...buildPreview(prepared.html, { allowRemote }), ...prepared })
+      const built = buildPreview(prepared.html, { allowRemote, allowScripts })
+      // Handed to the main process and fetched back over a scheme of its own,
+      // rather than inlined: a served document carries its own policy, and
+      // that is the only way this page can be allowed to run its own code
+      // without the application relaxing the policy it holds itself to.
+      const url = await invoke('preview:put', {
+        id: bufferId,
+        html: built.html,
+        policy: built.policy
+      })
+      if (!live) return
+      // A fresh query each time, so the frame reloads even though the address
+      // has not changed — the same buffer keeps the same id for its lifetime.
+      setPage({
+        url: `${url}?v=${Date.now()}`,
+        hasScripts: built.hasScripts,
+        remoteCount: built.remoteCount,
+        diagrams: prepared.diagrams,
+        equations: prepared.equations
+      })
     })()
     return () => {
       live = false
     }
-  }, [source, filePath, allowRemote])
+  }, [source, filePath, allowRemote, allowScripts, bufferId])
+
+  // The page is held in the main process for as long as something is showing
+  // it. Nothing should be able to fetch a document nobody is reading.
+  useEffect(() => () => void invoke('preview:drop', { id: bufferId }), [bufferId])
 
   if (failed) {
     return (
@@ -159,12 +189,25 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           </span>
         )}
 
-        {page?.hasScripts && (
-          <span className="htmlv__note" title="Nothing in this page is executed while you read it">
-            <Icon name="alert-triangle" size={12} />
-            Scripts are not run
-          </span>
-        )}
+        {page?.hasScripts &&
+          (allowScripts ? (
+            <span
+              className="htmlv__note htmlv__note--live"
+              title="This page's own code is running, in a frame that cannot reach the app"
+            >
+              <Icon name="zap" size={12} />
+              Scripts are running
+            </span>
+          ) : (
+            <button
+              className="htmlv__action"
+              onClick={() => allowHtmlScripts(bufferId)}
+              title="Run this page's own scripts. It stays in a frame with no access to the app, and nothing is fetched from the internet."
+            >
+              <Icon name="zap" size={12} />
+              Run scripts
+            </button>
+          ))}
 
         {page && page.remoteCount > 0 && !allowRemote && (
           <button
@@ -205,9 +248,13 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           // this attribute must never gain. `srcdoc` keeps the document a
           // string this process built rather than a URL something else can
           // point somewhere; the policy it carries is `buildPreview`'s.
-          sandbox=""
+          // The boundary. `allow-scripts` is the only token ever added, and
+          // never alongside `allow-same-origin`: together they would let the
+          // page reach out of its own opaque origin, which is the whole of
+          // what keeps it contained. Without scripting there is not even that.
+          sandbox={allowScripts ? 'allow-scripts' : ''}
           referrerPolicy="no-referrer"
-          srcDoc={page.srcdoc}
+          src={page.url}
         />
       )}
     </div>

@@ -533,6 +533,16 @@ export interface IpcInvokeContract {
 
   /** Export the given markdown; resolves to the saved path or null on cancel. */
   'export:html': { req: { title: string; markdown: string }; res: string | null }
+
+  /**
+   * Hand the HTML reader's page to the main process, and get the URL for it.
+   *
+   * The page is served rather than inlined because a served document carries
+   * its own Content-Security-Policy — which is the only way a page can be
+   * allowed to run its own scripts without the application relaxing its own.
+   */
+  'preview:put': { req: { id: string; html: string; policy: string }; res: string }
+  'preview:drop': { req: { id: string }; res: void }
   'export:pdf': { req: { title: string; markdown: string }; res: string | null }
   /** Print the rendered note; resolves false if the user cancelled. */
   'export:print': { req: { title: string; markdown: string }; res: boolean }

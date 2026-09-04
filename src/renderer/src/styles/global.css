@@ -7485,3 +7485,9 @@ kbd {
   background: #fff;
   color-scheme: light;
 }
+
+/* The page's own code is running. Said in the accent rather than the warning
+   colour: it is a thing the reader asked for, not a thing that went wrong. */
+.htmlv__note--live {
+  color: var(--or-accent-text);
+}

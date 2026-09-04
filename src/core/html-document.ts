@@ -16,7 +16,10 @@ import { extname } from './paths'
  * boundary. Everything below is a second one, so that a mistake in either is
  * not a mistake in both.
  *
- * **The policy is a Content-Security-Policy, not a filter.** Notes go through
+ * **The policy is a Content-Security-Policy, not a filter.** It travels as a
+ * response header on the served document rather than as a `<meta>` in it, so
+ * it cannot be confused with the page's own markup and does not depend on
+ * where in the document it landed. Notes go through
  * `html-policy`, which keeps an allow-list of tags — the right shape when the
  * HTML is a fragment inside prose and the surrounding page is the app's own.
  * A whole document is a different problem: strip its `<style>` and its `<link>`
@@ -47,11 +50,20 @@ export function isHtmlFile(p: string): boolean {
 export interface PreviewOptions {
   /** Whether the reader has been told to fetch this file's remote references. */
   allowRemote: boolean
+  /**
+   * Whether the reader has been told to run this file's own scripts.
+   *
+   * Off unless somebody asked for this file, and never remembered beyond the
+   * tab: it is consent about one document, and the next one has not earned it.
+   */
+  allowScripts: boolean
 }
 
 export interface PreviewDocument {
-  /** The document to hand a sandboxed iframe's `srcdoc`. */
-  srcdoc: string
+  /** The document to serve. */
+  html: string
+  /** The `Content-Security-Policy` header it is served under. */
+  policy: string
   /** The source has scripts, which will not run — worth saying out loud. */
   hasScripts: boolean
   /** Roughly how many remote references there are, for the offer to load them. */
@@ -68,6 +80,15 @@ export interface PreviewDocument {
  * not change.
  */
 const REMOTE_ATTRIBUTE = /\b(?:src|srcset|poster|data)\s*=\s*["']?\s*(?:https?:)?\/\//gi
+/**
+ * Remote *code*, which the offer never covers and so must not be counted in it.
+ *
+ * Loading remote content is a decision about pictures. Running remote code is a
+ * decision nothing here offers at all, so a `<script src="https://…">` counted
+ * among the things a button will fetch would be a number the button cannot act
+ * on — press it and one of them stays exactly where it was.
+ */
+const REMOTE_SCRIPT = /<script\b[^>]*\bsrc\s*=\s*["']?\s*(?:https?:)?\/\//gi
 const REMOTE_LINK = /<link\b[^>]*\bhref\s*=\s*["']?\s*(?:https?:)?\/\//gi
 const REMOTE_CSS_URL = /url\(\s*["']?\s*(?:https?:)?\/\//gi
 const SCRIPT_TAG = /<script[\s>]/i
@@ -85,13 +106,30 @@ const SCRIPT_TAG = /<script[\s>]/i
  * the CSP of the page embedding it, and the two intersect, so a directive here
  * can only narrow what the app's own policy already allows.
  */
-function contentPolicy(allowRemote: boolean): string {
+function contentPolicy(options: PreviewOptions): string {
+  const { allowRemote, allowScripts } = options
   // Remote is images and media only. Widening the app's own policy to fetch
   // remote stylesheets and fonts for a preview is a bigger promise than this
   // feature needs, and the intersection above would refuse them anyway.
   const remote = allowRemote ? ' https:' : ''
   return [
     "default-src 'none'",
+    /**
+     * The page's own code, when it has been asked for.
+     *
+     * `'unsafe-inline'` because a document that draws itself writes its script
+     * in the file — there is no nonce to give it and no build step to add one.
+     * `orrery-asset:` for a script sitting beside it on disk. Never a remote
+     * source, whatever else is allowed: fetching a picture from the internet
+     * tells somebody you opened their file, and fetching *code* from the
+     * internet hands them the inside of the page you are reading. Those are
+     * not the same decision and this one is not offered.
+     *
+     * What keeps this safe is not the list — it is the frame. Scripts run in
+     * an opaque origin with no `allow-same-origin`, so the page cannot reach
+     * the application around it, its storage, or anything it did not bring.
+     */
+    allowScripts ? "script-src 'unsafe-inline' orrery-asset:" : '',
     `img-src data: orrery-asset:${remote}`,
     `media-src data: orrery-asset:${remote}`,
     "style-src 'unsafe-inline' orrery-asset:",
@@ -104,37 +142,9 @@ function contentPolicy(allowRemote: boolean): string {
     // every base element the page brought, and adds exactly one.
 
     "form-action 'none'"
-  ].join('; ')
-}
-
-function escapeAttribute(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
-}
-
-/**
- * Put the injected head where it governs the rest of the document.
- *
- * A CSP in a `<meta>` applies to what comes after it, so it has to go first —
- * but not before the doctype. Prepending to the source pushes the doctype down
- * the document where it stops being a doctype, and the page silently renders in
- * quirks mode: a different box model, a different line height, a preview that
- * disagrees with every other viewer about what the file looks like.
- */
-function injectIntoHead(source: string, injected: string): string {
-  const at = (index: number): string => source.slice(0, index) + injected + source.slice(index)
-
-  const head = /<head[^>]*>/i.exec(source)
-  if (head) return at(head.index + head[0].length)
-
-  const html = /<html[^>]*>/i.exec(source)
-  if (html) return at(html.index + html[0].length)
-
-  // A fragment with a doctype and no `<html>`, or no doctype at all. The parser
-  // opens a head of its own around whatever it finds first either way.
-  const doctype = /^\s*<!doctype[^>]*>/i.exec(source)
-  if (doctype) return at(doctype[0].length)
-
-  return injected + source
+  ]
+    .filter((directive) => directive !== '')
+    .join('; ')
 }
 
 /** Count matches without keeping them; the regexes are global and stateful. */
@@ -152,13 +162,13 @@ function countMatches(source: string, pattern: RegExp): number {
  * can be tested without a browser, an iframe, or a file on disk.
  */
 export function buildPreview(source: string, options: PreviewOptions): PreviewDocument {
-  const injected = `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(contentPolicy(options.allowRemote))}">`
-
   return {
-    srcdoc: injectIntoHead(source, injected),
+    html: source,
+    policy: contentPolicy(options),
     hasScripts: SCRIPT_TAG.test(source),
     remoteCount:
-      countMatches(source, REMOTE_ATTRIBUTE) +
+      countMatches(source, REMOTE_ATTRIBUTE) -
+      countMatches(source, REMOTE_SCRIPT) +
       countMatches(source, REMOTE_LINK) +
       countMatches(source, REMOTE_CSS_URL)
   }
