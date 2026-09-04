@@ -3242,6 +3242,13 @@ textarea {
   align-items: center;
   gap: 0.4rem;
   padding: 0.5rem 0.6rem 0.25rem;
+  overflow: hidden;
+}
+
+/* "Unstage all" is the part that goes when there is no room, not the word that
+   says which group this is. */
+.scm__group-label {
+  flex: none;
 }
 
 .scm__group-label {
@@ -3304,6 +3311,10 @@ textarea {
   gap: 0.3rem;
   padding: 0.15rem 0.6rem;
   min-height: 26px;
+  /* The panel is resizable down to a sliver, and a row that cannot shrink
+     spills its name across the count and the status letter beside it. Nothing
+     in here may overflow the row. */
+  overflow: hidden;
 }
 
 .scm-row:hover {
@@ -3312,23 +3323,34 @@ textarea {
 
 .scm-row__name {
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.35rem;
+  /* Both, and on the child below as well: a flex item's default minimum is the
+     width of its content, so `overflow: hidden` on an ancestor is not enough on
+     its own — the name has to be allowed to become narrower than the word it
+     contains before anything can be trimmed off it. */
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   /* 2.5.8. The row is already 26px tall; the button inside it was not, so the
      target was the text rather than the row it fills. */
   min-height: 24px;
-  align-content: center;
-  flex-wrap: wrap;
   text-align: left;
   cursor: pointer;
 }
 
+/* Never squeezed: an icon narrower than itself is a smear, and it is the thing
+   that says what kind of file this is at a glance. */
+.scm-row__icon {
+  flex: none;
+}
+
 .scm-row__file {
+  min-width: 0;
   font-size: 12px;
   color: var(--or-fg);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* How much the file changed. Tabular figures so the counts line up down the
@@ -3364,6 +3386,7 @@ textarea {
 .scm-row__actions {
   display: flex;
   gap: 1px;
+  flex: none;
   opacity: 0;
 }
 
@@ -3379,6 +3402,7 @@ textarea {
 
 .scm-row__state {
   width: 1.2em;
+  flex: none;
   text-align: center;
   font-family: var(--or-mono-font);
   font-size: 11px;
@@ -5127,6 +5151,10 @@ kbd {
 
 .commit-detail__file:hover {
   background: var(--or-hover-bg);
+}
+
+.commit-detail__icon {
+  flex: none;
 }
 
 .commit-detail__status {

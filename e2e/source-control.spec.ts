@@ -571,3 +571,68 @@ test('a row names the file, and keeps the path for the hover', async () => {
   rmSync(join(vault, 'deep', 'Buried.md'), { force: true })
   await refresh()
 })
+
+test('a row carries the file type’s own mark', async () => {
+  await openPanel()
+  mkdirSync(join(vault, 'code'), { recursive: true })
+  writeFileSync(join(vault, 'code', 'widget.tsx'), 'export const a = 1\n')
+  writeFileSync(join(vault, 'code', 'sheet.css'), 'a{color:red}\n')
+  await refresh()
+  await page.waitForTimeout(400)
+
+  // The same mark the file tree and the tabs draw, so a file is recognisable
+  // by its type here too rather than only by its name.
+  for (const name of ['widget.tsx', 'sheet.css']) {
+    const row = page.locator('.scm-row').filter({ has: page.getByText(name, { exact: true }) })
+    await expect(row.locator('.scm-row__icon')).toHaveCount(1)
+  }
+
+  rmSync(join(vault, 'code'), { recursive: true, force: true })
+  await refresh()
+})
+
+test('a squeezed panel trims the names instead of running them into the rest', async () => {
+  await openPanel()
+  writeFileSync(
+    join(vault, 'AnAbsurdlyLongComponentFileNameForTesting.md'),
+    'a name with nowhere to go\n'
+  )
+  await refresh()
+  await page.waitForTimeout(400)
+
+  const resizer = page.locator('.sidebar__resizer')
+  const start = (await resizer.boundingBox())!
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2)
+  await page.mouse.down()
+  // Well past any width the name could fit in.
+  await page.mouse.move(180, start.y + start.height / 2, { steps: 12 })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
+
+  const measured = await page
+    .locator('.scm-row')
+    .first()
+    .evaluate((row) => {
+      const name = row.querySelector('.scm-row__file') as HTMLElement
+      const state = row.querySelector('.scm-row__state') as HTMLElement
+      return {
+        clipped: name.scrollWidth > name.clientWidth,
+        overlapsState: name.getBoundingClientRect().right > state.getBoundingClientRect().left + 1,
+        escapesRow: name.getBoundingClientRect().right > row.getBoundingClientRect().right + 1
+      }
+    })
+  // The name gives way — it does not sit on top of the count and the status
+  // letter, which is what a row with nowhere to shrink to used to do.
+  expect(measured.clipped).toBe(true)
+  expect(measured.overlapsState).toBe(false)
+  expect(measured.escapesRow).toBe(false)
+
+  // Put the panel back, or every test after this one measures a sliver.
+  const back = (await resizer.boundingBox())!
+  await page.mouse.move(back.x + back.width / 2, back.y + back.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(300, back.y + back.height / 2, { steps: 12 })
+  await page.mouse.up()
+  rmSync(join(vault, 'AnAbsurdlyLongComponentFileNameForTesting.md'), { force: true })
+  await refresh()
+})
