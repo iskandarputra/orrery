@@ -111,6 +111,13 @@ function anchorFragments(doc: Document): void {
   doc.head.prepend(base)
 }
 
+/** Put the diagram fallback first, where the page can still overrule it. */
+function addDiagramFallback(doc: Document): void {
+  const style = doc.createElement('style')
+  style.textContent = DIAGRAM_FALLBACK_CSS
+  doc.head.prepend(style)
+}
+
 /** The markup every mermaid page uses, whichever way it loads the library. */
 function mermaidBlocks(doc: Document): HTMLElement[] {
   return [...doc.querySelectorAll<HTMLElement>('.mermaid, pre[class*="mermaid"]')]
@@ -130,12 +137,16 @@ async function drawDiagrams(doc: Document): Promise<number> {
   blocks.forEach((block, i) => {
     const result = drawn[i]!
     if ('svg' in result) {
-      // Replaced rather than emptied and refilled: a `<pre>` keeps its
-      // whitespace handling, which turns a diagram into a tall thin ribbon.
-      const wrap = doc.createElement('div')
-      wrap.setAttribute('class', block.getAttribute('class') ?? 'mermaid')
-      wrap.innerHTML = result.svg
-      block.replaceWith(wrap)
+      // Filled in place and stamped, which is exactly what mermaid itself does
+      // to an element it has drawn. Both halves matter, and a page proved it:
+      // a document styling `pre.mermaid svg{max-width:100%}` and
+      // `pre.mermaid[data-processed="true"]{white-space:normal}` gets neither
+      // if the `<pre>` is swapped for a `<div>` — every diagram then renders at
+      // its natural width and pushes a horizontal scrollbar across the whole
+      // document. Following the library's own contract is what makes a page
+      // written for mermaid look the way it was written to look.
+      block.innerHTML = result.svg
+      block.setAttribute('data-processed', 'true')
       count++
     } else {
       block.textContent = `Diagram could not be drawn: ${result.error}`
@@ -143,6 +154,17 @@ async function drawDiagrams(doc: Document): Promise<number> {
   })
   return count
 }
+
+/**
+ * What a diagram does when the page has no opinion about it.
+ *
+ * A page written for mermaid styles its own diagrams and this defers to it —
+ * the rule goes at the very top of the head, so anything the page says later
+ * wins on equal specificity. A page that merely *contains* mermaid, with no
+ * styling for it, still gets a diagram that fits the width it is read in
+ * rather than one that runs off the side.
+ */
+const DIAGRAM_FALLBACK_CSS = '.mermaid svg{max-width:100%;height:auto}'
 
 /** Elements whose text is not prose and must never be scanned for maths. */
 const NOT_PROSE = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE', 'TEXTAREA', 'MATH', 'SVG'])
@@ -233,6 +255,7 @@ export async function preparePage(source: string, docPath: string | null): Promi
   resolveUrls(doc, docPath)
   anchorFragments(doc)
   const [diagrams, equations] = [await drawDiagrams(doc), await typesetMath(doc, source)]
+  if (diagrams > 0) addDiagramFallback(doc)
 
   // The doctype does not survive serialising the element tree, and a document
   // that loses it renders in quirks mode: a different box model, a different
