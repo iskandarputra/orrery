@@ -108,9 +108,20 @@ const SCRIPT_TAG = /<script[\s>]/i
  */
 function contentPolicy(options: PreviewOptions): string {
   const { allowRemote, allowScripts } = options
-  // Remote is images and media only. Widening the app's own policy to fetch
-  // remote stylesheets and fonts for a preview is a bigger promise than this
-  // feature needs, and the intersection above would refuse them anyway.
+  /**
+   * Remote content covers what a page needs to *look* like itself.
+   *
+   * That is stylesheets and webfonts as much as pictures. It did not use to:
+   * the page was inlined into the app's own document and inherited its policy,
+   * which allows neither, so naming them here would have meant widening what
+   * the application itself may load — too big a promise for a preview. Serving
+   * the page from its own scheme ended that. Its policy is its own now, so the
+   * offer can cover the whole of what "load this page's remote content" means,
+   * and a document that arrives in the wrong typeface because its font was
+   * refused is one this can stop happening.
+   *
+   * Code is still not in it, at any setting. See `script-src` below.
+   */
   const remote = allowRemote ? ' https:' : ''
   return [
     "default-src 'none'",
@@ -132,8 +143,8 @@ function contentPolicy(options: PreviewOptions): string {
     allowScripts ? "script-src 'unsafe-inline' orrery-asset:" : '',
     `img-src data: orrery-asset:${remote}`,
     `media-src data: orrery-asset:${remote}`,
-    "style-src 'unsafe-inline' orrery-asset:",
-    'font-src data: orrery-asset:',
+    `style-src 'unsafe-inline' orrery-asset:${remote}`,
+    `font-src data: orrery-asset:${remote}`,
     // No `base-uri`, deliberately. The reader needs a `<base>` of its own — it
     // is the only way a bare `#fragment` resolves to this document rather than
     // to the page embedding it — and a policy tight enough to forbid the
