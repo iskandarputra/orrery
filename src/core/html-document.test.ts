@@ -45,13 +45,20 @@ describe('the policy the document is read under', () => {
     expect(policyOf()).not.toContain('https:')
   })
 
-  it('opens images and media to the network when it is, and nothing else', () => {
+  it('opens everything a page needs to look like itself', () => {
+    // Pictures, and the stylesheet and webfont that decide what the words look
+    // like. A document that arrives in the wrong typeface because its font was
+    // refused has not really been shown.
     const policy = policyOf({ allowRemote: true })
     expect(policy).toContain('img-src data: orrery-asset: https:')
     expect(policy).toContain('media-src data: orrery-asset: https:')
-    // Loading pictures is not a reason to fetch a stylesheet or a font.
-    expect(policy).toContain("style-src 'unsafe-inline' orrery-asset:;")
-    expect(policy).toContain('font-src data: orrery-asset:;')
+    expect(policy).toContain("style-src 'unsafe-inline' orrery-asset: https:")
+    expect(policy).toContain('font-src data: orrery-asset: https:')
+  })
+
+  it('still does not open it to code', () => {
+    // The one thing remote content never covers, at any setting.
+    expect(policyOf({ allowRemote: true })).not.toMatch(/script-src/)
   })
 
   it('runs the page’s own scripts only when asked', () => {
