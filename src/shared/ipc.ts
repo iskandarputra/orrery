@@ -52,6 +52,17 @@ export interface IpcInvokeContract {
   'git:status': { req: { rootPath: string }; res: GitStatus }
 
   /**
+   * Which of these paths git is told to ignore.
+   *
+   * Asked per directory listing rather than for the whole tree: the tree is
+   * lazy, so the question is only ever about the handful of entries somebody
+   * just opened. Resolves to nothing when git cannot answer, which shows the
+   * files rather than hiding them — a tree that omits entries because git is
+   * missing would be lying about the folder.
+   */
+  'git:ignored': { req: { rootPath: string; paths: string[] }; res: string[] }
+
+  /**
    * How much each changed file changed, for the counts beside the names.
    *
    * `untracked` is passed in rather than re-derived: the panel has just read
@@ -137,7 +148,7 @@ export interface IpcInvokeContract {
     req: { path: string; content: string; expectedMtimeMs: number | null }
     res: FileWriteResult
   }
-  'fs:readTree': { req: { path: string }; res: FileNode }
+  'fs:readTree': { req: { path: string; showHidden?: boolean }; res: FileNode }
   /**
    * One directory's entries, fetched when it is opened in the tree.
    *
@@ -145,7 +156,7 @@ export interface IpcInvokeContract {
    * window can show anything costs seconds and tens of megabytes on a folder
    * that is somebody's entire Documents.
    */
-  'fs:readDir': { req: { path: string }; res: FileNode[] }
+  'fs:readDir': { req: { path: string; showHidden?: boolean }; res: FileNode[] }
   /**
    * When a file was last written, and how big it is.
    *

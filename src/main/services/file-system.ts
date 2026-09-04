@@ -5,7 +5,26 @@ import { shell } from 'electron'
 import type { FileNode, FileReadResult, FileWriteResult } from '@shared/types'
 import { IpcError, toIpcError } from '../ipc/errors'
 
-const IGNORED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg'])
+/**
+ * Never listed, whatever the settings say.
+ *
+ * A version control store is not a file anybody edits — it is the machinery
+ * underneath the folder, it is enormous, and every entry in it is noise. This
+ * is separate from "hidden files", which are the user's own dotfiles, and from
+ * what git is told to ignore, which is the user's own build output.
+ */
+const NEVER_LISTED = new Set(['.git', '.svn', '.hg'])
+
+/**
+ * Never *walked* into when building the index, on top of the above.
+ *
+ * The tree can show `node_modules` — it is somebody's folder and they may want
+ * to look inside it — because the tree is lazy and only reads a directory when
+ * it is opened. The index is not: it descends everything at once, and a single
+ * `node_modules` is more files than the vault it sits in. Indexing one costs
+ * the whole budget and returns nothing anybody searches for.
+ */
+const NEVER_WALKED = new Set([...NEVER_LISTED, 'node_modules'])
 
 export class FileSystemService {
   async readFile(filePath: string): Promise<FileReadResult> {
@@ -60,10 +79,15 @@ export class FileSystemService {
    * A directory that has not been read yet has no `children` at all, which is
    * how the tree tells "empty" from "not looked at".
    */
-  async readTree(dirPath: string): Promise<FileNode> {
+  async readTree(dirPath: string, showHidden = true): Promise<FileNode> {
     try {
       const name = path.basename(dirPath)
-      return { name, path: dirPath, kind: 'directory', children: await this.readDir(dirPath) }
+      return {
+        name,
+        path: dirPath,
+        kind: 'directory',
+        children: await this.readDir(dirPath, showHidden)
+      }
     } catch (err) {
       throw toIpcError(err)
     }
@@ -80,12 +104,13 @@ export class FileSystemService {
   }
 
   /** One directory's entries, sorted: directories first, then files, alphabetically. */
-  async readDir(dirPath: string): Promise<FileNode[]> {
+  async readDir(dirPath: string, showHidden = true): Promise<FileNode[]> {
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true })
       const nodes: FileNode[] = []
       for (const entry of entries) {
-        if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
+        if (NEVER_LISTED.has(entry.name)) continue
+        if (!showHidden && entry.name.startsWith('.')) continue
         const full = path.join(dirPath, entry.name)
         if (entry.isDirectory()) nodes.push({ name: entry.name, path: full, kind: 'directory' })
         else if (entry.isFile()) nodes.push({ name: entry.name, path: full, kind: 'file' })
@@ -133,7 +158,7 @@ export class FileSystemService {
             return // unreadable directory — skipped, not fatal
           }
           for (const entry of entries) {
-            if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
+            if (NEVER_WALKED.has(entry.name) || entry.name.startsWith('.')) continue
             const full = path.join(dir, entry.name)
             if (entry.isDirectory()) next.push(full)
             else if (entry.isFile()) {

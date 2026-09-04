@@ -242,7 +242,19 @@ export const settingsSchema = z.object({
        * the app should not lose which view somebody was working in. `files` by
        * default, which is what the sidebar has always opened on.
        */
-      view: z.enum(['files', 'git']).default('files').catch('files')
+      view: z.enum(['files', 'git']).default('files').catch('files'),
+      /**
+       * Whether the tree lists dotfiles, and whether it lists what git is
+       * told to ignore.
+       *
+       * Both on, because a vault is somebody's own folder and hiding parts of
+       * it by default is the app deciding what is in there. A `.gitignore`, a
+       * `.github` directory and a generated `dist` are all things people open;
+       * a tree that silently omits them is one you cannot trust to be the
+       * folder. They are a click apart when the noise is not wanted.
+       */
+      showHidden: z.boolean().default(true),
+      showIgnored: z.boolean().default(true)
     })
     .prefault({}),
   diff: z

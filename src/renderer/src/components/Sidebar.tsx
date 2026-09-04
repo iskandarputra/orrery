@@ -59,6 +59,8 @@ function FilesView(): React.JSX.Element {
   const setTreeEdit = useStore((s) => s.setTreeEdit)
   const noteIndex = useStore((s) => s.noteIndex)
   const refreshTree = useStore((s) => s.refreshTree)
+  const sidebar = useStore((s) => s.settings.sidebar)
+  const updateSettings = useStore((s) => s.updateSettings)
   const filter = useStore((s) => s.fileTreeFilter)
   const setFilter = useStore((s) => s.setFileTreeFilter)
 
@@ -101,6 +103,35 @@ function FilesView(): React.JSX.Element {
                 </button>
                 <button className="icon-btn" title="Collapse all folders" onClick={collapseAllDirs}>
                   <Icon name="collapse-all" size={14} />
+                </button>
+                {/* Both on by default: a vault is somebody's own folder, and a
+                    tree that quietly leaves parts of it out is one you cannot
+                    trust to be the folder. Pressed state says which way round
+                    it currently is, since the icon alone cannot. */}
+                <button
+                  className={`icon-btn${sidebar.showHidden ? ' icon-btn--active' : ''}`}
+                  aria-pressed={sidebar.showHidden}
+                  title={sidebar.showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
+                  onClick={() => {
+                    updateSettings({ sidebar: { ...sidebar, showHidden: !sidebar.showHidden } })
+                    // The setting decides what a read returns, so the tree has
+                    // to be read again; changing it without this leaves the
+                    // button looking pressed over the listing it did not change.
+                    void refreshTree()
+                  }}
+                >
+                  <Icon name="eye" size={14} />
+                </button>
+                <button
+                  className={`icon-btn${sidebar.showIgnored ? ' icon-btn--active' : ''}`}
+                  aria-pressed={sidebar.showIgnored}
+                  title={sidebar.showIgnored ? 'Hide git-ignored files' : 'Show git-ignored files'}
+                  onClick={() => {
+                    updateSettings({ sidebar: { ...sidebar, showIgnored: !sidebar.showIgnored } })
+                    void refreshTree()
+                  }}
+                >
+                  <Icon name="git-branch" size={14} />
                 </button>
                 <button
                   className="icon-btn"

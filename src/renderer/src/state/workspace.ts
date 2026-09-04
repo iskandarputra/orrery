@@ -49,6 +49,33 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null
 /** Directories with changes waiting to be read again. */
 const pendingDirs = new Set<string>()
 
+/**
+ * Drop what the settings say not to show.
+ *
+ * Hidden files are decided here rather than in the read, because the read
+ * happens once and the setting can be turned off a moment later; asking git
+ * about the entries it just listed is cheap and the answer is only about them.
+ *
+ * Both filters are subtractive and neither is ever asked to hide something the
+ * other showed, so the order they run in does not matter.
+ */
+async function visibleChildren(
+  rootPath: string,
+  children: FileNode[],
+  settings: { showHidden: boolean; showIgnored: boolean }
+): Promise<FileNode[]> {
+  let kept = settings.showHidden ? children : children.filter((c) => !c.name.startsWith('.'))
+  if (!settings.showIgnored && kept.length > 0) {
+    const ignored = new Set(
+      await invoke('git:ignored', { rootPath, paths: kept.map((c) => c.path) })
+    )
+    // `check-ignore` echoes the path it was given, so the comparison is against
+    // what was sent rather than against anything re-derived from it.
+    kept = kept.filter((c) => !ignored.has(c.path))
+  }
+  return kept
+}
+
 export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (set, get) => ({
   rootPath: null,
   tree: null,
@@ -67,7 +94,11 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
     try {
       // The top level only. Everything below it arrives when somebody opens it,
       // which is what keeps opening a folder instant however much is in it.
-      const tree = await invoke('fs:readTree', { path: target })
+      const sidebar = get().settings.sidebar
+      const tree = await invoke('fs:readTree', { path: target, showHidden: sidebar.showHidden })
+      if (tree.children) {
+        tree.children = await visibleChildren(target, tree.children, sidebar)
+      }
       const { watchId } = await invoke('fs:watch', { path: target })
       set({
         rootPath: target,
@@ -106,7 +137,9 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
     if (!root) return
     const open = loadedDirs(get().tree).filter((dir) => dir !== root)
     try {
-      const tree = await invoke('fs:readTree', { path: root })
+      const sidebar = get().settings.sidebar
+      const tree = await invoke('fs:readTree', { path: root, showHidden: sidebar.showHidden })
+      if (tree.children) tree.children = await visibleChildren(root, tree.children, sidebar)
       set({ tree })
       for (const dir of open) await get().loadDir(dir)
       void get().refreshIndex()
@@ -120,7 +153,9 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
     const tree = get().tree
     if (!tree) return
     try {
-      const children = await invoke('fs:readDir', { path: dirPath })
+      const sidebar = get().settings.sidebar
+      const listed = await invoke('fs:readDir', { path: dirPath, showHidden: sidebar.showHidden })
+      const children = await visibleChildren(get().rootPath ?? dirPath, listed, sidebar)
       // Read against the tree as it is *now*: another directory may have
       // finished loading while this one was being read, and writing back a
       // tree captured beforehand would drop it.
