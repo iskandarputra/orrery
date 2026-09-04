@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -488,4 +488,86 @@ test('the two columns can be dragged, and the split is remembered', async () => 
   await page.locator('.diff .pane-divider').dblclick()
   await page.locator('.diff button[aria-label="Close"]').click()
   git('checkout', '-q', '--', 'Preview.md')
+})
+
+/**
+ * How much each file changed, beside its name.
+ *
+ * The three cases are three different sources: git's numstat for a tracked
+ * edit, the same for something already staged, and a count this app does
+ * itself for a file git will not diff because it has never seen it.
+ */
+test('every changed file says how much it changed', async () => {
+  await openPanel()
+  // Twelve lines in, two of them replaced by six: +6 -2, worked out by hand so
+  // the assertion is a fact about the file rather than about whatever git said.
+  const before = Array.from({ length: 12 }, (_, i) => `line ${i}`).join('\n') + '\n'
+  writeFileSync(join(vault, 'Counted.md'), before)
+  // Its own file rather than the shared `Index.md`: other tests commit to that
+  // one, so what HEAD holds by the time this runs depends on the order the
+  // file ran in, and the count would be asserted against a moving baseline.
+  writeFileSync(join(vault, 'Stagedcount.md'), 'alpha\nbeta\n')
+  git('add', 'Counted.md', 'Stagedcount.md')
+  git('commit', '-m', 'counted')
+
+  const after =
+    Array.from({ length: 10 }, (_, i) => `line ${i}`).join('\n') +
+    '\n' +
+    Array.from({ length: 6 }, (_, i) => `added ${i}`).join('\n') +
+    '\n'
+  writeFileSync(join(vault, 'Counted.md'), after)
+  // A file git has never seen: numstat says nothing about it, and every one of
+  // its four lines is an addition.
+  writeFileSync(join(vault, 'Newborn.md'), 'a\nb\nc\nd\n')
+  // And one already in the index, to prove the staged side is counted too.
+  writeFileSync(join(vault, 'Stagedcount.md'), 'alpha\nbeta\ngamma\ndelta\n')
+  git('add', 'Stagedcount.md')
+  await refresh()
+  await page.waitForTimeout(600)
+
+  const row = (name: string) =>
+    page.locator('.scm-row').filter({ has: page.getByText(name, { exact: true }) })
+
+  await expect(row('Counted.md').locator('.scm-count__add')).toHaveText('+6')
+  await expect(row('Counted.md').locator('.scm-count__del')).toHaveText('-2')
+
+  await expect(row('Newborn.md').locator('.scm-count__add')).toHaveText('+4')
+  // Nothing was removed from a file that did not exist, so no count is drawn
+  // rather than a "-0" that would read as a deletion of nothing.
+  await expect(row('Newborn.md').locator('.scm-count__del')).toHaveCount(0)
+
+  await expect(row('Stagedcount.md').locator('.scm-count__add')).toHaveText('+2')
+
+  git('checkout', '-q', '--', 'Counted.md')
+  git('reset', '-q', 'HEAD', 'Stagedcount.md')
+  git('checkout', '-q', '--', 'Stagedcount.md')
+  rmSync(join(vault, 'Newborn.md'), { force: true })
+  await refresh()
+})
+
+test('a row names the file, and keeps the path for the hover', async () => {
+  await openPanel()
+  // A path repeated after the name it already contains is noise in a narrow
+  // panel; it stays reachable on the row's title instead.
+  mkdirSync(join(vault, 'deep'), { recursive: true })
+  writeFileSync(join(vault, 'deep', 'Buried.md'), 'changed\n')
+  await refresh()
+  await page.waitForTimeout(400)
+
+  const row = page.locator('.scm-row').filter({ has: page.getByText('Buried.md', { exact: true }) })
+  await expect(row.locator('.scm-row__file')).toHaveText('Buried.md')
+  await expect(row).toHaveAttribute('title', 'deep/Buried.md')
+  // The directory is not printed on the row itself, in either view mode.
+  await expect(row).not.toContainText('deep/')
+
+  await page.locator('button[aria-label="View as tree"]').click()
+  await page.waitForTimeout(300)
+  const nested = page
+    .locator('.scm-row')
+    .filter({ has: page.getByText('Buried.md', { exact: true }) })
+  await expect(nested.locator('.scm-row__file')).toHaveText('Buried.md')
+  await page.locator('button[aria-label="View as list"]').click()
+
+  rmSync(join(vault, 'deep', 'Buried.md'), { force: true })
+  await refresh()
 })

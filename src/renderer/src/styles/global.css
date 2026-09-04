@@ -3331,12 +3331,31 @@ textarea {
   white-space: nowrap;
 }
 
-.scm-row__dir {
+/* How much the file changed. Tabular figures so the counts line up down the
+   column, which is the whole point of putting them on every row — a number you
+   have to read one at a time is no faster than opening the diff. */
+.scm-count {
+  display: inline-flex;
+  gap: 0.3rem;
+  flex: none;
+  font-family: var(--or-mono-font);
   font-size: 11px;
-  color: var(--or-fg-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.scm-count__add {
+  color: var(--or-diff-add);
+}
+
+.scm-count__del {
+  color: var(--or-diff-del);
+}
+
+.scm-count--binary {
+  color: var(--or-fg-muted);
+  font-weight: 500;
 }
 
 /* The row's buttons appear on hover, but stay reachable from the keyboard —
@@ -5134,6 +5153,9 @@ kbd {
 }
 
 .commit-detail__path {
+  /* Takes the room, so the count sits at the right edge rather than drifting
+     with the length of the name. */
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

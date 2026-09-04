@@ -4,6 +4,13 @@ import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { parseDiffHunks, type LineChange } from '@core/git-diff'
 import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
+import {
+  countLines,
+  parseNumstat,
+  type DiffStat,
+  type DiffStats,
+  type DiffStatsByPath
+} from '@core/git-numstat'
 import { EMPTY_DIFF, parseUnifiedDiff, type FileDiff } from '@core/unified-diff'
 import { parseGitLog, type Commit } from '@core/git-graph'
 import { EMPTY_COMMIT_DETAIL, parseCommitDetail, type CommitDetail } from '@core/commit-detail'
@@ -14,6 +21,15 @@ const run = promisify(execFile)
 const MAX_OUTPUT = 2 * 1024 * 1024
 /** Git on a cold cache is slow; a hung one must not wedge the editor. */
 const TIMEOUT_MS = 5000
+/**
+ * An untracked file bigger than this is not counted line by line.
+ *
+ * Its lines are all insertions, so the only way to know how many is to read it,
+ * and reading a 50 MB export to put a number beside its name is a bad trade —
+ * especially when the number would be too big to read anyway. Reported as
+ * binary instead, which is the honest "lines do not describe this".
+ */
+const MAX_UNTRACKED_BYTES = 2 * 1024 * 1024
 
 /**
  * Line-level git status for a single file, for the editor gutter.
@@ -66,6 +82,61 @@ export class GitService {
     } catch {
       return EMPTY_STATUS
     }
+  }
+
+  /**
+   * How much each changed file changed, for both sides of the working tree.
+   *
+   * Separate from `status` rather than folded into it. Status is what the panel
+   * cannot draw a row without; this is a number *on* a row, it costs two more
+   * git processes plus a read per new file, and a repository where it fails
+   * should still list its changes. Keeping them apart is what lets the counts
+   * be missing without the panel being empty.
+   *
+   * Untracked files are counted here rather than by git, which has nothing to
+   * compare them against and so says nothing about them — see `countLines`.
+   */
+  async diffStats(rootPath: string, untracked: string[] = []): Promise<DiffStats> {
+    const side = async (args: string[]): Promise<DiffStatsByPath> => {
+      try {
+        return parseNumstat(await this.git(rootPath, args))
+      } catch {
+        return {}
+      }
+    }
+
+    const [staged, unstaged, newFiles] = await Promise.all([
+      side(['diff', '--cached', '--numstat', '-z']),
+      side(['diff', '--numstat', '-z']),
+      this.untrackedStats(rootPath, untracked)
+    ])
+
+    // A new file's lines belong to whichever side it is listed on, and git
+    // stages an untracked file whole — so the same count is right for both.
+    return { staged: { ...staged, ...newFiles }, unstaged: { ...unstaged, ...newFiles } }
+  }
+
+  /** Insertions for files git will not diff, read one at a time and in parallel. */
+  private async untrackedStats(rootPath: string, paths: string[]): Promise<DiffStatsByPath> {
+    const entries = await Promise.all(
+      paths.map(async (path): Promise<[string, DiffStat] | null> => {
+        try {
+          const content = await readFile(join(rootPath, path))
+          if (content.byteLength > MAX_UNTRACKED_BYTES || content.includes(0)) {
+            return [path, { insertions: 0, deletions: 0, binary: true }]
+          }
+          return [
+            path,
+            { insertions: countLines(content.toString('utf-8')), deletions: 0, binary: false }
+          ]
+        } catch {
+          // Deleted between the status read and this one, or unreadable. A
+          // missing count is a row without a number, not a failure.
+          return null
+        }
+      })
+    )
+    return Object.fromEntries(entries.filter((e) => e !== null))
   }
 
   /**
@@ -199,9 +270,27 @@ export class GitService {
    */
   async commitDetail(rootPath: string, hash: string): Promise<CommitDetail> {
     try {
-      return parseCommitDetail(
+      const detail = parseCommitDetail(
         await this.git(rootPath, ['show', '--name-status', '-z', '--format=%b', hash])
       )
+      // A second command, because `--name-status` and `--numstat` answer
+      // different questions and asking for both at once returns two sections
+      // that have to be told apart. Its failure costs the counts, not the list.
+      let counts: DiffStatsByPath = {}
+      try {
+        counts = parseNumstat(
+          await this.git(rootPath, ['show', '--numstat', '-z', '--format=', hash])
+        )
+      } catch {
+        counts = {}
+      }
+      return {
+        ...detail,
+        files: detail.files.map((file) => {
+          const stat = counts[file.path]
+          return stat ? { ...file, stat } : file
+        })
+      }
     } catch {
       return EMPTY_COMMIT_DETAIL
     }

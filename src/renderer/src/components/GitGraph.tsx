@@ -10,6 +10,7 @@ import { basename } from '@core/paths'
 import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
 import { ChangeTree } from './ChangeTree'
+import { DiffCount } from './DiffCount'
 import { openContextMenu, type MenuItem } from './context-menu/context-menu'
 import { Icon } from './Icon'
 
@@ -216,9 +217,8 @@ function CommitDetailView({ hash }: { hash: string }): React.JSX.Element {
                 <span className={`commit-detail__status commit-detail__status--${file.status}`}>
                   {statusLetter(file.status)}
                 </span>
-                <span className="commit-detail__path">
-                  {viewMode === 'tree' ? basename(file.path) : file.path}
-                </span>
+                <span className="commit-detail__path">{basename(file.path)}</span>
+                <DiffCount stat={file.stat} />
               </button>
             )}
           />

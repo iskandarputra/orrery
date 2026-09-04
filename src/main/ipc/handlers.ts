@@ -196,6 +196,9 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   const rootPathsReq = rootReq.extend({ paths: z.array(z.string()) })
   handle('git:isRepository', rootReq, (_e, req) => git.isRepository(req.rootPath))
   handle('git:status', rootReq, (_e, req) => git.status(req.rootPath))
+  handle('git:diffStats', rootReq.extend({ untracked: z.array(z.string()) }), (_e, req) =>
+    git.diffStats(req.rootPath, req.untracked)
+  )
   handle('git:stage', rootPathsReq, (_e, req) => git.stage(req.rootPath, req.paths))
   handle('git:unstage', rootPathsReq, (_e, req) => git.unstage(req.rootPath, req.paths))
   handle('git:discard', rootPathsReq.extend({ untracked: z.array(z.string()) }), (_e, req) =>
