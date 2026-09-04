@@ -6,6 +6,8 @@
  * body of the message, and which files it touched.
  */
 
+import type { DiffStat } from './git-numstat'
+
 export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'unknown'
 
 export interface CommitFile {
@@ -13,6 +15,14 @@ export interface CommitFile {
   /** Where it came from, for a rename or a copy. */
   from: string | null
   status: FileStatus
+  /**
+   * How many lines it changed, when the counts could be read.
+   *
+   * Optional because they come from a second command: `--name-status` says
+   * what happened to a file and `--numstat` says how much, and a commit whose
+   * counts cannot be read should still list its files.
+   */
+  stat?: DiffStat
 }
 
 export interface CommitDetail {

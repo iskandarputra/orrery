@@ -6,11 +6,13 @@ import {
   type GitChange,
   type GitStatus
 } from '@core/git-status'
+import { EMPTY_DIFF_STATS, type DiffStat, type DiffStats } from '@core/git-numstat'
 import { basename } from '@core/paths'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { EmptyState } from './PanelBits'
 import { ChangeTree } from './ChangeTree'
+import { DiffCount } from './DiffCount'
 import { GitGraph } from './GitGraph'
 import { Icon } from './Icon'
 
@@ -28,14 +30,14 @@ const LETTER: Record<NonNullable<GitChange['staged']>, string> = {
 function Row({
   change,
   side,
-  nested,
+  stat,
   onPrimary,
   onDiscard
 }: {
   change: GitChange
   side: 'staged' | 'unstaged'
-  /** Under a folder row, which has already said where the file lives. */
-  nested: boolean
+  /** How much this file changed, once the counts have arrived. */
+  stat?: DiffStat
   onPrimary: (change: GitChange) => void
   onDiscard?: (change: GitChange) => void
 }): React.JSX.Element {
@@ -48,10 +50,8 @@ function Row({
           file is what the file tree is for, and the question here is what changed. */}
       <button className="scm-row__name" onClick={() => openDiff(change.path, side === 'staged')}>
         <span className="scm-row__file">{basename(change.path)}</span>
-        <span className="scm-row__dir">
-          {!nested && change.path.includes('/') ? change.path : ''}
-        </span>
       </button>
+      <DiffCount stat={stat} />
       <div className="scm-row__actions">
         {onDiscard && (
           <button
@@ -94,6 +94,7 @@ export function SourceControlPanel(): React.JSX.Element {
   const viewMode = git.fileViewMode
   const updateSettings = useStore((s) => s.updateSettings)
   const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS)
+  const [stats, setStats] = useState<DiffStats>(EMPTY_DIFF_STATS)
   const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
   /** Which section is open. Both can be, but the panel is narrow. */
@@ -114,7 +115,21 @@ export function SourceControlPanel(): React.JSX.Element {
       const next = repo ? await invoke('git:status', { rootPath }) : EMPTY_STATUS
       // Status is two round trips, and the vault can change between them.
       // Without this guard a slow answer lands on a folder nobody is looking at.
-      if (live) setStatus(next)
+      if (!live) return
+      setStatus(next)
+
+      // The counts come after, and the rows are drawn without waiting for them.
+      // They are a number on a row rather than the row itself, they cost two
+      // more git processes and a read for each new file, and a repository too
+      // large or too broken to count should still list what changed. So they
+      // arrive late and land on rows that are already on screen.
+      setStats(EMPTY_DIFF_STATS)
+      if (!repo) return
+      const untracked = next.changes
+        .filter((c) => c.staged === 'untracked' || c.unstaged === 'untracked')
+        .map((c) => c.path)
+      const counted = await invoke('git:diffStats', { rootPath, untracked })
+      if (live) setStats(counted)
     })()
     return () => {
       live = false
@@ -280,7 +295,7 @@ export function SourceControlPanel(): React.JSX.Element {
                     <Row
                       change={c}
                       side="staged"
-                      nested={tree}
+                      stat={stats.staged[c.path]}
                       onPrimary={(x) => void unstage([x.path])}
                     />
                   )}
@@ -307,7 +322,7 @@ export function SourceControlPanel(): React.JSX.Element {
                     <Row
                       change={c}
                       side="unstaged"
-                      nested={tree}
+                      stat={stats.unstaged[c.path]}
                       onPrimary={(x) => void stage([x.path])}
                       onDiscard={(x) => void discard(x)}
                     />

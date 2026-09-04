@@ -22,6 +22,7 @@ import type {
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
 import type { GitStatus } from '@core/git-status'
+import type { DiffStats } from '@core/git-numstat'
 import type { CommitDetail } from '@core/commit-detail'
 import type { FileDiff } from '@core/unified-diff'
 import type { Commit } from '@core/git-graph'
@@ -49,6 +50,17 @@ export interface IpcInvokeContract {
   'git:isRepository': { req: { rootPath: string }; res: boolean }
   /** Working-tree status; empty when git cannot answer. */
   'git:status': { req: { rootPath: string }; res: GitStatus }
+
+  /**
+   * How much each changed file changed, for the counts beside the names.
+   *
+   * `untracked` is passed in rather than re-derived: the panel has just read
+   * the status that says which files are new, and git cannot answer for them.
+   */
+  'git:diffStats': {
+    req: { rootPath: string; untracked: string[] }
+    res: DiffStats
+  }
   'git:stage': { req: { rootPath: string; paths: string[] }; res: void }
   'git:unstage': { req: { rootPath: string; paths: string[] }; res: void }
   /** Destructive and unrecoverable; the caller confirms first. */
