@@ -142,6 +142,7 @@ export interface UiSlice {
    */
   htmlReading: Record<string, true>
   htmlRemote: Record<string, true>
+  htmlScripts: Record<string, true>
   /** Integrated terminal panel, along the bottom of the workspace. */
   terminalOpen: boolean
   /**
@@ -208,6 +209,14 @@ export interface UiSlice {
   toggleHtmlReading(bufferId: string): void
   /** Let one HTML buffer fetch the remote pictures it asks for. */
   allowHtmlRemote(bufferId: string): void
+  /**
+   * Let one HTML buffer run its own scripts.
+   *
+   * Per buffer and never remembered beyond the tab, like the remote-content
+   * consent beside it and for the same reason: it is a decision about this
+   * document, and the next one has not earned it.
+   */
+  allowHtmlScripts(bufferId: string): void
   /** Drop what was being remembered about a buffer that has gone. */
   forgetHtmlView(bufferId: string): void
   toggleTerminal(): void
@@ -239,6 +248,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   docStatsOpen: false,
   htmlReading: {},
   htmlRemote: {},
+  htmlScripts: {},
   terminalOpen: false,
   mediaViewer: null,
 
@@ -438,6 +448,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     set((state) => ({ htmlRemote: { ...state.htmlRemote, [bufferId]: true } }))
   },
 
+  allowHtmlScripts(bufferId) {
+    set((state) => ({ htmlScripts: { ...state.htmlScripts, [bufferId]: true } }))
+  },
+
   /**
    * Buffer ids are not reused, but a map nothing ever removes from is a leak
    * with a long fuse — and consent to fetch a page's remote content should end
@@ -445,12 +459,20 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
    */
   forgetHtmlView(bufferId) {
     set((state) => {
-      if (!state.htmlReading[bufferId] && !state.htmlRemote[bufferId]) return {}
+      if (
+        !state.htmlReading[bufferId] &&
+        !state.htmlRemote[bufferId] &&
+        !state.htmlScripts[bufferId]
+      ) {
+        return {}
+      }
       const htmlReading = { ...state.htmlReading }
       const htmlRemote = { ...state.htmlRemote }
+      const htmlScripts = { ...state.htmlScripts }
       delete htmlReading[bufferId]
       delete htmlRemote[bufferId]
-      return { htmlReading, htmlRemote }
+      delete htmlScripts[bufferId]
+      return { htmlReading, htmlRemote, htmlScripts }
     })
   },
 

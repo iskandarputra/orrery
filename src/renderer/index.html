@@ -12,13 +12,17 @@
       document loads that way — a note cannot produce a `<link>` or a `<style>`;
       `core/html-policy` does not allow either tag.
 
-      There is deliberately no `frame-src`. It falls back to `default-src
-      'self'`, which is what stops a link inside a previewed page from
-      navigating that frame off the document the app built and onto a live one.
+      `frame-src` names exactly one scheme, and it has to. The HTML reader shows
+      a page by navigating a frame to `orrery-preview:`, which main serves from
+      memory with a policy of its own — and without a `frame-src` that
+      navigation falls back to `default-src 'self'` and is refused. Naming the
+      one scheme is also what keeps a *link* inside a previewed page inert: a
+      click on an `https:` or `orrery-asset:` address still matches nothing
+      here, so the frame cannot be navigated off the document the app built.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' orrery-asset:; img-src 'self' data: https: orrery-asset:; font-src 'self' data: orrery-asset:; connect-src 'self' ws://localhost:* orrery-asset:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' orrery-asset:; img-src 'self' data: https: orrery-asset:; font-src 'self' data: orrery-asset:; connect-src 'self' ws://localhost:* orrery-asset:; frame-src orrery-preview:"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>

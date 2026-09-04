@@ -40,6 +40,7 @@ const PAGE = `<!doctype html>
     <p><img id="local" src="logo.png" alt="local" /></p>
     <p><img id="remote" src="https://example.invalid/tracker.png" alt="remote" /></p>
     <p id="ran">scripts did not run</p>
+    <script src="https://cdn.invalid/remote-code.js"></script>
     <script>
       document.getElementById('ran').textContent = 'SCRIPTS RAN'
       document.body.setAttribute('data-script-ran', 'yes')
@@ -110,6 +111,20 @@ const read = async (heading = 'Reader check'): Promise<void> => {
   await expect(rendered().locator('h1')).toHaveText(heading, { timeout: 20_000 })
 }
 
+/**
+ * Turn the page's scripts on, if they are not on already.
+ *
+ * Consent is remembered for the buffer, so a test that runs after one which
+ * gave it finds the offer already taken and no button to press.
+ */
+const runScripts = async (): Promise<void> => {
+  const offer = page.locator('.htmlv__action', { hasText: 'Run scripts' })
+  if (await offer.isVisible()) await offer.click()
+  await expect(page.locator('.htmlv__note', { hasText: 'Scripts are running' })).toBeVisible({
+    timeout: 20_000
+  })
+}
+
 const edit = async (): Promise<void> => {
   await page.locator('.header-viewmode__btn', { hasText: 'Edit' }).click()
   await expect(page.locator('.htmlv')).toHaveCount(0)
@@ -121,6 +136,13 @@ test.beforeAll(async () => {
   writeFileSync(join(vault, 'site.css'), STYLESHEET)
   writeFileSync(join(vault, 'logo.png'), PNG)
   writeFileSync(join(vault, 'plain.htm'), '<h1>A second page</h1>')
+  // A file of its own for the default, so that measuring it neither depends on
+  // nor disturbs what any other test left behind.
+  writeFileSync(
+    join(vault, 'untouched.html'),
+    '<h1>Untouched</h1><p id="ran">scripts did not run</p>' +
+      "<script>document.getElementById('ran').textContent = 'SCRIPTS RAN'</script>"
+  )
   writeFileSync(join(vault, 'rich.html'), RICH)
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nSome prose.\n')
 
@@ -172,12 +194,68 @@ test('resolves a relative picture against the file’s own folder', async () => 
   expect(width).toBe(48)
 })
 
-test('does not run the page’s scripts', async () => {
-  await openFile('page.html')
-  await read()
+test('does not run the page’s scripts until asked', async () => {
+  await openFile('untouched.html')
+  await read('Untouched')
   await expect(rendered().locator('#ran')).toHaveText('scripts did not run')
   await expect(rendered().locator('body')).not.toHaveAttribute('data-script-ran', 'yes')
-  await expect(page.locator('.htmlv__note', { hasText: 'Scripts are not run' })).toBeVisible()
+  // Offered, not done: a page runs nothing until somebody says so for it.
+  await expect(page.locator('.htmlv__action', { hasText: 'Run scripts' })).toBeVisible()
+})
+
+test('runs them when asked, and says it is doing so', async () => {
+  await openFile('page.html')
+  await read()
+  await runScripts()
+  await expect(rendered().locator('#ran')).toHaveText('SCRIPTS RAN', { timeout: 20_000 })
+})
+
+test('never offers to fetch code, only content', async () => {
+  await openFile('page.html')
+  await read()
+  // The page carries a remote script and a remote image. Only the image is
+  // something the offer can act on, so only the image is counted.
+  await expect(page.locator('.htmlv__action', { hasText: 'Load 1 remote item' })).toBeVisible()
+})
+
+test('a running page still cannot reach the app around it', async () => {
+  // The whole of what makes running somebody else's code acceptable. The frame
+  // gets `allow-scripts` and never `allow-same-origin`, so the page sits in an
+  // opaque origin: it can draw itself and it can reach nothing else.
+  await openFile('page.html')
+  await read()
+  await runScripts()
+  await expect(rendered().locator('#ran')).toHaveText('SCRIPTS RAN', { timeout: 20_000 })
+
+  const reach = await rendered()
+    .locator('body')
+    .evaluate(() => {
+      const attempt = (fn: () => unknown): string => {
+        try {
+          return 'REACHED:' + String(fn())
+        } catch (e) {
+          return 'BLOCKED:' + (e as Error).name
+        }
+      }
+      return {
+        origin: String(window.origin),
+        parent: attempt(() => window.parent.document.title),
+        top: attempt(() => window.top!.location.href),
+        storage: attempt(() => window.localStorage.length),
+        cookie: attempt(() => document.cookie),
+        bridge: typeof (window as unknown as { orrery?: unknown }).orrery,
+        require: typeof (window as unknown as { require?: unknown }).require
+      }
+    })
+
+  expect(reach.origin).toBe('null')
+  expect(reach.parent).toMatch(/^BLOCKED:/)
+  expect(reach.top).toMatch(/^BLOCKED:/)
+  expect(reach.storage).toMatch(/^BLOCKED:/)
+  expect(reach.cookie).toMatch(/^BLOCKED:/)
+  // Nothing of the application's own is in there to be found.
+  expect(reach.bridge).toBe('undefined')
+  expect(reach.require).toBe('undefined')
 })
 
 test('fetches nothing from the internet until it is asked to', async () => {

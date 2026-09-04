@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { app } from 'electron'
 import { handleAssetProtocol, registerAssetScheme } from './asset-protocol'
+import { handlePreviewProtocol, registerPreviewScheme } from './preview-protocol'
 import { registerIpcHandlers } from './ipc/handlers'
 import { send } from './ipc/registry'
 import { buildAppMenu } from './menu'
@@ -52,6 +53,7 @@ if (!gotLock) {
 } else {
   // Privileged scheme registration must happen before app `ready`.
   registerAssetScheme()
+  registerPreviewScheme()
 
   const settings = new SettingsStore(app.getPath('userData'))
 
@@ -181,6 +183,7 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     await settings.load()
     handleAssetProtocol((filePath) => pdfDrafts.peek(filePath))
+    handlePreviewProtocol()
     registerIpcHandlers({
       fs,
       watcher,

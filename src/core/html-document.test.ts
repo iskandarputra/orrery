@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { buildPreview, isHtmlFile } from './html-document'
 
-const options = { allowRemote: false }
+const options = { allowRemote: false, allowScripts: false }
 
-/** The `content` of the injected policy meta, unescaped enough to read. */
-function policyOf(srcdoc: string): string {
-  const match = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(srcdoc)
-  return match?.[1]?.replace(/&quot;/g, '"').replace(/&amp;/g, '&') ?? ''
-}
+/** The policy the page is served under, which is the whole of this module. */
+const policyOf = (opts: Partial<typeof options> = {}): string =>
+  buildPreview('<p>hi</p>', { ...options, ...opts }).policy
 
 describe('which files the reader claims', () => {
   it('takes the html extensions and leaves everything else', () => {
@@ -27,34 +25,28 @@ describe('which files the reader claims', () => {
 
 describe('the policy the document is read under', () => {
   it('refuses everything it does not name', () => {
-    expect(policyOf(buildPreview('<p>hi</p>', options).srcdoc)).toContain("default-src 'none'")
+    expect(policyOf()).toContain("default-src 'none'")
   })
 
-  it('never grants scripts, however the document is written', () => {
-    for (const source of [
-      '<script>fetch("https://x")</script>',
-      '<!doctype html><html><head><script src="app.js"></script></head></html>',
-      '<img src=x onerror="alert(1)">'
-    ]) {
-      const policy = policyOf(buildPreview(source, options).srcdoc)
-      expect(policy, source).not.toMatch(/script-src/)
-      expect(policy, source).toContain("default-src 'none'")
-    }
+  it('grants no scripts at all by default', () => {
+    // Not a narrower script-src — none at all, so `default-src 'none'` answers
+    // for it and anything added to the web platform later is refused too.
+    expect(policyOf()).not.toMatch(/script-src/)
   })
 
   it('lets a file reach its own folder for styles, pictures and fonts', () => {
-    const policy = policyOf(buildPreview('<p>hi</p>', options).srcdoc)
+    const policy = policyOf()
     expect(policy).toContain('img-src data: orrery-asset:')
     expect(policy).toContain("style-src 'unsafe-inline' orrery-asset:")
     expect(policy).toContain('font-src data: orrery-asset:')
   })
 
   it('keeps the network out until it is asked for', () => {
-    expect(policyOf(buildPreview('<p>hi</p>', options).srcdoc)).not.toContain('https:')
+    expect(policyOf()).not.toContain('https:')
   })
 
   it('opens images and media to the network when it is, and nothing else', () => {
-    const policy = policyOf(buildPreview('<p>hi</p>', { ...options, allowRemote: true }).srcdoc)
+    const policy = policyOf({ allowRemote: true })
     expect(policy).toContain('img-src data: orrery-asset: https:')
     expect(policy).toContain('media-src data: orrery-asset: https:')
     // Loading pictures is not a reason to fetch a stylesheet or a font.
@@ -62,66 +54,35 @@ describe('the policy the document is read under', () => {
     expect(policy).toContain('font-src data: orrery-asset:;')
   })
 
-  it('leaves the base to the rewrite rather than the policy', () => {
-    // The reader needs a base of its own, so a policy cannot simply forbid
-    // them; `html-page.ts` strips the page's and adds one instead.
-    expect(policyOf(buildPreview('<p>hi</p>', options).srcdoc)).not.toContain('base-uri')
+  it('runs the page’s own scripts only when asked', () => {
+    expect(policyOf({ allowScripts: true })).toContain("script-src 'unsafe-inline' orrery-asset:")
+  })
+
+  it('never runs code fetched from the internet, whatever else is allowed', () => {
+    // Fetching a picture from the internet tells somebody you opened their
+    // file. Fetching *code* hands them the inside of the page you are reading.
+    // The second is not offered, and asking for both must not conjure it.
+    const policy = policyOf({ allowScripts: true, allowRemote: true })
+    expect(policy).toContain("script-src 'unsafe-inline' orrery-asset:;")
+    expect(policy).not.toMatch(/script-src[^;]*https:/)
+  })
+
+  it('never lets a form post anywhere', () => {
+    for (const opts of [{}, { allowScripts: true, allowRemote: true }]) {
+      expect(policyOf(opts)).toContain("form-action 'none'")
+    }
   })
 })
 
-describe('where the injection goes', () => {
-  it('goes inside the head, after the doctype', () => {
-    const { srcdoc } = buildPreview(
-      '<!doctype html>\n<html>\n<head>\n<title>T</title>\n</head>\n<body>x</body>\n</html>',
-      options
-    )
-    expect(srcdoc.startsWith('<!doctype html>')).toBe(true)
-    expect(srcdoc.indexOf('Content-Security-Policy')).toBeLessThan(srcdoc.indexOf('<title>'))
-  })
-
-  it('leaves the doctype first even when there is no head to aim at', () => {
-    // Prepending would push the doctype down the document, where it stops being
-    // one and the page renders in quirks mode.
-    const { srcdoc } = buildPreview('<!DOCTYPE html>\n<p>bare</p>', options)
-    expect(srcdoc.startsWith('<!DOCTYPE html>')).toBe(true)
-    expect(srcdoc).toContain('Content-Security-Policy')
-  })
-
-  it('lands before the content of a document with an html tag and no head', () => {
-    const { srcdoc } = buildPreview('<html><body>x</body></html>', options)
-    expect(srcdoc.indexOf('Content-Security-Policy')).toBeLessThan(srcdoc.indexOf('<body>'))
-  })
-
-  it('goes first for a bare fragment', () => {
-    const { srcdoc } = buildPreview('<p>fragment</p>', options)
-    expect(srcdoc.indexOf('Content-Security-Policy')).toBeLessThan(srcdoc.indexOf('<p>'))
-  })
-
-  it('keeps a head attribute rather than eating the tag', () => {
-    const { srcdoc } = buildPreview('<head lang="en"><title>T</title></head>', options)
-    expect(srcdoc).toContain('<head lang="en">')
-  })
-
-  it('writes no base of its own', () => {
-    // A `<base>` resolves *every* relative URL against it, `href="#section"`
-    // included — which turned every in-page link into an address for another
-    // document that the policy then refused. Relative references are resolved
-    // into the markup instead, before it gets here.
-    expect(buildPreview('<img src="logo.png">', options).srcdoc).not.toContain('<base')
-  })
-
-  it('leaves the document itself untouched', () => {
+describe('what is served', () => {
+  it('is the document, untouched', () => {
+    // Every change to the page was made before this. The policy is a header
+    // now, so nothing has to be written into the markup at all.
     const source = '<!doctype html><html><head></head><body><p>Exactly this.</p></body></html>'
-    const { srcdoc } = buildPreview(source, options)
-    expect(srcdoc).toContain('</head><body><p>Exactly this.</p></body></html>')
-    expect(
-      srcdoc.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>|<base [^>]*>/g, '')
-    ).toBe(source)
+    expect(buildPreview(source, options).html).toBe(source)
   })
-})
 
-describe('what the reader tells the person reading', () => {
-  it('notices scripts so it can say they did not run', () => {
+  it('notices scripts so the reader can say whether they ran', () => {
     expect(buildPreview('<script src="a.js"></script>', options).hasScripts).toBe(true)
     expect(buildPreview('<p>none here</p>', options).hasScripts).toBe(false)
   })
@@ -143,13 +104,13 @@ describe('what the reader tells the person reading', () => {
   })
 
   it('does not count a link somebody could click as something fetched', () => {
-    // Loading remote content would not change an `<a>`, so a count that
-    // included one would be a number the button cannot act on.
     expect(buildPreview('<a href="https://example.com">out</a>', options).remoteCount).toBe(0)
   })
 
-  it('counts the same document the same way whether or not remote is allowed', () => {
-    const source = '<img src="https://images.example/a.png">'
-    expect(buildPreview(source, { ...options, allowRemote: true }).remoteCount).toBe(1)
+  it('does not count remote code, which the offer never covers', () => {
+    // "Load 2 remote items" that loads one of them is a worse answer than
+    // saying one. Remote script is not on offer at any setting.
+    const source = '<script src="https://cdn.example/x.js"></script><img src="https://i/x.png">'
+    expect(buildPreview(source, options).remoteCount).toBe(1)
   })
 })

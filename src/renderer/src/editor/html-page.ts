@@ -19,9 +19,8 @@ import { renderMermaidToString } from './live-preview/mermaid'
  *
  * This pass is also where a page's addresses are settled: every reference that
  * loads something is rewritten to an absolute one, and the document is given a
- * base of its own so that `href="#section"` still means this page. See
- * `resolveUrls` and `anchorFragments` for why each is necessary and why neither
- * is enough alone.
+ * base the page brought is removed so nothing can move them again. See
+ * `resolveUrls` and `stripPageBase`.
  */
 
 /** Attributes that fetch, per element. `href` only where it is not a link. */
@@ -83,32 +82,23 @@ function resolveUrls(doc: Document, docPath: string | null): void {
     }
   }
 }
-
 /**
- * Make `href="#section"` scroll the page instead of trying to leave it.
+ * A page cannot repoint its own relative references.
  *
- * A `srcdoc` document reports its own URL as `about:srcdoc` but resolves
- * relative URLs against the URL of the page *embedding* it. So a bare fragment
- * became an address for the app's own `index.html`, which is a different
- * document, which is a navigation — and the policy refuses those, so every
- * in-page link in every table of contents did nothing at all.
+ * Everything that loads has already been rewritten to an absolute address, so
+ * a `<base>` left in the document could only move something away from where
+ * the reader resolved it to.
  *
- * Naming `about:srcdoc` as the base is what makes a fragment resolve to this
- * document again, and a same-document fragment is what the browser answers by
- * scrolling. Nothing else needs the base: every reference that loads has
- * already been rewritten to an absolute one above.
- *
- * The page's own `<base>`, if it has one, is dropped rather than left to fight
- * this one — the first base in a document wins, and letting a page choose where
- * its relative URLs point is the thing `base-uri` was guarding against. That
- * guard now lives here, where the whole document is parsed and rebuilt, rather
- * than in a policy the page could satisfy in some other way.
+ * Nothing needs one in its place. The page is served from a URL of its own,
+ * which is what makes `href="#section"` a fragment *of this document* and
+ * therefore a scroll. It was not always so: as a `srcdoc` the document
+ * reported its URL as `about:srcdoc` but resolved relative URLs against the
+ * page embedding it, so every in-page link was an address for the app's own
+ * window — a different document, so a navigation, which the policy refuses.
+ * Every table of contents did nothing at all.
  */
-function anchorFragments(doc: Document): void {
-  for (const existing of doc.querySelectorAll('base')) existing.remove()
-  const base = doc.createElement('base')
-  base.setAttribute('href', 'about:srcdoc')
-  doc.head.prepend(base)
+function stripPageBase(doc: Document): void {
+  for (const base of doc.querySelectorAll('base')) base.remove()
 }
 
 /** Put the diagram fallback first, where the page can still overrule it. */
@@ -253,7 +243,7 @@ export async function preparePage(source: string, docPath: string | null): Promi
   const doc = new DOMParser().parseFromString(source, 'text/html')
 
   resolveUrls(doc, docPath)
-  anchorFragments(doc)
+  stripPageBase(doc)
   const [diagrams, equations] = [await drawDiagrams(doc), await typesetMath(doc, source)]
   if (diagrams > 0) addDiagramFallback(doc)
 
