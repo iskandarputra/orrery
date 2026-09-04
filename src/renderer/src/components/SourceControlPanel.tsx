@@ -12,6 +12,7 @@ import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { EmptyState } from './PanelBits'
 import { ChangeTree } from './ChangeTree'
+import { FileTypeIcon } from './FileIcon'
 import { DiffCount } from './DiffCount'
 import { GitGraph } from './GitGraph'
 import { Icon } from './Icon'
@@ -49,6 +50,9 @@ function Row({
       {/* Clicking the name shows the diff, as it does in VS Code — opening the
           file is what the file tree is for, and the question here is what changed. */}
       <button className="scm-row__name" onClick={() => openDiff(change.path, side === 'staged')}>
+        {/* The same mark the file tree and the tabs draw, so a file is
+            recognisable by its type here too rather than only by its name. */}
+        <FileTypeIcon fileName={change.path} size={13} className="scm-row__icon" />
         <span className="scm-row__file">{basename(change.path)}</span>
       </button>
       <DiffCount stat={stat} />
