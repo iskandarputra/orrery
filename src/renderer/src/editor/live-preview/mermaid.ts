@@ -6,18 +6,39 @@ import { revealSource } from './reveal-source'
 
 let seq = 0
 
-/** Lazy-loaded so the ~2MB mermaid bundle never blocks startup. */
-export async function renderMermaid(code: string, el: HTMLElement): Promise<void> {
-  const { default: mermaid } = await import('mermaid')
-  const dark = document.documentElement.dataset['theme']?.includes('light') !== true
-  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' })
+/**
+ * A diagram as an SVG string, or why it could not be drawn.
+ *
+ * Separated from the element it usually goes into because the HTML reader needs
+ * the string itself: what it renders into is a sandboxed frame this process
+ * cannot reach, so the diagram has to be drawn out here and handed over as
+ * markup.
+ *
+ * Lazy-loaded so the ~2MB mermaid bundle never blocks startup.
+ */
+export async function renderMermaidToString(
+  code: string,
+  themeOverride?: 'dark' | 'default'
+): Promise<{ svg: string } | { error: string }> {
   try {
+    const { default: mermaid } = await import('mermaid')
+    const dark = document.documentElement.dataset['theme']?.includes('light') !== true
+    mermaid.initialize({ startOnLoad: false, theme: themeOverride ?? (dark ? 'dark' : 'default') })
     const { svg } = await mermaid.render(`or-mermaid-${++seq}`, code)
-    el.innerHTML = svg
+    return { svg }
   } catch (err) {
-    el.textContent = `Mermaid error: ${err instanceof Error ? err.message.split('\n')[0] : err}`
-    el.classList.add('cm-or-mermaid--error')
+    return { error: err instanceof Error ? (err.message.split('\n')[0] ?? 'failed') : String(err) }
   }
+}
+
+export async function renderMermaid(code: string, el: HTMLElement): Promise<void> {
+  const result = await renderMermaidToString(code)
+  if ('svg' in result) {
+    el.innerHTML = result.svg
+    return
+  }
+  el.textContent = `Mermaid error: ${result.error}`
+  el.classList.add('cm-or-mermaid--error')
 }
 
 class MermaidWidget extends WidgetType {

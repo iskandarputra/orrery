@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { assetDirectoryUrl } from '@core/asset'
-import { buildPreview } from '@core/html-document'
+import { useEffect, useRef, useState } from 'react'
+import { buildPreview, type PreviewDocument } from '@core/html-document'
+import { preparePage } from '@/editor/html-page'
 import { viewForBuffer } from '@/editor/active-view'
 import { useDocVersion } from '@/state/doc-version'
 import { useStore } from '@/state/store'
@@ -98,13 +98,31 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
     }
   }, [version, bufferId])
 
-  const page = useMemo(
-    () =>
-      source === null
-        ? null
-        : buildPreview(source, { baseHref: assetDirectoryUrl(filePath), allowRemote }),
-    [source, filePath, allowRemote]
-  )
+  /**
+   * The prepared page, which is not something a render can work out.
+   *
+   * Drawing the diagrams and typesetting the equations means loading mermaid
+   * and KaTeX and waiting for them, so the page arrives after the render that
+   * asked for it. Until it does the reader shows the frame it already had,
+   * rather than blanking: re-reading a page you are looking at should not make
+   * it disappear and come back.
+   */
+  const [page, setPage] = useState<
+    (PreviewDocument & { diagrams: number; equations: number }) | null
+  >(null)
+
+  useEffect(() => {
+    if (source === null) return
+    let live = true
+    void (async () => {
+      const prepared = await preparePage(source, filePath)
+      if (!live) return
+      setPage({ ...buildPreview(prepared.html, { allowRemote }), ...prepared })
+    })()
+    return () => {
+      live = false
+    }
+  }, [source, filePath, allowRemote])
 
   if (failed) {
     return (
@@ -121,6 +139,25 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           <Icon name="eye" size={12} />
           Reading
         </span>
+
+        {page && page.diagrams > 0 && (
+          <span
+            className="htmlv__note"
+            title="Drawn by this app from the page's own source, without running the page's code"
+          >
+            <Icon name="diagram" size={12} />
+            {page.diagrams} diagram{page.diagrams === 1 ? '' : 's'} drawn
+          </span>
+        )}
+        {page && page.equations > 0 && (
+          <span
+            className="htmlv__note"
+            title="Typeset by this app from the page's own TeX, without running the page's code"
+          >
+            <Icon name="math" size={12} />
+            {page.equations} equation{page.equations === 1 ? '' : 's'} typeset
+          </span>
+        )}
 
         {page?.hasScripts && (
           <span className="htmlv__note" title="Nothing in this page is executed while you read it">
