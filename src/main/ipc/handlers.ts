@@ -196,6 +196,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   const rootPathsReq = rootReq.extend({ paths: z.array(z.string()) })
   handle('git:isRepository', rootReq, (_e, req) => git.isRepository(req.rootPath))
   handle('git:status', rootReq, (_e, req) => git.status(req.rootPath))
+  handle('git:ignored', rootPathsReq, (_e, req) => git.ignored(req.rootPath, req.paths))
   handle('git:diffStats', rootReq.extend({ untracked: z.array(z.string()) }), (_e, req) =>
     git.diffStats(req.rootPath, req.untracked)
   )
@@ -286,8 +287,12 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     }
   )
 
-  handle('fs:readTree', pathReq, (_e, req) => fs.readTree(req.path))
-  handle('fs:readDir', pathReq, (_e, req) => fs.readDir(req.path))
+  handle('fs:readTree', pathReq.extend({ showHidden: z.boolean().optional() }), (_e, req) =>
+    fs.readTree(req.path, req.showHidden ?? true)
+  )
+  handle('fs:readDir', pathReq.extend({ showHidden: z.boolean().optional() }), (_e, req) =>
+    fs.readDir(req.path, req.showHidden ?? true)
+  )
   handle('fs:stat', pathReq, (_e, req) => fs.stat(req.path))
   handle(
     'fs:listFiles',

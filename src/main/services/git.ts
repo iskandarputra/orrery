@@ -85,6 +85,65 @@ export class GitService {
   }
 
   /**
+   * Which of these paths git is told to ignore.
+   *
+   * `check-ignore` answers for the paths it is given rather than listing every
+   * ignored file in the repository, which is what makes this cheap enough to
+   * ask on every directory the tree opens: the question is only ever about the
+   * dozen entries somebody just expanded.
+   *
+   * `-z` on both sides, because a path may contain a newline and the
+   * line-delimited form would split it into two paths that do not exist. And
+   * the command exits 1 when *nothing* matched, which is a perfectly ordinary
+   * answer here rather than a failure, so the exit code is ignored and the
+   * output is read either way.
+   */
+  async ignored(rootPath: string, paths: string[]): Promise<string[]> {
+    if (paths.length === 0) return []
+    try {
+      // Down stdin, not the argument vector: `-z` is refused with anything
+      // else ("only makes sense with --stdin"), and without it a path with a
+      // newline or a quote in it comes back escaped and has to be un-escaped
+      // again. Stdin also has no length limit, so a directory of any size is
+      // one question rather than a series of them.
+      const stdout = await this.gitWithInput(
+        rootPath,
+        ['check-ignore', '--stdin', '-z'],
+        paths.join('\0')
+      )
+      return stdout.split('\0').filter((path) => path !== '')
+    } catch {
+      // No git, not a repository, a timeout: show everything. A tree that hid
+      // entries because git could not be asked would be lying about the
+      // folder, which is worse than showing a file somebody wanted hidden.
+      return []
+    }
+  }
+
+  /**
+   * Run git with something on its standard input.
+   *
+   * `execFile` promisified gives no way to write to the child, and it treats a
+   * non-zero exit as a rejection — which `check-ignore` returns whenever
+   * *nothing* matched. That is an ordinary answer, and it is carried on stdout
+   * either way, so the output is taken whenever there is any.
+   */
+  private gitWithInput(cwd: string, args: string[], input: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = execFile(
+        'git',
+        ['--no-pager', ...args],
+        { cwd, timeout: TIMEOUT_MS, maxBuffer: MAX_OUTPUT },
+        (err, stdout) => {
+          if (typeof stdout === 'string') resolve(stdout)
+          else reject(err instanceof Error ? err : new Error('git failed'))
+        }
+      )
+      child.stdin?.end(input)
+    })
+  }
+
+  /**
    * How much each changed file changed, for both sides of the working tree.
    *
    * Separate from `status` rather than folded into it. Status is what the panel
