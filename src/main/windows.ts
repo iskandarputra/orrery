@@ -2,6 +2,7 @@ import path from 'node:path'
 import { BrowserWindow, shell } from 'electron'
 import type { Settings } from '@shared/settings'
 import { send } from './ipc/registry'
+import { PAGE_ZOOM_COMMANDS, zoomActionFor } from '@core/zoom-keys'
 
 export interface WindowManagerDeps {
   getSettings: () => Settings
@@ -144,14 +145,27 @@ export class WindowManager {
       win.webContents.setZoomLevel(clampZoom(this.deps.getSettings().zoomLevel))
     })
 
-    // `Ctrl +` on most keyboards is `Ctrl Shift =`, and the menu accelerator
-    // only matches one spelling of it. The others are caught here, so every
-    // key someone might press for this does the same thing.
+    /**
+     * The zoom keys, both kinds, in every spelling a keyboard offers.
+     *
+     * A menu accelerator matches one spelling of "plus" out of the three, so
+     * the rest are caught here — otherwise which key zooms depends on the
+     * layout somebody is typing on.
+     *
+     * Shift is what tells the two apart: without it the whole window scales,
+     * with it only the document does. That distinction has to be read from
+     * `input.shift` rather than from the character, because the character is
+     * already ambiguous — `Ctrl +` on a US keyboard *is* `Ctrl Shift =`, and
+     * `+` and `_` are what those chords produce.
+     */
     win.webContents.on('before-input-event', (_event, input) => {
-      if (input.type !== 'keyDown' || !(input.control || input.meta) || input.alt) return
-      if (input.key === '=' || input.key === '+') this.zoomBy(1)
-      else if (input.key === '-' || input.key === '_') this.zoomBy(-1)
-      else if (input.key === '0') this.setZoom(0)
+      if (input.type !== 'keyDown') return
+      const action = zoomActionFor(input)
+      if (!action) return
+      if (action === 'window-in') this.zoomBy(1)
+      else if (action === 'window-out') this.zoomBy(-1)
+      else if (action === 'window-reset') this.setZoom(0)
+      else send(win, 'menu:command', { commandId: PAGE_ZOOM_COMMANDS[action] })
     })
 
     if (process.env['ELECTRON_RENDERER_URL']) {
