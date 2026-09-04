@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import { defaultSettings } from '@shared/settings'
+import { defaultSettings, type Settings } from '@shared/settings'
 import type { OrreryApi } from '@shared/ipc'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { setClient } from '@/services/client'
@@ -11,10 +11,30 @@ import { SidebarRail } from './SidebarRail'
  * "does the sidebar toggle" but "which view does a click leave showing".
  */
 
-/** Enough of main to absorb the settings write `updateSettings` fires off. */
+/**
+ * Enough of main to absorb the settings write `updateSettings` fires off.
+ *
+ * `settings:set` has to answer with the settings. That is what the channel is
+ * declared to return, and what `updateSettings` does with the answer is write
+ * it into the store — main's copy, over the one applied optimistically before
+ * the call. So a fake that answers `undefined` does not merely fail to help: it
+ * empties `settings` a microtask after every click, and the next render of
+ * anything reading `settings.something` throws.
+ *
+ * Which is exactly what it did. The assertions here all run before that lands,
+ * so the suite stayed green while printing five uncaught "Cannot read
+ * properties of undefined (reading 'sidebar')" on the way past — a fake being
+ * unfaithful to its contract, reported as if the component were broken.
+ */
 const fakeMain = {
-  invoke: (channel: string) =>
-    Promise.resolve(channel === 'settings:get' ? useStore.getState().settings : undefined),
+  invoke: (channel: string, req: unknown) =>
+    Promise.resolve(
+      channel === 'settings:get'
+        ? useStore.getState().settings
+        : channel === 'settings:set'
+          ? { ...useStore.getState().settings, ...(req as Partial<Settings>) }
+          : undefined
+    ),
   on: () => () => {}
 } as unknown as OrreryApi
 
