@@ -294,6 +294,26 @@ export function buildAppMenu(
           click: dispatch('view.zoomReset')
         },
         { type: 'separator' },
+        // The document's own size, with the interface left alone. The
+        // accelerators are listed for discoverability; the keys themselves are
+        // caught in windows.ts, which is the only place that can tell
+        // `Ctrl Shift =` from the `Ctrl +` it is also a spelling of.
+        {
+          label: 'Zoom In (page only)',
+          accelerator: acc('view.pageZoomIn', 'CmdOrCtrl+Shift+Plus'),
+          click: dispatch('view.pageZoomIn')
+        },
+        {
+          label: 'Zoom Out (page only)',
+          accelerator: acc('view.pageZoomOut', 'CmdOrCtrl+Shift+-'),
+          click: dispatch('view.pageZoomOut')
+        },
+        {
+          label: 'Reset Page Zoom',
+          accelerator: acc('view.pageZoomReset', 'CmdOrCtrl+Shift+0'),
+          click: dispatch('view.pageZoomReset')
+        },
+        { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' as const }])
       ]

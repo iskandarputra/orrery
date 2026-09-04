@@ -23,7 +23,10 @@ const BINDABLE: { id: string; label: string; dflt: string }[] = [
   { id: 'view.toggleSearch', label: 'Workspace search', dflt: 'CmdOrCtrl+Shift+F' },
   { id: 'ai.openChat', label: 'AI chat', dflt: 'CmdOrCtrl+Shift+A' },
   { id: 'view.toggleGraph', label: 'Graph view', dflt: 'CmdOrCtrl+Shift+G' },
-  { id: 'view.toggleHtmlPreview', label: 'HTML preview', dflt: 'CmdOrCtrl+Shift+V' }
+  { id: 'view.toggleHtmlPreview', label: 'HTML preview', dflt: 'CmdOrCtrl+Shift+V' },
+  { id: 'view.pageZoomIn', label: 'Zoom in (page only)', dflt: 'CmdOrCtrl+Shift+Plus' },
+  { id: 'view.pageZoomOut', label: 'Zoom out (page only)', dflt: 'CmdOrCtrl+Shift+-' },
+  { id: 'view.pageZoomReset', label: 'Reset page zoom', dflt: 'CmdOrCtrl+Shift+0' }
 ]
 
 export function KeybindingsSection(): React.JSX.Element {

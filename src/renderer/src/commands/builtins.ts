@@ -38,6 +38,22 @@ function activeHtmlBuffer(state: AppState): string | null {
   return id
 }
 
+/**
+ * The size a document starts at, and the bounds it is stepped between.
+ *
+ * The clamp is the schema's own — a font of 4px is not a smaller document, it
+ * is an unreadable one — so a key held down stops rather than running away.
+ */
+const DEFAULT_FONT_SIZE = 16
+const MIN_FONT_SIZE = 8
+const MAX_FONT_SIZE = 48
+
+function stepFontSize(state: AppState, by: number): void {
+  const e = state.settings.editor
+  const next = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, e.fontSize + by))
+  if (next !== e.fontSize) state.updateSettings({ editor: { ...e, fontSize: next } })
+}
+
 /** Built-in commands referenced by menu items (src/main/menu.ts) by id. */
 export const builtinCommands: Command[] = [
   {
@@ -342,6 +358,34 @@ export const builtinCommands: Command[] = [
     id: 'view.zoomOut',
     title: 'Zoom Out',
     run: () => void invoke('window:setZoom', { by: -1 })
+  },
+  {
+    /**
+     * The document's own type size, leaving the interface alone.
+     *
+     * Window zoom scales everything — the sidebar, the tabs, the status bar —
+     * which is the right answer for a screen that is too small or too far
+     * away, and the wrong one for "this text is a little tight". That is a
+     * property of the prose, so it changes the prose: the same `editor.fontSize`
+     * the settings dialog offers, stepped from the keyboard and remembered like
+     * any other preference.
+     */
+    id: 'view.pageZoomIn',
+    title: 'Zoom In (page only)',
+    run: ({ store }) => stepFontSize(store(), 1)
+  },
+  {
+    id: 'view.pageZoomOut',
+    title: 'Zoom Out (page only)',
+    run: ({ store }) => stepFontSize(store(), -1)
+  },
+  {
+    id: 'view.pageZoomReset',
+    title: 'Reset Page Zoom',
+    run: ({ store }) => {
+      const e = store().settings.editor
+      store().updateSettings({ editor: { ...e, fontSize: DEFAULT_FONT_SIZE } })
+    }
   },
   {
     id: 'view.zoomReset',
