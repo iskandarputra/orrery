@@ -259,6 +259,14 @@ test('draws a diagram the page would have drawn with a script', async () => {
   await expect(rendered().locator('.mermaid svg')).toBeVisible({ timeout: 20_000 })
   await expect(rendered().locator('body')).not.toContainText('graph TD')
   await expect(page.locator('.htmlv__note', { hasText: /1 diagram drawn/ })).toBeVisible()
+
+  // Drawn in place and stamped, which is mermaid's own contract. A real
+  // document styles `pre.mermaid svg{max-width:100%}` and
+  // `pre.mermaid[data-processed="true"]{white-space:normal}`, and gets neither
+  // if the element it wrote is swapped for a different one.
+  const block = rendered().locator('pre.mermaid')
+  await expect(block).toHaveAttribute('data-processed', 'true')
+  await expect(block.locator('svg')).toBeVisible()
 })
 
 test('typesets the maths, and leaves the prices alone', async () => {
