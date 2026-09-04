@@ -50,6 +50,33 @@ const PAGE = `<!doctype html>
 
 const STYLESHEET = '.card { background-color: rgb(240, 230, 210); }\n'
 
+/**
+ * A page that draws itself with libraries the reader will not run.
+ *
+ * Mermaid and MathJax are how a technical page carries a diagram and an
+ * equation, and a reader that runs no scripts shows both as the raw text they
+ * were written as — which is a preview of the page's plumbing rather than of
+ * the page. The app draws them itself instead, out here, and hands the frame
+ * the finished picture.
+ */
+const RICH = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Rich</title>
+<script src="https://cdn.example/mermaid.min.js"></script>
+<script src="https://cdn.example/tex-mml-chtml.js"></script>
+</head><body>
+<h1 id="top">Rich</h1>
+<nav><a id="jump" href="#far">jump to the bottom</a></nav>
+<pre class="mermaid">graph TD
+  A[Start] --> B[End]
+</pre>
+<p>Inline \\(E = mc^2\\) and a display one:</p>
+<p>$$\\int_0^1 x^2\\,dx = \\frac{1}{3}$$</p>
+<p>A price list must survive: it costs $5 to $10.</p>
+<div style="height:1600px">spacer</div>
+<h2 id="far">Far below</h2>
+</body></html>
+`
+
 /** 48×48 solid PNG, so a picture that loads has a size to prove it by. */
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAOklEQVRoge3OMQEAAAgDoC251a3gLzRgcncpAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+DcW7q0BAdxJ2u0AAAAASUVORK5CYII=',
@@ -75,11 +102,12 @@ const openFile = async (name: string): Promise<void> => {
   await page.waitForTimeout(300)
 }
 
-const read = async (): Promise<void> => {
+const read = async (heading = 'Reader check'): Promise<void> => {
   await page.locator('.header-viewmode__btn', { hasText: 'Read' }).click()
   await expect(page.locator('.htmlv__frame')).toBeVisible({ timeout: 15_000 })
-  // The frame has to finish loading before anything inside it can be measured.
-  await expect(rendered().locator('h1')).toHaveText('Reader check', { timeout: 15_000 })
+  // The frame has to finish loading before anything inside it can be measured,
+  // and its own heading is the thing that says this is the right page in it.
+  await expect(rendered().locator('h1')).toHaveText(heading, { timeout: 20_000 })
 }
 
 const edit = async (): Promise<void> => {
@@ -93,6 +121,7 @@ test.beforeAll(async () => {
   writeFileSync(join(vault, 'site.css'), STYLESHEET)
   writeFileSync(join(vault, 'logo.png'), PNG)
   writeFileSync(join(vault, 'plain.htm'), '<h1>A second page</h1>')
+  writeFileSync(join(vault, 'rich.html'), RICH)
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nSome prose.\n')
 
   app = await launchApp()
@@ -221,4 +250,51 @@ test('toggles from the command the menu dispatches', async () => {
   await expect(page.locator('.htmlv__frame')).toBeVisible({ timeout: 15_000 })
   await runCommand('view.toggleHtmlPreview')
   await expect(page.locator('.htmlv')).toHaveCount(0)
+})
+
+test('draws a diagram the page would have drawn with a script', async () => {
+  await openFile('rich.html')
+  await read('Rich')
+  // An SVG, not the `graph TD` it was written as.
+  await expect(rendered().locator('.mermaid svg')).toBeVisible({ timeout: 20_000 })
+  await expect(rendered().locator('body')).not.toContainText('graph TD')
+  await expect(page.locator('.htmlv__note', { hasText: /1 diagram drawn/ })).toBeVisible()
+})
+
+test('typesets the maths, and leaves the prices alone', async () => {
+  await openFile('rich.html')
+  await read('Rich')
+  // KaTeX to MathML, which the browser draws out of the markup — no stylesheet
+  // and no webfonts, neither of which the frame could reach.
+  await expect(rendered().locator('math').first()).toBeVisible({ timeout: 20_000 })
+  await expect(rendered().locator('body')).not.toContainText('$$')
+  // This page loads MathJax without configuring `$…$`, which is MathJax's own
+  // default — so a sentence about money stays a sentence. A reader that
+  // assumed the single dollar would turn every price list into equations.
+  await expect(rendered().locator('body')).toContainText('it costs $5 to $10')
+})
+
+test('an in-page link scrolls instead of doing nothing', async () => {
+  await openFile('rich.html')
+  await read('Rich')
+  const frame = rendered()
+  await expect(frame.locator('#jump')).toHaveAttribute('href', '#far')
+  // The bug this guards: a srcdoc document resolves relative URLs against the
+  // page embedding it, so `#far` became an address for the app's own window —
+  // a different document, so a navigation, which the policy refuses. Every
+  // table of contents in every page did nothing at all.
+  await frame.locator('#jump').click()
+  await expect
+    .poll(() => frame.locator('body').evaluate(() => window.scrollY), { timeout: 5000 })
+    .toBeGreaterThan(200)
+})
+
+test('resolves a relative picture without a base element', async () => {
+  await openFile('page.html')
+  await read()
+  // The reader writes one `<base>`, pointing at this document, so that a bare
+  // fragment stays a fragment. Every reference that loads is made absolute
+  // instead, before the frame ever sees it.
+  const src = await rendered().locator('#local').getAttribute('src')
+  expect(src).toMatch(/^orrery-asset:\/\//)
 })

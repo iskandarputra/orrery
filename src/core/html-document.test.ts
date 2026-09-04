@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildPreview, isHtmlFile } from './html-document'
 
-const options = { baseHref: 'orrery-asset://local/vault/site/', allowRemote: false }
+const options = { allowRemote: false }
 
 /** The `content` of the injected policy meta, unescaped enough to read. */
 function policyOf(srcdoc: string): string {
@@ -62,8 +62,10 @@ describe('the policy the document is read under', () => {
     expect(policy).toContain('font-src data: orrery-asset:;')
   })
 
-  it('pins the base so the document cannot repoint its own relative links', () => {
-    expect(policyOf(buildPreview('<p>hi</p>', options).srcdoc)).toContain('base-uri orrery-asset:')
+  it('leaves the base to the rewrite rather than the policy', () => {
+    // The reader needs a base of its own, so a policy cannot simply forbid
+    // them; `html-page.ts` strips the page's and adds one instead.
+    expect(policyOf(buildPreview('<p>hi</p>', options).srcdoc)).not.toContain('base-uri')
   })
 })
 
@@ -100,23 +102,12 @@ describe('where the injection goes', () => {
     expect(srcdoc).toContain('<head lang="en">')
   })
 
-  it('resolves relative links against the file’s own folder', () => {
-    const { srcdoc } = buildPreview('<img src="logo.png">', options)
-    expect(srcdoc).toContain('<base href="orrery-asset://local/vault/site/">')
-  })
-
-  it('writes no base for a document with nowhere to be relative to', () => {
-    const { srcdoc } = buildPreview('<p>hi</p>', { baseHref: null, allowRemote: false })
-    expect(srcdoc).not.toContain('<base')
-  })
-
-  it('cannot be broken out of by a quote in the base', () => {
-    const { srcdoc } = buildPreview('<p>hi</p>', {
-      baseHref: 'orrery-asset://local/a"><script>x</script>/',
-      allowRemote: false
-    })
-    expect(srcdoc).not.toContain('<script>')
-    expect(srcdoc).toContain('&quot;')
+  it('writes no base of its own', () => {
+    // A `<base>` resolves *every* relative URL against it, `href="#section"`
+    // included — which turned every in-page link into an address for another
+    // document that the policy then refused. Relative references are resolved
+    // into the markup instead, before it gets here.
+    expect(buildPreview('<img src="logo.png">', options).srcdoc).not.toContain('<base')
   })
 
   it('leaves the document itself untouched', () => {

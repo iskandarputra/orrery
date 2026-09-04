@@ -45,12 +45,6 @@ export function isHtmlFile(p: string): boolean {
 }
 
 export interface PreviewOptions {
-  /**
-   * Directory the file lives in, as an asset URL, for relative links to
-   * resolve against. Null for a buffer with no path — an untitled document has
-   * no directory, and relative links in one cannot resolve anywhere.
-   */
-  baseHref: string | null
   /** Whether the reader has been told to fetch this file's remote references. */
   allowRemote: boolean
 }
@@ -102,11 +96,13 @@ function contentPolicy(allowRemote: boolean): string {
     `media-src data: orrery-asset:${remote}`,
     "style-src 'unsafe-inline' orrery-asset:",
     'font-src data: orrery-asset:',
-    // A document that sets its own `<base>` cannot point relative links
-    // somewhere else. The injected one below wins on order anyway — the first
-    // base element in a document is the one that counts — and this is what
-    // stops the second one being worth writing.
-    'base-uri orrery-asset:',
+    // No `base-uri`, deliberately. The reader needs a `<base>` of its own — it
+    // is the only way a bare `#fragment` resolves to this document rather than
+    // to the page embedding it — and a policy tight enough to forbid the
+    // page's would forbid that one too. The guarantee moved instead to the
+    // rewrite that builds this document: it parses the whole thing, removes
+    // every base element the page brought, and adds exactly one.
+
     "form-action 'none'"
   ].join('; ')
 }
@@ -156,10 +152,7 @@ function countMatches(source: string, pattern: RegExp): number {
  * can be tested without a browser, an iframe, or a file on disk.
  */
 export function buildPreview(source: string, options: PreviewOptions): PreviewDocument {
-  const base = options.baseHref ? `<base href="${escapeAttribute(options.baseHref)}">` : ''
-  const injected =
-    `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(contentPolicy(options.allowRemote))}">` +
-    base
+  const injected = `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(contentPolicy(options.allowRemote))}">`
 
   return {
     srcdoc: injectIntoHead(source, injected),
