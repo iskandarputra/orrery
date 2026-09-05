@@ -113,10 +113,23 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
    * the top of the page for every character typed next door.
    *
    * It only makes that rarer, it does not fix it: a rebuild still loses the
-   * reader's place. Keeping it would mean telling the frame where to scroll
-   * back to, and the frame is an opaque origin this process cannot speak to —
-   * which is the same property that makes showing the page safe at all. So the
-   * cost is real and it is the one being paid on purpose.
+   * reader's place.
+   *
+   * Not because the frame is unreachable — `postMessage` crosses an opaque
+   * origin perfectly well, which is exactly how a VS Code webview talks to the
+   * extension that owns it. It is because keeping the place means running code
+   * *inside* the page to report and restore it, and this reader's whole premise
+   * is that a document nobody vouched for runs nothing at all.
+   *
+   * There is a way to have both, and it is the one VS Code takes: serve a small
+   * script of the app's own from a scheme the document cannot write to, name
+   * only that scheme in `script-src`, and leave `'unsafe-inline'` out — the
+   * app's script runs, the page's does not. Then updates arrive over
+   * `postMessage` and the page is patched in place rather than reloaded, which
+   * is why a markdown preview there keeps its scroll and this does not. It is a
+   * real design, deliberately not taken yet: it puts app code inside the frame
+   * and makes the reader a two-way channel, and that is a larger promise than
+   * "we show you the file".
    */
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
