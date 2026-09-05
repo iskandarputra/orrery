@@ -24,6 +24,20 @@ let app: ElectronApplication
 let page: Page
 let vault: string
 
+/** A table of rows, which is the other surface that lays out to its own size. */
+function makeDatabase(path: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { DatabaseSync } = require('node:sqlite') as {
+    DatabaseSync: new (p: string) => { exec(sql: string): void; close(): void }
+  }
+  const db = new DatabaseSync(path)
+  db.exec(`
+    CREATE TABLE rows (name TEXT, value INTEGER);
+    INSERT INTO rows VALUES ('alpha', 1), ('beta', 2);
+  `)
+  db.close()
+}
+
 const git = (...args: string[]): void => {
   execFileSync('git', args, { cwd: vault, stdio: 'ignore' })
 }
@@ -50,6 +64,7 @@ test.beforeAll(async () => {
   // The surfaces that are documents but are not the text editor.
   writeFileSync(join(vault, 'data.csv'), 'name,value\nalpha,1\nbeta,2\n')
   writeFileSync(join(vault, 'page.html'), '<h1>Page</h1><p>Body text to measure.</p>')
+  makeDatabase(join(vault, 'rows.db'))
   // A diff is two text documents, and needs a repository with a change in it.
   writeFileSync(join(vault, 'Diffme.md'), 'alpha\nbeta\n')
   git('init', '-q', '.')
@@ -217,4 +232,44 @@ test('a diff follows page zoom, in the face a diff is read in', async () => {
   // is set in the mono face whatever the file is, and this one is markdown.
   // It was the prose face, from the same fallback.
   expect(await text.evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Mono')
+
+  // Put the sidebar back. Source control replaces the file tree rather than
+  // sitting beside it, so a test after this one that reaches for a file finds
+  // nothing to click — and `view.toggleGit` does not toggle, it shows. Its
+  // counterpart is `view.toggleFiles`.
+  await page.locator('.diff button[aria-label="Close"]').click()
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'view.toggleFiles'
+    })
+  })
+  await expect(page.locator('.tree-row--file').first()).toBeVisible({ timeout: 15_000 })
+})
+
+test('a database table follows it too', async () => {
+  // The last surface that lays out to a size of its own. A table of rows is a
+  // document as much as a spreadsheet is, and it was pinned at 12px while the
+  // setting moved — the same gap the CSV table had, in the viewer next to it.
+  await page.locator('.tree-row--file', { hasText: 'rows.db' }).click()
+  await expect(page.locator('.db__grid')).toBeVisible({ timeout: 20_000 })
+
+  const sizeOf = (selector: string): Promise<number> =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+
+  const cells = await sizeOf('.db__grid')
+  const heads = await sizeOf('.db__sort')
+  await run('view.pageZoomIn')
+  await run('view.pageZoomIn')
+
+  expect(await sizeOf('.db__grid')).toBeGreaterThan(cells)
+  // The headings have to come with them. A grid whose cells grew while its
+  // column names stayed put reads as broken rather than as bigger.
+  expect(await sizeOf('.db__sort')).toBeGreaterThan(heads)
+
+  await run('view.pageZoomReset')
+  expect(await sizeOf('.db__grid')).toBeCloseTo(cells, 1)
+  expect(await sizeOf('.db__sort')).toBeCloseTo(heads, 1)
 })

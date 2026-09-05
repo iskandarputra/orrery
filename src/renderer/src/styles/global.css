@@ -6526,7 +6526,12 @@ kbd {
 .db__grid {
   border-collapse: collapse;
   font-family: var(--or-mono-font);
-  font-size: 12px;
+  /* Follows page zoom, for the same reason a spreadsheet does: a table of rows
+     is a document, and the shortcut that grows the prose in a note should grow
+     the figures in a table. The header and the row numbers below scale with it
+     — a grid whose cells grew while its headings stayed put would read as
+     broken rather than as bigger. */
+  font-size: calc(12px * var(--or-page-zoom, 1));
 }
 
 .db__grid th,
@@ -6551,7 +6556,7 @@ kbd {
   min-height: 26px;
   padding: 3px 8px;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--or-page-zoom, 1));
   font-weight: 600;
   color: var(--or-fg);
   cursor: pointer;
@@ -6588,7 +6593,7 @@ kbd {
 }
 
 .db__number {
-  font-size: 11px;
+  font-size: calc(11px * var(--or-page-zoom, 1));
   font-variant-numeric: tabular-nums;
   font-weight: 400;
 }
