@@ -12,6 +12,7 @@ import { languageCompartment, findLanguage } from '@/editor/code-language'
 import { diffMarks, setDiffMarks } from '@/editor/diff-decorations'
 import { minimap } from '@/editor/minimap'
 import { markdownHighlight, orreryEditorTheme } from '@/editor/theme'
+import { documentTypography } from '@/editor/typography'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
@@ -69,7 +70,8 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
   const closeTab = useStore((s) => s.closeTab)
   const setDirty = useStore((s) => s.setDirty)
   const rootPath = useStore((s) => s.rootPath)
-  const showMinimap = useStore((s) => s.settings.editor.minimap)
+  const editorSettings = useStore((s) => s.settings.editor)
+  const showMinimap = editorSettings.minimap
   const split = useStore((s) => s.settings.diff.split)
   const setDiffSplit = useStore((s) => s.setDiffSplit)
   const close = (): void => void closeTab(bufferId)
@@ -306,7 +308,27 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
   }
 
   return (
-    <div className="diff" role="region" aria-label={`Changes in ${target.path}`}>
+    <div
+      className="diff"
+      role="region"
+      aria-label={`Changes in ${target.path}`}
+      /**
+       * A diff is two text documents, so it is set the way text is set.
+       *
+       * The panes are CodeMirror and read their size, face and measure from
+       * these — but they sit outside the editor's own element, which is where
+       * the variables used to be declared, so they fell back to the defaults in
+       * `tokens.css`: a fixed 16px in the prose face, no matter what the
+       * settings said. Page zoom moved the number and nothing on screen
+       * changed, which is the same failure the tables and the HTML reader had.
+       *
+       * Always `code`, whatever the file is. A diff is read down its left edge
+       * against the indentation, in two columns that have to line up with each
+       * other — that is true of a diff of a markdown note as much as of one of
+       * a source file.
+       */
+      style={documentTypography(editorSettings, 'code')}
+    >
       <div className="diff__bar">
         <span className="diff__path" title={target.path}>
           {target.path}

@@ -8,7 +8,7 @@ import { settingsCompartment, settingsExtensions } from '@/editor/create-state'
 import { ensureLanguage } from '@/editor/code-language'
 import { refreshGitGutter } from '@/editor/git-gutter'
 import { openDocument, replayDiagnostics } from '@/editor/lsp-session'
-import { lineWidthCss } from '@/editor/line-width'
+import { documentTypography } from '@/editor/typography'
 import { equalSizes, fitSizes, resizePanes, toColumns } from '@core/pane-sizes'
 import { useStore } from '@/state/store'
 import { surfaceForKind } from '@/plugins/registry'
@@ -176,21 +176,7 @@ function Pane({
         hidden={isCustom || !bufferId}
         style={{
           fontSize: `${settings.editor.fontSize}px`,
-          ['--or-editor-font-size' as string]: `${settings.editor.fontSize}px`,
-          ['--or-editor-line-height' as string]: String(settings.editor.lineHeight),
-          // Prose reads in a proportional face; code does not. A code file set
-          // in the prose font loses the column alignment indentation depends on,
-          // and picks up the ligatures that turn `=>` into a glyph the file does
-          // not contain. An explicit setting still wins for either kind.
-          ['--or-editor-font-family' as string]:
-            settings.editor.fontFamily ||
-            (kind === 'code' ? 'var(--or-mono-font)' : 'var(--or-prose-font)'),
-          // A reading column is for prose. Code is read down the left edge
-          // against its indentation, so it takes the full pane and sits just
-          // clear of the gutter instead of being centred in a 46rem measure.
-          ['--or-editor-max-width' as string]:
-            kind === 'code' ? 'none' : lineWidthCss(settings.editor),
-          ['--or-editor-line-pad' as string]: kind === 'code' ? '0.75rem' : '2rem'
+          ...documentTypography(settings.editor, kind === 'code' ? 'code' : 'prose')
         }}
       />
       {isCanvas && bufferId && <CanvasEditor key={bufferId} bufferId={bufferId} />}

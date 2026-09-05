@@ -2930,31 +2930,11 @@ textarea {
   margin-left: auto;
 }
 
-.diff__body {
-  flex: 1;
-  overflow: auto;
-  font-family: var(--or-mono-font);
-  font-size: 12px;
-  line-height: 1.55;
-  background: var(--or-editor-bg);
-}
-
 .diff__note {
   padding: 1.5rem;
   color: var(--or-fg-muted);
   font-family: var(--or-prose-font);
   font-size: 13px;
-}
-
-.diff__hunk-head {
-  padding: 0.3rem 0.9rem;
-  color: var(--or-fg-faint);
-  background: color-mix(in srgb, var(--or-panel-bg) 60%, transparent);
-  border-top: 1px solid var(--or-border);
-  border-bottom: 1px solid var(--or-border);
-  white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .diff__heads {
@@ -3079,69 +3059,6 @@ textarea {
   color: var(--or-fg);
 }
 
-/* Two columns, old on the left and the working tree on the right. The grid is
-   what keeps a replaced line opposite the line that replaced it; an empty cell
-   is padding, not an absence. */
-.diff__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.diff__cell {
-  display: flex;
-  align-items: flex-start;
-  min-width: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.diff__cell + .diff__cell {
-  border-left: 1px solid var(--or-border);
-}
-
-.diff__cell--empty {
-  background: color-mix(in srgb, var(--or-fg) 4%, transparent);
-}
-
-.diff__num {
-  flex: 0 0 3.5ch;
-  padding: 0 0.4rem;
-  text-align: right;
-  color: var(--or-fg-faint);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-}
-
-.diff__sign {
-  flex: 0 0 1.5ch;
-  text-align: center;
-  user-select: none;
-}
-
-.diff__text {
-  flex: 1;
-  min-width: 0;
-  padding-right: 0.9rem;
-  color: var(--or-fg);
-}
-
-/* An editable line reads as ordinary text until you reach for it — a diff is
-   mostly read, and boxing every line would make it look like a form. */
-.diff__text--editable {
-  cursor: text;
-  border-radius: 2px;
-  outline: 1px solid transparent;
-}
-
-.diff__text--editable:hover {
-  outline-color: var(--or-border);
-}
-
-.diff__text--editable:focus {
-  outline: 2px solid var(--or-accent);
-  background: var(--or-editor-bg);
-}
-
 .diff__head {
   display: flex;
   align-items: baseline;
@@ -3153,20 +3070,6 @@ textarea {
   text-transform: none;
   letter-spacing: 0;
   color: var(--or-fg-faint);
-}
-
-.diff__cell--added {
-  background: color-mix(in srgb, #3fb950 14%, transparent);
-}
-.diff__cell--added .diff__sign {
-  color: #3fb950;
-}
-
-.diff__cell--removed {
-  background: color-mix(in srgb, #f85149 14%, transparent);
-}
-.diff__cell--removed .diff__sign {
-  color: #f85149;
 }
 
 /* Source control panel. A working-tree view, not a git client: what changed,

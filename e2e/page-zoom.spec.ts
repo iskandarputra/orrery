@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +24,10 @@ let app: ElectronApplication
 let page: Page
 let vault: string
 
+const git = (...args: string[]): void => {
+  execFileSync('git', args, { cwd: vault, stdio: 'ignore' })
+}
+
 const run = async (commandId: string): Promise<void> => {
   await app.evaluate(({ BrowserWindow }, id) => {
     BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', { commandId: id })
@@ -45,6 +50,16 @@ test.beforeAll(async () => {
   // The surfaces that are documents but are not the text editor.
   writeFileSync(join(vault, 'data.csv'), 'name,value\nalpha,1\nbeta,2\n')
   writeFileSync(join(vault, 'page.html'), '<h1>Page</h1><p>Body text to measure.</p>')
+  // A diff is two text documents, and needs a repository with a change in it.
+  writeFileSync(join(vault, 'Diffme.md'), 'alpha\nbeta\n')
+  git('init', '-q', '.')
+  git('config', 'user.email', 'test@example.com')
+  git('config', 'user.name', 'Test')
+  git('config', 'commit.gpgsign', 'false')
+  git('add', '.')
+  git('commit', '-qm', 'base')
+  writeFileSync(join(vault, 'Diffme.md'), 'alpha\nan added line\nbeta\n')
+
   app = await launchApp()
   page = await app.firstWindow()
   await page.setViewportSize({ width: 1200, height: 800 })
@@ -154,4 +169,52 @@ test('a rendered page follows it, and still fits its pane', async () => {
   await run('view.pageZoomReset')
   await page.waitForTimeout(500)
   expect(await inner()).toBe(beforeInner)
+})
+
+test('a diff follows page zoom, in the face a diff is read in', async () => {
+  // Two text documents in a pane, rendered by the same editor theme as the
+  // note next to them — but outside the element the theme's variables were
+  // declared on, so they fell back to the defaults in `tokens.css`: a fixed
+  // 16px in the prose face, whatever the settings said. The key moved the
+  // number and nothing on screen changed.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'view.toggleGit'
+    })
+  })
+  await expect(page.locator('.scm')).toBeVisible({ timeout: 15_000 })
+  await page.locator('button[aria-label="Refresh status"]').click()
+  await expect
+    .poll(
+      async () => {
+        if (!(await page.locator('.diff__panes').isVisible())) {
+          await page
+            .locator('.scm-row__name')
+            .filter({ hasText: 'Diffme.md' })
+            .click()
+            .catch(() => {})
+        }
+        return page.locator('.diff__panes').isVisible()
+      },
+      { timeout: 20_000 }
+    )
+    .toBe(true)
+
+  const text = page.locator('.diff__pane').first().locator('.cm-content')
+  const size = (): Promise<number> =>
+    text.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+
+  const before = await size()
+  await run('view.pageZoomIn')
+  await run('view.pageZoomIn')
+  expect(await size()).toBe(before + 2)
+
+  await run('view.pageZoomReset')
+  expect(await size()).toBe(before)
+
+  // And while we are here: a diff is read down its left edge against the
+  // indentation, in two columns that have to line up with each other — so it
+  // is set in the mono face whatever the file is, and this one is markdown.
+  // It was the prose face, from the same fallback.
+  expect(await text.evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Mono')
 })
