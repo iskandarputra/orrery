@@ -17,13 +17,21 @@ import { renderMermaidToString } from './live-preview/mermaid'
  * runs to produce it; the app reads the source and draws it, the same way it
  * draws a fenced diagram in markdown.
  *
- * This pass is also where a page's addresses are settled: every reference that
- * loads something is rewritten to an absolute one, and the document is given a
- * base the page brought is removed so nothing can move them again. See
- * `resolveUrls` and `stripPageBase`.
+ * This pass is also where a page's addresses are settled. Every reference that
+ * loads something is rewritten to an absolute one — in the markup and in the
+ * page's own CSS alike — and any base the page brought is removed, so nothing
+ * left in the document can move them again. See `resolveUrls`,
+ * `resolveStyleUrls` and `stripPageBase`.
  */
 
-/** Attributes that fetch, per element. `href` only where it is not a link. */
+/**
+ * Attributes that fetch, per element. `href` only where it is not a link.
+ *
+ * `use` and `image` are SVG, where `href` fetches rather than navigates and
+ * the older `xlink:href` spelling is still what most drawing tools emit. An
+ * icon sprite referenced as `<use href="icons.svg#save">` is the ordinary way
+ * a page carries its icons, and left unresolved every one of them is blank.
+ */
 const URL_ATTRIBUTES: Record<string, string[]> = {
   img: ['src'],
   source: ['src'],
@@ -32,7 +40,9 @@ const URL_ATTRIBUTES: Record<string, string[]> = {
   track: ['src'],
   link: ['href'],
   object: ['data'],
-  input: ['src']
+  input: ['src'],
+  use: ['href', 'xlink:href'],
+  image: ['href', 'xlink:href']
 }
 
 export interface PreparedPage {
@@ -44,9 +54,45 @@ export interface PreparedPage {
   equations: number
 }
 
-/** Absolute enough to leave alone, or not a location at all. */
-function isAbsolute(url: string): boolean {
-  return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(url.trim())
+/** Already carries a scheme, so it says where it goes without help. */
+function hasScheme(url: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(url.trim())
+}
+
+/**
+ * The address a reference should be given, or null to leave it as it was.
+ *
+ * A fragment is a place in this document and must stay one. An address that
+ * already names its scheme is left alone — it is either remote, in which case
+ * the policy decides whether it loads, or already resolved.
+ *
+ * The exception is the protocol-relative form. `//host/pic.png` is how a page
+ * written for the web writes a remote address, and it is counted among the
+ * remote references the reader offers to load — but with no scheme of its own
+ * it resolves against `orrery-preview:` and fetches nothing at all. Pressing
+ * the button would leave it exactly where it was, which is the mismatch
+ * `html-document` takes care to avoid for remote code. Giving it `https:` is
+ * what makes the offer deliver the number it names.
+ */
+function referenceUrl(docPath: string | null, value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.startsWith('#')) return null
+  if (trimmed.startsWith('//')) return `https:${trimmed}`
+  if (hasScheme(trimmed)) return null
+
+  // A query and a fragment are not part of the path and must not be encoded
+  // as though they were. `resolveAssetUrl` escapes what it is given segment by
+  // segment, so `icons.svg#save` handed over whole comes back pointing at a
+  // file named `icons.svg%23save` — which is how an entire sprite sheet of
+  // icons resolves to nothing. `<use href="icons.svg#save">` is the ordinary
+  // way a page carries them, so this is the common case, not the odd one.
+  const cut = trimmed.search(/[?#]/)
+  const path = cut === -1 ? trimmed : trimmed.slice(0, cut)
+  const suffix = cut === -1 ? '' : trimmed.slice(cut)
+  if (!path) return null
+
+  const resolved = resolveAssetUrl(docPath, path)
+  return resolved === null ? null : resolved + suffix
 }
 
 /**
@@ -61,8 +107,8 @@ function resolveUrls(doc: Document, docPath: string | null): void {
     for (const el of doc.querySelectorAll(tag)) {
       for (const attribute of attributes) {
         const value = el.getAttribute(attribute)
-        if (!value || isAbsolute(value)) continue
-        const resolved = resolveAssetUrl(docPath, value)
+        if (!value) continue
+        const resolved = referenceUrl(docPath, value)
         if (resolved) el.setAttribute(attribute, resolved)
       }
     }
@@ -73,13 +119,59 @@ function resolveUrls(doc: Document, docPath: string | null): void {
         .split(',')
         .map((candidate) => {
           const [url, ...rest] = candidate.trim().split(/\s+/)
-          if (!url || isAbsolute(url)) return candidate.trim()
-          const resolved = resolveAssetUrl(docPath, url)
+          if (!url) return candidate.trim()
+          const resolved = referenceUrl(docPath, url)
           return [resolved ?? url, ...rest].join(' ')
         })
         .join(', ')
       el.setAttribute('srcset', rebuilt)
     }
+  }
+}
+
+/** `url(…)` in a stylesheet, quoted or bare. */
+const CSS_URL = /url\(\s*(["']?)([^"')]+)\1\s*\)/g
+/** `@import "…"` — the one form that names a file without saying `url`. */
+const CSS_IMPORT = /(@import\s+)(["'])([^"']+)\2/g
+
+/**
+ * The same rewrite, for the addresses that live in CSS rather than in markup.
+ *
+ * A page carries at least as many pictures in its stylesheet as in its
+ * elements — a background, a bullet, a masthead — and until this ran they
+ * were the references the reader quietly dropped. There is no `<base>` to
+ * catch them: a relative `url(bg.png)` resolves against `orrery-preview:` and
+ * comes back as nothing, so a page arrived stripped of its own furniture with
+ * no sign that anything was missing.
+ *
+ * Only the CSS the document itself carries. A stylesheet loaded from beside
+ * the file needs none of this — its own URLs resolve against its own
+ * `orrery-asset:` address, which is already the right folder.
+ *
+ * Rewritten values are always quoted. An encoded path keeps its brackets, and
+ * a bare `url(…)` containing one ends the function early.
+ */
+function rewriteCss(css: string, docPath: string | null): string {
+  return css
+    .replace(CSS_URL, (whole, _quote: string, value: string) => {
+      const resolved = referenceUrl(docPath, value)
+      return resolved ? `url("${resolved}")` : whole
+    })
+    .replace(CSS_IMPORT, (whole, at: string, _quote: string, value: string) => {
+      const resolved = referenceUrl(docPath, value)
+      return resolved ? `${at}"${resolved}"` : whole
+    })
+}
+
+/** Both places a document keeps its own CSS: a `<style>` block and a `style=`. */
+function resolveStyleUrls(doc: Document, docPath: string | null): void {
+  for (const style of doc.querySelectorAll('style')) {
+    const css = style.textContent ?? ''
+    if (css) style.textContent = rewriteCss(css, docPath)
+  }
+  for (const el of doc.querySelectorAll<HTMLElement>('[style]')) {
+    const css = el.getAttribute('style') ?? ''
+    if (css) el.setAttribute('style', rewriteCss(css, docPath))
   }
 }
 /**
@@ -192,7 +284,14 @@ async function typesetMath(doc: Document, source: string): Promise<number> {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = (node as Text).parentElement
     if (!parent || NOT_PROSE.has(parent.tagName.toUpperCase())) continue
-    if (parent.closest('code, pre, script, style, math')) continue
+    // `svg` is in the list for the diagrams drawn a few lines above this. The
+    // text inside one is a label mermaid wrote, and its parent is a `<text>`
+    // or a `<tspan>`, which `NOT_PROSE` never sees. A `<pre class="mermaid">`
+    // was protected by accident through `pre`; a `<div class="mermaid">` was
+    // not, so a diagram whose label mentioned a dollar or a backslash had an
+    // equation put inside its SVG — where MathML draws nothing at all and the
+    // label goes blank.
+    if (parent.closest('code, pre, script, style, math, svg')) continue
     texts.push(node as Text)
   }
 
@@ -243,6 +342,7 @@ export async function preparePage(source: string, docPath: string | null): Promi
   const doc = new DOMParser().parseFromString(source, 'text/html')
 
   resolveUrls(doc, docPath)
+  resolveStyleUrls(doc, docPath)
   stripPageBase(doc)
   const [diagrams, equations] = [await drawDiagrams(doc), await typesetMath(doc, source)]
   if (diagrams > 0) addDiagramFallback(doc)
