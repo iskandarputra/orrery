@@ -786,8 +786,13 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('export:html', exportReq, (_e, req) => exporter.exportHtml(req.title, req.markdown))
   handle(
     'preview:put',
-    z.object({ id: z.string().min(1), html: z.string(), policy: z.string().min(1) }),
-    (_e, req) => putPreview(req.id, { html: req.html, policy: req.policy })
+    z.object({
+      id: z.string().min(1),
+      html: z.string(),
+      policy: z.string().min(1),
+      root: z.string().nullable()
+    }),
+    (_e, req) => putPreview(req.id, { html: req.html, policy: req.policy, root: req.root })
   )
   handle('preview:drop', z.object({ id: z.string().min(1) }), (_e, req) => dropPreview(req.id))
   handle('export:pdf', exportReq, (_e, req) => exporter.exportPdf(req.title, req.markdown))

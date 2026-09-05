@@ -10,11 +10,11 @@ import { extname } from './paths'
  * careful not to do anywhere else, so the terms are set out here rather than
  * spread through a component.
  *
- * **The document is never trusted.** It is shown in an iframe with an empty
- * `sandbox`, which puts it in an opaque origin with no scripting, no forms, no
- * navigation of the window around it and no downloads. That alone is the
- * boundary. Everything below is a second one, so that a mistake in either is
- * not a mistake in both.
+ * **The document is never trusted.** It is shown in an iframe whose `sandbox`
+ * starts with no tokens at all, which puts it in an opaque origin with no
+ * scripting, no forms, no navigation of the window around it and no downloads.
+ * That alone is the boundary. Everything below is a second one, so that a
+ * mistake in either is not a mistake in both.
  *
  * **The policy is a Content-Security-Policy, not a filter.** It travels as a
  * response header on the served document rather than as a `<meta>` in it, so
@@ -27,6 +27,12 @@ import { extname } from './paths'
  * not a reader. So the document is delivered whole and the browser is told what
  * it may load. Scripts do not run because nothing grants them, not because a
  * regular expression went looking for `<script>`.
+ *
+ * **The disk is one folder, not the disk.** A page needs its own pictures and
+ * stylesheet, and the app's `orrery-asset:` would have served them — along with
+ * every other path there is, to a document that writes its own addresses. So
+ * the frame is given `orrery-page:` instead, which reaches exactly one folder
+ * and is described in `core/preview-asset`.
  *
  * **Nothing reaches the network unless it is asked for.** An HTML file from
  * outside is full of URLs pointing back at whoever wrote it, and opening one to
@@ -99,8 +105,10 @@ const SCRIPT_TAG = /<script[\s>]/i
  * `default-src 'none'` is the whole of it, and every line after is an exception
  * to that — so scripts, frames, workers, websockets and anything added to the
  * web platform after this was written are refused by default rather than by
- * being listed. `orrery-asset:` is the app's own read-only view of the disk,
- * which is how a file's own stylesheet and pictures reach it.
+ * being listed. `orrery-page:` is how a file's own stylesheet and pictures
+ * reach it: a view of one folder, scoped to this document, described in
+ * `core/preview-asset`. It is deliberately *not* `orrery-asset:`, which is the
+ * app's own view of the whole disk and would let a page name any path in it.
  *
  * This is the whole of the policy the frame is under, and it was not always so.
  * A `srcdoc` document inherits the CSP of the page embedding it and the two
@@ -133,21 +141,22 @@ function contentPolicy(options: PreviewOptions): string {
      *
      * `'unsafe-inline'` because a document that draws itself writes its script
      * in the file — there is no nonce to give it and no build step to add one.
-     * `orrery-asset:` for a script sitting beside it on disk. Never a remote
-     * source, whatever else is allowed: fetching a picture from the internet
-     * tells somebody you opened their file, and fetching *code* from the
-     * internet hands them the inside of the page you are reading. Those are
-     * not the same decision and this one is not offered.
+     * `orrery-page:` for a script sitting beside it on disk — beside *it*,
+     * which the scheme itself enforces rather than taking the page's word for.
+     * Never a remote source, whatever else is allowed: fetching a picture
+     * from the internet tells somebody you opened their file, and fetching
+     * *code* from the internet hands them the inside of the page you are
+     * reading. Those are not the same decision and this one is not offered.
      *
      * What keeps this safe is not the list — it is the frame. Scripts run in
      * an opaque origin with no `allow-same-origin`, so the page cannot reach
      * the application around it, its storage, or anything it did not bring.
      */
-    allowScripts ? "script-src 'unsafe-inline' orrery-asset:" : '',
-    `img-src data: orrery-asset:${remote}`,
-    `media-src data: orrery-asset:${remote}`,
-    `style-src 'unsafe-inline' orrery-asset:${remote}`,
-    `font-src data: orrery-asset:${remote}`,
+    allowScripts ? "script-src 'unsafe-inline' orrery-page:" : '',
+    `img-src data: orrery-page:${remote}`,
+    `media-src data: orrery-page:${remote}`,
+    `style-src 'unsafe-inline' orrery-page:${remote}`,
+    `font-src data: orrery-page:${remote}`,
     /**
      * Nothing may repoint what a reference means.
      *

@@ -1,4 +1,6 @@
-import { protocol } from 'electron'
+import { pathToFileURL } from 'node:url'
+import { net, protocol } from 'electron'
+import { PAGE_SCHEME, parsePageAssetUrl, resolveUnderRoot } from '@core/preview-asset'
 
 export const PREVIEW_SCHEME = 'orrery-preview'
 
@@ -34,6 +36,16 @@ interface Page {
   html: string
   /** The full `Content-Security-Policy` for this page, built by the renderer. */
   policy: string
+  /**
+   * The one folder this page may read files out of, or null for none at all.
+   *
+   * Decided by `core/preview-asset`, and the only thing standing between a
+   * document nobody vouched for and the rest of the disk. It is held here
+   * rather than sent with each request because a request is written by the
+   * page: anything the frame could put in a URL, a hostile page could put in a
+   * URL too.
+   */
+  root: string | null
 }
 
 const pages = new Map<string, Page>()
@@ -60,7 +72,12 @@ export function dropPreview(id: string): void {
  */
 export function registerPreviewScheme(): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: PREVIEW_SCHEME, privileges: { standard: true, secure: true } }
+    { scheme: PREVIEW_SCHEME, privileges: { standard: true, secure: true } },
+    // The files a page may load, on a scheme of their own. Same restraint: it
+    // is fetched as a subresource by one frame and nothing more, so neither
+    // `supportFetchAPI` nor `corsEnabled` — a page that could read back the
+    // bytes of what it names is the capability this exists to withhold.
+    { scheme: PAGE_SCHEME, privileges: { standard: true, secure: true } }
   ])
 }
 
@@ -83,8 +100,45 @@ export function handlePreviewProtocol(): void {
         'Content-Security-Policy': page.policy,
         // Nothing here is worth keeping, and a stale copy of a document being
         // edited is worse than none: every render puts the current text.
-        'Cache-Control': 'no-store'
+        'Cache-Control': 'no-store',
+        // Nothing a page fetches says where it was fetched from. The frame is
+        // an opaque origin so there is little to leak, but "little" is not the
+        // promise the reader makes about a page's remote content.
+        'Referrer-Policy': 'no-referrer'
       }
     })
+  })
+}
+
+/**
+ * After ready: the files a page is allowed to load, and no others.
+ *
+ * The address a page asks with names the page and a path *inside that page's
+ * root* — never a path on the disk. So the worst a hostile document can write
+ * is a request for a file under the folder its own file was opened from, which
+ * is the same thing as asking for a file it could have shipped beside itself.
+ *
+ * Refusals are all 404, deliberately: a page that could tell "not allowed"
+ * from "not there" would have a way to ask questions about the disk, which is
+ * most of what confining it was for.
+ */
+export function handlePageAssetProtocol(): void {
+  protocol.handle(PAGE_SCHEME, async (request) => {
+    const missing = new Response('Not found', { status: 404 })
+
+    const asked = parsePageAssetUrl(request.url)
+    if (!asked) return missing
+
+    const page = pages.get(asked.id)
+    if (!page?.root) return missing
+
+    const filePath = resolveUnderRoot(page.root, asked.relative)
+    if (!filePath) return missing
+
+    try {
+      return await net.fetch(pathToFileURL(filePath).toString())
+    } catch {
+      return missing
+    }
   })
 }

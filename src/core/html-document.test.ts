@@ -35,10 +35,13 @@ describe('the policy the document is read under', () => {
   })
 
   it('lets a file reach its own folder for styles, pictures and fonts', () => {
+    // `orrery-page:` and never `orrery-asset:` — the app's own scheme serves
+    // any path on the disk, and this document writes its own addresses. See
+    // `core/preview-asset`.
     const policy = policyOf()
-    expect(policy).toContain('img-src data: orrery-asset:')
-    expect(policy).toContain("style-src 'unsafe-inline' orrery-asset:")
-    expect(policy).toContain('font-src data: orrery-asset:')
+    expect(policy).toContain('img-src data: orrery-page:')
+    expect(policy).toContain("style-src 'unsafe-inline' orrery-page:")
+    expect(policy).toContain('font-src data: orrery-page:')
   })
 
   it('keeps the network out until it is asked for', () => {
@@ -63,10 +66,10 @@ describe('the policy the document is read under', () => {
     // like. A document that arrives in the wrong typeface because its font was
     // refused has not really been shown.
     const policy = policyOf({ allowRemote: true })
-    expect(policy).toContain('img-src data: orrery-asset: https:')
-    expect(policy).toContain('media-src data: orrery-asset: https:')
-    expect(policy).toContain("style-src 'unsafe-inline' orrery-asset: https:")
-    expect(policy).toContain('font-src data: orrery-asset: https:')
+    expect(policy).toContain('img-src data: orrery-page: https:')
+    expect(policy).toContain('media-src data: orrery-page: https:')
+    expect(policy).toContain("style-src 'unsafe-inline' orrery-page: https:")
+    expect(policy).toContain('font-src data: orrery-page: https:')
   })
 
   it('still does not open it to code', () => {
@@ -75,7 +78,7 @@ describe('the policy the document is read under', () => {
   })
 
   it('runs the page’s own scripts only when asked', () => {
-    expect(policyOf({ allowScripts: true })).toContain("script-src 'unsafe-inline' orrery-asset:")
+    expect(policyOf({ allowScripts: true })).toContain("script-src 'unsafe-inline' orrery-page:")
   })
 
   it('never runs code fetched from the internet, whatever else is allowed', () => {
@@ -83,7 +86,7 @@ describe('the policy the document is read under', () => {
     // file. Fetching *code* hands them the inside of the page you are reading.
     // The second is not offered, and asking for both must not conjure it.
     const policy = policyOf({ allowScripts: true, allowRemote: true })
-    expect(policy).toContain("script-src 'unsafe-inline' orrery-asset:;")
+    expect(policy).toContain("script-src 'unsafe-inline' orrery-page:;")
     expect(policy).not.toMatch(/script-src[^;]*https:/)
   })
 

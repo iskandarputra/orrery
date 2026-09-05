@@ -1,7 +1,11 @@
 import { join } from 'node:path'
 import { app } from 'electron'
 import { handleAssetProtocol, registerAssetScheme } from './asset-protocol'
-import { handlePreviewProtocol, registerPreviewScheme } from './preview-protocol'
+import {
+  handlePageAssetProtocol,
+  handlePreviewProtocol,
+  registerPreviewScheme
+} from './preview-protocol'
 import { registerIpcHandlers } from './ipc/handlers'
 import { send } from './ipc/registry'
 import { buildAppMenu } from './menu'
@@ -184,6 +188,7 @@ if (!gotLock) {
     await settings.load()
     handleAssetProtocol((filePath) => pdfDrafts.peek(filePath))
     handlePreviewProtocol()
+    handlePageAssetProtocol()
     registerIpcHandlers({
       fs,
       watcher,

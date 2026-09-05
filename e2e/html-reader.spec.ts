@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 import type { ElectronApplication } from 'playwright'
 import { closeCleanly, launchApp, openVault } from './helpers'
@@ -84,9 +84,30 @@ const PNG = Buffer.from(
   'base64'
 )
 
+/**
+ * A page that reaches for things it is not allowed to have.
+ *
+ * Every reference here is one an untrusted document can simply write, and the
+ * frame's scheme reaches exactly one folder — so each of these must come back
+ * with nothing. The picture beside it is the control: if that one is blank too,
+ * the test is passing for the wrong reason.
+ */
+const NOSY = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Nosy</title></head><body>
+<h1>Nosy</h1>
+<img id="allowed" src="logo.png" alt="beside the file">
+<img id="absolute" src="orrery-page://asset/x/etc/passwd" alt="absolute">
+<img id="climb" src="CLIMB_REL" alt="climbing out to a file that really is there">
+<img id="asset" src="orrery-asset://local/OUTSIDE_PNG" alt="the app's own scheme">
+<script>document.body.setAttribute('data-ran', 'yes')</script>
+</body></html>
+`
+
 let app: ElectronApplication
 let page: Page
 let vault: string
+/** A directory that is deliberately not the vault, holding a real picture. */
+let outside: string
 
 /** The rendered page, reached through the sandboxed frame showing it. */
 const rendered = (): ReturnType<Page['frameLocator']> => page.frameLocator('.htmlv__frame')
@@ -132,6 +153,8 @@ const edit = async (): Promise<void> => {
 
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-html-'))
+  outside = mkdtempSync(join(tmpdir(), 'orrery-outside-'))
+  writeFileSync(join(outside, 'secret.png'), PNG)
   writeFileSync(join(vault, 'page.html'), PAGE)
   writeFileSync(join(vault, 'site.css'), STYLESHEET)
   writeFileSync(join(vault, 'logo.png'), PNG)
@@ -144,6 +167,16 @@ test.beforeAll(async () => {
       "<script>document.getElementById('ran').textContent = 'SCRIPTS RAN'</script>"
   )
   writeFileSync(join(vault, 'rich.html'), RICH)
+  // Both point at `secret.png`, which genuinely exists — one by climbing out
+  // of the vault, one over the app's own asset scheme. A test where the file
+  // was simply missing would pass for the wrong reason.
+  writeFileSync(
+    join(vault, 'nosy.html'),
+    NOSY.replace('OUTSIDE_PNG', join(outside, 'secret.png').replace(/^\//, '')).replace(
+      'CLIMB_REL',
+      `../${basename(outside)}/secret.png`
+    )
+  )
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nSome prose.\n')
 
   app = await launchApp()
@@ -156,6 +189,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await closeCleanly(app, page)
   rmSync(vault, { recursive: true, force: true })
+  rmSync(outside, { recursive: true, force: true })
 })
 
 test('opens an html file as source, not as a page', async () => {
@@ -378,9 +412,77 @@ test('an in-page link scrolls instead of doing nothing', async () => {
 test('resolves a relative picture without a base element', async () => {
   await openFile('page.html')
   await read()
-  // The reader writes one `<base>`, pointing at this document, so that a bare
-  // fragment stays a fragment. Every reference that loads is made absolute
-  // instead, before the frame ever sees it.
+  // There is no `<base>`: every reference that loads is rewritten before the
+  // frame ever sees it, and the address it gets names the preview rather than
+  // a path on the disk.
   const src = await rendered().locator('#local').getAttribute('src')
-  expect(src).toMatch(/^orrery-asset:\/\//)
+  expect(src).toMatch(/^orrery-page:\/\/asset\//)
+  expect(src).not.toContain(vault)
+})
+
+test('reaches its own folder and nothing else on the disk', async () => {
+  // Each of these is a line an untrusted page can write for itself. The frame's
+  // scheme resolves a path against the one folder this page is allowed, in main,
+  // so none of them is a file — and `orrery-asset:`, which would have served any
+  // of them, is not in the frame's policy at all any more.
+  await openFile('nosy.html')
+  await read('Nosy')
+  const widthOf = async (id: string): Promise<number> =>
+    rendered()
+      .locator(`#${id}`)
+      .evaluate((img) => (img as HTMLImageElement).naturalWidth)
+
+  // The control: a picture beside the file still loads, or the rest proves
+  // nothing at all.
+  expect(await widthOf('allowed')).toBe(48)
+
+  expect(await widthOf('absolute')).toBe(0)
+  expect(await widthOf('climb')).toBe(0)
+  expect(await widthOf('asset')).toBe(0)
+})
+
+test('cannot walk out even knowing which preview it is', async () => {
+  // The page above wrote its addresses blind. This one has been allowed to run,
+  // so it can read its own URL, work out the id main knows it by, and build the
+  // scheme's own addresses correctly — which is the strongest position an
+  // untrusted document is ever in here.
+  await openFile('nosy.html')
+  await read('Nosy')
+  await runScripts()
+
+  const secret = join(outside, 'secret.png')
+  const loaded = await rendered()
+    .locator('body')
+    .evaluate(
+      async (_body, paths: string[]) => {
+        const id = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() ?? '')
+        const tryLoad = (src: string): Promise<boolean> =>
+          new Promise((resolve) => {
+            const img = new Image()
+            img.onload = () => resolve(img.naturalWidth > 0)
+            img.onerror = () => resolve(false)
+            img.src = src
+            setTimeout(() => resolve(false), 3000)
+          })
+
+        const [absolute, dots, encoded, control] = await Promise.all([
+          tryLoad(`orrery-page://asset/${id}/${paths[0]}`),
+          tryLoad(`orrery-page://asset/${id}/../../../../..${paths[1]}`),
+          tryLoad(`orrery-page://asset/${id}/%2e%2e/%2e%2e/%2e%2e/%2e%2e${paths[1]}`),
+          tryLoad(`orrery-page://asset/${id}/logo.png`)
+        ])
+        return { id, absolute, dots, encoded, control }
+      },
+      [secret.replace(/^\//, ''), secret]
+    )
+
+  // It found its id, so it was asking the right questions.
+  expect(loaded.id).not.toBe('')
+  // And the control loaded, so a refusal below is a refusal and not a scheme
+  // that stopped working.
+  expect(loaded.control).toBe(true)
+
+  expect(loaded.absolute).toBe(false)
+  expect(loaded.dots).toBe(false)
+  expect(loaded.encoded).toBe(false)
 })

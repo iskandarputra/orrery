@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildPreview } from '@core/html-document'
+import { previewRoot } from '@core/preview-asset'
 import { preparePage } from '@/editor/html-page'
 import { invoke } from '@/services/client'
 import { viewForBuffer } from '@/editor/active-view'
@@ -37,6 +38,7 @@ const REBUILD_DELAY = 250
 export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Element {
   const version = useDocVersion((v) => v[bufferId] ?? 0)
   const filePath = useStore((s) => s.buffers[bufferId]?.filePath ?? null)
+  const vaultRoot = useStore((s) => s.rootPath)
   const allowRemote = useStore((s) => !!s.htmlRemote[bufferId])
   const allowHtmlRemote = useStore((s) => s.allowHtmlRemote)
   const allowScripts = useStore((s) => !!s.htmlScripts[bufferId])
@@ -130,7 +132,11 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
     if (source === null) return
     let live = true
     void (async () => {
-      const prepared = await preparePage(source, filePath)
+      // The one folder this page may read files out of, settled here and sent
+      // with the page so that main — not the page — decides what a request for
+      // a file resolves to. See `core/preview-asset`.
+      const root = previewRoot(filePath, vaultRoot)
+      const prepared = await preparePage(source, { previewId: bufferId, docPath: filePath, root })
       if (!live) return
       const built = buildPreview(prepared.html, { allowRemote, allowScripts })
       // Handed to the main process and fetched back over a scheme of its own,
@@ -140,7 +146,8 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
       const url = await invoke('preview:put', {
         id: bufferId,
         html: built.html,
-        policy: built.policy
+        policy: built.policy,
+        root
       })
       if (!live) return
       // A fresh query each time, so the frame reloads even though the address
@@ -156,7 +163,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
     return () => {
       live = false
     }
-  }, [source, filePath, allowRemote, allowScripts, bufferId])
+  }, [source, filePath, vaultRoot, allowRemote, allowScripts, bufferId])
 
   // The page is held in the main process for as long as something is showing
   // it. Nothing should be able to fetch a document nobody is reading.

@@ -1,5 +1,5 @@
-import { resolveAssetUrl } from '@core/asset'
 import { declaresSingleDollar, findMath } from '@core/html-math'
+import { pageReferenceUrl } from '@core/preview-asset'
 import { renderMermaidToString } from './live-preview/mermaid'
 
 /**
@@ -45,6 +45,21 @@ const URL_ATTRIBUTES: Record<string, string[]> = {
   image: ['href', 'xlink:href']
 }
 
+/**
+ * What a reference in this document is allowed to resolve to.
+ *
+ * The preview id is in every address the page is given, so main can tell which
+ * page is asking; `root` is the folder that page may read from, and is the
+ * boundary itself. Both are settled once, outside, and carried in rather than
+ * worked out per reference — there is one answer per document and it should not
+ * be recomputed by anything that could get it wrong differently.
+ */
+export interface PageContext {
+  previewId: string
+  docPath: string | null
+  root: string | null
+}
+
 export interface PreparedPage {
   /** The document, ready to be served to the frame. */
   html: string
@@ -74,24 +89,27 @@ function hasScheme(url: string): boolean {
  * `html-document` takes care to avoid for remote code. Giving it `https:` is
  * what makes the offer deliver the number it names.
  */
-function referenceUrl(docPath: string | null, value: string): string | null {
+function referenceUrl(page: PageContext, value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed || trimmed.startsWith('#')) return null
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (hasScheme(trimmed)) return null
 
   // A query and a fragment are not part of the path and must not be encoded
-  // as though they were. `resolveAssetUrl` escapes what it is given segment by
-  // segment, so `icons.svg#save` handed over whole comes back pointing at a
-  // file named `icons.svg%23save` — which is how an entire sprite sheet of
-  // icons resolves to nothing. `<use href="icons.svg#save">` is the ordinary
-  // way a page carries them, so this is the common case, not the odd one.
+  // as though they were. The address is built segment by segment, so
+  // `icons.svg#save` handed over whole comes back pointing at a file named
+  // `icons.svg%23save` — which is how an entire sprite sheet of icons resolves
+  // to nothing. `<use href="icons.svg#save">` is the ordinary way a page
+  // carries them, so this is the common case, not the odd one.
   const cut = trimmed.search(/[?#]/)
   const path = cut === -1 ? trimmed : trimmed.slice(0, cut)
   const suffix = cut === -1 ? '' : trimmed.slice(cut)
   if (!path) return null
 
-  const resolved = resolveAssetUrl(docPath, path)
+  // Null when the reference points outside the folder this page may read, and
+  // the reference is then left exactly as the page wrote it — which resolves
+  // against `orrery-preview:` and fetches nothing. See `core/preview-asset`.
+  const resolved = pageReferenceUrl(page.previewId, page.docPath, page.root, path)
   return resolved === null ? null : resolved + suffix
 }
 
@@ -102,13 +120,13 @@ function referenceUrl(docPath: string | null, value: string): string | null {
  * as it was: rewriting it would turn a link into an address the frame is not
  * allowed to navigate to anyway, and a bare `#fragment` must stay a fragment.
  */
-function resolveUrls(doc: Document, docPath: string | null): void {
+function resolveUrls(doc: Document, page: PageContext): void {
   for (const [tag, attributes] of Object.entries(URL_ATTRIBUTES)) {
     for (const el of doc.querySelectorAll(tag)) {
       for (const attribute of attributes) {
         const value = el.getAttribute(attribute)
         if (!value) continue
-        const resolved = referenceUrl(docPath, value)
+        const resolved = referenceUrl(page, value)
         if (resolved) el.setAttribute(attribute, resolved)
       }
     }
@@ -120,7 +138,7 @@ function resolveUrls(doc: Document, docPath: string | null): void {
         .map((candidate) => {
           const [url, ...rest] = candidate.trim().split(/\s+/)
           if (!url) return candidate.trim()
-          const resolved = referenceUrl(docPath, url)
+          const resolved = referenceUrl(page, url)
           return [resolved ?? url, ...rest].join(' ')
         })
         .join(', ')
@@ -146,32 +164,32 @@ const CSS_IMPORT = /(@import\s+)(["'])([^"']+)\2/g
  *
  * Only the CSS the document itself carries. A stylesheet loaded from beside
  * the file needs none of this — its own URLs resolve against its own
- * `orrery-asset:` address, which is already the right folder.
+ * `orrery-page:` address, which is already the right folder.
  *
  * Rewritten values are always quoted. An encoded path keeps its brackets, and
  * a bare `url(…)` containing one ends the function early.
  */
-function rewriteCss(css: string, docPath: string | null): string {
+function rewriteCss(css: string, page: PageContext): string {
   return css
     .replace(CSS_URL, (whole, _quote: string, value: string) => {
-      const resolved = referenceUrl(docPath, value)
+      const resolved = referenceUrl(page, value)
       return resolved ? `url("${resolved}")` : whole
     })
     .replace(CSS_IMPORT, (whole, at: string, _quote: string, value: string) => {
-      const resolved = referenceUrl(docPath, value)
+      const resolved = referenceUrl(page, value)
       return resolved ? `${at}"${resolved}"` : whole
     })
 }
 
 /** Both places a document keeps its own CSS: a `<style>` block and a `style=`. */
-function resolveStyleUrls(doc: Document, docPath: string | null): void {
+function resolveStyleUrls(doc: Document, page: PageContext): void {
   for (const style of doc.querySelectorAll('style')) {
     const css = style.textContent ?? ''
-    if (css) style.textContent = rewriteCss(css, docPath)
+    if (css) style.textContent = rewriteCss(css, page)
   }
   for (const el of doc.querySelectorAll<HTMLElement>('[style]')) {
     const css = el.getAttribute('style') ?? ''
-    if (css) el.setAttribute('style', rewriteCss(css, docPath))
+    if (css) el.setAttribute('style', rewriteCss(css, page))
   }
 }
 /**
@@ -338,11 +356,11 @@ async function typesetMath(doc: Document, source: string): Promise<number> {
  * Parsed with `DOMParser` into an inert document — nothing runs and nothing
  * loads while it is being rewritten — and serialised back out afterwards.
  */
-export async function preparePage(source: string, docPath: string | null): Promise<PreparedPage> {
+export async function preparePage(source: string, page: PageContext): Promise<PreparedPage> {
   const doc = new DOMParser().parseFromString(source, 'text/html')
 
-  resolveUrls(doc, docPath)
-  resolveStyleUrls(doc, docPath)
+  resolveUrls(doc, page)
+  resolveStyleUrls(doc, page)
   stripPageBase(doc)
   const [diagrams, equations] = [await drawDiagrams(doc), await typesetMath(doc, source)]
   if (diagrams > 0) addDiagramFallback(doc)

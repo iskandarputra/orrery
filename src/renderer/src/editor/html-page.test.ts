@@ -31,13 +31,26 @@ vi.mock('./live-preview/mermaid', () => ({
 }))
 
 const { preparePage } = await import('./html-page')
+type PageContext = Parameters<typeof preparePage>[1]
 
 /** A file in a folder, so a relative reference has somewhere to resolve to. */
 const DOC = '/vault/notes/page.html'
 
+/**
+ * The page's own context: which preview it is, and the one folder it may read
+ * from. The root is the note's folder here, so `notes/` is the whole of what
+ * these references can reach — which is the point of `core/preview-asset`.
+ */
+const CONTEXT: PageContext = { previewId: 'buf-1', docPath: DOC, root: '/vault/notes' }
+const contextFor = (docPath: string | null): PageContext => ({
+  previewId: 'buf-1',
+  docPath,
+  root: docPath ? '/vault/notes' : null
+})
+
 /** The prepared document, parsed back so it can be asked questions. */
 async function prepared(source: string, docPath: string | null = DOC): Promise<Document> {
-  const { html } = await preparePage(source, docPath)
+  const { html } = await preparePage(source, contextFor(docPath))
   return new DOMParser().parseFromString(html, 'text/html')
 }
 
@@ -49,7 +62,7 @@ describe('references in markup', () => {
   it('resolves a relative one against the file’s own folder', async () => {
     const doc = await prepared('<body><img src="pics/logo.png"></body>')
     expect(doc.querySelector('img')?.getAttribute('src')).toBe(
-      'orrery-asset://local/vault/notes/pics/logo.png'
+      'orrery-page://asset/buf-1/pics/logo.png'
     )
   })
 
@@ -75,7 +88,7 @@ describe('references in markup', () => {
   it('rebuilds a srcset candidate by candidate, keeping the descriptors', async () => {
     const doc = await prepared('<body><img srcset="a.png 1x, //cdn.example/b.png 2x"></body>')
     expect(doc.querySelector('img')?.getAttribute('srcset')).toBe(
-      'orrery-asset://local/vault/notes/a.png 1x, https://cdn.example/b.png 2x'
+      'orrery-page://asset/buf-1/a.png 1x, https://cdn.example/b.png 2x'
     )
   })
 
@@ -85,10 +98,10 @@ describe('references in markup', () => {
         '<image xlink:href="photo.png"></image></svg></body>'
     )
     expect(doc.querySelector('use')?.getAttribute('href')).toBe(
-      'orrery-asset://local/vault/notes/icons.svg#save'
+      'orrery-page://asset/buf-1/icons.svg#save'
     )
     expect(doc.querySelector('image')?.getAttribute('xlink:href')).toBe(
-      'orrery-asset://local/vault/notes/photo.png'
+      'orrery-page://asset/buf-1/photo.png'
     )
   })
 
@@ -107,28 +120,28 @@ describe('references in the page’s own CSS', () => {
   it('resolves url() in a style block', async () => {
     const doc = await prepared('<head><style>body{background:url(bg.png)}</style></head>')
     expect(doc.querySelector('style')?.textContent).toBe(
-      'body{background:url("orrery-asset://local/vault/notes/bg.png")}'
+      'body{background:url("orrery-page://asset/buf-1/bg.png")}'
     )
   })
 
   it('resolves url() in a style attribute', async () => {
     const doc = await prepared('<body><div style="background: url(\'bg.png\')"></div></body>')
     expect(doc.querySelector('div')?.getAttribute('style')).toBe(
-      'background: url("orrery-asset://local/vault/notes/bg.png")'
+      'background: url("orrery-page://asset/buf-1/bg.png")'
     )
   })
 
   it('resolves an @import that names its file without url()', async () => {
     const doc = await prepared('<head><style>@import "theme.css";</style></head>')
     expect(doc.querySelector('style')?.textContent).toBe(
-      '@import "orrery-asset://local/vault/notes/theme.css";'
+      '@import "orrery-page://asset/buf-1/theme.css";'
     )
   })
 
   it('quotes what it rewrites, so a bracket in a path cannot end the url', async () => {
     const doc = await prepared('<head><style>b{background:url(my (draft).png)}</style></head>')
     const css = doc.querySelector('style')?.textContent ?? ''
-    expect(css).toContain('url("orrery-asset://local/vault/notes/my%20(draft')
+    expect(css).toContain('url("orrery-page://asset/buf-1/my%20(draft')
     expect(css.startsWith('b{background:url("')).toBe(true)
   })
 
@@ -154,7 +167,7 @@ describe('diagrams', () => {
   it('fills the block in place and stamps it the way mermaid does', async () => {
     const { html, diagrams } = await preparePage(
       '<body><pre class="mermaid">graph TD;A--&gt;B</pre></body>',
-      DOC
+      CONTEXT
     )
     expect(diagrams).toBe(1)
     const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -167,7 +180,7 @@ describe('diagrams', () => {
   })
 
   it('is drawn for the page’s own white ground, not the app’s theme', async () => {
-    await preparePage('<body><div class="mermaid">graph TD;A--&gt;B</div></body>', DOC)
+    await preparePage('<body><div class="mermaid">graph TD;A--&gt;B</div></body>', CONTEXT)
     expect(renderMermaidToString).toHaveBeenCalledWith(
       expect.stringContaining('graph TD'),
       'default'
@@ -178,7 +191,7 @@ describe('diagrams', () => {
     renderMermaidToString.mockResolvedValueOnce({ error: 'no such diagram type' })
     const { html, diagrams } = await preparePage(
       '<body><pre class="mermaid">nonsense</pre></body>',
-      DOC
+      CONTEXT
     )
     expect(diagrams).toBe(0)
     expect(html).toContain('Diagram could not be drawn: no such diagram type')
@@ -191,26 +204,26 @@ describe('maths', () => {
   it('typesets the TeX a page that asked for it carries', async () => {
     const { html, equations } = await preparePage(
       `${MATHJAX}<body><p>Einstein said \\(E = mc^2\\).</p></body>`,
-      DOC
+      CONTEXT
     )
     expect(equations).toBe(1)
     expect(html).toContain('<math')
   })
 
   it('does not go looking in a page that never asked', async () => {
-    const { html, equations } = await preparePage('<body><p>a \\(b\\) c</p></body>', DOC)
+    const { html, equations } = await preparePage('<body><p>a \\(b\\) c</p></body>', CONTEXT)
     expect(equations).toBe(0)
     expect(html).toContain('a \\(b\\) c')
   })
 
   it('leaves a price list alone when the page did not declare single dollars', async () => {
-    const { html } = await preparePage(`${MATHJAX}<body><p>it costs $5 to $10.</p></body>`, DOC)
+    const { html } = await preparePage(`${MATHJAX}<body><p>it costs $5 to $10.</p></body>`, CONTEXT)
     expect(html).toContain('it costs $5 to $10.')
     expect(html).not.toContain('<math')
   })
 
   it('leaves the source of a diagram alone', async () => {
-    const { html } = await preparePage(`${MATHJAX}<body><pre>\\(x\\)</pre></body>`, DOC)
+    const { html } = await preparePage(`${MATHJAX}<body><pre>\\(x\\)</pre></body>`, CONTEXT)
     expect(html).toContain('<pre>\\(x\\)</pre>')
   })
 
@@ -221,7 +234,7 @@ describe('maths', () => {
     // an equation put there turned the label blank.
     const { html, equations } = await preparePage(
       `${MATHJAX}<body><div class="mermaid">graph TD;A--&gt;B</div></body>`,
-      DOC
+      CONTEXT
     )
     expect(equations).toBe(0)
     expect(html).not.toContain('<math')
@@ -231,7 +244,7 @@ describe('maths', () => {
 
 describe('the document itself', () => {
   it('keeps its doctype, so it is not read in quirks mode', async () => {
-    const { html } = await preparePage('<!doctype html><html><body>x</body></html>', DOC)
+    const { html } = await preparePage('<!doctype html><html><body>x</body></html>', CONTEXT)
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
   })
 
@@ -248,10 +261,8 @@ describe('a query or a fragment on a reference', () => {
       '<body><img src="pic.png?v=2"><svg><use href="i.svg#a"/></svg></body>'
     )
     expect(doc.querySelector('img')?.getAttribute('src')).toBe(
-      'orrery-asset://local/vault/notes/pic.png?v=2'
+      'orrery-page://asset/buf-1/pic.png?v=2'
     )
-    expect(doc.querySelector('use')?.getAttribute('href')).toBe(
-      'orrery-asset://local/vault/notes/i.svg#a'
-    )
+    expect(doc.querySelector('use')?.getAttribute('href')).toBe('orrery-page://asset/buf-1/i.svg#a')
   })
 })

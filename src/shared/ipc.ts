@@ -541,7 +541,10 @@ export interface IpcInvokeContract {
    * its own Content-Security-Policy — which is the only way a page can be
    * allowed to run its own scripts without the application relaxing its own.
    */
-  'preview:put': { req: { id: string; html: string; policy: string }; res: string }
+  'preview:put': {
+    req: { id: string; html: string; policy: string; root: string | null }
+    res: string
+  }
   'preview:drop': { req: { id: string }; res: void }
   'export:pdf': { req: { title: string; markdown: string }; res: string | null }
   /** Print the rendered note; resolves false if the user cancelled. */
