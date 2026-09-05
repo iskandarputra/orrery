@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { EditorView } from '@codemirror/view'
 import { buildPreview } from '@core/html-document'
 import { previewRoot } from '@core/preview-asset'
 import { preparePage } from '@/editor/html-page'
@@ -35,6 +36,9 @@ import { EmptyState } from './PanelBits'
 /** How long after the last change before the page is rebuilt. */
 const REBUILD_DELAY = 250
 
+/** How often to look again for a pane that has not produced its editor yet. */
+const WATCH_DELAY = 500
+
 export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Element {
   const version = useDocVersion((v) => v[bufferId] ?? 0)
   const filePath = useStore((s) => s.buffers[bufferId]?.filePath ?? null)
@@ -57,28 +61,47 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
    * reading during render finds nothing. Unlike the surfaces that write back,
    * the cost of getting this wrong is only a blank page — but a blank page that
    * looks like an empty file is its own kind of wrong.
+   *
+   * Giving up after two seconds says so, and then keeps looking. A view that
+   * turns up late is a page that can still be read, and the alternative was a
+   * dead end: the message stayed until the reader was closed and opened again,
+   * because nothing ever cleared it.
    */
   useEffect(() => {
     let live = true
     let frame = 0
+    let watch: ReturnType<typeof setInterval> | null = null
+
+    const take = (view: EditorView): void => {
+      setFailed(false)
+      setSource(view.state.doc.toString())
+    }
 
     const attempt = (tries: number): void => {
       if (!live) return
       const view = viewForBuffer(bufferId)
-      if (!view) {
-        if (tries > 120) {
-          setFailed(true)
-          return
-        }
-        frame = requestAnimationFrame(() => attempt(tries + 1))
+      if (view) {
+        take(view)
         return
       }
-      setSource(view.state.doc.toString())
+      if (tries > 120) {
+        setFailed(true)
+        watch = setInterval(() => {
+          const late = live ? viewForBuffer(bufferId) : null
+          if (!late) return
+          if (watch) clearInterval(watch)
+          watch = null
+          take(late)
+        }, WATCH_DELAY)
+        return
+      }
+      frame = requestAnimationFrame(() => attempt(tries + 1))
     }
     frame = requestAnimationFrame(() => attempt(0))
     return () => {
       live = false
       cancelAnimationFrame(frame)
+      if (watch) clearInterval(watch)
     }
   }, [bufferId])
 

@@ -2,6 +2,7 @@ import path from 'node:path'
 import { BrowserWindow, shell } from 'electron'
 import type { Settings } from '@shared/settings'
 import { send } from './ipc/registry'
+import { dropAllPreviews } from './preview-protocol'
 import { PAGE_ZOOM_COMMANDS, zoomActionFor } from '@core/zoom-keys'
 
 export interface WindowManagerDeps {
@@ -96,6 +97,12 @@ export class WindowManager {
         win.show()
       }
     })
+
+    // A reload starts a new renderer with new buffer ids, so the pages the old
+    // one was showing are unreachable — and holding a document nobody is
+    // looking at is the one thing the preview store must not do. Main-frame
+    // only: the reader's own frame navigates constantly and must not clear it.
+    win.webContents.on('did-navigate', () => dropAllPreviews())
 
     // Deny all window creation and in-app navigation; open http(s) externally.
     win.webContents.setWindowOpenHandler(({ url }) => {

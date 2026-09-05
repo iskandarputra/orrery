@@ -6,6 +6,60 @@ import { revealSource } from './reveal-source'
 
 let seq = 0
 
+export type Drawn = { svg: string } | { error: string }
+
+/**
+ * One diagram at a time.
+ *
+ * `mermaid.initialize` sets the library's *global* configuration and
+ * `mermaid.render` reads it, with an await in between — so two renders in
+ * flight at once are two writes to one setting, and the second one's theme
+ * decides what the first one comes out looking like. That is not hypothetical:
+ * the HTML reader always asks for `default`, because it is drawing onto
+ * somebody else's white page, while a note asks for whatever the app is
+ * wearing. A diagram in a note next to a page being read came out white.
+ *
+ * Serialising the pair is the whole fix. Diagrams are drawn a handful at a
+ * time and the queue never gets long enough to be felt.
+ */
+let queue: Promise<unknown> = Promise.resolve()
+
+function enqueue(task: () => Promise<Drawn>): Promise<Drawn> {
+  const run = queue.then(task, task)
+  // Whatever happened, the next one still gets its turn.
+  queue = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+/**
+ * Diagrams already drawn, by the source and the theme that produced them.
+ *
+ * The HTML reader rebuilds its whole document on a debounce, so without this
+ * every diagram in a page is redrawn from scratch on every keystroke next door
+ * — mermaid parses, lays out and serialises each one, which is by far the most
+ * expensive thing that happens in a rebuild.
+ *
+ * Failures are kept too. A diagram half-typed is a parse error, and re-parsing
+ * the same broken source to be told so again is exactly as wasteful.
+ */
+const drawn = new Map<string, Drawn>()
+
+/** Enough for the diagrams in a document, small enough to stay a cache. */
+const CACHE_LIMIT = 64
+
+function remember(key: string, result: Drawn): Drawn {
+  drawn.set(key, result)
+  // Insertion-ordered, so the first key is the oldest.
+  if (drawn.size > CACHE_LIMIT) {
+    const oldest = drawn.keys().next().value
+    if (oldest !== undefined) drawn.delete(oldest)
+  }
+  return result
+}
+
 /**
  * A diagram as an SVG string, or why it could not be drawn.
  *
@@ -19,16 +73,31 @@ let seq = 0
 export async function renderMermaidToString(
   code: string,
   themeOverride?: 'dark' | 'default'
-): Promise<{ svg: string } | { error: string }> {
-  try {
-    const { default: mermaid } = await import('mermaid')
-    const dark = document.documentElement.dataset['theme']?.includes('light') !== true
-    mermaid.initialize({ startOnLoad: false, theme: themeOverride ?? (dark ? 'dark' : 'default') })
-    const { svg } = await mermaid.render(`or-mermaid-${++seq}`, code)
-    return { svg }
-  } catch (err) {
-    return { error: err instanceof Error ? (err.message.split('\n')[0] ?? 'failed') : String(err) }
-  }
+): Promise<Drawn> {
+  const dark = document.documentElement.dataset['theme']?.includes('light') !== true
+  const theme = themeOverride ?? (dark ? 'dark' : 'default')
+  // The theme is part of the key: the same diagram is a different picture in a
+  // note and on the white page the reader draws onto.
+  const key = `${theme}\u0000${code}`
+
+  const hit = drawn.get(key)
+  if (hit) return hit
+
+  return enqueue(async () => {
+    // Checked again inside the queue: several blocks of the same diagram are
+    // drawn at once, and the first one through should settle it for the rest.
+    const queued = drawn.get(key)
+    if (queued) return queued
+    try {
+      const { default: mermaid } = await import('mermaid')
+      mermaid.initialize({ startOnLoad: false, theme })
+      const { svg } = await mermaid.render(`or-mermaid-${++seq}`, code)
+      return remember(key, { svg })
+    } catch (err) {
+      const error = err instanceof Error ? (err.message.split('\n')[0] ?? 'failed') : String(err)
+      return remember(key, { error })
+    }
+  })
 }
 
 export async function renderMermaid(code: string, el: HTMLElement): Promise<void> {

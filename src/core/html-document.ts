@@ -46,6 +46,18 @@ import { extname } from './paths'
  * above.
  */
 
+/**
+ * `.xhtml` is in the list and is read as HTML, on purpose.
+ *
+ * A browser given `application/xhtml+xml` parses it as XML, which is strict:
+ * one unclosed tag anywhere and the whole document is replaced by a parser
+ * error. That is the correct thing for a page being served and the wrong thing
+ * for a reader, whose job is to show you the file you opened. The cost is that
+ * a self-closing non-void tag — `<div/>` — swallows what follows it, which XHTML
+ * 1.0's own compatibility guidelines tell authors not to write for exactly this
+ * reason. Being forgiving is the trade; do not "fix" it into strictness without
+ * deciding that a parser error is a better answer than an imperfect page.
+ */
 const HTML_EXTENSIONS = new Set(['.html', '.htm', '.xhtml'])
 
 /** Files the reader can render, rather than only edit. */

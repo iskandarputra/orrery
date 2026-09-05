@@ -62,6 +62,18 @@ export function dropPreview(id: string): void {
 }
 
 /**
+ * The renderer went away, so every page it was showing did too.
+ *
+ * Buffer ids die with the window that made them, and a page nobody is looking
+ * at is exactly what this must not keep — a reload used to leave the whole set
+ * behind, readable for as long as the app ran, under ids the new renderer
+ * would never ask for and could not clear.
+ */
+export function dropAllPreviews(): void {
+  pages.clear()
+}
+
+/**
  * Must run before app `ready`.
  *
  * `standard` so the URL parses into an origin the frame can be given, and
