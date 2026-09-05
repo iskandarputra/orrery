@@ -25,8 +25,10 @@ import { EmptyState } from './PanelBits'
  *
  * What it is allowed to render, and why an untrusted document can be rendered
  * at all, is set out in `core/html-document`. The two things this file must get
- * right are on the iframe below: an empty `sandbox`, and a `srcdoc` that came
- * from `buildPreview`.
+ * right are on the iframe below: a `sandbox` that never gains a token beyond
+ * `allow-scripts`, and an address that came from `preview:put` — so the page
+ * is fetched as a document of its own, under the policy `buildPreview` built
+ * for it. See `main/preview-protocol`.
  */
 
 /** How long after the last change before the page is rebuilt. */
@@ -81,9 +83,15 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
   /**
    * Follow the document: an edit in a split pane, an undo, a reload from disk.
    *
-   * Debounced, because handing an iframe a new `srcdoc` reloads it from the
-   * top. Rebuilding on the keystroke would put the reader back at the top of
-   * the page for every character typed next door.
+   * Debounced, because a rebuilt page is a fresh address and the frame loads
+   * it from the top. Rebuilding on the keystroke would put the reader back at
+   * the top of the page for every character typed next door.
+   *
+   * It only makes that rarer, it does not fix it: a rebuild still loses the
+   * reader's place. Keeping it would mean telling the frame where to scroll
+   * back to, and the frame is an opaque origin this process cannot speak to —
+   * which is the same property that makes showing the page safe at all. So the
+   * cost is real and it is the one being paid on purpose.
    */
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -213,14 +221,17 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           <button
             className="htmlv__action"
             onClick={() => allowHtmlRemote(bufferId)}
-            title="Fetch the pictures this page links to from the internet"
+            title="Fetch the pictures, stylesheets and webfonts this page links to from the internet. Its own code is never fetched, whatever else is allowed."
           >
             <Icon name="image" size={12} />
             Load {page.remoteCount} remote {page.remoteCount === 1 ? 'item' : 'items'}
           </button>
         )}
         {allowRemote && (
-          <span className="htmlv__note" title="This page may fetch pictures from the internet">
+          <span
+            className="htmlv__note"
+            title="This page may fetch pictures, stylesheets and webfonts from the internet"
+          >
             <Icon name="image" size={12} />
             Remote content loaded
           </span>
@@ -242,16 +253,17 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
         <iframe
           className="htmlv__frame"
           title="Page preview"
-          // The boundary. An empty sandbox is an opaque origin with no
+          // The boundary. A sandbox with no tokens is an opaque origin with no
           // scripting, no forms, no downloads and no way to navigate the window
-          // around it — every token that would give any of that back is a token
-          // this attribute must never gain. `srcdoc` keeps the document a
-          // string this process built rather than a URL something else can
-          // point somewhere; the policy it carries is `buildPreview`'s.
-          // The boundary. `allow-scripts` is the only token ever added, and
-          // never alongside `allow-same-origin`: together they would let the
-          // page reach out of its own opaque origin, which is the whole of
-          // what keeps it contained. Without scripting there is not even that.
+          // around it. `allow-scripts` is the only token ever added, and never
+          // alongside `allow-same-origin`: together they would let the page
+          // reach out of its own opaque origin, which is the whole of what
+          // keeps it contained. Without scripting there is not even that.
+          //
+          // The address is one `preview:put` returned, so the document is
+          // fetched rather than inlined and arrives under its own policy —
+          // the reason a page can be allowed to run its own code without the
+          // application relaxing the policy it holds itself to.
           sandbox={allowScripts ? 'allow-scripts' : ''}
           referrerPolicy="no-referrer"
           src={page.url}

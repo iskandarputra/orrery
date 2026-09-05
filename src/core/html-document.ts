@@ -102,9 +102,12 @@ const SCRIPT_TAG = /<script[\s>]/i
  * being listed. `orrery-asset:` is the app's own read-only view of the disk,
  * which is how a file's own stylesheet and pictures reach it.
  *
- * This is not the only policy the frame is under. A `srcdoc` document inherits
- * the CSP of the page embedding it, and the two intersect, so a directive here
- * can only narrow what the app's own policy already allows.
+ * This is the whole of the policy the frame is under, and it was not always so.
+ * A `srcdoc` document inherits the CSP of the page embedding it and the two
+ * intersect, so every directive here could only narrow what `renderer/index.html`
+ * already allowed. Serving the page over a scheme of its own ended that
+ * inheritance — see `main/preview-protocol`. Widening something here is now a
+ * decision about one document rather than about the application.
  */
 function contentPolicy(options: PreviewOptions): string {
   const { allowRemote, allowScripts } = options
@@ -145,12 +148,21 @@ function contentPolicy(options: PreviewOptions): string {
     `media-src data: orrery-asset:${remote}`,
     `style-src 'unsafe-inline' orrery-asset:${remote}`,
     `font-src data: orrery-asset:${remote}`,
-    // No `base-uri`, deliberately. The reader needs a `<base>` of its own — it
-    // is the only way a bare `#fragment` resolves to this document rather than
-    // to the page embedding it — and a policy tight enough to forbid the
-    // page's would forbid that one too. The guarantee moved instead to the
-    // rewrite that builds this document: it parses the whole thing, removes
-    // every base element the page brought, and adds exactly one.
+    /**
+     * Nothing may repoint what a reference means.
+     *
+     * This was left out while the reader wrote a `<base>` of its own, which
+     * was then the only way a bare `#fragment` resolved to the document rather
+     * than to the page embedding it — and a policy tight enough to forbid the
+     * page's base would have forbidden that one too. Serving the page from its
+     * own URL made the reader's base unnecessary and it was removed, so the
+     * directive costs nothing now.
+     *
+     * `stripPageBase` already takes every base element out of the document.
+     * This is the same guarantee for a page that has been allowed to run, and
+     * could otherwise write one at runtime.
+     */
+    "base-uri 'none'",
 
     "form-action 'none'"
   ]

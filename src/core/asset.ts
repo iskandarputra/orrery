@@ -64,18 +64,3 @@ function assetUrl(abs: string): string {
     .join('/')
   return `orrery-asset://local/${encoded.replace(/^\//, '')}`
 }
-
-/**
- * The URL of the directory a file sits in, with the trailing slash a `<base>`
- * needs.
- *
- * Without the slash a base of `…/local/notes/page.html` resolves `logo.png` to
- * `…/local/notes/logo.png` only by accident of the last segment looking like a
- * file; `…/local/notes/` says what is meant. Returns null for a document with
- * nowhere on disk to be relative to — an untitled buffer has no directory, and
- * guessing one would point every relative link at the wrong place.
- */
-export function assetDirectoryUrl(docPath: string | null): string | null {
-  if (!docPath) return null
-  return `${assetUrl(normalize(dirname(docPath)))}/`
-}

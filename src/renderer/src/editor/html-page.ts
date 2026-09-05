@@ -46,7 +46,7 @@ const URL_ATTRIBUTES: Record<string, string[]> = {
 }
 
 export interface PreparedPage {
-  /** The document, ready for `srcdoc`. */
+  /** The document, ready to be served to the frame. */
   html: string
   /** Diagrams drawn out of their source, for the reader to say so. */
   diagrams: number

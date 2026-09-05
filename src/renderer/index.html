@@ -4,13 +4,17 @@
     <meta charset="UTF-8" />
     <title>Orrery</title>
     <!--
-      `orrery-asset:` is the app's read-only view of the disk. It appears in
-      style-src and font-src for the HTML reader: a page rendered in the
-      sandboxed frame inherits this policy as well as its own, and the two
-      intersect, so a stylesheet or a webfont sitting next to the file being
-      read cannot load unless it is allowed *here* too. Nothing in the app's own
-      document loads that way — a note cannot produce a `<link>` or a `<style>`;
-      `core/html-policy` does not allow either tag.
+      This is the application's own policy and nothing else's. It used to be
+      the HTML reader's as well: a `srcdoc` frame inherits the CSP of the page
+      embedding it, so a stylesheet or a webfont sitting next to a file being
+      read could not load unless it was allowed *here* too, and style-src and
+      font-src carried `orrery-asset:` for that reason alone. A page fetched
+      over `orrery-preview:` inherits nothing, so those two are gone again and
+      the app is back to loading its styles and fonts from itself. What the
+      reader may load is decided in `core/html-document`, per document.
+
+      `orrery-asset:` stays in img-src and connect-src, where the app's own
+      surfaces use it: a picture in a note, a PDF read straight off the disk.
 
       `frame-src` names exactly one scheme, and it has to. The HTML reader shows
       a page by navigating a frame to `orrery-preview:`, which main serves from
@@ -22,7 +26,7 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' orrery-asset:; img-src 'self' data: https: orrery-asset:; font-src 'self' data: orrery-asset:; connect-src 'self' ws://localhost:* orrery-asset:; frame-src orrery-preview:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: orrery-asset:; font-src 'self' data:; connect-src 'self' ws://localhost:* orrery-asset:; frame-src orrery-preview:"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>

@@ -45,6 +45,19 @@ describe('the policy the document is read under', () => {
     expect(policyOf()).not.toContain('https:')
   })
 
+  it('lets nothing repoint what a reference means, at any setting', () => {
+    // `stripPageBase` takes the page's own base elements out of the document.
+    // This is the same guarantee for a page that has been allowed to run and
+    // could otherwise write one at runtime.
+    for (const opts of [{}, { allowRemote: true }, { allowScripts: true }]) {
+      expect(policyOf(opts)).toContain("base-uri 'none'")
+    }
+  })
+
+  it('lets a page submit nothing, anywhere', () => {
+    expect(policyOf({ allowScripts: true })).toContain("form-action 'none'")
+  })
+
   it('opens everything a page needs to look like itself', () => {
     // Pictures, and the stylesheet and webfont that decide what the words look
     // like. A document that arrives in the wrong typeface because its font was
