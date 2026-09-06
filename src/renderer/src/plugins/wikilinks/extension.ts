@@ -23,6 +23,8 @@ export interface WikilinkHost {
   openTarget(target: string, anchor?: string | null): void
   /** Every file in the vault, so `[[paper.pdf]]` resolves to one. */
   getFileIndex(): readonly { path: string; stem: string }[]
+  /** The file the links are written in, which decides between two of a name. */
+  getFromPath(): string
 }
 
 const concealDeco = Decoration.replace({})
@@ -68,10 +70,11 @@ function wikilinkDecorations(host: WikilinkHost, reveal: boolean): Extension {
             // drawing — and resolves against the file index instead. Without
             // this, `[[paper.pdf]]` draws as a broken link to a note nobody
             // meant, and clicking it would offer to create `paper.pdf.md`.
+            const from = host.getFromPath()
             const resolved =
-              resolveNote(index, link.target) !== null ||
+              resolveNote(index, link.target, from) !== null ||
               (/\.[a-z0-9]+$/i.test(link.target) &&
-                resolveFile(host.getFileIndex(), link.target) !== null)
+                resolveFile(host.getFileIndex(), link.target, from) !== null)
             const cls = `cm-or-wikilink${resolved ? '' : ' cm-or-wikilink--missing'}`
             // `[[paper.pdf#page=12]]` names a place in a document, not only a
             // document, and the click handler cannot ask the parser again.

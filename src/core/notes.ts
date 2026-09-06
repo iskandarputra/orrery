@@ -1,4 +1,5 @@
 import type { FileNode } from '@shared/types'
+import { resolve } from './link-resolution'
 import { basename, isMarkdownFile, stem } from './paths'
 
 export interface NoteRef {
@@ -68,15 +69,57 @@ export function filesFromPaths(paths: readonly string[]): NoteRef[] {
  *
  * Separate from `resolveNote` because the two are asked different questions.
  * `[[Ideas]]` means the note called Ideas; `[[paper.pdf]]` names a file, and
- * treating that as a note would offer to create `paper.pdf.md`.
+ * treating that as a note would offer to create `paper.pdf.md`. Both share
+ * `pick`, which matches on `stem` directly: what tells the two functions
+ * apart is not the matching logic but the index each is handed. This one is
+ * given `buildFileIndex`'s output, whose `stem` keeps the extension, so
+ * `paper.pdf` is itself a whole name to match.
+ *
+ * `fromPath` is the file the link is written in, and it is required rather than
+ * optional: it is what decides between two files of the same name, and a
+ * default would quietly give a different answer here than the graph gives.
  */
-export function resolveFile(index: readonly NoteRef[], target: string): NoteRef | null {
-  const needle = target.trim().toLowerCase()
-  return index.find((f) => f.stem.toLowerCase() === needle) ?? null
+export function resolveFile(
+  index: readonly NoteRef[],
+  target: string,
+  fromPath: string
+): NoteRef | null {
+  return pick(index, target, fromPath)
 }
 
-/** Resolve a wikilink target to a note (case-insensitive stem match). */
-export function resolveNote(index: readonly NoteRef[], target: string): NoteRef | null {
+/**
+ * Resolve a wikilink target to a note (case-insensitive stem match).
+ *
+ * Given `buildNoteIndex`'s output, whose `stem` has no extension, so a link
+ * matches by title rather than by file name.
+ */
+export function resolveNote(
+  index: readonly NoteRef[],
+  target: string,
+  fromPath: string
+): NoteRef | null {
+  return pick(index, target, fromPath)
+}
+
+/**
+ * The one place both resolvers pick among same-name matches.
+ *
+ * A vault holding two `Store.md` used to be answered by `Array.find`, so the
+ * result was whichever the directory walk reached first: reverse the walk and
+ * the same link opened a different file. Ranking through the shared arbiter
+ * makes the answer depend on `fromPath`, not on read order.
+ */
+function pick(index: readonly NoteRef[], target: string, fromPath: string): NoteRef | null {
   const needle = target.trim().toLowerCase()
-  return index.find((n) => n.stem.toLowerCase() === needle) ?? null
+  const matches = index.filter((ref) => ref.stem.toLowerCase() === needle)
+  const found = resolve(
+    fromPath,
+    matches.map((ref) => ref.path),
+    {
+      tieBreak: 'nearest',
+      whenEmpty: { status: 'missing', at: target }
+    }
+  )
+  if (found.status !== 'resolved') return null
+  return matches.find((ref) => ref.path === found.to) ?? null
 }

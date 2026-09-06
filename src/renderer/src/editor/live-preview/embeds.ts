@@ -2,10 +2,11 @@ import { StateField, type EditorState, type Extension, type Range } from '@codem
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { EditorView as EditorViewType } from '@codemirror/view'
 import { resolveAssetUrl } from '@core/asset'
-import { resolveFile } from '@core/notes'
+import { resolveFile, resolveNote } from '@core/notes'
 import { extractSection } from '@core/section'
 import { findWikilinks } from '@core/wikilinks'
 import { mountPreview } from '@/editor/preview-view'
+import { activeFilePath } from '@/state/app-state'
 import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
 import { revealSource } from './reveal-source'
@@ -34,10 +35,15 @@ const mounted = new WeakMap<HTMLElement, EditorViewType>()
  */
 const discarded = new WeakSet<HTMLElement>()
 
+/**
+ * A thin wrapper rather than an inlined call: `![[Store]]` and `[[Store]]`
+ * must pick the same file out of two `Store.md`, and that only holds if both
+ * go through `resolveNote` with the same `fromPath` instead of each keeping
+ * its own lookup.
+ */
 function resolveNotePath(target: string): string | null {
-  const { noteIndex } = appState()
-  const wanted = target.trim().toLowerCase()
-  return noteIndex.find((note) => note.stem.toLowerCase() === wanted)?.path ?? null
+  const state = appState()
+  return resolveNote(state.noteIndex, target, activeFilePath(state))?.path ?? null
 }
 
 /**
@@ -61,7 +67,8 @@ const EMBEDDABLE_IMAGE = /\.(png|jpe?g|gif|webp|bmp|avif|ico|svg)$/i
  */
 function showImage(target: string, el: HTMLElement): boolean {
   if (!EMBEDDABLE_IMAGE.test(target.trim())) return false
-  const found = resolveFile(appState().fileIndex, target)
+  const state = appState()
+  const found = resolveFile(state.fileIndex, target, activeFilePath(state))
   const url = found ? resolveAssetUrl(null, found.path) : null
   if (!url) {
     el.classList.add('cm-or-embed--missing')
@@ -128,7 +135,7 @@ async function loadEmbed(target: string, heading: string | null, el: HTMLElement
   // Rendered, not raw: an embed showing markdown source beside rendered text
   // reads as broken. Same renderer as the editor itself.
   const shown = body.length > MAX_EMBED_CHARS ? `${body.slice(0, MAX_EMBED_CHARS)}…` : body
-  const preview = mountPreview(content, shown || '_(empty note)_')
+  const preview = mountPreview(content, shown || '_(empty note)_', path)
   // The field rebuilds on every document change, so the view it replaces has
   // to go with it or each keystroke leaks an editor.
   mounted.set(el, preview)

@@ -3,6 +3,7 @@ import { hoverTooltip, type EditorView, type Tooltip } from '@codemirror/view'
 import { resolveNote } from '@core/notes'
 import { findWikilinks } from '@core/wikilinks'
 import { invoke } from '@/services/client'
+import { activeFilePath } from '@/state/app-state'
 import { appState } from '@/state/app-state-access'
 import { mountPreview } from './preview-view'
 
@@ -36,7 +37,8 @@ export function linkPreview(): Extension {
       const target = linkAt(view, pos)
       if (!target) return null
 
-      const note = resolveNote(appState().noteIndex, target)
+      const state = appState()
+      const note = resolveNote(state.noteIndex, target, activeFilePath(state))
       // A link to a note that does not exist has nothing to preview, and the
       // dashed styling already says so.
       if (!note) return null
@@ -65,7 +67,7 @@ export function linkPreview(): Extension {
           dom.append(body)
 
           const shown = content.length > MAX_CHARS ? `${content.slice(0, MAX_CHARS)}\n\n…` : content
-          const preview = mountPreview(body, shown)
+          const preview = mountPreview(body, shown, note.path)
 
           // Destroyed with the tooltip: a preview per hover, left mounted, is a
           // detached editor per link the pointer crossed on its way somewhere.
