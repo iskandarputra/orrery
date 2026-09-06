@@ -103,6 +103,16 @@ const NOSY = `<!doctype html>
 </body></html>
 `
 
+/** Tall enough to scroll, with one remote picture so the offer appears. */
+const LONG = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Long</title></head><body>
+<h1>Long</h1>
+<img id="remote" src="https://example.invalid/tracker.png" alt="remote">
+<div style="height:3000px">a great deal of page</div>
+<p id="foot">the end</p>
+</body></html>
+`
+
 let app: ElectronApplication
 let page: Page
 let vault: string
@@ -167,6 +177,7 @@ test.beforeAll(async () => {
       "<script>document.getElementById('ran').textContent = 'SCRIPTS RAN'</script>"
   )
   writeFileSync(join(vault, 'rich.html'), RICH)
+  writeFileSync(join(vault, 'long.html'), LONG)
   // Both point at `secret.png`, which genuinely exists — one by climbing out
   // of the vault, one over the app's own asset scheme. A test where the file
   // was simply missing would pass for the wrong reason.
@@ -485,4 +496,39 @@ test('cannot walk out even knowing which preview it is', async () => {
   expect(loaded.absolute).toBe(false)
   expect(loaded.dots).toBe(false)
   expect(loaded.encoded).toBe(false)
+})
+
+test('keeps your place when the page is rebuilt', async () => {
+  // The reason the app puts a script of its own into the frame. A rebuild used
+  // to be a navigation, which puts a document back at the top — so scrolling
+  // down, noticing a picture that did not load and asking for it threw you back
+  // to the start, which is the worst possible moment for it.
+  await openFile('long.html')
+  await read('Long')
+  const frame = rendered()
+
+  await frame.locator('body').evaluate(() => window.scrollTo(0, 900))
+  await expect.poll(() => frame.locator('body').evaluate(() => window.scrollY)).toBeGreaterThan(800)
+
+  await page.locator('.htmlv__action', { hasText: /Load 1 remote/ }).click()
+  await expect(page.locator('.htmlv__note', { hasText: 'Remote content loaded' })).toBeVisible({
+    timeout: 15_000
+  })
+  await page.waitForTimeout(600)
+
+  // The page was rebuilt — and the reader did not move.
+  await expect(frame.locator('#foot')).toHaveText('the end')
+  // 0 without the patch path, 900 with it.
+  expect(await frame.locator('body').evaluate(() => window.scrollY)).toBeGreaterThan(800)
+})
+
+test('the page still runs nothing of its own, with the reader in there', async () => {
+  // The frame carries `allow-scripts` unconditionally now, so this is the only
+  // thing standing between an untrusted document and its own code: a policy
+  // naming one file. It is worth checking against a page that tries.
+  await openFile('untouched.html')
+  await read('Untouched')
+  await expect(rendered().locator('#ran')).toHaveText('scripts did not run')
+  await page.waitForTimeout(600)
+  await expect(rendered().locator('#ran')).toHaveText('scripts did not run')
 })

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { buildPreview } from '@core/html-document'
 import { previewRoot } from '@core/preview-asset'
+import { READY, UPDATE } from '@core/preview-reader'
 import { preparePage } from '@/editor/html-page'
 import { invoke } from '@/services/client'
 import { viewForBuffer } from '@/editor/active-view'
@@ -53,6 +54,9 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
   const [source, setSource] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const frameRef = useRef<HTMLIFrameElement>(null)
+  /** The app's own script in the frame has said it is listening. */
+  const readyRef = useRef(false)
 
   /**
    * Read the document once the pane has an editor holding it.
@@ -186,8 +190,41 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
         root
       })
       if (!live) return
+
+      /**
+       * Patch the page the frame is already showing, rather than reloading it.
+       *
+       * A reload is a navigation and puts the reader back at the top, which is
+       * what made editing an HTML file beside its preview unusable. The app's
+       * own script is in there listening; handing it the new document lets it
+       * swap the head and body and put the scroll back. See
+       * `core/preview-reader`.
+       *
+       * Only when the page's own code is *not* running. A page that has been
+       * allowed to run is supposed to run again on a rebuild, and a patched
+       * document does not re-execute anything — so that case still reloads,
+       * and still loses its place, which is the honest behaviour for it.
+       */
+      const frame = frameRef.current
+      if (!allowScripts && readyRef.current && frame?.contentWindow) {
+        frame.contentWindow.postMessage({ type: UPDATE, html: built.html }, '*')
+        setPage((current) =>
+          current
+            ? {
+                ...current,
+                hasScripts: built.hasScripts,
+                remoteCount: built.remoteCount,
+                diagrams: prepared.diagrams,
+                equations: prepared.equations
+              }
+            : current
+        )
+        return
+      }
+
       // A fresh query each time, so the frame reloads even though the address
       // has not changed — the same buffer keeps the same id for its lifetime.
+      readyRef.current = false
       setPage({
         url: `${url}?v=${Date.now()}`,
         hasScripts: built.hasScripts,
@@ -200,6 +237,22 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
       live = false
     }
   }, [source, filePath, vaultRoot, allowRemote, allowScripts, bufferId])
+
+  /**
+   * The frame's own reader, saying it is listening.
+   *
+   * Identity, not origin: the frame is an opaque origin and reports itself as
+   * `null`, which any other frame could too. The window it came from is the
+   * only thing that distinguishes it.
+   */
+  useEffect(() => {
+    const onMessage = (event: MessageEvent): void => {
+      if (event.source !== frameRef.current?.contentWindow) return
+      if ((event.data as { type?: string } | null)?.type === READY) readyRef.current = true
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
 
   // The page is held in the main process for as long as something is showing
   // it. Nothing should be able to fetch a document nobody is reading.
@@ -294,20 +347,28 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
         <EmptyState icon="file-text">Opening the page…</EmptyState>
       ) : (
         <iframe
+          ref={frameRef}
           className="htmlv__frame"
           title="Page preview"
-          // The boundary. A sandbox with no tokens is an opaque origin with no
-          // scripting, no forms, no downloads and no way to navigate the window
-          // around it. `allow-scripts` is the only token ever added, and never
-          // alongside `allow-same-origin`: together they would let the page
-          // reach out of its own opaque origin, which is the whole of what
-          // keeps it contained. Without scripting there is not even that.
+          // The boundary, and the one line here that must never be got wrong:
+          // `allow-scripts` without `allow-same-origin`. Together they would
+          // let the page reach out of its own opaque origin, which is the whole
+          // of what keeps it contained — no access to the app, its storage, its
+          // bridge or its cookies. No other token is ever added.
+          //
+          // `allow-scripts` is unconditional now, because the app's own reader
+          // script has to run whether or not the page's does. Whether the
+          // *page's* code runs is decided by `script-src` alone: with the offer
+          // untaken the policy names one file, `core/preview-reader`, and
+          // nothing the document contains is a script source. That is one lock
+          // where there used to be two, on a door the other lock still holds —
+          // set out at length in `core/preview-reader`.
           //
           // The address is one `preview:put` returned, so the document is
           // fetched rather than inlined and arrives under its own policy —
           // the reason a page can be allowed to run its own code without the
           // application relaxing the policy it holds itself to.
-          sandbox={allowScripts ? 'allow-scripts' : ''}
+          sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           src={page.url}
         />

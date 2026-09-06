@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
 import { PAGE_SCHEME, parsePageAssetUrl, resolveUnderRoot } from '@core/preview-asset'
+import { READER_FILE, READER_HOST, READER_SCRIPT, readerScriptUrl } from '@core/preview-reader'
 
 export const PREVIEW_SCHEME = 'orrery-preview'
 
@@ -93,12 +94,47 @@ export function registerPreviewScheme(): void {
   ])
 }
 
+/**
+ * The app's own script, added to every page as it is served.
+ *
+ * Here rather than in the renderer's rewrite for two reasons. The counting in
+ * `buildPreview` reads the document for `<script`, and a tag the app added
+ * would make every page in the world report that it has scripts. And a page
+ * cannot be served without it: there is one place that answers for this scheme,
+ * so there is one place the reader can go missing from.
+ *
+ * Appended at the very end. An HTML parser moves a trailing script into the
+ * body, and running last is what this wants anyway.
+ */
+function withReader(html: string): string {
+  return `${html}\n<script src="${readerScriptUrl(PREVIEW_SCHEME)}"></script>\n`
+}
+
 /** After ready: answer with the page the renderer put there, and its policy. */
 export function handlePreviewProtocol(): void {
   protocol.handle(PREVIEW_SCHEME, (request) => {
+    let url: URL
+    try {
+      url = new URL(request.url)
+    } catch {
+      return new Response('Bad request', { status: 400 })
+    }
+
+    // Two branches on the host, and nothing else answers. The reader's script
+    // is not a page, and must not be reachable by asking for one.
+    if (url.host === READER_HOST) {
+      if (url.pathname !== READER_FILE) return new Response('Not found', { status: 404 })
+      return new Response(READER_SCRIPT, {
+        headers: {
+          'Content-Type': 'text/javascript; charset=utf-8',
+          'Cache-Control': 'no-store'
+        }
+      })
+    }
+
     let id: string
     try {
-      id = decodeURIComponent(new URL(request.url).pathname.replace(/^\//, ''))
+      id = decodeURIComponent(url.pathname.replace(/^\//, ''))
     } catch {
       return new Response('Bad request', { status: 400 })
     }
@@ -106,7 +142,7 @@ export function handlePreviewProtocol(): void {
     const page = pages.get(id)
     if (!page) return new Response('No page', { status: 404 })
 
-    return new Response(page.html, {
+    return new Response(withReader(page.html), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': page.policy,

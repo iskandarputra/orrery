@@ -1,4 +1,5 @@
 import { extname } from './paths'
+import { readerScriptUrl } from './preview-reader'
 
 /**
  * What the reader shows when the document being read is itself HTML.
@@ -64,6 +65,9 @@ const HTML_EXTENSIONS = new Set(['.html', '.htm', '.xhtml'])
 export function isHtmlFile(p: string): boolean {
   return HTML_EXTENSIONS.has(extname(p).toLowerCase())
 }
+
+/** The scheme the page itself is served from; also where its reader lives. */
+const PREVIEW_SCHEME = 'orrery-preview'
 
 export interface PreviewOptions {
   /** Whether the reader has been told to fetch this file's remote references. */
@@ -164,7 +168,16 @@ function contentPolicy(options: PreviewOptions): string {
      * an opaque origin with no `allow-same-origin`, so the page cannot reach
      * the application around it, its storage, or anything it did not bring.
      */
-    allowScripts ? "script-src 'unsafe-inline' orrery-page:" : '',
+    /**
+     * Exactly one script when the page's own code has not been asked for, and
+     * that one is the app's: `core/preview-reader`, which keeps the reader's
+     * place across a rebuild. Naming the file rather than the scheme matters —
+     * `orrery-preview:` alone would admit any other document in the preview
+     * store as a script source.
+     */
+    allowScripts
+      ? `script-src 'unsafe-inline' orrery-page: ${readerScriptUrl(PREVIEW_SCHEME)}`
+      : `script-src ${readerScriptUrl(PREVIEW_SCHEME)}`,
     `img-src data: orrery-page:${remote}`,
     `media-src data: orrery-page:${remote}`,
     `style-src 'unsafe-inline' orrery-page:${remote}`,

@@ -28,10 +28,18 @@ describe('the policy the document is read under', () => {
     expect(policyOf()).toContain("default-src 'none'")
   })
 
-  it('grants no scripts at all by default', () => {
-    // Not a narrower script-src — none at all, so `default-src 'none'` answers
-    // for it and anything added to the web platform later is refused too.
-    expect(policyOf()).not.toMatch(/script-src/)
+  it('grants the page no script of its own, and the app exactly one', () => {
+    // It used to grant none at all. The reader's own script has to run — it is
+    // what keeps your place when the page is rebuilt — so the policy now names
+    // one file, by its whole URL rather than by its scheme: `orrery-preview:`
+    // alone would admit any other document in the preview store as a script.
+    const policy = policyOf()
+    expect(policy).toContain('script-src orrery-preview://reader/reader.js;')
+    // The page's own code is refused by this and nothing else, now that the
+    // frame carries `allow-scripts` unconditionally. Both halves matter.
+    expect(policy).not.toContain("'unsafe-inline'; ")
+    expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+    expect(policy).not.toMatch(/script-src[^;]*orrery-page:/)
   })
 
   it('lets a file reach its own folder for styles, pictures and fonts', () => {
@@ -46,6 +54,14 @@ describe('the policy the document is read under', () => {
 
   it('keeps the network out until it is asked for', () => {
     expect(policyOf()).not.toContain('https:')
+  })
+
+  it('never names the preview scheme as a whole, only the one file in it', () => {
+    // `script-src orrery-preview:` would let a page load another buffer's
+    // document as a script. The path is the point.
+    for (const opts of [{}, { allowScripts: true }, { allowRemote: true }]) {
+      expect(policyOf(opts)).not.toMatch(/script-src[^;]*orrery-preview:(?!\/\/reader)/)
+    }
   })
 
   it('lets nothing repoint what a reference means, at any setting', () => {
@@ -73,12 +89,18 @@ describe('the policy the document is read under', () => {
   })
 
   it('still does not open it to code', () => {
-    // The one thing remote content never covers, at any setting.
-    expect(policyOf({ allowRemote: true })).not.toMatch(/script-src/)
+    // The one thing remote content never covers, at any setting: the page's
+    // own scripts stay refused, and no remote source is ever a script source.
+    const policy = policyOf({ allowRemote: true })
+    expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+    expect(policy).not.toMatch(/script-src[^;]*https:/)
   })
 
   it('runs the page’s own scripts only when asked', () => {
-    expect(policyOf({ allowScripts: true })).toContain("script-src 'unsafe-inline' orrery-page:")
+    const policy = policyOf({ allowScripts: true })
+    expect(policy).toMatch(/script-src 'unsafe-inline' orrery-page:/)
+    // And the reader stays, so the offer does not cost the page its script.
+    expect(policy).toContain('orrery-preview://reader/reader.js')
   })
 
   it('never runs code fetched from the internet, whatever else is allowed', () => {
@@ -86,7 +108,7 @@ describe('the policy the document is read under', () => {
     // file. Fetching *code* hands them the inside of the page you are reading.
     // The second is not offered, and asking for both must not conjure it.
     const policy = policyOf({ allowScripts: true, allowRemote: true })
-    expect(policy).toContain("script-src 'unsafe-inline' orrery-page:;")
+    expect(policy).toMatch(/script-src 'unsafe-inline' orrery-page:/)
     expect(policy).not.toMatch(/script-src[^;]*https:/)
   })
 
