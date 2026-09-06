@@ -82,8 +82,12 @@ export function resolve(
   options: { tieBreak: TieBreak; whenEmpty: Resolution }
 ): Resolution {
   if (candidates.length === 0) return options.whenEmpty
+  // The overwhelmingly common case, checked before ranking rather than after:
+  // one candidate needs no comparator, and `rankCandidates` would still spread
+  // and sort a one-element array to find that out. Tens of thousands of these
+  // run per graph build, one per link, and almost none of them are ambiguous.
+  if (candidates.length === 1) return { status: 'resolved', to: candidates[0]!, ambiguous: false }
   const ranked = rankCandidates(fromPath, candidates)
-  if (ranked.length === 1) return { status: 'resolved', to: ranked[0]!, ambiguous: false }
   if (options.tieBreak === 'refuse') return { status: 'ambiguous', candidates: ranked }
   return { status: 'resolved', to: ranked[0]!, ambiguous: true }
 }
