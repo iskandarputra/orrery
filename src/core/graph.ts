@@ -41,13 +41,22 @@ function stemOfPath(path: string): string {
  * `findWikilinks` reports character offsets and a backlinks panel needs lines.
  * Counting newlines per link would rescan the file once per link; a file with
  * 200 links would read itself 200 times.
+ *
+ * Built lazily, on the first offset actually asked for, rather than up front:
+ * `buildGraph` calls this for every file, and a source file's imports already
+ * carry their own line from `findImports` and never call the function back.
+ * A vault with more code than notes was building a newline-position array,
+ * one allocation per file, that a code-heavy majority of them never indexed.
  */
 function lineIndex(content: string): (offset: number) => number {
-  const starts: number[] = [0]
-  for (let at = content.indexOf('\n'); at !== -1; at = content.indexOf('\n', at + 1)) {
-    starts.push(at + 1)
-  }
+  let starts: number[] | null = null
   return (offset) => {
+    if (!starts) {
+      starts = [0]
+      for (let at = content.indexOf('\n'); at !== -1; at = content.indexOf('\n', at + 1)) {
+        starts.push(at + 1)
+      }
+    }
     let low = 0
     let high = starts.length - 1
     while (low < high) {
