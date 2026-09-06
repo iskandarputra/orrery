@@ -65,6 +65,13 @@ export interface GraphEdge {
   to: string
   /** `link` is a wikilink between notes; `import` is one file requiring another. */
   kind: 'link' | 'import'
+  /**
+   * True when more than one file could have been meant and one was picked.
+   *
+   * Worth carrying rather than recomputing: the panel showing a backlink is a
+   * long way from the index that knew there were two candidates.
+   */
+  ambiguous: boolean
 }
 
 /** The raw link graph, before analysis. */

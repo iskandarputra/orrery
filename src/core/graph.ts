@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode, LinkGraph } from '@shared/types'
 import { findImports, importsFamily, indexImports, resolveImport } from './code-links'
+import { resolve } from './link-resolution'
 import { dirname } from './paths'
 import { findTags } from './tags'
 import { findWikilinks } from './wikilinks'
@@ -41,8 +42,16 @@ function folderOf(filePath: string, rootPath: string): string {
  * the vault is read once; `analyzeGraph` adds the structural measures.
  */
 export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
-  const byStem = new Map<string, string>()
-  for (const f of files) byStem.set(f.stem.toLowerCase(), f.path)
+  // Every file carrying a stem, not the last one seen. A plain `Map.set` in
+  // this loop left whichever file the walk reached last, which is how the map
+  // came to draw an edge to a different Store.md than a click would open.
+  const byStem = new Map<string, string[]>()
+  for (const f of files) {
+    const key = f.stem.toLowerCase()
+    const bucket = byStem.get(key)
+    if (bucket) bucket.push(f.path)
+    else byStem.set(key, [f.path])
+  }
 
   const nodes = new Map<string, GraphNode>()
   for (const f of files) {
@@ -63,9 +72,14 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   const seen = new Set<string>()
   for (const f of files) {
     for (const link of findWikilinks(f.content)) {
-      const targetPath = byStem.get(link.target.toLowerCase())
-      const to = targetPath ?? `ghost:${link.target.toLowerCase()}`
-      if (!targetPath && !nodes.has(to)) {
+      const found = resolve(f.path, byStem.get(link.target.toLowerCase()) ?? [], {
+        tieBreak: 'nearest',
+        whenEmpty: { status: 'missing', at: link.target }
+      })
+      // A wikilink to nothing is a note somebody intends to write, and the
+      // editor already offers to create it on click, so the graph keeps it.
+      const to = found.status === 'resolved' ? found.to : `ghost:${link.target.toLowerCase()}`
+      if (found.status !== 'resolved' && !nodes.has(to)) {
         // A linked-but-missing note: no file, so no words, folder or mtime.
         nodes.set(to, {
           id: to,
@@ -83,7 +97,12 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ from: f.path, to, kind: 'link' })
+      edges.push({
+        from: f.path,
+        to,
+        kind: 'link',
+        ambiguous: found.status === 'resolved' && found.ambiguous
+      })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
     }
@@ -104,7 +123,7 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ from: f.path, to, kind: 'import' })
+      edges.push({ from: f.path, to, kind: 'import', ambiguous: false })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
     }

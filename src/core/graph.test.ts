@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGraph, type GraphFile } from './graph'
+import { resolveNote } from './notes'
 
 const files = [
   { path: '/v/A.md', stem: 'A', content: 'links [[B]] and [[Ghost]] and [[B]] again' },
@@ -78,8 +79,8 @@ describe('code in the graph', () => {
     const graph = buildGraph(mixed, '/v')
     const imports = graph.edges.filter((edge) => edge.kind === 'import')
     expect(imports).toEqual([
-      { from: '/v/src/app.ts', to: '/v/src/pane.ts', kind: 'import' },
-      { from: '/v/src/pane.ts', to: '/v/src/style.css', kind: 'import' }
+      { from: '/v/src/app.ts', to: '/v/src/pane.ts', kind: 'import', ambiguous: false },
+      { from: '/v/src/pane.ts', to: '/v/src/style.css', kind: 'import', ambiguous: false }
     ])
   })
 
@@ -106,7 +107,8 @@ describe('code in the graph', () => {
     expect(graph.edges).toContainEqual({
       from: '/v/notes/Editor.md',
       to: '/v/src/pane.ts',
-      kind: 'link'
+      kind: 'link',
+      ambiguous: false
     })
   })
 
@@ -157,5 +159,57 @@ describe('a repository-sized vault', () => {
     expect(g.edges.filter((e) => e.kind === 'import')).toHaveLength(8000)
     expect(elapsed).toBeLessThan(10_000)
     console.log(`  buildGraph: 4000 files / ${g.edges.length} edges in ${Math.round(elapsed)}ms`)
+  })
+})
+
+describe('two files with the same name', () => {
+  // The archive copy comes second on purpose. The old index was a Map filled in
+  // walk order, so last-wins landed on whichever came last, and with projects
+  // last it agreed with the right answer by accident and the test below could
+  // not fail. Ordered this way, last-wins picks archive and nearest picks
+  // projects, which is the difference the test is there to see.
+  const duplicates: GraphFile[] = [
+    { path: '/v/projects/Store.md', stem: 'Store', content: '' },
+    { path: '/v/archive/Store.md', stem: 'Store', content: '' },
+    { path: '/v/projects/Plan.md', stem: 'Plan', content: 'see [[Store]]' }
+  ]
+
+  it('draws the edge to the file a click would open', () => {
+    // The bug in one assertion. buildGraph kept the last stem match and
+    // resolveNote took the first, so this link opened /v/archive/Store.md
+    // while the map drew an edge to /v/projects/Store.md.
+    const graph = buildGraph(duplicates, '/v')
+    const drawn = graph.edges.find((e) => e.from === '/v/projects/Plan.md')!.to
+    const opened = resolveNote(
+      duplicates.map((f) => ({ path: f.path, stem: f.stem })),
+      'Store',
+      '/v/projects/Plan.md'
+    )!.path
+    expect(drawn).toBe(opened)
+    expect(drawn).toBe('/v/projects/Store.md')
+  })
+
+  it('gives the same edge whichever order the walk found the files', () => {
+    const forwards = buildGraph(duplicates, '/v').edges.find((e) => e.kind === 'link')!.to
+    const backwards = buildGraph([...duplicates].reverse(), '/v').edges.find(
+      (e) => e.kind === 'link'
+    )!.to
+    expect(backwards).toBe(forwards)
+  })
+
+  it('marks the edge as a choice between candidates', () => {
+    const edge = buildGraph(duplicates, '/v').edges.find((e) => e.kind === 'link')!
+    expect(edge.ambiguous).toBe(true)
+  })
+
+  it('leaves an unambiguous edge unmarked', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: '[[B]]' },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges[0]!.ambiguous).toBe(false)
   })
 })
