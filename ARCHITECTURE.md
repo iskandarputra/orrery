@@ -19,7 +19,7 @@ Nothing points back up the list. `main` and `renderer` never import each other.
 They meet at `shared/ipc.ts`, the only description of what may cross.
 
 **`src/core` is the important one.** It runs in a bare Node process, so its
-tests need no Electron, no browser and no build step: 61 modules, one test
+tests need no Electron, no browser and no build step: 68 modules, one test
 file each, and the whole suite is seconds. That is why logic belongs there
 and not in a component or a store.
 
@@ -44,7 +44,7 @@ over a plain value and it goes in `core/`. `core/tab-layout.ts` is the worked
 example: it came out of a `set()` callback where none of its rules could be
 tested.
 
-## Two seams worth knowing
+## Seams worth knowing
 
 **`state/app-state-access.ts`.** Editor extensions, menus and note commands need
 application state, and the store loads them, so importing `store.ts` from there
@@ -58,6 +58,18 @@ the model. Main sends `mcp:ask`, the renderer answers on `mcp:answer`, and the
 pending promise settles. Every path settles, and every path that is not an
 explicit yes settles as no: no window, no answer in time, the window closing, an
 answer arriving late.
+
+**`main/preview-protocol.ts`.** The HTML reader shows a document nobody
+vouched for, and gets two schemes for it rather than sharing the app's.
+`orrery-preview://` serves the page itself, so its Content-Security-Policy is a
+response header on a document of its own. A `srcdoc` frame inherits the
+embedding page's policy and can only ever be narrower, which made "run this
+page's scripts" impossible without loosening the whole app. `orrery-page://`
+serves the files that page may load, addressed by preview id and a path inside
+that preview's root, so main decides what a request resolves to rather than
+taking the document's word. Where the line falls is pure and tested in
+`core/preview-asset.ts`; that it holds in a browser is tested in
+`e2e/html-reader.spec.ts`.
 
 **`plugins/api.ts`.** Commands, editor extensions, and whole document surfaces
 are contributed through `PluginContext`. A surface claims files by name and

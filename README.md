@@ -24,10 +24,11 @@ shows you git diffs, and gives you a shell in the same window.
 to treat links between documents as text. Orrery does both jobs, because in
 practice a folder of notes and a folder of code are the same folder.
 
-**Why you might not.** It is eight days old: version 0.1.0, one developer,
+**Why you might not.** It is two weeks old: version 0.1.0, one developer,
 Linux packages only. The parts that could lose your work are covered by atomic
-writes, conflict detection on save, and 1,331 unit and 397 end-to-end tests. Everything else is early software that has been used in anger by exactly
-one person. Keep your vault in git, which you should be doing anyway, and which
+writes, conflict detection on save, and 1,495 unit and 434 end-to-end tests.
+Everything else is early software that has been used in anger by exactly one
+person. Keep your vault in git, which you should be doing anyway, and which
 Orrery will now help you with.
 
 ## Writing
@@ -114,7 +115,7 @@ this folder. Colour by "Notes or code" to tell them apart, or switch code off in
 the graph's own settings.
 
 `Ctrl+P` opens any note by fuzzy name, `Ctrl+Shift+R` reopens something you had
-open before, and `Ctrl+Shift+P` runs any of 70 commands. In the same box, `:`
+open before, and `Ctrl+Shift+P` runs any of 75 commands. In the same box, `:`
 jumps to a line and `@` jumps to a heading or a declaration inside the file you
 are looking at. Prompts from connected MCP servers are in there too, since a
 prompt is a command someone else wrote. Two of those commands are for when you
@@ -134,7 +135,9 @@ and the tabs, panes, column widths and side panel come back that way whenever
 you ask for it.
 
 `Ctrl +` and `Ctrl -` zoom the whole interface in Chromium's 1.2x steps, `Ctrl
-0` puts it back, and the level is remembered across a restart.
+0` puts it back, and the level is remembered across a restart. Add `Shift` and
+only the document scales, leaving the sidebar and tabs where they are. The
+editor, a diff, a table, a database and a rendered page all follow it.
 
 ## Code, git and a terminal
 
@@ -182,19 +185,35 @@ Excalidraw canvas and save in Excalidraw's own format, so a board made here
 opens on excalidraw.com and one made there opens here.
 
 **Web pages, read or edited.** A `.html` file opens as source, highlighted, and
-the **Read** switch in the header renders it — `Ctrl+Shift+V`, or **View → View
-Mode → Toggle HTML Preview**. It renders what is in the buffer rather than what
-is on disk, so an edit shows without a save, and switching back finds the same
+the **Read** switch in the header renders it, with `Ctrl+Shift+V` or **View →
+View Mode → Toggle HTML Preview**. It renders what is in the buffer rather
+than what is on disk, so an edit shows without a save, and switching back finds the same
 document with its cursor and undo history intact. Reading is remembered per
 file: turning it on for one page does not change how the next one opens, and it
 does not touch the view mode notes use.
 
 The page is somebody else's document, so it is treated as one. It renders in a
-sandboxed frame with no scripting, no forms and nowhere to navigate, under a
-policy that starts by refusing everything: its own stylesheet, pictures and
-fonts load from the folder beside it, and nothing loads from the internet until
-you press the button that says how many things are waiting. Scripts do not run,
-and the bar says so rather than letting you wonder.
+sandboxed frame under a policy that starts by refusing everything, and each
+thing it might want is a decision you make rather than one already made for
+you.
+
+Its own stylesheet, pictures and fonts load from the folder the file sits in,
+and only from there, over a scheme that resolves a path against that one folder
+in the main process, so a page asking for `~/.ssh/id_rsa` gets nothing. Nothing
+loads from the internet until you press the button that says how many things
+are waiting. The page's own code does not run until you press the other one,
+and the bar says so rather than letting you wonder. Code fetched from the
+internet never runs, at any setting: loading a picture from someone's server
+tells them you opened their file, and running their code hands them the page
+you are reading, which is not the same decision.
+
+Two things it draws that a browser would need the page's scripts for: a
+` ```mermaid ` block becomes a diagram and TeX becomes typeset maths, both
+rendered by Orrery from the page's own source. The bar counts them.
+
+It is not a browser and does not pretend to be, so there is a **Browser**
+button that hands the file to yours. What you lose on the way there is listed
+in [SECURITY.md](SECURITY.md).
 
 **Tables and databases.** A `.csv` opens as a grid you can sort, filter, resize
 and rearrange by dragging, edited in place. Sorting and filtering never touch
@@ -220,15 +239,15 @@ opens at that page, and a selection becomes a quotation in a note beside the
 paper with a link back. Scanned pages can be recognised on your machine.
 
 You can also change one. Highlight, draw, type, sign and fill a form; rearrange,
-remove, turn and extract pages; put a picture on a page; or edit the page itself
-— click a line and retype it in the document's own font, drag it somewhere else,
+remove, turn and extract pages; put a picture on a page; or edit the page
+itself: click a line and retype it in the document's own font, drag it somewhere else,
 resize it, turn it about its own middle, write a new line where there was none,
 or take something out of the file rather than covering it. `Ctrl+Z` takes back anything on that list,
 including a rearrangement.
 
 Two limits are stated plainly rather than discovered: there is no paragraph
-reflow, and a font that never contained a character probably cannot draw it —
-the editor says so before you commit, and takes a second `Enter` as your answer.
+reflow, and a font that never contained a character probably cannot draw it.
+The editor says so before you commit, and takes a second `Enter` as your answer.
 Full details in [docs/pdf.md](docs/pdf.md).
 
 ## MCP, both ways
@@ -355,7 +374,7 @@ keystroke. Every IPC channel is declared once and validated with zod at the
 boundary. Saves go through a temporary file and check the mtime first, so a
 write cannot silently discard a change made outside the editor. A note you have
 written but not yet given a file is kept in the application's data folder and
-comes back with the app, so quitting is never a decision about it — the question
+comes back with the app, so quitting is never a decision about it. The question
 is asked when you close the note, not when you close Orrery.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the longer version: what the layers are,

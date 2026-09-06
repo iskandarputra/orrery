@@ -13,7 +13,7 @@ the muscle memory arriving from elsewhere expects it there too.
 
 The left sidebar gains a second view. The rail down the far edge grows a branch
 icon beside the folder icon, and clicking it swaps the sidebar from the file
-tree to source control — the branch bar, the commit box, the staged and
+tree to source control: the branch bar, the commit box, the staged and
 unstaged lists, and the graph, all as they are today. Clicking the icon of the
 view already showing hides the sidebar, which is what the folder icon has
 always done.
@@ -27,16 +27,16 @@ control gets a title strip carrying its refresh and its list/tree toggle.
 
 ## Structure
 
-`Sidebar.tsx` is 188 lines and does two jobs: it is the shell — the `aside`, its
-width, the resize handle — and it is the file tree's header. Only the first job
+`Sidebar.tsx` is 188 lines and does two jobs: it is the shell (the `aside`, its
+width, the resize handle), and it is the file tree's header. Only the first job
 is about the sidebar, and a second view makes the confusion expensive, so the
 two separate:
 
-- **`Sidebar`** — the shell. The `aside`, the width, the resizer, and a switch
+- **`Sidebar`**: the shell. The `aside`, the width, the resizer, and a switch
   on which view to render. Nothing about files.
-- **`FilesView`** — today's header, the filter, `FileTree`, and the
+- **`FilesView`**: today's header, the filter, `FileTree`, and the
   empty-workspace state, moved wholesale.
-- **`SourceControlPanel`** — unchanged in substance, plus a title strip. The
+- **`SourceControlPanel`**: unchanged in substance, plus a title strip. The
   refresh and list/tree buttons move out of its branch bar and into that strip.
 
 Each view renders its own header and its own scroll container, because the
@@ -53,7 +53,7 @@ One new store action, `showSidebarView(view)`: switch to the view and reveal the
 sidebar, or hide the sidebar if that view is the one already showing. Hiding
 leaves `view` where it was, so reopening returns to what was last being read.
 
-Both rail icons route through it — the folder icon included, which today calls
+Both rail icons route through it, the folder icon included, which today calls
 `toggleSidebar` directly. That matters: with two views, a folder icon that only
 toggles visibility would hide the sidebar when someone on source control was
 asking for the file tree.
@@ -69,7 +69,7 @@ door into source control.
 
 ## Retiring the stored `'git'`
 
-`'git'` is a value in `sidePanelSchema`, which is persisted twice — as
+`'git'` is a value in `sidePanelSchema`, which is persisted twice: as
 `rightPanel.panel`, and as `sidePanel` inside every saved workspace. Removing it
 from the enum is not a free edit.
 
@@ -77,15 +77,15 @@ from the enum is not a free edit.
 back to `defaultSettings` if it fails. There is no migration step; the comment
 in `settings.ts` that says to "bump `schemaVersion` and add a migration in
 SettingsStore" describes a facility that was never built. So a naive removal
-means anyone whose panel was left on Git opens the app to _every_ setting reset
-— their theme, their vault list, their MCP servers.
+means anyone whose panel was left on Git opens the app to _every_ setting reset:
+their theme, their vault list, their MCP servers.
 
 Three of these were checked against zod 4.4.3 rather than assumed:
 
 - Removing a value from the enum fails the whole document, not the one field.
 - `.catch(null)` on that field alone rescues the rest of the document.
 - Changing `schemaVersion: z.literal(1)` to `z.literal(2)` rejects every file
-  that already exists — following the comment's advice would itself be the
+  that already exists. Following the comment's advice would itself be the
   reset it was meant to prevent.
 
 So:
@@ -103,26 +103,26 @@ So:
 
 This is deliberately not a migration framework. It is one removed string, and
 the tolerant field is proportionate to it. The second time a value is retired,
-build the versioned migration the comment imagines — and do it before the
+build the versioned migration the comment imagines, and do it before the
 removal, not during.
 
 ## Tests
 
-- **`settings-store.test.ts`** — a `settings.json` holding
+- **`settings-store.test.ts`**: a `settings.json` holding
   `rightPanel.panel: "git"` loads, an unrelated `theme: "dark"` in the same file
   survives, and the panel reads back `null`. This is the regression the whole
   section above exists for, so it is written first and watched to fail.
-- **`Sidebar` / `SidebarRail`** — the branch icon switches the view; clicking the
+- **`Sidebar` / `SidebarRail`**: the branch icon switches the view; clicking the
   icon of the visible view hides the sidebar; the view survives a reload from
   settings.
-- **e2e** — all four specs reach source control through the `view.toggleGit`
+- **e2e**: all four specs reach source control through the `view.toggleGit`
   command rather than the right-hand tab. That made them look unaffected, and
   two of them were not:
 
   - `ui-audit.spec.ts` returned from source control with
     `runCommand('view.toggleOutline')`, on the assumption that opening git had
     displaced the right-hand panel. It no longer does, so the toggle closed an
-    outline that was already open — and the surface left the sidebar on source
+    outline that was already open, and the surface left the sidebar on source
     control, which the next theme's first surface filters as a file tree. Both
     steps become "leave this showing" helpers rather than toggles.
   - `right-panel.spec.ts` asserts the right-hand rail holds eleven tabs. Ten,

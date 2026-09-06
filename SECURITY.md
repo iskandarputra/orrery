@@ -2,7 +2,7 @@
 
 Orrery is a desktop application that opens a folder you point it at. It reads
 and writes files in that folder, runs `git`, offers a terminal, and can talk to
-MCP servers you configure. Those are the features, not the vulnerabilities — but
+MCP servers you configure. Those are the features, not the vulnerabilities, but
 they are also the whole attack surface, so it is worth being precise about which
 parts are meant to be trusted and which are not.
 
@@ -46,6 +46,36 @@ from anywhere, so what is _inside_ a file is never allowed to act:
   `enableXfa: false`). Forms still fill in; only their scripting is absent.
 - Local files reach the renderer over a read-only `orrery-asset://` protocol
   rather than by disabling `webSecurity`.
+
+### Reading an HTML file
+
+Rendering a whole HTML document from a folder you cloned or were sent is the
+one place Orrery deliberately displays untrusted markup as markup, so the terms
+are worth stating.
+
+- **The page is a separate document, not part of the app.** It is fetched over
+  `orrery-preview://` into an iframe whose `sandbox` never gains
+  `allow-same-origin`. It is an opaque origin: no access to the app's DOM,
+  storage, cookies or preload bridge. An end-to-end test drives a page at all
+  of those and checks each one is refused.
+- **Its own code does not run until you ask.** The frame carries
+  `allow-scripts` unconditionally, because Orrery puts one script of its own in
+  there, and it keeps your scroll position when the page is rebuilt. What
+  decides whether the _page's_ code runs is the Content-Security-Policy, which
+  by default names that one file by its whole URL and nothing else. This is one
+  gate where there used to be two, and the trade is written up in
+  `src/core/preview-reader.ts`.
+- **Remote code never runs**, at any setting, even after you allow remote
+  content. `script-src` is never given a network source.
+- **No network from the page at all**: there is no `connect-src`, so `fetch`,
+  `XMLHttpRequest` and WebSockets are refused whatever else is allowed.
+- **The disk is one folder.** A page's pictures and stylesheet load over
+  `orrery-page://`, whose addresses name the preview and a path _inside that
+  preview's root_, never a path on disk. Main holds the root: the folder the
+  file sits in, or the vault when the file is in it. A page naming an absolute
+  path, or climbing out with `..`, gets a 404 indistinguishable from a missing
+  file.
+- Forms, downloads, popups, navigation and nested frames are all refused.
 
 **Trusted by your decision: MCP servers, and the terminal.** An MCP server you
 add is a program you have chosen to run, and tool calls that reach outside the

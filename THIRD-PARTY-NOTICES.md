@@ -45,10 +45,10 @@ The marks the file tree draws for each language, folder and file type come from
 the [Material Icon Theme](https://github.com/PKief/vscode-material-icon-theme),
 pinned to v5.38.1. Orrery drew its own before: nine stroke glyphs and a colour
 per language, which meant Python, C, C++, Rust and TypeScript were the same
-picture in five shades — in a tree of siblings, a list of identical files.
+picture in five shades: in a tree of siblings, a list of identical files.
 
-Only the icons the app actually names are vendored — 76 of the 904 upstream,
-about 34 kB — by [`scripts/sync-file-icons.mjs`](scripts/sync-file-icons.mjs).
+Only the icons the app actually names are vendored, 76 of the 904 upstream and
+about 34 kB, by [`scripts/sync-file-icons.mjs`](scripts/sync-file-icons.mjs).
 They are committed to the repository, so a build never reaches the network.
 
 | Set                 | Licence | Copyright                |
@@ -87,11 +87,11 @@ anybody can rely on.
 
 | Component                                    | Licence                              | What it does                             |
 | -------------------------------------------- | ------------------------------------ | ---------------------------------------- |
-| `pdfjs-dist` (PDF.js)                        | Apache-2.0 — Mozilla Foundation      | Draws pages, and reads their text        |
-| — its character maps and standard fonts      | Apache-2.0, and Adobe's CMap licence | CJK encodings, the fourteen base fonts   |
+| `pdfjs-dist` (PDF.js)                        | Apache-2.0, Mozilla Foundation       | Draws pages, and reads their text        |
+| `pdfjs-dist` CMaps and standard fonts        | Apache-2.0, and Adobe's CMap licence | CJK encodings, the fourteen base fonts   |
 | PDFium, through `@embedpdf/pdfium`           | BSD-3-Clause (wrapper MIT)           | Rearranges pages and edits their objects |
 | `tesseract.js`, `tesseract.js-core`          | Apache-2.0                           | Recognises text on scanned pages         |
-| `eng.traineddata` (`@tesseract.js-data/eng`) | Apache-2.0 — Google, tessdata        | The English training data                |
+| `eng.traineddata` (`@tesseract.js-data/eng`) | Apache-2.0, Google tessdata          | The English training data                |
 
 PDFium carries Google's and Foxit's copyright notices in
 `node_modules/@embedpdf/pdfium`; PDF.js ships its Apache licence beside the

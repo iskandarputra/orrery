@@ -1,7 +1,7 @@
 # PDFs in Orrery
 
 A PDF opens as a document, not as a wall of bytes: pages you can read, text you
-can select and search, marks you can make, and — when you need it — the words on
+can select and search, marks you can make, and, when you need it, the words on
 the page themselves.
 
 ## Reading
@@ -14,7 +14,7 @@ long as the app is running.
 The text is real text: select it, copy it, search it with the toolbar's find,
 which reports how many matches there are and marks them on the page.
 
-Turning the pages turns them for looking at, not on disk — the page organiser
+Turning the pages turns them for looking at, not on disk. The page organiser
 does the permanent kind. The turn is remembered along with the page and the
 zoom, and it survives an edit: handing the viewer a rewritten document would
 otherwise spring the pages upright underneath you.
@@ -28,7 +28,8 @@ This is what makes a PDF part of a knowledge base rather than a file beside one.
   is extracted once and cached, so searching a folder of papers is not a folder
   of papers being parsed again.
 - **Links can point at a page.** `[[paper.pdf#page=12]]` opens the document
-  there — the same `#page=` fragment every PDF viewer and browser understands.
+  there, using the same `#page=` fragment every PDF viewer and browser
+  understands.
   `[[paper.pdf]]` on its own opens the file.
 - **Quote to a note.** Select something and press the quote button: it becomes a
   blockquote in a note named after the paper, beside it, with a link back to the
@@ -46,21 +47,21 @@ is on, in reading order.
 
 **Image** sits beside them but is not one of them: it puts a real picture into
 the page, not an annotation on top of it. Pick a file and it lands in the middle
-of the page you are on — and the page editor opens with it, already holding the
+of the page you are on, and the page editor opens with it, already holding the
 picture, so its handles are there to drag, resize and turn straight away. Every
 reader draws it, because it is part of the document rather than a note attached
 to one.
 
-Saving writes an _incremental update_ — the original bytes are kept and the new
-objects appended — so what lands on disk is the document you were sent plus what
+Saving writes an _incremental update_: the original bytes are kept and the new
+objects appended, so what lands on disk is the document you were sent plus what
 you added, and any other PDF reader can open both. Ctrl+S saves, the tab carries
 a dirty dot, and closing an unsaved document asks first.
 
 ## Nothing is written until you save it
 
-Every change described below — marking up, filling a form, rearranging pages,
-and editing the page itself — changes the document Orrery is showing you, not
-the file. Ctrl+S is what writes, the tab carries a dirty dot until it does, and
+Every change described below, whether marking up, filling a form, rearranging
+pages or editing the page itself, changes the document Orrery is showing you,
+not the file. Ctrl+S is what writes, the tab carries a dirty dot until it does, and
 closing without saving throws the changes away and leaves the file as it was.
 
 This is worth stating plainly because it did not used to be true of one half of
@@ -78,7 +79,7 @@ see, unsaved changes included.
 ## Undo
 
 Ctrl+Z takes back the last change, Ctrl+Shift+Z makes it again, and the toolbar
-has both. It covers everything that changes the document — retyping, moving,
+has both. It covers everything that changes the document: retyping, moving,
 removing, adding, and rearranging pages.
 
 A PDF's undo cannot be a stack of edits held in memory, because the engine
@@ -88,7 +89,7 @@ per document, and no more than 256 MB of them, because a scanned document
 reaches the second limit long before the first. Closing the tab throws them
 away.
 
-Stepping back changes the document, not the file — taking back a change that was
+Stepping back changes the document, not the file. Taking back a change that was
 never written is not a reason to write one. Undoing past your last save leaves
 the tab with something to save again, which is exactly what it has.
 
@@ -96,8 +97,8 @@ the tab with something to save again, which is exactly what it has.
 
 The **Pages** tab is a page organiser. Select pages and turn, move, remove or
 extract them, drag a thumbnail to reorder it, or add another document's pages to
-the end of this one. **Apply** carries the arrangement out on the document —
-Ctrl+S is still what writes it — and **Undo** puts the arrangement back.
+the end of this one. **Apply** carries the arrangement out on the document
+(Ctrl+S is still what writes it), and **Undo** puts the arrangement back.
 Extracting writes a new file beside the original and never overwrites an
 existing one.
 
@@ -108,8 +109,8 @@ a document and changing it. Every line on the page gets a box; click one to
 retype it in the document's own font at its own position, or to remove it from
 the file.
 
-A line, not a character. Most PDFs position every glyph separately for kerning —
-one page of a real letter of offer held 4,662 text objects, one letter each — so
+A line, not a character. Most PDFs position every glyph separately for kerning.
+One page of a real letter of offer held 4,662 text objects, one letter each, so
 the characters are put back into lines before anything is shown. Retyping a line
 replaces the run: the words are laid out by the font's own advances rather than
 by the producer's per-character nudges, so a heavily kerned line may shift
@@ -118,24 +119,24 @@ slightly as it is rewritten.
 Two limits are worth knowing before you rely on this, and the editor will tell
 you about the second one itself:
 
-- **There is no reflow.** A PDF has no paragraphs — only instructions to draw
+- **There is no reflow.** A PDF has no paragraphs, only instructions to draw
   text at particular places. A longer line runs on past where the old one ended
   rather than pushing what follows down the page. Acrobat papers over this with
   heuristics and still gets it wrong; Orrery does not pretend to.
 - **A font may not have the glyph.** Most documents embed only the characters
   they use, so typing one the document has never drawn may draw nothing at all.
   The editor checks what you type against everything the document says, names
-  the characters it doubts, and takes a second Enter as your answer — because
+  the characters it doubts, and takes a second Enter as your answer, because
   the font may well have them.
 
-**Dragging** an object moves it — the same glyphs or picture, somewhere else on
+**Dragging** an object moves it: the same glyphs or picture, somewhere else on
 the page. A picked object grows a handle at its corner, which resizes it in
 place, and one above it, which turns it about its own middle; hold Shift while
 turning to move in fifteen-degree steps. All three work on a page you have
 turned: the boxes are placed on the page as drawn rather than as stored, so what
 you click is what you get whichever way up it is.
 
-Turning applies to anything on the page, a line of text included — the engine
+Turning applies to anything on the page, a line of text included. The engine
 has no notion of an object's current angle, only of a matrix applied to it, so
 every turn is relative to wherever the thing already sits. **Double-clicking empty space** starts a new line of text, written in
 Helvetica because a document's own fonts usually hold only the characters
@@ -175,7 +176,7 @@ second opinion about what that transform is.
 
 That module exists because rotation and object editing were built without
 knowing about each other. Turned a quarter, the drawn page's width is the page's
-_height_ — so the scale was measured against the wrong side and every box was
+_height_, so the scale was measured against the wrong side and every box was
 placed along the wrong axis. Since a click picks whatever box is under it,
 clicking a word retyped a different one. Worth remembering as the shape of the
 next bug in this area: a PDF editor's failures are usually silent and land in
@@ -183,6 +184,6 @@ somebody's document.
 
 The engines and their data are copied beside `index.html` by
 `scripts/sync-assets.mjs`, and the packaged application leaves the original
-packages out of the archive — see the `files` list in `electron-builder.yml`,
+packages out of the archive. See the `files` list in `electron-builder.yml`,
 and `e2e/packaged-pdf.spec.ts`, which opens, recognises and rearranges a PDF in
 the packaged build because that is the only place getting it wrong shows up.

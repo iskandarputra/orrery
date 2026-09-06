@@ -42,13 +42,22 @@ coverage. When you fix something, break the fix and watch the test go red before
 you believe it. Several bugs here were found exactly that way, and one test that
 "passed" turned out to be checking a CSS class that never existed.
 
+The trap is usually a test that is green for a reason other than the one you
+had in mind. `core/preview-reader.test.ts` says how a whole file of them got
+written: jsdom delivers `postMessage` with `event.source` set to `null`, the
+script under test identifies its caller by that source, so every "it ignores
+X" case passed without a single rejection being exercised. The case that caught
+it was the one asserting the positive, that a real message _is_ acted on. If
+your test only checks that something does not happen, write the one that checks
+it does.
+
 New UI needs a `Surface` in `e2e/ui-audit.spec.ts` in the same change. It
 measures contrast and pointer-target size across all 28 themes, and surfaces
 added later tend to be surfaces that were never measured.
 
 ## Formatting
 
-`npm run format` — the whole tree is Prettier-clean, and `npm run format:check`
+`npm run format`. The whole tree is Prettier-clean, and `npm run format:check`
 runs in CI, so a change that is not formatted fails there rather than in review.
 
 This advice used to be the opposite: run Prettier only on files you created,
