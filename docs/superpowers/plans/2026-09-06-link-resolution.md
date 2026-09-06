@@ -14,7 +14,7 @@
 
 - **No em dashes** in code comments, commit messages, docs or interface copy. Use a colon, a full stop, a comma or brackets.
 - Plain British English. No filler ("comprehensive", "robust", "seamless", "leverage"). No "not just X but Y".
-- Comments say *why*, and especially why the obvious thing is wrong. The diff already says what changed.
+- Comments say _why_, and especially why the obvious thing is wrong. The diff already says what changed.
 - `src/core/` must not import Electron, the DOM, or CodeMirror. `src/architecture.test.ts` enforces this and will fail if you do.
 - Commits: conventional prefix, lowercase subject, scope where obvious (`feat(graph)`, `fix(links)`).
 - The gate for every task is `./orrery.sh check` (lint, typecheck, unit tests). `npm run lint` fails on a single warning.
@@ -28,10 +28,12 @@
 ### Task 1: The arbiter
 
 **Files:**
+
 - Create: `src/core/link-resolution.ts`
 - Test: `src/core/link-resolution.test.ts`
 
 **Interfaces:**
+
 - Consumes: `dirname` from `src/core/paths.ts`.
 - Produces: `type Resolution`, `type TieBreak`, `rankCandidates(fromPath: string, candidates: readonly string[]): string[]`, `resolve(fromPath: string, candidates: readonly string[], options: { tieBreak: TieBreak; whenEmpty: Resolution }): Resolution`. Tasks 2, 3 and 4 all import from here.
 
@@ -52,9 +54,7 @@ describe('rankCandidates', () => {
   it('falls back to the nearest shared folder, then the shallowest path', () => {
     const ranked = rankCandidates('/v/a/b/A.md', ['/v/z/store.md', '/v/a/store.md'])
     expect(ranked[0]).toBe('/v/a/store.md')
-    expect(rankCandidates('/v/A.md', ['/v/x/y/store.md', '/v/x/store.md'])[0]).toBe(
-      '/v/x/store.md'
-    )
+    expect(rankCandidates('/v/A.md', ['/v/x/y/store.md', '/v/x/store.md'])[0]).toBe('/v/x/store.md')
   })
 
   it('orders totally, so the input order cannot change the answer', () => {
@@ -72,7 +72,12 @@ describe('rankCandidates', () => {
 
 describe('resolve', () => {
   it('hands back the only candidate without calling it ambiguous', () => {
-    expect(resolve('/v/A.md', ['/v/B.md'], { tieBreak: 'nearest', whenEmpty: { status: 'missing', at: 'B' } })).toEqual({
+    expect(
+      resolve('/v/A.md', ['/v/B.md'], {
+        tieBreak: 'nearest',
+        whenEmpty: { status: 'missing', at: 'B' }
+      })
+    ).toEqual({
       status: 'resolved',
       to: '/v/B.md',
       ambiguous: false
@@ -98,7 +103,10 @@ describe('resolve', () => {
 
   it('returns the caller’s own answer for no candidates at all', () => {
     expect(
-      resolve('/v/A.md', [], { tieBreak: 'nearest', whenEmpty: { status: 'missing', at: 'Nowhere' } })
+      resolve('/v/A.md', [], {
+        tieBreak: 'nearest',
+        whenEmpty: { status: 'missing', at: 'Nowhere' }
+      })
     ).toEqual({ status: 'missing', at: 'Nowhere' })
     expect(
       resolve('/v/a.ts', [], { tieBreak: 'refuse', whenEmpty: { status: 'external' } })
@@ -239,11 +247,13 @@ opposite ends of the same list."
 ### Task 2: Navigation resolves through the arbiter
 
 **Files:**
+
 - Modify: `src/core/notes.ts:73-83` (`resolveFile`, `resolveNote`)
 - Modify: `src/core/notes.test.ts:45-55`
 - Test: `src/core/notes.test.ts`
 
 **Interfaces:**
+
 - Consumes: `resolve` and `Resolution` from Task 1.
 - Produces: `resolveNote(index: readonly NoteRef[], target: string, fromPath: string): NoteRef | null` and `resolveFile(index: readonly NoteRef[], target: string, fromPath: string): NoteRef | null`. The third parameter is new and **required**. Task 5 updates the six renderer call sites.
 
@@ -365,11 +375,13 @@ quietly different answer here than the graph gives for the same link."
 ### Task 3: The map resolves wikilinks the same way
 
 **Files:**
+
 - Modify: `src/core/graph.ts:44-91`
 - Modify: `src/shared/types.ts:63-68` (`GraphEdge`)
 - Test: `src/core/graph.test.ts`
 
 **Interfaces:**
+
 - Consumes: `resolve` from Task 1, `resolveNote` from Task 2.
 - Produces: `GraphEdge` gains `ambiguous: boolean`. Task 7 adds `line` to the same interface.
 
@@ -464,56 +476,56 @@ import { resolve } from './link-resolution'
 Replace the stem index at line 45:
 
 ```ts
-  // Every file carrying a stem, not the last one seen. A plain `Map.set` in
-  // this loop left whichever file the walk reached last, which is how the map
-  // came to draw an edge to a different Store.md than a click would open.
-  const byStem = new Map<string, string[]>()
-  for (const f of files) {
-    const key = f.stem.toLowerCase()
-    const bucket = byStem.get(key)
-    if (bucket) bucket.push(f.path)
-    else byStem.set(key, [f.path])
-  }
+// Every file carrying a stem, not the last one seen. A plain `Map.set` in
+// this loop left whichever file the walk reached last, which is how the map
+// came to draw an edge to a different Store.md than a click would open.
+const byStem = new Map<string, string[]>()
+for (const f of files) {
+  const key = f.stem.toLowerCase()
+  const bucket = byStem.get(key)
+  if (bucket) bucket.push(f.path)
+  else byStem.set(key, [f.path])
+}
 ```
 
 Replace the body of the wikilink loop:
 
 ```ts
-    for (const link of findWikilinks(f.content)) {
-      const found = resolve(f.path, byStem.get(link.target.toLowerCase()) ?? [], {
-        tieBreak: 'nearest',
-        whenEmpty: { status: 'missing', at: link.target }
-      })
-      // A wikilink to nothing is a note somebody intends to write, and the
-      // editor already offers to create it on click, so the graph keeps it.
-      const to = found.status === 'resolved' ? found.to : `ghost:${link.target.toLowerCase()}`
-      if (found.status !== 'resolved' && !nodes.has(to)) {
-        // A linked-but-missing note: no file, so no words, folder or mtime.
-        nodes.set(to, {
-          id: to,
-          label: link.target,
-          exists: false,
-          kind: 'note',
-          degree: 0,
-          folder: '',
-          words: 0,
-          mtimeMs: 0,
-          tags: []
-        })
-      }
-      if (to === f.path) continue // self-link
-      const key = `${f.path}→${to}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      edges.push({
-        from: f.path,
-        to,
-        kind: 'link',
-        ambiguous: found.status === 'resolved' && found.ambiguous
-      })
-      nodes.get(f.path)!.degree++
-      nodes.get(to)!.degree++
-    }
+for (const link of findWikilinks(f.content)) {
+  const found = resolve(f.path, byStem.get(link.target.toLowerCase()) ?? [], {
+    tieBreak: 'nearest',
+    whenEmpty: { status: 'missing', at: link.target }
+  })
+  // A wikilink to nothing is a note somebody intends to write, and the
+  // editor already offers to create it on click, so the graph keeps it.
+  const to = found.status === 'resolved' ? found.to : `ghost:${link.target.toLowerCase()}`
+  if (found.status !== 'resolved' && !nodes.has(to)) {
+    // A linked-but-missing note: no file, so no words, folder or mtime.
+    nodes.set(to, {
+      id: to,
+      label: link.target,
+      exists: false,
+      kind: 'note',
+      degree: 0,
+      folder: '',
+      words: 0,
+      mtimeMs: 0,
+      tags: []
+    })
+  }
+  if (to === f.path) continue // self-link
+  const key = `${f.path}→${to}`
+  if (seen.has(key)) continue
+  seen.add(key)
+  edges.push({
+    from: f.path,
+    to,
+    kind: 'link',
+    ambiguous: found.status === 'resolved' && found.ambiguous
+  })
+  nodes.get(f.path)!.degree++
+  nodes.get(to)!.degree++
+}
 ```
 
 Add `ambiguous: false` to the import edge pushed further down, so the file compiles. Task 4 replaces it properly.
@@ -550,12 +562,14 @@ that knew there were two candidates."
 ### Task 4: Imports say which kind of unresolved they are
 
 **Files:**
+
 - Modify: `src/core/code-links.ts:277-300` (`resolveImport`)
 - Modify: `src/core/code-links.test.ts:87-145`
 - Modify: `src/core/graph.ts:93-113` (the import loop)
 - Test: `src/core/code-links.test.ts`, `src/core/graph.test.ts`
 
 **Interfaces:**
+
 - Consumes: `resolve`, `Resolution` from Task 1.
 - Produces: `resolveImport(fromPath: string, spec: string, index: ImportIndex): Resolution`, no longer `string | null`.
 
@@ -688,7 +702,9 @@ export function resolveImport(fromPath: string, spec: string, index: ImportIndex
     }
     for (const ext of tries) {
       const found =
-        hit(`${target}/index${ext}`) ?? hit(`${target}/mod${ext}`) ?? hit(`${target}/__init__${ext}`)
+        hit(`${target}/index${ext}`) ??
+        hit(`${target}/mod${ext}`) ??
+        hit(`${target}/__init__${ext}`)
       if (found) return found
     }
     // A path names exactly one file, so this can never be ambiguous: either
@@ -712,35 +728,35 @@ export function resolveImport(fromPath: string, spec: string, index: ImportIndex
 In `src/core/graph.ts`, replace the import loop body:
 
 ```ts
-    for (const found of findImports(f.content, f.path)) {
-      const where = resolveImport(f.path, found.spec, index)
-      // A package is a real dependency and not part of this folder, and a
-      // refusal is a guess not worth making. Neither draws anything.
-      if (where.status === 'external' || where.status === 'ambiguous') continue
-      const to = where.status === 'resolved' ? where.to : `missing:${where.at}`
-      if (where.status === 'missing' && !nodes.has(to)) {
-        // What a rename leaves behind. Rare by construction, so it does not
-        // fill the map, and when one appears it is the thing worth seeing.
-        nodes.set(to, {
-          id: to,
-          label: stemOfPath(where.at),
-          exists: false,
-          kind: 'code',
-          degree: 0,
-          folder: '',
-          words: 0,
-          mtimeMs: 0,
-          tags: []
-        })
-      }
-      if (to === f.path) continue
-      const key = `${f.path}→${to}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      edges.push({ from: f.path, to, kind: 'import', ambiguous: false })
-      nodes.get(f.path)!.degree++
-      nodes.get(to)!.degree++
-    }
+for (const found of findImports(f.content, f.path)) {
+  const where = resolveImport(f.path, found.spec, index)
+  // A package is a real dependency and not part of this folder, and a
+  // refusal is a guess not worth making. Neither draws anything.
+  if (where.status === 'external' || where.status === 'ambiguous') continue
+  const to = where.status === 'resolved' ? where.to : `missing:${where.at}`
+  if (where.status === 'missing' && !nodes.has(to)) {
+    // What a rename leaves behind. Rare by construction, so it does not
+    // fill the map, and when one appears it is the thing worth seeing.
+    nodes.set(to, {
+      id: to,
+      label: stemOfPath(where.at),
+      exists: false,
+      kind: 'code',
+      degree: 0,
+      folder: '',
+      words: 0,
+      mtimeMs: 0,
+      tags: []
+    })
+  }
+  if (to === f.path) continue
+  const key = `${f.path}→${to}`
+  if (seen.has(key)) continue
+  seen.add(key)
+  edges.push({ from: f.path, to, kind: 'import', ambiguous: false })
+  nodes.get(f.path)!.degree++
+  nodes.get(to)!.degree++
+}
 ```
 
 Add near the top of `src/core/graph.ts`, beside `folderOf`:
@@ -789,6 +805,7 @@ candidates is still a refusal, for the reason the old comment gave."
 ### Task 5: The UI asks whether a node exists
 
 **Files:**
+
 - Modify: `src/renderer/src/components/AnalyticsView.tsx:51`, `:276`
 - Modify: `src/renderer/src/components/NoteAnalysisPanel.tsx:118`
 - Modify: `src/renderer/src/plugins/wikilinks/extension.ts:17-24`, `:72-74`
@@ -799,6 +816,7 @@ candidates is still a refusal, for the reason the old comment gave."
 - Modify: `src/shared/types.ts:39`
 
 **Interfaces:**
+
 - Consumes: `resolveNote`/`resolveFile` with the required `fromPath` from Task 2.
 - Produces: `WikilinkHost` gains `getFromPath(): string`.
 
@@ -809,7 +827,7 @@ There is no unit test here: this is renderer code covered by Playwright, and the
 `AnalyticsView.tsx:51` sits in a handler that has the id only. Change the handler to take the node, and test `node.exists`:
 
 ```ts
-    if (!node.exists) return // no file behind it yet
+if (!node.exists) return // no file behind it yet
 ```
 
 `AnalyticsView.tsx:276`:
@@ -829,15 +847,15 @@ Note the old line read `n.id.startsWith('ghost:') || void openPaths([n.id])`, wh
 Update the comment on `src/shared/types.ts:39`:
 
 ```ts
-  /**
-   * File path for a file that is there.
-   *
-   * `ghost:<stem>` is a wikilink to a note nobody has written; `missing:<path>`
-   * is an import naming a path that is not there. Read `exists` rather than the
-   * prefix: there are two prefixes now, and a third would be missed by every
-   * `startsWith` that had to be found by hand.
-   */
-  id: string
+/**
+ * File path for a file that is there.
+ *
+ * `ghost:<stem>` is a wikilink to a note nobody has written; `missing:<path>`
+ * is an import naming a path that is not there. Read `exists` rather than the
+ * prefix: there are two prefixes now, and a third would be missed by every
+ * `startsWith` that had to be found by hand.
+ */
+id: string
 ```
 
 - [ ] **Step 2: Thread the linking file through the wikilink host**
@@ -852,11 +870,11 @@ In `src/renderer/src/plugins/wikilinks/extension.ts`, add to `WikilinkHost`:
 At line 72, pass it:
 
 ```ts
-            const from = host.getFromPath()
-            const resolved =
-              resolveNote(index, link.target, from) !== null ||
-              (/\.[a-z0-9]+$/i.test(link.target) &&
-                resolveFile(host.getFileIndex(), link.target, from) !== null)
+const from = host.getFromPath()
+const resolved =
+  resolveNote(index, link.target, from) !== null ||
+  (/\.[a-z0-9]+$/i.test(link.target) &&
+    resolveFile(host.getFileIndex(), link.target, from) !== null)
 ```
 
 In `src/renderer/src/plugins/wikilinks/index.ts`, add to the host and use it:
@@ -868,12 +886,12 @@ In `src/renderer/src/plugins/wikilinks/index.ts`, add to the host and use it:
 and inside `openTarget`:
 
 ```ts
-        const from = activeFilePath(state)
-        const existing = resolveNote(state.noteIndex, target, from)
+const from = activeFilePath(state)
+const existing = resolveNote(state.noteIndex, target, from)
 ```
 
 ```ts
-        const file = /\.[a-z0-9]+$/i.test(target) ? resolveFile(state.fileIndex, target, from) : null
+const file = /\.[a-z0-9]+$/i.test(target) ? resolveFile(state.fileIndex, target, from) : null
 ```
 
 - [ ] **Step 3: Add the selector the six call sites need**
@@ -920,12 +938,14 @@ found the six call sites, which is why the parameter is required."
 ### Task 6: A broken import is not an unwritten note
 
 **Files:**
+
 - Modify: `src/core/metrics.ts:298-307`
 - Modify: `src/shared/types.ts` (`BrokenLink`)
 - Modify: `src/renderer/src/components/AnalyticsView.tsx` (the broken links list)
 - Test: `src/core/metrics.test.ts`
 
 **Interfaces:**
+
 - Consumes: the `missing:` nodes from Task 4.
 - Produces: `BrokenLink` gains `kind: 'note' | 'import'`.
 
@@ -973,31 +993,31 @@ Expected: FAIL, `kind` is not on `BrokenLink`.
 In `src/shared/types.ts`, add to `BrokenLink`:
 
 ```ts
-  /**
-   * Which kind of nothing this points at.
-   *
-   * `note` is a wikilink to a note nobody has written, which is a normal thing
-   * to have in a vault and is fixed by writing it. `import` is a path that is
-   * not there, which is usually what a rename left behind and is fixed by
-   * correcting the path. Listing them together made the list read as a to-do
-   * where half the rows were aspirations and half were faults.
-   */
-  kind: 'note' | 'import'
+/**
+ * Which kind of nothing this points at.
+ *
+ * `note` is a wikilink to a note nobody has written, which is a normal thing
+ * to have in a vault and is fixed by writing it. `import` is a path that is
+ * not there, which is usually what a rename left behind and is fixed by
+ * correcting the path. Listing them together made the list read as a to-do
+ * where half the rows were aspirations and half were faults.
+ */
+kind: 'note' | 'import'
 ```
 
 In `src/core/metrics.ts`, replace the `!node.exists` branch:
 
 ```ts
-    if (!node.exists) {
-      // Neither kind is an orphan: there is no file to fix up, only a link.
-      brokenLinks.push({
-        id: node.id,
-        label: node.label,
-        kind: node.id.startsWith('missing:') ? 'import' : 'note',
-        from: into[i]!.map((j) => nodes[j]!.id).sort()
-      })
-      return
-    }
+if (!node.exists) {
+  // Neither kind is an orphan: there is no file to fix up, only a link.
+  brokenLinks.push({
+    id: node.id,
+    label: node.label,
+    kind: node.id.startsWith('missing:') ? 'import' : 'note',
+    from: into[i]!.map((j) => nodes[j]!.id).sort()
+  })
+  return
+}
 ```
 
 This is the one place the id prefix is still read, because it is the only place
@@ -1038,11 +1058,13 @@ a stale reason is worse than none: it gets trusted."
 ### Task 7: Edges carry the line they were written on
 
 **Files:**
+
 - Modify: `src/shared/types.ts` (`GraphEdge`)
 - Modify: `src/core/graph.ts`
 - Test: `src/core/graph.test.ts`
 
 **Interfaces:**
+
 - Produces: `GraphEdge` gains `line: number`, 1-based. Task 8 reads it.
 
 - [ ] **Step 1: Write the failing test**
@@ -1077,8 +1099,8 @@ Expected: FAIL, `line` is not on `GraphEdge`.
 Add to `GraphEdge` in `src/shared/types.ts`:
 
 ```ts
-  /** 1-based line the link was written on, so a panel can open it there. */
-  line: number
+/** 1-based line the link was written on, so a panel can open it there. */
+line: number
 ```
 
 In `src/core/graph.ts`, add the helper:
@@ -1112,7 +1134,7 @@ function lineIndex(content: string): (offset: number) => number {
 In the wikilink loop, build the index once per file before the loop and use it:
 
 ```ts
-    const lineAt = lineIndex(f.content)
+const lineAt = lineIndex(f.content)
 ```
 
 then `line: lineAt(link.from)` on the pushed edge. In the import loop, `findImports` already returns `line`, so push `line: found.line`.
@@ -1141,6 +1163,7 @@ prepared index per file. Counting newlines per link would make a file with
 ### Task 8: Backlinks come from the graph
 
 **Files:**
+
 - Modify: `src/shared/ipc.ts:205-209`
 - Modify: `src/main/ipc/handlers.ts` (the `workspace:scanLinks` handler)
 - Modify: `src/main/services/link-scanner.ts` (replace `scan` and `walk`)
@@ -1148,6 +1171,7 @@ prepared index per file. Counting newlines per link would make a file with
 - Test: `src/main/services/link-scanner.test.ts`
 
 **Interfaces:**
+
 - Consumes: `GraphEdge.line` and `.ambiguous` from Tasks 3 and 7, `LinkScanner.graph` as it already is.
 - Produces: `LinkScanner.backlinks(rootPath: string, targetPath: string, withCode: boolean): Promise<BacklinkHit[]>`. `workspace:scanLinks` takes `{ rootPath, targetPath, withCode }`.
 
@@ -1266,12 +1290,12 @@ In `src/shared/ipc.ts`:
 In `src/main/ipc/handlers.ts`, update the zod schema and the call:
 
 ```ts
-    z.object({
-      rootPath: z.string().min(1),
-      targetPath: z.string().min(1),
-      withCode: z.boolean()
-    }),
-    (_e, req) => links.backlinks(req.rootPath, req.targetPath, req.withCode)
+;(z.object({
+  rootPath: z.string().min(1),
+  targetPath: z.string().min(1),
+  withCode: z.boolean()
+}),
+  (_e, req) => links.backlinks(req.rootPath, req.targetPath, req.withCode))
 ```
 
 - [ ] **Step 5: Update the panel**
@@ -1279,20 +1303,20 @@ In `src/main/ipc/handlers.ts`, update the zod schema and the call:
 In `src/renderer/src/components/BacklinksPanel.tsx`, read the setting and pass the path:
 
 ```tsx
-  const withCode = useStore((s) => s.settings.graph.includeCode)
+const withCode = useStore((s) => s.settings.graph.includeCode)
 ```
 
 ```tsx
-    void invoke('workspace:scanLinks', { rootPath, targetPath: activePath, withCode })
+void invoke('workspace:scanLinks', { rootPath, targetPath: activePath, withCode })
 ```
 
 `scanKey` becomes `${rootPath}|${activePath}|${withCode}`, and `withCode` joins the `useCallback` dependency array. The empty state keeps its wording for a note. For a file that is not markdown, say what is actually true:
 
 ```tsx
-      <EmptyState icon="link">
-        Nothing links to <strong>{stem(activePath)}</strong> yet.
-        {withCode ? null : ' Turn on code in the graph settings to include imports.'}
-      </EmptyState>
+<EmptyState icon="link">
+  Nothing links to <strong>{stem(activePath)}</strong> yet.
+  {withCode ? null : ' Turn on code in the graph settings to include imports.'}
+</EmptyState>
 ```
 
 The existing `.filter((h) => h.path !== activePath)` can go: `backlinks` already drops the file's own edges.
@@ -1330,10 +1354,12 @@ into every graph build and every IPC reply for text that fills a panel."
 ### Task 9: Measure the new surfaces
 
 **Files:**
+
 - Modify: `e2e/ui-audit.spec.ts`
 - Test: `e2e/ui-audit.spec.ts`
 
 **Interfaces:**
+
 - Consumes: the backlinks panel from Task 8, the broken-import node from Task 4.
 
 - [ ] **Step 1: Add a Surface for each new piece of UI**
