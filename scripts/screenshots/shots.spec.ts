@@ -13,9 +13,12 @@ import { closeCleanly, launchApp, openVault } from '../../e2e/helpers'
  * writes into the working tree, and a suite that dirties the repository every
  * time CI runs is a suite people learn to ignore.
  *
- *   npx playwright test --config playwright.config.ts scripts/screenshots
+ *   ./orrery.sh shots
  *
- * Re-run it when the interface changes enough that the pictures lie.
+ * Re-run it when the interface changes enough that the pictures lie. It has its
+ * own Playwright config because this folder is outside `testDir` and Playwright
+ * has no flag to point at another one, so the instruction that used to be here
+ * could not run at all: the pictures went eighty-nine commits stale unnoticed.
  */
 const OUT = 'docs/screenshots'
 const THEME = 'tokyo-night'
@@ -105,9 +108,16 @@ const run = (args: string[], cwd: string): void => {
 let app: ElectronApplication
 let page: Page
 let vault: string
+/** The temp directory holding it, which is what gets cleaned up. */
+let scratch: string
 
 test.beforeAll(async () => {
-  vault = mkdtempSync(join(tmpdir(), 'orrery-shots-'))
+  // The folder's name is on screen three times: the sidebar title, the
+  // breadcrumb and the terminal's working directory. `orrery-shots-Xq10bo`
+  // reads as a test fixture, which is what it is, but the pictures are the
+  // first thing anyone sees of the app.
+  scratch = mkdtempSync(join(tmpdir(), 'orrery-shots-'))
+  vault = join(scratch, 'Astronomy')
   mkdirSync(join(vault, 'src'), { recursive: true })
   writeFileSync(join(vault, 'Orbital mechanics.md'), NOTE)
   writeFileSync(
@@ -194,7 +204,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await closeCleanly(app, page)
-  rmSync(vault, { recursive: true, force: true })
+  rmSync(scratch, { recursive: true, force: true })
 })
 
 test('editor', async () => {
@@ -232,8 +242,23 @@ test('diff and terminal', async () => {
       commandId: 'view.toggleTerminal'
     })
   })
+  // The outline has nothing to say about a TypeScript diff, and an empty panel
+  // reading "No headings found" takes a quarter of the picture and clips the
+  // working-tree column of the very diff the caption is about.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'view.toggleOutline'
+    })
+  })
   await expect(page.locator('.term-panel')).toBeVisible({ timeout: 15_000 })
   await page.locator('.term-panel__host').click()
+  // The shell is the developer's own, and so is its prompt: the first run of
+  // this put `someone@their-laptop` into a picture bound for a public README.
+  // A bare `$` is also simply easier to read at screenshot size.
+  await page.waitForTimeout(700)
+  await page.keyboard.type("PS1='$ '; clear")
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(700)
   await page.keyboard.type('git status --short && git log --oneline -3')
   await page.keyboard.press('Enter')
   await page.waitForTimeout(1600)
@@ -241,6 +266,11 @@ test('diff and terminal', async () => {
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
       commandId: 'view.toggleTerminal'
+    })
+  })
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+      commandId: 'view.toggleOutline'
     })
   })
   await page.locator('.diff button[aria-label="Close"]').click()
@@ -253,6 +283,14 @@ test('graph', async () => {
     })
   })
   await expect(page.locator('.graph__canvas')).toBeVisible({ timeout: 20_000 })
+
+  // Colour by cluster. It is off by default, and the caption in the README
+  // talks about the clusters the graph found: with every node the same blue,
+  // the picture was not showing the thing the sentence beside it described.
+  await page.locator('button[aria-label="Graph Physics & Display Settings"]').click()
+  await page.locator('.graph__panel select').nth(1).selectOption('cluster')
+  await page.locator('button[aria-label="Graph Physics & Display Settings"]').click()
+
   await page.waitForTimeout(6000)
   await page.screenshot({ path: `${OUT}/graph.png` })
   await app.evaluate(({ BrowserWindow }) => {

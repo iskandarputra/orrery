@@ -153,6 +153,15 @@ cmd_e2e() {
   run_windowed npx playwright test --reporter=line "$@"
 }
 
+cmd_shots() {
+  # The README pictures. A generator, not a test: it writes into the working
+  # tree, so it lives outside `e2e/` and needs a config that points at it.
+  step "build"; npm run build
+  step "screenshots"
+  run_windowed npx playwright test --config=playwright.screenshots.config.ts --reporter=line "$@"
+  step "done"; git status --short docs/screenshots/ || true
+}
+
 cmd_e2e_rust() {
   have cargo || die "cargo is required for the Rust path. Run './orrery.sh setup'."
   step "build";  npm run build
@@ -188,6 +197,7 @@ ${BOLD}orrery.sh${RESET} — project tasks
   ${BOLD}test${RESET}       unit tests, plus cargo tests when Rust is installed
   ${BOLD}e2e${RESET}        end-to-end tests (add a path to run one spec)
   ${BOLD}e2e:rust${RESET}   end-to-end tests against the Rust sidecar
+  ${BOLD}shots${RESET}      regenerate the README screenshots into docs/screenshots
   ${BOLD}package${RESET}    build an installer (deb by default, or: package AppImage)
   ${BOLD}clean${RESET}      remove build output
 
@@ -207,6 +217,7 @@ case "${1:-}" in
   test)      shift; cmd_test "$@" ;;
   e2e)       shift; cmd_e2e "$@" ;;
   e2e:rust)  shift; cmd_e2e_rust "$@" ;;
+  shots)     shift; cmd_shots "$@" ;;
   package)   shift; cmd_package "$@" ;;
   clean)     shift; cmd_clean "$@" ;;
   ''|-h|--help|help) usage ;;

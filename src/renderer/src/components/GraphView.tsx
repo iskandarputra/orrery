@@ -147,10 +147,13 @@ export function GraphView(): React.JSX.Element | null {
     // Named for what is actually on the map: calling a source file a note was
     // fine while the graph only had notes in it.
     const code = nodes.filter((n) => n.kind === 'code').length
+    // A vault with one source file in it read "1 files", which is the sort of
+    // thing that is invisible until it is in a screenshot.
+    const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
     setStatus(
       code > 0
-        ? `${nodes.length - code} notes · ${code} files · ${edges.length} links`
-        : `${nodes.length} notes · ${edges.length} links`
+        ? `${count(nodes.length - code, 'note', 'notes')} · ${count(code, 'file', 'files')} · ${count(edges.length, 'link', 'links')}`
+        : `${count(nodes.length, 'note', 'notes')} · ${count(edges.length, 'link', 'links')}`
     )
   }, [activePath])
 
