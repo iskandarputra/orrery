@@ -163,7 +163,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
    */
   const [page, setPage] = useState<{
     url: string
-    hasScripts: boolean
+    scripts: number
     remoteCount: number
     diagrams: number
     equations: number
@@ -188,7 +188,10 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
         id: bufferId,
         html: built.html,
         policy: built.policy,
-        root
+        root,
+        // Only for figures the app drew, and only while the page's own code is
+        // not running: a page that runs owns its own controls.
+        figures: !allowScripts && prepared.diagrams > 0
       })
       if (!live) return
 
@@ -213,7 +216,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           current
             ? {
                 ...current,
-                hasScripts: built.hasScripts,
+                scripts: built.scripts,
                 remoteCount: built.remoteCount,
                 diagrams: prepared.diagrams,
                 equations: prepared.equations
@@ -228,7 +231,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
       readyRef.current = false
       setPage({
         url: `${url}?v=${Date.now()}`,
-        hasScripts: built.hasScripts,
+        scripts: built.scripts,
         remoteCount: built.remoteCount,
         diagrams: prepared.diagrams,
         equations: prepared.equations
@@ -294,23 +297,30 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           </span>
         )}
 
-        {page?.hasScripts &&
+        {!!page?.scripts &&
           (allowScripts ? (
             <span
               className="htmlv__note htmlv__note--live"
               title="This page's own code is running, in a frame that cannot reach the app"
             >
               <Icon name="zap" size={12} />
-              Scripts are running
+              {page.scripts} script{page.scripts === 1 ? '' : 's'} running
             </span>
           ) : (
             <button
               className="htmlv__action"
               onClick={() => allowHtmlScripts(bufferId)}
-              title="Run this page's own scripts. It stays in a frame with no access to the app, and nothing is fetched from the internet."
+              /**
+               * The count is the point. A page that draws its own contents
+               * rail, its own controls and its own animation with script
+               * arrives looking like a page missing its navigation, and the
+               * only sign of why was a button that said "Run scripts" without
+               * saying anything had been held back.
+               */
+              title="Run this page's own code. Some pages build their contents rail, their controls or their animation with it, and none of that is there until you do. It stays in a frame with no access to the app, and nothing is fetched from the internet."
             >
               <Icon name="zap" size={12} />
-              Run scripts
+              Run {page.scripts} script{page.scripts === 1 ? '' : 's'}
             </button>
           ))}
 

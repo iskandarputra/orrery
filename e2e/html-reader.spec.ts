@@ -149,9 +149,9 @@ const read = async (heading = 'Reader check'): Promise<void> => {
  * gave it finds the offer already taken and no button to press.
  */
 const runScripts = async (): Promise<void> => {
-  const offer = page.locator('.htmlv__action', { hasText: 'Run scripts' })
+  const offer = page.locator('.htmlv__action', { hasText: /Run \d+ scripts?/ })
   if (await offer.isVisible()) await offer.click()
-  await expect(page.locator('.htmlv__note', { hasText: 'Scripts are running' })).toBeVisible({
+  await expect(page.locator('.htmlv__note', { hasText: /scripts? running/ })).toBeVisible({
     timeout: 20_000
   })
 }
@@ -245,7 +245,7 @@ test('does not run the page’s scripts until asked', async () => {
   await expect(rendered().locator('#ran')).toHaveText('scripts did not run')
   await expect(rendered().locator('body')).not.toHaveAttribute('data-script-ran', 'yes')
   // Offered, not done: a page runs nothing until somebody says so for it.
-  await expect(page.locator('.htmlv__action', { hasText: 'Run scripts' })).toBeVisible()
+  await expect(page.locator('.htmlv__action', { hasText: /Run \d+ scripts?/ })).toBeVisible()
 })
 
 test('runs them when asked, and says it is doing so', async () => {
@@ -575,4 +575,42 @@ test('says so when the file on disk is not what you are looking at', async () =>
     'title',
     /none of the reader/
   )
+})
+
+test('says how much of the page has not run', async () => {
+  // A count, not a flag. A page that builds its contents rail, its controls and
+  // its animation with script arrives looking like a page missing its
+  // navigation, and the only sign of why used to be a button reading "Run
+  // scripts" that said nothing had been held back.
+  await openFile('rich.html')
+  await read('Rich')
+  await expect(page.locator('.htmlv__action', { hasText: /Run 2 scripts/ })).toBeVisible()
+})
+
+test('opens a diagram it drew full screen, when the page cannot', async () => {
+  // A diagram in a note has this. One in an HTML page had nothing, because the
+  // app cannot put a control inside a sandboxed frame — so the app's own script
+  // in there puts it, on the figures the app itself drew.
+  await openFile('rich.html')
+  await read('Rich')
+  const frame = rendered()
+  const expand = frame.locator('[data-orrery-figure] .orrery-expand')
+  await expect(expand).toBeVisible({ timeout: 20_000 })
+
+  await expand.click()
+  await expect(frame.locator('.orrery-sheet svg')).toBeVisible({ timeout: 10_000 })
+  // Escape closes it, and so does a click on the sheet.
+  await frame.locator('body').press('Escape')
+  await expect(frame.locator('.orrery-sheet')).toHaveCount(0)
+})
+
+test('leaves the controls to a page that runs its own code', async () => {
+  // Two expand buttons on one diagram is worse than none, so the app stands
+  // down the moment the page is allowed to draw its own.
+  await openFile('rich.html')
+  await read('Rich')
+  await expect(rendered().locator('.orrery-expand')).toHaveCount(1)
+  await runScripts()
+  await page.waitForTimeout(800)
+  await expect(rendered().locator('.orrery-expand')).toHaveCount(0)
 })

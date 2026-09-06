@@ -549,7 +549,7 @@ export interface IpcInvokeContract {
    * allowed to run its own scripts without the application relaxing its own.
    */
   'preview:put': {
-    req: { id: string; html: string; policy: string; root: string | null }
+    req: { id: string; html: string; policy: string; root: string | null; figures: boolean }
     res: string
   }
   'preview:drop': { req: { id: string }; res: void }

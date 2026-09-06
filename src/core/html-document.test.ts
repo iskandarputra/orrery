@@ -127,9 +127,17 @@ describe('what is served', () => {
     expect(buildPreview(source, options).html).toBe(source)
   })
 
-  it('notices scripts so the reader can say whether they ran', () => {
-    expect(buildPreview('<script src="a.js"></script>', options).hasScripts).toBe(true)
-    expect(buildPreview('<p>none here</p>', options).hasScripts).toBe(false)
+  it('counts the scripts, so the reader can say how much was held back', () => {
+    // A number rather than a flag: "Run 8 scripts" tells you a page is missing
+    // most of itself, where "Run scripts" told you only that a button existed.
+    expect(buildPreview('<script src="a.js"></script>', options).scripts).toBe(1)
+    expect(
+      buildPreview('<script>a()</script><script src="b.js"></script><script>c()</script>', options)
+        .scripts
+    ).toBe(3)
+    expect(buildPreview('<p>none here</p>', options).scripts).toBe(0)
+    // Not fooled by a word that merely begins the same way.
+    expect(buildPreview('<p>a scripting language</p>', options).scripts).toBe(0)
   })
 
   it('counts what the document would have fetched', () => {

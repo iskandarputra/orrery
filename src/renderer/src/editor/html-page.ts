@@ -247,6 +247,12 @@ async function drawDiagrams(doc: Document): Promise<number> {
       // written for mermaid look the way it was written to look.
       block.innerHTML = result.svg
       block.setAttribute('data-processed', 'true')
+      // Marked as ours, so the reader can offer to open it full screen. A
+      // diagram in a note has that; one in an HTML page had nothing, because
+      // the app cannot reach inside the frame to add a control. The reader
+      // script can, and this is how it knows which figures are the app's own
+      // work rather than something the page drew for itself.
+      block.setAttribute('data-orrery-figure', 'diagram')
       count++
     } else {
       block.textContent = `Diagram could not be drawn: ${result.error}`

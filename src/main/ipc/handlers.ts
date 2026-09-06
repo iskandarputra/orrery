@@ -806,9 +806,16 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
       id: z.string().min(1),
       html: z.string(),
       policy: z.string().min(1),
-      root: z.string().nullable()
+      root: z.string().nullable(),
+      figures: z.boolean()
     }),
-    (_e, req) => putPreview(req.id, { html: req.html, policy: req.policy, root: req.root })
+    (_e, req) =>
+      putPreview(req.id, {
+        html: req.html,
+        policy: req.policy,
+        root: req.root,
+        figures: req.figures
+      })
   )
   handle('preview:drop', z.object({ id: z.string().min(1) }), (_e, req) => dropPreview(req.id))
   handle('export:pdf', exportReq, (_e, req) => exporter.exportPdf(req.title, req.markdown))

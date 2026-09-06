@@ -86,8 +86,17 @@ export interface PreviewDocument {
   html: string
   /** The `Content-Security-Policy` header it is served under. */
   policy: string
-  /** The source has scripts, which will not run — worth saying out loud. */
-  hasScripts: boolean
+  /**
+   * How many scripts the page carries.
+   *
+   * A count rather than a flag, because the bar says what it *did* — "10
+   * diagrams drawn", "117 equations typeset" — and had nothing to say about
+   * what it held back. A page that builds its own contents rail and its own
+   * controls with script looks broken rather than restrained, and the only
+   * clue was an unlabelled button. Saying how many there are puts the missing
+   * half of the page in the same sentence as the rest of it.
+   */
+  scripts: number
   /** Roughly how many remote references there are, for the offer to load them. */
   remoteCount: number
 }
@@ -113,7 +122,7 @@ const REMOTE_ATTRIBUTE = /\b(?:src|srcset|poster|data)\s*=\s*["']?\s*(?:https?:)
 const REMOTE_SCRIPT = /<script\b[^>]*\bsrc\s*=\s*["']?\s*(?:https?:)?\/\//gi
 const REMOTE_LINK = /<link\b[^>]*\bhref\s*=\s*["']?\s*(?:https?:)?\/\//gi
 const REMOTE_CSS_URL = /url\(\s*["']?\s*(?:https?:)?\/\//gi
-const SCRIPT_TAG = /<script[\s>]/i
+const SCRIPT_TAG = /<script[\s>]/gi
 
 /**
  * What the frame may load.
@@ -222,7 +231,7 @@ export function buildPreview(source: string, options: PreviewOptions): PreviewDo
   return {
     html: source,
     policy: contentPolicy(options),
-    hasScripts: SCRIPT_TAG.test(source),
+    scripts: countMatches(source, SCRIPT_TAG),
     remoteCount:
       countMatches(source, REMOTE_ATTRIBUTE) -
       countMatches(source, REMOTE_SCRIPT) +

@@ -47,6 +47,14 @@ interface Page {
    * URL too.
    */
   root: string | null
+  /**
+   * Whether the reader should offer its own control on the figures it drew.
+   *
+   * Only while the page's own code is not running. A page that has been allowed
+   * to run owns its controls, and two expand buttons on one diagram is worse
+   * than none.
+   */
+  figures: boolean
 }
 
 const pages = new Map<string, Page>()
@@ -106,8 +114,9 @@ export function registerPreviewScheme(): void {
  * Appended at the very end. An HTML parser moves a trailing script into the
  * body, and running last is what this wants anyway.
  */
-function withReader(html: string): string {
-  return `${html}\n<script src="${readerScriptUrl(PREVIEW_SCHEME)}"></script>\n`
+function withReader(html: string, figures: boolean): string {
+  const wants = figures ? ' data-figures="1"' : ''
+  return `${html}\n<script src="${readerScriptUrl(PREVIEW_SCHEME)}"${wants}></script>\n`
 }
 
 /** After ready: answer with the page the renderer put there, and its policy. */
@@ -142,7 +151,7 @@ export function handlePreviewProtocol(): void {
     const page = pages.get(id)
     if (!page) return new Response('No page', { status: 404 })
 
-    return new Response(withReader(page.html), {
+    return new Response(withReader(page.html, page.figures), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': page.policy,
