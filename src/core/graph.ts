@@ -1,5 +1,5 @@
 import type { GraphEdge, GraphNode, LinkGraph } from '@shared/types'
-import { findImports, importsFamily, resolveImport } from './code-links'
+import { findImports, importsFamily, indexImports, resolveImport } from './code-links'
 import { dirname } from './paths'
 import { findTags } from './tags'
 import { findWikilinks } from './wikilinks'
@@ -92,11 +92,14 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   // Imports, for the files that have them. Only edges to files that are in the
   // vault: a dependency on `react` is real but it is not part of this folder,
   // and drawing every package would bury the map it is meant to be.
-  const paths = files.map((f) => f.path)
+  // Indexed once. Handing `resolveImport` a plain array made it rebuild a Set
+  // of every file in the vault, and scan every file again for a bare module
+  // name, on each of the tens of thousands of imports it was asked about.
+  const index = indexImports(files.map((f) => f.path))
   for (const f of files) {
     if (!importsFamily(f.path)) continue
     for (const found of findImports(f.content, f.path)) {
-      const to = resolveImport(f.path, found.spec, paths)
+      const to = resolveImport(f.path, found.spec, index)
       if (!to || to === f.path) continue
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue

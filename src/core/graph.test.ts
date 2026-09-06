@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGraph } from './graph'
+import { buildGraph, type GraphFile } from './graph'
 
 const files = [
   { path: '/v/A.md', stem: 'A', content: 'links [[B]] and [[Ghost]] and [[B]] again' },
@@ -120,5 +120,42 @@ describe('code in the graph', () => {
   it('has no import edges in a vault of pure prose', () => {
     const graph = buildGraph(files, '/v')
     expect(graph.edges.every((edge) => edge.kind === 'link')).toBe(true)
+  })
+})
+
+describe('a repository-sized vault', () => {
+  it('resolves imports without rescanning the vault for each one', () => {
+    // The start-up hang, as a unit test. `resolveImport` took a plain array and
+    // opened with `new Set(files)`, then scanned every file again for a bare
+    // module name. Per import. On a real 3,700-file repository with tens of
+    // thousands of imports that was 15.2 seconds inside `buildGraph`, and the
+    // window was frozen for all of it because the scan runs in the main
+    // process.
+    //
+    // The numbers below are deliberately smaller than that repository and the
+    // ceiling deliberately far above what this actually takes (~0.3s), so a
+    // busy core cannot fail it. Quadratic behaviour does not squeeze into it:
+    // with the array version this same case takes over a minute.
+    const files: GraphFile[] = []
+    for (let i = 0; i < 4000; i++) {
+      const imports = [
+        `import { a } from './mod${(i + 1) % 4000}'`,
+        `import { b } from './mod${(i + 7) % 4000}'`,
+        "import React from 'react'",
+        "import { join } from 'node:path'",
+        `import { c } from 'some-package-${i % 40}'`
+      ].join('\n')
+      files.push({ path: `/v/src/mod${i}.ts`, stem: `mod${i}`, content: imports })
+    }
+
+    const started = performance.now()
+    const g = buildGraph(files, '/v')
+    const elapsed = performance.now() - started
+
+    expect(g.nodes).toHaveLength(4000)
+    // The two relative imports each resolve; the bare specifiers do not.
+    expect(g.edges.filter((e) => e.kind === 'import')).toHaveLength(8000)
+    expect(elapsed).toBeLessThan(10_000)
+    console.log(`  buildGraph: 4000 files / ${g.edges.length} edges in ${Math.round(elapsed)}ms`)
   })
 })
