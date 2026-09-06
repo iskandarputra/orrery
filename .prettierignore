@@ -4,3 +4,7 @@ dist/
 coverage/
 package-lock.json
 native/
+
+# Scratch workspace for plan execution. Git-ignored, and not the formatter's
+# business either: linting a ledger fails the gate over notes nobody ships.
+.superpowers/
