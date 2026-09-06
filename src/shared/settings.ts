@@ -208,6 +208,25 @@ export const settingsSchema = z.object({
     )
     .prefault({}),
   /**
+   * The HTML reader.
+   *
+   * `runScripts` is the standing answer to the question the reader asks per
+   * file: run a local page's own code as soon as it is opened, without asking.
+   * Off out of the box, because a page arriving in a folder you cloned or were
+   * sent has not earned it, and a first run should behave the way the reader is
+   * described as behaving. Turning it on is a decision about your own machine
+   * and it is meant to be available.
+   *
+   * It does not widen anything else. Remote content is still asked for per
+   * file, and remote code still never runs, so a page running under this
+   * setting has no way off the machine.
+   */
+  html: z
+    .object({
+      runScripts: z.boolean().default(false)
+    })
+    .prefault({}),
+  /**
    * HTML pages allowed to run their own code or fetch their remote content.
    *
    * Keyed by absolute path. An entry carries a digest of the page it was about,

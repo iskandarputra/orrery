@@ -149,7 +149,14 @@ export interface UiSlice {
    */
   htmlReading: Record<string, true>
   htmlRemote: Record<string, true>
-  htmlScripts: Record<string, true>
+  /**
+   * Three states, not two. `true` is running, absent is undecided, and `false`
+   * is stopped *here*, which is not the same thing: with
+   * `settings.html.runScripts` on, an undecided page starts itself, so a page
+   * that had been stopped and then forgotten would start again on the next
+   * rebuild and the Stop button would do nothing anyone could see.
+   */
+  htmlScripts: Record<string, boolean>
   /** Integrated terminal panel, along the bottom of the workspace. */
   terminalOpen: boolean
   /**
@@ -240,6 +247,8 @@ export interface UiSlice {
   rememberHtmlTrust(path: string, digest: string, grant: HtmlGrant): void
   /** Forget a page entirely, whichever consent was withdrawn. */
   forgetHtmlTrust(path: string): void
+  /** Forget every remembered page, from the settings panel. */
+  forgetAllHtmlTrust(): void
   /** Drop what was being remembered about a buffer that has gone. */
   forgetHtmlView(bufferId: string): void
   toggleTerminal(): void
@@ -485,11 +494,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   },
 
   stopHtmlScripts(bufferId, path) {
-    set((state) => {
-      const htmlScripts = { ...state.htmlScripts }
-      delete htmlScripts[bufferId]
-      return { htmlScripts }
-    })
+    // Recorded as a decision rather than removed. See `htmlScripts`.
+    set((state) => ({ htmlScripts: { ...state.htmlScripts, [bufferId]: false } }))
     if (path) get().forgetHtmlTrust(path)
   },
 
@@ -500,6 +506,11 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     // unchanged: this runs on every rebuild, and a rebuild happens a quarter of
     // a second after each keystroke in the pane next door.
     if (next !== current) get().updateSettings({ htmlTrust: next })
+  },
+
+  /** Forget every page at once, which is the only bulk control there is. */
+  forgetAllHtmlTrust() {
+    if (Object.keys(get().settings.htmlTrust).length > 0) get().updateSettings({ htmlTrust: {} })
   },
 
   /**

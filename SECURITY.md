@@ -72,6 +72,13 @@ are worth stating.
   `git pull`) is a different document and asks again. Withdrawing is the notice
   that says the code is running: it is a button, and pressing it stops the page
   and forgets the file. See `src/core/html-trust.ts`.
+- **Or answer it once for good.** _Settings → General → Run scripts in HTML
+  files_ runs a local page's own code on sight. Off out of the box, because a
+  page from a folder you cloned or were sent has not earned it. It widens
+  nothing else: remote content is still asked for per file, and a page running
+  under it still has no network at all, so it can look at itself and tell
+  nobody. Allowing remote content is what opens a way out, and the reader says
+  so at the moment you would be doing it second.
 - **Remote code never runs**, at any setting, even after you allow remote
   content. `script-src` is never given a network source.
 - **No network from the page at all**: there is no `connect-src`, so `fetch`,

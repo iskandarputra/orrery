@@ -188,11 +188,25 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
        */
       const digest = await fingerprint(source)
       if (!live) return
-      const granted = trustedFor(useStore.getState().settings.htmlTrust, filePath, digest)
-      if ((granted.scripts && !allowScripts) || (granted.remote && !allowRemote)) {
+      const { htmlTrust, html } = useStore.getState().settings
+      const granted = trustedFor(htmlTrust, filePath, digest)
+
+      /**
+       * A standing yes, for someone who has decided that opening a local page
+       * means reading the page.
+       *
+       * Only where the reader has not been told otherwise for this buffer:
+       * `htmlScripts[bufferId]` is undefined until a decision is made, and
+       * `false` once the page has been stopped here. Without that the Stop
+       * button would hand the page straight back to this line.
+       */
+      const undecided = useStore.getState().htmlScripts[bufferId] === undefined
+      const wantScripts = (granted.scripts || html.runScripts) && undecided
+
+      if ((wantScripts && !allowScripts) || (granted.remote && !allowRemote)) {
         // Taking the offer up is what this effect builds from, so let it run
         // again with the consent in place instead of building the page twice.
-        if (granted.scripts) allowHtmlScripts(bufferId)
+        if (wantScripts) allowHtmlScripts(bufferId)
         if (granted.remote) allowHtmlRemote(bufferId)
         return
       }
@@ -210,7 +224,14 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
       // the last consent clears the row instead of leaving it to be honoured
       // next time. It writes nothing when nothing has changed.
       if (filePath) {
-        rememberHtmlTrust(filePath, digest, { scripts: allowScripts, remote: allowRemote })
+        rememberHtmlTrust(filePath, digest, {
+          // Never from the setting, only from a press. With `runScripts` on
+          // there is no button and so no consent to record, and writing one
+          // anyway would mean turning the setting off left every page opened
+          // while it was on still running.
+          scripts: html.runScripts ? granted.scripts : allowScripts,
+          remote: allowRemote
+        })
       }
       // Handed to the main process and fetched back over a scheme of its own,
       // rather than inlined: a served document carries its own policy, and
@@ -377,7 +398,19 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           <button
             className="htmlv__action"
             onClick={() => allowHtmlRemote(bufferId)}
-            title="Fetch the pictures, stylesheets and webfonts this page links to from the internet. Its own code is never fetched, whatever else is allowed. This file is remembered, so you will not be asked again unless what is in it changes."
+            /**
+             * The warning is only there while the page is running, and it is
+             * the one ordering that matters here. Scripts alone have nowhere to
+             * send anything: the policy names no network source at all, so a
+             * page can look at itself and tell nobody. Allowing remote content
+             * is what opens a way out, and doing it second means handing it to
+             * code that has already had a look round.
+             */
+            title={
+              allowScripts
+                ? "Fetch the pictures, stylesheets and webfonts this page links to from the internet. This page's own code is already running, and until now it has had no way to send anything anywhere: an address it builds is one way out. Its code is still never fetched from the internet."
+                : 'Fetch the pictures, stylesheets and webfonts this page links to from the internet. Its own code is never fetched, whatever else is allowed. This file is remembered, so you will not be asked again unless what is in it changes.'
+            }
           >
             <Icon name="image" size={12} />
             Load {page.remoteCount} remote {page.remoteCount === 1 ? 'item' : 'items'}
