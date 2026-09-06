@@ -65,6 +65,13 @@ are worth stating.
   by default names that one file by its whole URL and nothing else. This is one
   gate where there used to be two, and the trade is written up in
   `src/core/preview-reader.ts`.
+- **Asking once is remembered, for that file and those bytes.** A page you have
+  allowed to run is not asked about again, because a question asked every time
+  stops being read. The record holds a SHA-256 of the document it was about, so
+  the same path holding different bytes (a sync client, a second download, a
+  `git pull`) is a different document and asks again. Withdrawing is the notice
+  that says the code is running: it is a button, and pressing it stops the page
+  and forgets the file. See `src/core/html-trust.ts`.
 - **Remote code never runs**, at any setting, even after you allow remote
   content. `script-src` is never given a network source.
 - **No network from the page at all**: there is no `connect-src`, so `fetch`,

@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { defaultSettings, type Settings } from '@shared/settings'
+import { remember, withdraw, type HtmlGrant } from '@core/html-trust'
 import { getTheme } from '@/themes/themes'
 import { invoke } from '@/services/client'
 import type { AppState } from './app-state'
@@ -130,15 +131,21 @@ export interface UiSlice {
   /** Document statistics drawer/modal. */
   docStatsOpen: boolean
   /**
-   * HTML files currently being read rather than edited, and which of them have
-   * been allowed to fetch their remote pictures.
+   * HTML files currently being read rather than edited, which of them may fetch
+   * their remote pictures, and which of them are running their own code.
    *
    * Per buffer rather than a setting, unlike the markdown view mode. Reading
    * one page is not a statement about how every other file should open, and
    * with the editor split in two, "read this one" has to be able to mean the
-   * pane it was asked in. Allowing remote content is per buffer for a stronger
-   * reason: it is consent about one file from one place, and it should not
-   * quietly carry over to the next file opened.
+   * pane it was asked in. The two consents are per buffer for a stronger
+   * reason: they are about one document, and the next file opened has not
+   * earned either of them.
+   *
+   * Which is a different question from how long a consent lasts. These three
+   * are the live state of a tab; `settings.htmlTrust` is what a page was
+   * allowed last time, keyed by file and by a digest of it, and is what fills
+   * the two consents back in when the same document is opened again. See
+   * `core/html-trust`.
    */
   htmlReading: Record<string, true>
   htmlRemote: Record<string, true>
@@ -212,11 +219,27 @@ export interface UiSlice {
   /**
    * Let one HTML buffer run its own scripts.
    *
-   * Per buffer and never remembered beyond the tab, like the remote-content
-   * consent beside it and for the same reason: it is a decision about this
-   * document, and the next one has not earned it.
+   * The flag is per buffer, because a decision has to be able to mean the pane
+   * it was asked in. Whether it outlives the tab is a separate question, and
+   * `core/html-trust` answers it: consent is recorded against the file and the
+   * bytes it had, so a page you keep coming back to is not asked every time and
+   * a page whose contents have been swapped is.
    */
   allowHtmlScripts(bufferId: string): void
+  /** Take a consent back, here and on disk. Both take the file with them. */
+  stopHtmlRemote(bufferId: string, path: string | null): void
+  stopHtmlScripts(bufferId: string, path: string | null): void
+  /**
+   * Record what a page is allowed to do, against the bytes it has now.
+   *
+   * Called on every render that has a path, not only where a button was
+   * pressed: that is what keeps the digest following a file whose author is
+   * editing it, and what clears an entry once its last consent is gone. It
+   * writes nothing when nothing would change.
+   */
+  rememberHtmlTrust(path: string, digest: string, grant: HtmlGrant): void
+  /** Forget a page entirely, whichever consent was withdrawn. */
+  forgetHtmlTrust(path: string): void
   /** Drop what was being remembered about a buffer that has gone. */
   forgetHtmlView(bufferId: string): void
   toggleTerminal(): void
@@ -452,10 +475,55 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     set((state) => ({ htmlScripts: { ...state.htmlScripts, [bufferId]: true } }))
   },
 
+  stopHtmlRemote(bufferId, path) {
+    set((state) => {
+      const htmlRemote = { ...state.htmlRemote }
+      delete htmlRemote[bufferId]
+      return { htmlRemote }
+    })
+    if (path) get().forgetHtmlTrust(path)
+  },
+
+  stopHtmlScripts(bufferId, path) {
+    set((state) => {
+      const htmlScripts = { ...state.htmlScripts }
+      delete htmlScripts[bufferId]
+      return { htmlScripts }
+    })
+    if (path) get().forgetHtmlTrust(path)
+  },
+
+  rememberHtmlTrust(path, digest, grant) {
+    const current = get().settings.htmlTrust
+    const next = remember(current, path, digest, grant, Date.now())
+    // By identity, which is the whole reason `remember` returns its argument
+    // unchanged: this runs on every rebuild, and a rebuild happens a quarter of
+    // a second after each keystroke in the pane next door.
+    if (next !== current) get().updateSettings({ htmlTrust: next })
+  },
+
+  /**
+   * Forget a page completely rather than only the consent that was withdrawn.
+   *
+   * Stopping the scripts on a page that may also fetch remote content drops
+   * both rows, and the rebuild that follows records whatever is still live.
+   * Going through nothing is the safe way round: the worst case is being asked
+   * once more about something you had already allowed.
+   */
+  forgetHtmlTrust(path) {
+    const current = get().settings.htmlTrust
+    const next = withdraw(current, path)
+    if (next !== current) get().updateSettings({ htmlTrust: next })
+  },
+
   /**
    * Buffer ids are not reused, but a map nothing ever removes from is a leak
-   * with a long fuse — and consent to fetch a page's remote content should end
-   * when the tab holding that page does.
+   * with a long fuse.
+   *
+   * Only the leak now. This used to be the whole of how a consent expired, and
+   * it is not any more: the record in settings is keyed by file and outlives
+   * every tab that showed it. Ending one is `stopHtmlRemote` and
+   * `stopHtmlScripts`, which is a thing the reader has a button for.
    */
   forgetHtmlView(bufferId) {
     set((state) => {

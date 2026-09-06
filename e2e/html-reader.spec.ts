@@ -145,13 +145,14 @@ const read = async (heading = 'Reader check'): Promise<void> => {
 /**
  * Turn the page's scripts on, if they are not on already.
  *
- * Consent is remembered for the buffer, so a test that runs after one which
- * gave it finds the offer already taken and no button to press.
+ * Consent is remembered for the file now, not only for the buffer, so a test
+ * that runs after one which gave it finds the offer already taken and no button
+ * to press. See `core/html-trust`.
  */
 const runScripts = async (): Promise<void> => {
   const offer = page.locator('.htmlv__action', { hasText: /Run \d+ scripts?/ })
   if (await offer.isVisible()) await offer.click()
-  await expect(page.locator('.htmlv__note', { hasText: /scripts? running/ })).toBeVisible({
+  await expect(page.locator('.htmlv__action', { hasText: /scripts? running/ })).toBeVisible({
     timeout: 20_000
   })
 }
@@ -511,7 +512,7 @@ test('keeps your place when the page is rebuilt', async () => {
   await expect.poll(() => frame.locator('body').evaluate(() => window.scrollY)).toBeGreaterThan(800)
 
   await page.locator('.htmlv__action', { hasText: /Load 1 remote/ }).click()
-  await expect(page.locator('.htmlv__note', { hasText: 'Remote content loaded' })).toBeVisible({
+  await expect(page.locator('.htmlv__action', { hasText: 'Remote content loaded' })).toBeVisible({
     timeout: 15_000
   })
   await page.waitForTimeout(600)

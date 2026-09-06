@@ -802,8 +802,20 @@ const SURFACES: Surface[] = [
       await page.locator('.header-viewmode__btn', { hasText: 'Read' }).click()
       await expect(page.locator('.htmlv__frame')).toBeVisible({ timeout: 20_000 })
       await expect(page.locator('.htmlv__action', { hasText: /Load 1 remote/ })).toBeVisible()
+      // Scripts turned on, because the notice saying so is a control of its
+      // own now (the way to take the consent back), and it is the one thing in
+      // this bar drawn in the accent rather than the muted foreground. Left
+      // unpressed it is a button no theme is ever measured against.
+      await page.locator('.htmlv__action', { hasText: /Run \d+ scripts?/ }).click()
+      await expect(page.locator('.htmlv__action--live')).toBeVisible({ timeout: 20_000 })
     },
     close: async () => {
+      // Given back before leaving. Consent outlives the tab, and a surface that
+      // leaves it behind is a surface that changes what the next run measures.
+      await page.locator('.htmlv__action--live').click()
+      await expect(page.locator('.htmlv__action', { hasText: /Run \d+ scripts?/ })).toBeVisible({
+        timeout: 20_000
+      })
       await page.locator('.htmlv__action', { hasText: 'Edit' }).click()
       // The tab goes too, not just the view. Every open tab takes room from the
       // ones beside it, and the close control on a tab is already at the size

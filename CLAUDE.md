@@ -149,5 +149,7 @@ here.
   silently discard a change made outside the editor.
 - **The HTML reader is the one place untrusted markup is rendered as markup.**
   It has its own two schemes, its own policy per document, and rules that are
-  easy to undo by accident. Read `core/html-document.ts` and
-  `core/preview-reader.ts` before touching any of it.
+  easy to undo by accident. Read `core/html-document.ts`,
+  `core/preview-reader.ts` and `core/html-trust.ts` before touching any of it.
+  Consent to run a page outlives the tab, keyed on the file _and_ a digest of
+  it, so anything that changes what the reader hashes changes who gets trusted.

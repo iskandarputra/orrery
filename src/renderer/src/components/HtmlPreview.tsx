@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { buildPreview } from '@core/html-document'
+import { fingerprint, trustedFor } from '@core/html-trust'
 import { previewRoot } from '@core/preview-asset'
 import { READY, UPDATE } from '@core/preview-reader'
 import { preparePage } from '@/editor/html-page'
@@ -46,8 +47,11 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
   const vaultRoot = useStore((s) => s.rootPath)
   const allowRemote = useStore((s) => !!s.htmlRemote[bufferId])
   const allowHtmlRemote = useStore((s) => s.allowHtmlRemote)
+  const stopHtmlRemote = useStore((s) => s.stopHtmlRemote)
   const allowScripts = useStore((s) => !!s.htmlScripts[bufferId])
   const allowHtmlScripts = useStore((s) => s.allowHtmlScripts)
+  const stopHtmlScripts = useStore((s) => s.stopHtmlScripts)
+  const rememberHtmlTrust = useStore((s) => s.rememberHtmlTrust)
   const setHtmlReading = useStore((s) => s.setHtmlReading)
   const isDirty = useStore((s) => !!s.buffers[bufferId]?.isDirty)
 
@@ -173,6 +177,26 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
     if (source === null) return
     let live = true
     void (async () => {
+      /**
+       * What this file was allowed to do the last time it was open, if it is
+       * still the same file. See `core/html-trust`.
+       *
+       * Read out of the store rather than subscribed to, on purpose. A
+       * subscription would make recording a consent a reason to rebuild, and a
+       * rebuild with scripts running is a reload: pressing Run would show the
+       * page, write the consent, and then load the page a second time.
+       */
+      const digest = await fingerprint(source)
+      if (!live) return
+      const granted = trustedFor(useStore.getState().settings.htmlTrust, filePath, digest)
+      if ((granted.scripts && !allowScripts) || (granted.remote && !allowRemote)) {
+        // Taking the offer up is what this effect builds from, so let it run
+        // again with the consent in place instead of building the page twice.
+        if (granted.scripts) allowHtmlScripts(bufferId)
+        if (granted.remote) allowHtmlRemote(bufferId)
+        return
+      }
+
       // The one folder this page may read files out of, settled here and sent
       // with the page so that main — not the page — decides what a request for
       // a file resolves to. See `core/preview-asset`.
@@ -180,6 +204,14 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
       const prepared = await preparePage(source, { previewId: bufferId, docPath: filePath, root })
       if (!live) return
       const built = buildPreview(prepared.html, { allowRemote, allowScripts })
+
+      // Recorded on every render rather than where the button is, so that the
+      // digest follows a file whose author is editing it, and so withdrawing
+      // the last consent clears the row instead of leaving it to be honoured
+      // next time. It writes nothing when nothing has changed.
+      if (filePath) {
+        rememberHtmlTrust(filePath, digest, { scripts: allowScripts, remote: allowRemote })
+      }
       // Handed to the main process and fetched back over a scheme of its own,
       // rather than inlined: a served document carries its own policy, and
       // that is the only way this page can be allowed to run its own code
@@ -240,7 +272,17 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
     return () => {
       live = false
     }
-  }, [source, filePath, vaultRoot, allowRemote, allowScripts, bufferId])
+  }, [
+    source,
+    filePath,
+    vaultRoot,
+    allowRemote,
+    allowScripts,
+    bufferId,
+    allowHtmlRemote,
+    allowHtmlScripts,
+    rememberHtmlTrust
+  ])
 
   /**
    * The frame's own reader, saying it is listening.
@@ -299,13 +341,20 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
 
         {!!page?.scripts &&
           (allowScripts ? (
-            <span
-              className="htmlv__note htmlv__note--live"
-              title="This page's own code is running, in a frame that cannot reach the app"
+            <button
+              className="htmlv__action htmlv__action--live"
+              onClick={() => stopHtmlScripts(bufferId, filePath)}
+              /**
+               * A notice until it was also the way back. Consent outlives the
+               * tab now, and a permission that can only ever be given is not a
+               * permission: this is the whole of the way to take it back, so it
+               * has to be where the thing it is about is being said.
+               */
+              title="This page's own code is running, in a frame that cannot reach the app, and it will run again the next time you open this file. Click to stop it and forget that it was allowed."
             >
               <Icon name="zap" size={12} />
               {page.scripts} script{page.scripts === 1 ? '' : 's'} running
-            </span>
+            </button>
           ) : (
             <button
               className="htmlv__action"
@@ -317,7 +366,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
                * only sign of why was a button that said "Run scripts" without
                * saying anything had been held back.
                */
-              title="Run this page's own code. Some pages build their contents rail, their controls or their animation with it, and none of that is there until you do. It stays in a frame with no access to the app, and nothing is fetched from the internet."
+              title="Run this page's own code. Some pages build their contents rail, their controls or their animation with it, and none of that is there until you do. It stays in a frame with no access to the app, and nothing is fetched from the internet. This file is remembered, so you will not be asked again unless what is in it changes."
             >
               <Icon name="zap" size={12} />
               Run {page.scripts} script{page.scripts === 1 ? '' : 's'}
@@ -328,20 +377,21 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           <button
             className="htmlv__action"
             onClick={() => allowHtmlRemote(bufferId)}
-            title="Fetch the pictures, stylesheets and webfonts this page links to from the internet. Its own code is never fetched, whatever else is allowed."
+            title="Fetch the pictures, stylesheets and webfonts this page links to from the internet. Its own code is never fetched, whatever else is allowed. This file is remembered, so you will not be asked again unless what is in it changes."
           >
             <Icon name="image" size={12} />
             Load {page.remoteCount} remote {page.remoteCount === 1 ? 'item' : 'items'}
           </button>
         )}
         {allowRemote && (
-          <span
-            className="htmlv__note"
-            title="This page may fetch pictures, stylesheets and webfonts from the internet"
+          <button
+            className="htmlv__action"
+            onClick={() => stopHtmlRemote(bufferId, filePath)}
+            title="This page may fetch pictures, stylesheets and webfonts from the internet, and will again the next time you open this file. Click to stop it and forget that it was allowed."
           >
             <Icon name="image" size={12} />
             Remote content loaded
-          </span>
+          </button>
         )}
 
         {filePath && (

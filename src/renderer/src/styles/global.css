@@ -7363,7 +7363,11 @@ kbd {
 }
 
 /* The page's own code is running. Said in the accent rather than the warning
-   colour: it is a thing the reader asked for, not a thing that went wrong. */
-.htmlv__note--live {
+   colour: it is a thing the reader asked for, not a thing that went wrong.
+   A button rather than a notice, because the consent behind it now outlives the
+   tab and this is the way to take it back. */
+.htmlv__action--live {
+  border-color: var(--or-accent-soft);
+  background: var(--or-accent-soft);
   color: var(--or-accent-text);
 }

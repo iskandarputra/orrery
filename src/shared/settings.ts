@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { McpServerConfig } from '@core/mcp-config'
+import type { HtmlTrustEntry } from '@core/html-trust'
 
 /**
  * Persisted user settings. The zod schema is the single source of truth:
@@ -53,6 +54,20 @@ export const mcpServerSchema: z.ZodType<McpServerConfig> = z.union([
     headers: z.record(z.string(), z.string()).default({})
   })
 ])
+
+/**
+ * One remembered consent about an HTML page.
+ *
+ * Typed against `HtmlTrustEntry` from `core/`, the same way `mcpServerSchema`
+ * is, and for the same reason: the shape is the pure module's decision and this
+ * is the boundary that has to prove a file on disk still matches it.
+ */
+export const htmlTrustEntrySchema: z.ZodType<HtmlTrustEntry> = z.object({
+  fingerprint: z.string(),
+  scripts: z.boolean().default(false),
+  remote: z.boolean().default(false),
+  at: z.number().default(0)
+})
 
 export const settingsSchema = z.object({
   /**
@@ -192,6 +207,15 @@ export const settingsSchema = z.object({
       })
     )
     .prefault({}),
+  /**
+   * HTML pages allowed to run their own code or fetch their remote content.
+   *
+   * Keyed by absolute path. An entry carries a digest of the page it was about,
+   * so the same name holding different bytes is a different document and asks
+   * again. `.catch({})` because a trust file that will not parse has to mean
+   * "trust nothing", never "keep the last thing that parsed".
+   */
+  htmlTrust: z.record(z.string(), htmlTrustEntrySchema).prefault({}).catch({}),
   /** Daily notes: one dated note per day, optionally from a template. */
   dailyNotes: z
     .object({
