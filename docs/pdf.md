@@ -41,8 +41,13 @@ This is what makes a PDF part of a knowledge base rather than a file beside one.
 
 ## Marking up
 
-Four tools: highlight, text box, draw and signature. Form fields can be filled
-in. The rail's **Notes** tab lists every mark in the document with the page it
+Three tools: highlight, text box and draw. Form fields can be filled in.
+
+There is no signature tool. pdf.js has the mode, and it switches on, but it
+asks a signature manager for the signature itself and that manager is part of
+pdf.js's own viewer rather than of the library. Wired to nothing, the button
+lit up and did nothing at all, so it is gone until the dialog behind it exists.
+Draw is how a signature gets made in the meantime. The rail's **Notes** tab lists every mark in the document with the page it
 is on, in reading order.
 
 **Image** sits beside them but is not one of them: it puts a real picture into
@@ -150,7 +155,8 @@ in the document for anyone who selects the text or reads the bytes.
 ## What Orrery will not do
 
 - Convert a PDF to Word or Excel.
-- Sign a document with a certificate, or check somebody else's signature.
+- Sign a document with a certificate, or check somebody else's signature. Nor
+  is there a signature tool for the drawn kind yet; see **Marking up** above.
 - Run JavaScript that a PDF carries. This is deliberate: a document you were
   sent is not a place to execute code from. Forms still fill in; only their
   scripting is absent.

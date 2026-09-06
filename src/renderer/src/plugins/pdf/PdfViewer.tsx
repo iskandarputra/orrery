@@ -44,14 +44,24 @@ import { PdfSidebar } from './PdfSidebar'
  * pdf.js's annotation editor modes.
  *
  * Its own constants live behind a dynamic import, and a toolbar cannot wait for
- * one to draw a button. These are the values from `AnnotationEditorType`, and
- * the e2e checks a tool actually turns on rather than trusting the numbers.
+ * one to draw a button, so the values from `AnnotationEditorType` are written
+ * out here. `e2e/pdf-tools.spec.ts` checks each one turns its editor on and
+ * that drawing with it leaves something behind, rather than trusting a number.
+ *
+ * **There is no signature tool, and that is deliberate.** `SIGNATURE` (101) is
+ * in the enum and the mode does switch on: the layer goes to
+ * `signatureEditing` and the button lights up. Nothing else happens. pdf.js
+ * routes that mode through a signature manager, which is the part of its own
+ * viewer that shows the "add a signature" dialog, and both call sites are
+ * written `this.#signatureManager?.…`. With no manager supplied they are
+ * silently no-ops, so the tool was a button that could be pressed and did
+ * nothing at all. Draw is how a signature gets made in the meantime, and it
+ * works. Bringing the real one back means building the dialog first.
  */
 const TOOLS = [
   { mode: 9, icon: 'pencil', label: 'Highlight' },
   { mode: 3, icon: 'type', label: 'Text box' },
-  { mode: 15, icon: 'diagram', label: 'Draw' },
-  { mode: 101, icon: 'pencil', label: 'Signature' }
+  { mode: 15, icon: 'diagram', label: 'Draw' }
 ] as const
 
 /** How far each zoom button moves, and where it stops. */
@@ -1018,7 +1028,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
               className={`pdfv__action${tool === entry.mode ? ' pdfv__action--active' : ''}`}
               aria-label={entry.label}
               aria-pressed={tool === entry.mode}
-              title={`${entry.label} — click again to put it down`}
+              title={`${entry.label}. Click it again to put it down.`}
               onClick={() => void pickTool(entry.mode)}
             >
               <Icon name={entry.icon} size={13} />
