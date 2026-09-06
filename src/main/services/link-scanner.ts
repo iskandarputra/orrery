@@ -116,11 +116,15 @@ export class LinkScanner {
    * arbiter every other resolver uses, so an agent gets the file the map and
    * the panel would also call X rather than a fourth opinion.
    *
-   * `rootPath` stands in for `fromPath`. There is no file the request was
-   * written in to rank folders against: the vault root is the honest neutral
-   * home, and it makes the ranking fall through to the deterministic
-   * shallowest-then-lexicographic tiers rather than to anything order
-   * dependent.
+   * `rootPath` stands in for `fromPath`, because there is no file the request
+   * was written in to rank folders against. It is a directory, not a file, so
+   * `dirname(rootPath)` is the root's own PARENT and no in-vault candidate can
+   * ever share that folder, and `sharedFolders` counts one segment short of
+   * `rootPath` because it has no trailing filename of its own to set aside.
+   * Both proximity tiers are starved by construction, every candidate ties at
+   * 0, and the ranking falls straight through to the deterministic
+   * shallowest-then-lexicographic tiers, which is the answer this caller wants:
+   * one that does not depend on which folder happened to be asked from.
    */
   async findNote(rootPath: string, name: string, withCode: boolean): Promise<string | null> {
     const analysis = await this.graph(rootPath, withCode)
