@@ -108,6 +108,14 @@ test.beforeAll(async () => {
       'export function run(): number {\n  return helper() + gone()\n}\n'
   )
   writeFileSync(join(vault, 'helper.ts'), 'export function helper(): number {\n  return 1\n}\n')
+  // A second `helper.ts`, so `[[helper]]` in note.md has somewhere else it
+  // could have meant. `note.md` sits next to the root one and wins on folder,
+  // but the choice still happened, and the backlinks row for it carries the
+  // ambiguous marker this measures.
+  writeFileSync(
+    join(vault, 'Folder', 'helper.ts'),
+    'export function helper(): number {\n  return 2\n}\n'
+  )
   writeFileSync(join(vault, 'note.md'), '# Note\n\nSee [[helper]] for the code behind this.\n')
   // A repository with one changed file, so the source control panel and the
   // side-by-side diff have real content to be measured against rather than an
@@ -1077,7 +1085,10 @@ const SURFACES: Surface[] = [
   {
     // Before this branch the panel only ever listed wikilinks, so every row in
     // it was a note. `app.ts` importing `helper.ts` gives it a source file
-    // instead, which is text and a row style neither was ever measured.
+    // instead, which is text and a row style neither was ever measured. The
+    // second `Folder/helper.ts` gives `note.md`'s `[[helper]]` a choice to
+    // make, so the ambiguous marker on that row is measured too, not just
+    // asserted to exist.
     name: 'backlinks',
     root: '.rpanel',
     open: async () => {
@@ -1086,6 +1097,7 @@ const SURFACES: Surface[] = [
       await expect(page.locator('.result-group__name', { hasText: 'app.ts' })).toBeVisible({
         timeout: 15_000
       })
+      await expect(page.locator('.result-snippet__ambiguous')).toBeVisible()
     },
     close: async () => {
       // The tab goes too. Every open tab narrows the ones beside it, and the

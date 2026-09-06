@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, rmSync, unlinkSync, utimesSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, unlinkSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -162,6 +162,26 @@ describe('backlinks from the graph', () => {
     writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
     const hits = await scanner.backlinks(vault, path.join(vault, 'helper.ts'), false)
     expect(hits).toEqual([])
+  })
+
+  it('marks a hit ambiguous when its edge picked between two candidates', async () => {
+    // Two `Store.md`, so `[[Store]]` has somewhere else it could have meant.
+    // `Note.md` sits next to the root one, which wins on folder, but the
+    // choice still happened and the hit for it should say so.
+    mkdirSync(path.join(vault, 'Deep'))
+    writeFileSync(path.join(vault, 'Store.md'), '# Store\n')
+    writeFileSync(path.join(vault, 'Deep', 'Store.md'), '# Store\n')
+    writeFileSync(path.join(vault, 'Note.md'), 'see [[Store]]\n')
+
+    const ambiguous = await scanner.backlinks(vault, path.join(vault, 'Store.md'), false)
+    const hit = ambiguous.find((h) => h.path.endsWith('Note.md'))
+    expect(hit?.ambiguous).toBe(true)
+
+    // A.md's [[B]] has exactly one B.md to mean: no choice, so no flag at all,
+    // not a flag set to false. Absence is how the panel tells the two apart.
+    const unambiguous = await scanner.backlinks(vault, path.join(vault, 'B.md'), false)
+    expect(unambiguous).toHaveLength(1)
+    expect(unambiguous[0]?.ambiguous).toBeUndefined()
   })
 })
 

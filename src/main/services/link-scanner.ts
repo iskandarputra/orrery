@@ -109,7 +109,11 @@ export class LinkScanner {
         hits.push({
           path: file,
           line: edge.line,
-          snippet: (lines[edge.line - 1] ?? '').trim().slice(0, 200)
+          snippet: (lines[edge.line - 1] ?? '').trim().slice(0, 200),
+          // Only present when true, matching `page`: the panel tells "no
+          // choice was made" apart from "a choice was made and this was not
+          // it" by whether the property is there at all.
+          ...(edge.ambiguous ? { ambiguous: true as const } : {})
         })
       }
     }

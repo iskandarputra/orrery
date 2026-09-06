@@ -53,6 +53,14 @@ export function ResultGroups({
                   which line, as it always has. */}
               <span className="result-snippet__line">{hit.page ? `p${hit.page}` : hit.line}</span>
               <span className="result-snippet__text">{hit.snippet}</span>
+              {hit.ambiguous && (
+                <span
+                  className="result-snippet__ambiguous"
+                  title="More than one file matched this name; the nearest one was picked."
+                >
+                  ambiguous
+                </span>
+              )}
             </button>
           ))}
         </div>

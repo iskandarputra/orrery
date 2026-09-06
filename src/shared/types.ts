@@ -205,6 +205,15 @@ export interface BacklinkHit {
    * hit is a line in a text file, as every hit used to be.
    */
   page?: number
+  /**
+   * The graph edge this hit came from had `ambiguous` set: more than one file
+   * could have answered to the name written here, and this one was picked.
+   *
+   * Only `LinkScanner.backlinks` sets it, from the edge it read the hit off.
+   * Present and true means the panel should say so; absent means the edge
+   * (or the search hit that isn't an edge at all) never had a choice to make.
+   */
+  ambiguous?: boolean
 }
 
 /** One diagnostic from a language server, flattened to what the editor draws. */
