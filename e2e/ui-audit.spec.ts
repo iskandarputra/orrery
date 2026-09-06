@@ -496,10 +496,28 @@ async function controls(root: string): Promise<Target[]> {
             const hit = at.closest('label')
             return !!hit && (hit as HTMLLabelElement).control === el
           }
+          /**
+           * The third way a control gets a name, and the one this missed.
+           *
+           * `aria-labelledby` points at text already on screen, which is what a
+           * settings row is: the words are in the row's label, and repeating
+           * them into an `aria-label` is the version that goes stale. Resolved
+           * rather than trusted, because an id pointing at nothing names
+           * nothing, and counting the attribute alone would turn a typo into a
+           * pass.
+           */
+          const labelledBy = (el.getAttribute('aria-labelledby') ?? '')
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+            .join(' ')
+            .trim()
           return {
             sel: el.className.toString().split(' ').slice(0, 2).join('.') || el.tagName,
-            label: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 24),
-            named: !!(el.getAttribute('title') ?? el.getAttribute('aria-label')),
+            label: (el.getAttribute('aria-label') ?? (labelledBy || null) ?? el.textContent ?? '')
+              .trim()
+              .slice(0, 24),
+            named: !!(el.getAttribute('title') ?? el.getAttribute('aria-label')) || !!labelledBy,
             namable: !!el.closest('button, [role="button"], a'),
             inline: !!el.closest('.cm-line'),
             w: Math.round(r.width),
@@ -636,6 +654,28 @@ const SURFACES: Surface[] = [
       await page.locator('.sidebar__filter-clear').click()
       await page.locator('.outline-filter__clear').click()
       await expect(page.locator('.tree-row--file', { hasText: 'Board.canvas' })).toBeVisible()
+    }
+  },
+  {
+    /**
+     * The settings dialog, on the section that carries the reader's standing
+     * answer about running a page's code.
+     *
+     * The whole dialog had never been measured. It is added here because the
+     * change that brought the two rows below had to add a surface for them, and
+     * a surface for two rows that skipped the panel they sit in would be the
+     * kind of coverage that only looks like coverage.
+     */
+    name: 'settings',
+    root: '.settings',
+    open: async () => {
+      await runCommand('app.openSettings')
+      await expect(page.locator('.settings')).toBeVisible()
+      await expect(page.getByText('Run scripts in HTML files')).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.settings')).toHaveCount(0)
     }
   },
   {

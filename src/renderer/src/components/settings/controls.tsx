@@ -1,4 +1,18 @@
+import { createContext, useContext, useId } from 'react'
+
 /** Form primitives for the settings dialog — one visual language everywhere. */
+
+/**
+ * The id of the label a row is drawn with, for the control sitting in it.
+ *
+ * A switch here is a `<button>` holding nothing but a coloured pill, so it has
+ * no text to be named by and screen readers announced three of them as
+ * "switch". The words are already on screen: they are the row's own label, two
+ * elements away and not associated with anything. Passing the id down the tree
+ * associates them without every call site having to repeat the label it just
+ * wrote, and it does the same for any control put in a row later.
+ */
+const RowLabelId = createContext<string | undefined>(undefined)
 
 export function SettingRow({
   label,
@@ -9,13 +23,18 @@ export function SettingRow({
   description?: string
   children: React.ReactNode
 }): React.JSX.Element {
+  const labelId = useId()
   return (
     <div className="set-row">
       <div className="set-row__text">
-        <div className="set-row__label">{label}</div>
+        <div className="set-row__label" id={labelId}>
+          {label}
+        </div>
         {description && <div className="set-row__desc">{description}</div>}
       </div>
-      <div className="set-row__control">{children}</div>
+      <div className="set-row__control">
+        <RowLabelId.Provider value={labelId}>{children}</RowLabelId.Provider>
+      </div>
     </div>
   )
 }
@@ -27,10 +46,12 @@ export function Toggle({
   checked: boolean
   onChange(next: boolean): void
 }): React.JSX.Element {
+  const labelId = useContext(RowLabelId)
   return (
     <button
       role="switch"
       aria-checked={checked}
+      aria-labelledby={labelId}
       className={`toggle${checked ? ' toggle--on' : ''}`}
       onClick={() => onChange(!checked)}
     >

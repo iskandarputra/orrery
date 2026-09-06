@@ -3698,6 +3698,10 @@ textarea {
 .settings__search-input {
   flex: 1;
   min-width: 0;
+  /* 2.5.8 asks for 24px, and the box was 16: the wrapper around it is tall
+     enough but clicking a wrapper does not focus the input inside it, so the
+     hit area has to be on the input itself. */
+  min-height: 24px;
   border: none;
   background: transparent;
   outline: none;
@@ -3824,6 +3828,18 @@ textarea {
   border-radius: 10px;
   background: var(--or-active-bg);
   transition: background var(--or-transition-fast);
+}
+
+/* The target, which is not the paint.
+   2.5.8 asks for 24px and the pill is 20, because a 24px pill beside 11.5px
+   label text reads as a light switch rather than a setting. So the clickable
+   area is extended past what is drawn instead: a transparent box is still hit
+   tested, and a pseudo-element reports its own element as the hit, which is
+   what makes the pointer target 26px tall while the switch stays 20. */
+.toggle::after {
+  content: '';
+  position: absolute;
+  inset: -3px 0;
 }
 
 .toggle--on {
