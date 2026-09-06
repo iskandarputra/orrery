@@ -19,7 +19,13 @@ function node(id: string): GraphNode {
 function graph(ids: string[], links: [string, string][]): LinkGraph {
   return {
     nodes: ids.map(node),
-    edges: links.map(([from, to]) => ({ from, to, kind: 'link' as const, ambiguous: false }))
+    edges: links.map(([from, to]) => ({
+      from,
+      to,
+      kind: 'link' as const,
+      ambiguous: false,
+      line: 1
+    }))
   }
 }
 

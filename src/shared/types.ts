@@ -85,6 +85,8 @@ export interface GraphEdge {
    * long way from the index that knew there were two candidates.
    */
   ambiguous: boolean
+  /** 1-based line the link was written on, so a panel can open it there. */
+  line: number
 }
 
 /** The raw link graph, before analysis. */

@@ -21,7 +21,13 @@ function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
 function graph(ids: string[], links: [string, string][]): LinkGraph {
   return {
     nodes: ids.map((id) => node(id)),
-    edges: links.map(([from, to]) => ({ from, to, kind: 'link' as const, ambiguous: false }))
+    edges: links.map(([from, to]) => ({
+      from,
+      to,
+      kind: 'link' as const,
+      ambiguous: false,
+      line: 1
+    }))
   }
 }
 
@@ -169,8 +175,8 @@ describe('insights', () => {
         node('ghost:missing', { label: 'missing', exists: false })
       ],
       edges: [
-        { from: 'A', to: 'B', kind: 'link' as const, ambiguous: false },
-        { from: 'A', to: 'ghost:missing', kind: 'link' as const, ambiguous: false }
+        { from: 'A', to: 'B', kind: 'link' as const, ambiguous: false, line: 1 },
+        { from: 'A', to: 'ghost:missing', kind: 'link' as const, ambiguous: false, line: 1 }
       ]
     }
     const a = analyzeGraph(g)
@@ -184,7 +190,7 @@ describe('insights', () => {
   it('does not count a ghost as an orphan or a dead end', () => {
     const g: LinkGraph = {
       nodes: [node('A'), node('ghost:x', { label: 'x', exists: false })],
-      edges: [{ from: 'A', to: 'ghost:x', kind: 'link' as const, ambiguous: false }]
+      edges: [{ from: 'A', to: 'ghost:x', kind: 'link' as const, ambiguous: false, line: 1 }]
     }
     const a = analyzeGraph(g)
     expect(a.insights.orphans).toEqual([])
@@ -201,8 +207,8 @@ describe('vault stats', () => {
         node('ghost:g', { label: 'g', exists: false })
       ],
       edges: [
-        { from: 'A', to: 'B', kind: 'link' as const, ambiguous: false },
-        { from: 'A', to: 'ghost:g', kind: 'link' as const, ambiguous: false }
+        { from: 'A', to: 'B', kind: 'link' as const, ambiguous: false, line: 1 },
+        { from: 'A', to: 'ghost:g', kind: 'link' as const, ambiguous: false, line: 1 }
       ]
     }
     const a = analyzeGraph(g)

@@ -36,6 +36,30 @@ function stemOfPath(path: string): string {
 }
 
 /**
+ * Offset to 1-based line, over one prepared index per file.
+ *
+ * `findWikilinks` reports character offsets and a backlinks panel needs lines.
+ * Counting newlines per link would rescan the file once per link; a file with
+ * 200 links would read itself 200 times.
+ */
+function lineIndex(content: string): (offset: number) => number {
+  const starts: number[] = [0]
+  for (let at = content.indexOf('\n'); at !== -1; at = content.indexOf('\n', at + 1)) {
+    starts.push(at + 1)
+  }
+  return (offset) => {
+    let low = 0
+    let high = starts.length - 1
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      if (starts[mid]! <= offset) low = mid
+      else high = mid - 1
+    }
+    return low + 1
+  }
+}
+
+/**
  * Build the vault link graph from file contents (pure — tested in Node).
  *
  * Two kinds of edge, because a vault that holds code has two kinds of link.
@@ -76,6 +100,7 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   const edges: GraphEdge[] = []
   const seen = new Set<string>()
   for (const f of files) {
+    const lineAt = lineIndex(f.content)
     for (const link of findWikilinks(f.content)) {
       const found = resolve(f.path, byStem.get(link.target.toLowerCase()) ?? [], {
         tieBreak: 'nearest',
@@ -106,7 +131,8 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
         from: f.path,
         to,
         kind: 'link',
-        ambiguous: found.status === 'resolved' && found.ambiguous
+        ambiguous: found.status === 'resolved' && found.ambiguous,
+        line: lineAt(link.from)
       })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
@@ -147,7 +173,7 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ from: f.path, to, kind: 'import', ambiguous: false })
+      edges.push({ from: f.path, to, kind: 'import', ambiguous: false, line: found.line })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
     }

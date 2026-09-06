@@ -79,8 +79,8 @@ describe('code in the graph', () => {
     const graph = buildGraph(mixed, '/v')
     const imports = graph.edges.filter((edge) => edge.kind === 'import')
     expect(imports).toEqual([
-      { from: '/v/src/app.ts', to: '/v/src/pane.ts', kind: 'import', ambiguous: false },
-      { from: '/v/src/pane.ts', to: '/v/src/style.css', kind: 'import', ambiguous: false }
+      { from: '/v/src/app.ts', to: '/v/src/pane.ts', kind: 'import', ambiguous: false, line: 1 },
+      { from: '/v/src/pane.ts', to: '/v/src/style.css', kind: 'import', ambiguous: false, line: 1 }
     ])
   })
 
@@ -108,7 +108,8 @@ describe('code in the graph', () => {
       from: '/v/notes/Editor.md',
       to: '/v/src/pane.ts',
       kind: 'link',
-      ambiguous: false
+      ambiguous: false,
+      line: 1
     })
   })
 
@@ -245,5 +246,47 @@ describe('imports that resolve nowhere', () => {
     )
     expect(graph.edges.filter((e) => e.kind === 'import')).toHaveLength(0)
     expect(graph.nodes.every((n) => n.exists)).toBe(true)
+  })
+})
+
+describe('where a link was written', () => {
+  it('records the line of a wikilink and of an import', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: 'first\nsecond\nsee [[B]]' },
+        { path: '/v/B.md', stem: 'B', content: '' },
+        { path: '/v/a.ts', stem: 'a', content: "// header\nimport x from './b'" },
+        { path: '/v/b.ts', stem: 'b', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.find((e) => e.kind === 'link')!.line).toBe(3)
+    expect(graph.edges.find((e) => e.kind === 'import')!.line).toBe(2)
+  })
+
+  // The brief's own case only checks lines 3 and 2, which an off-by-one in a
+  // single direction could still slip past. A link on line 1 catches an
+  // implementation that assumes there is always a newline before it; a link
+  // straight after a blank line catches one that miscounts consecutive breaks.
+  it('records line 1 for a wikilink with nothing before it', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: '[[B]] first' },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.find((e) => e.kind === 'link')!.line).toBe(1)
+  })
+
+  it('records the right line for a wikilink straight after a blank line', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: 'first\n\n[[B]]' },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.find((e) => e.kind === 'link')!.line).toBe(3)
   })
 })
