@@ -98,50 +98,104 @@ describe('resolveImport', () => {
   ]
 
   it('follows a relative import and adds the extension it left off', () => {
-    expect(resolveImport('/v/src/app.ts', './editor/pane', indexImports(files))).toBe(
-      '/v/src/editor/pane.ts'
-    )
-    expect(resolveImport('/v/src/app.ts', './store', indexImports(files))).toBe('/v/src/store.tsx')
+    expect(resolveImport('/v/src/app.ts', './editor/pane', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/src/editor/pane.ts',
+      ambiguous: false
+    })
+    expect(resolveImport('/v/src/app.ts', './store', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/src/store.tsx',
+      ambiguous: false
+    })
   })
 
   it('follows one that climbs out of its folder', () => {
-    expect(resolveImport('/v/src/editor/pane.ts', '../app', indexImports(files))).toBe(
-      '/v/src/app.ts'
-    )
+    expect(resolveImport('/v/src/editor/pane.ts', '../app', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/src/app.ts',
+      ambiguous: false
+    })
   })
 
   it('falls back to the folder’s index file', () => {
-    expect(resolveImport('/v/src/app.ts', './editor', indexImports(files))).toBe(
-      '/v/src/editor/index.ts'
-    )
+    expect(resolveImport('/v/src/app.ts', './editor', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/src/editor/index.ts',
+      ambiguous: false
+    })
   })
 
   it('reads Python’s dots as directories', () => {
-    expect(resolveImport('/v/lib/util.py', '.store', indexImports(files))).toBe(
-      '/v/lib/store/__init__.py'
-    )
+    expect(resolveImport('/v/lib/util.py', '.store', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/lib/store/__init__.py',
+      ambiguous: false
+    })
   })
 
   it('matches a package path by its last segment when only one file could be it', () => {
     // `pane.ts` shares the name and is not a candidate: a Rust crate path
     // cannot mean a TypeScript file.
-    expect(resolveImport('/v/main.rs', 'crate::pane', indexImports(files))).toBe('/v/pane.rs')
+    expect(resolveImport('/v/main.rs', 'crate::pane', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/pane.rs',
+      ambiguous: false
+    })
   })
 
   it('refuses to guess between two files with the same name', () => {
     // A wrong edge in a map is worse than a missing one.
     const ambiguous = [...files, '/v/other/pane.rs']
-    expect(resolveImport('/v/main.rs', 'crate::pane', indexImports(ambiguous))).toBeNull()
+    expect(resolveImport('/v/main.rs', 'crate::pane', indexImports(ambiguous))).toEqual({
+      status: 'ambiguous',
+      candidates: ['/v/pane.rs', '/v/other/pane.rs']
+    })
   })
 
-  it('answers null for a package that is not in the vault at all', () => {
-    expect(resolveImport('/v/src/app.ts', 'react', indexImports(files))).toBeNull()
-    expect(resolveImport('/v/src/app.ts', './nowhere', indexImports(files))).toBeNull()
+  it('tells a package apart from a relative import that resolves nowhere', () => {
+    expect(resolveImport('/v/src/app.ts', 'react', indexImports(files))).toEqual({
+      status: 'external'
+    })
+    expect(resolveImport('/v/src/app.ts', './nowhere', indexImports(files))).toEqual({
+      status: 'missing',
+      at: '/v/src/nowhere'
+    })
   })
 
   it('does not mistake a relative path for a package name', () => {
-    expect(resolveImport('/v/src/app.ts', './style.css', indexImports(files))).toBe(
-      '/v/src/style.css'
-    )
+    expect(resolveImport('/v/src/app.ts', './style.css', indexImports(files))).toEqual({
+      status: 'resolved',
+      to: '/v/src/style.css',
+      ambiguous: false
+    })
+  })
+})
+
+describe('what kind of unresolved', () => {
+  const files = ['/v/src/app.ts', '/v/src/store.tsx']
+
+  it('calls a package external, not missing', () => {
+    expect(resolveImport('/v/src/app.ts', 'react', indexImports(files))).toEqual({
+      status: 'external'
+    })
+  })
+
+  it('calls a relative path that resolves nowhere missing, and says where', () => {
+    // Renaming a file breaks every relative import naming it. That used to
+    // share a `continue` with `react`, so the app could not tell a broken
+    // import from a dependency it was never going to draw.
+    expect(resolveImport('/v/src/app.ts', './editorr', indexImports(files))).toEqual({
+      status: 'missing',
+      at: '/v/src/editorr'
+    })
+  })
+
+  it('still refuses to choose between two files of the same name', () => {
+    const ambiguous = ['/v/a/pane.rs', '/v/b/pane.rs', '/v/main.rs']
+    expect(resolveImport('/v/main.rs', 'crate::pane', indexImports(ambiguous))).toEqual({
+      status: 'ambiguous',
+      candidates: ['/v/a/pane.rs', '/v/b/pane.rs']
+    })
   })
 })

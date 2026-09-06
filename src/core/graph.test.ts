@@ -213,3 +213,37 @@ describe('two files with the same name', () => {
     expect(graph.edges[0]!.ambiguous).toBe(false)
   })
 })
+
+describe('imports that resolve nowhere', () => {
+  it('keeps a broken relative import as a node you can see', () => {
+    const graph = buildGraph(
+      [{ path: '/v/src/app.ts', stem: 'app', content: "import x from './editorr'" }],
+      '/v'
+    )
+    const broken = graph.nodes.find((n) => !n.exists)!
+    expect(broken).toMatchObject({ id: 'missing:/v/src/editorr', kind: 'code', exists: false })
+    expect(graph.edges).toHaveLength(1)
+  })
+
+  it('draws nothing at all for a package', () => {
+    const graph = buildGraph(
+      [{ path: '/v/src/app.ts', stem: 'app', content: "import x from 'react'" }],
+      '/v'
+    )
+    expect(graph.edges).toHaveLength(0)
+    expect(graph.nodes).toHaveLength(1)
+  })
+
+  it('draws nothing for an import it refused to guess at', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/main.rs', stem: 'main', content: 'use crate::pane;' },
+        { path: '/v/a/pane.rs', stem: 'pane', content: '' },
+        { path: '/v/b/pane.rs', stem: 'pane', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.filter((e) => e.kind === 'import')).toHaveLength(0)
+    expect(graph.nodes.every((n) => n.exists)).toBe(true)
+  })
+})

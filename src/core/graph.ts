@@ -30,6 +30,11 @@ function folderOf(filePath: string, rootPath: string): string {
   return dir.slice(rootPath.length).replace(/^[/\\]/, '')
 }
 
+/** File name without its extension, for labelling a path that has no file. */
+function stemOfPath(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '')
+}
+
 /**
  * Build the vault link graph from file contents (pure — tested in Node).
  *
@@ -118,8 +123,27 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   for (const f of files) {
     if (!importsFamily(f.path)) continue
     for (const found of findImports(f.content, f.path)) {
-      const to = resolveImport(f.path, found.spec, index)
-      if (!to || to === f.path) continue
+      const where = resolveImport(f.path, found.spec, index)
+      // A package is a real dependency and not part of this folder, and a
+      // refusal is a guess not worth making. Neither draws anything.
+      if (where.status === 'external' || where.status === 'ambiguous') continue
+      const to = where.status === 'resolved' ? where.to : `missing:${where.at}`
+      if (where.status === 'missing' && !nodes.has(to)) {
+        // What a rename leaves behind. Rare by construction, so it does not
+        // fill the map, and when one appears it is the thing worth seeing.
+        nodes.set(to, {
+          id: to,
+          label: stemOfPath(where.at),
+          exists: false,
+          kind: 'code',
+          degree: 0,
+          folder: '',
+          words: 0,
+          mtimeMs: 0,
+          tags: []
+        })
+      }
+      if (to === f.path) continue
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)

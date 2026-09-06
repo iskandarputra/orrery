@@ -20,6 +20,7 @@
  * docstrings is prose, and prose that looks like an import is not one.
  */
 
+import { resolve, type Resolution } from './link-resolution'
 import { extname } from './paths'
 
 export interface CodeImport {
@@ -214,16 +215,6 @@ const stemOf = (path: string): string =>
   path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '')
 
 /**
- * Which file in the vault an import means, or null.
- *
- * Two ways in. A relative specifier is a path, so it is joined and tried with
- * the extensions its language leaves off, `index` files included. Anything else
- * — a package, a crate, a Java package name — is matched by its last segment
- * against the files there are, and **only when exactly one matches**: guessing
- * between two files called `store` would draw an edge that is wrong half the
- * time, and a wrong edge in a map is worse than a missing one.
- */
-/**
  * What `resolveImport` needs in order to answer without walking the vault.
  *
  * Built once for a whole graph, because it used to be built once per *import*.
@@ -253,7 +244,22 @@ export function indexImports(files: readonly string[]): ImportIndex {
   return { paths, byStem }
 }
 
-export function resolveImport(fromPath: string, spec: string, index: ImportIndex): string | null {
+/**
+ * Which file in the vault an import means, and if none, which kind of none.
+ *
+ * Two ways in. A relative specifier is a path, so it is joined and tried with
+ * the extensions its language leaves off, `index` files included. Anything else
+ * (a package, a crate, a Java package name) is matched by its last segment
+ * against the files there are.
+ *
+ * The three ways of not resolving are kept apart because they mean different
+ * things. `react` is a real dependency that is not in this folder, so nothing
+ * is drawn. `./editorr` names a path in this vault that is not there, which is
+ * what a rename leaves behind and is worth seeing. Two files called `pane.rs`
+ * is a refusal: with no path evidence a guess is wrong half the time, and a
+ * wrong edge in a map is worse than a missing one.
+ */
+export function resolveImport(fromPath: string, spec: string, index: ImportIndex): Resolution {
   const known = index.paths
   const own = extname(fromPath).toLowerCase()
   const tries = CANDIDATES[own] ?? [own]
@@ -273,28 +279,34 @@ export function resolveImport(fromPath: string, spec: string, index: ImportIndex
     }
 
     const target = normalise(`${base}/${rest}`)
+    const hit = (path: string): Resolution | null =>
+      known.has(path) ? { status: 'resolved', to: path, ambiguous: false } : null
     for (const ext of tries) {
-      if (known.has(`${target}${ext}`)) return `${target}${ext}`
+      const found = hit(`${target}${ext}`)
+      if (found) return found
     }
     for (const ext of tries) {
-      if (known.has(`${target}/index${ext}`)) return `${target}/index${ext}`
-      if (known.has(`${target}/mod${ext}`)) return `${target}/mod${ext}`
-      if (known.has(`${target}/__init__${ext}`)) return `${target}/__init__${ext}`
+      const found =
+        hit(`${target}/index${ext}`) ??
+        hit(`${target}/mod${ext}`) ??
+        hit(`${target}/__init__${ext}`)
+      if (found) return found
     }
-    if (known.has(target)) return target
-    return null
+    // A path names exactly one file, so this can never be ambiguous: either
+    // that file is in the vault or the import is broken.
+    return hit(target) ?? { status: 'missing', at: target }
   }
 
   // A package path, a crate path, a module name. Its last meaningful segment is
   // the only part that can name a file.
   const segments = spec.split(/[/:.\\]+/).filter(Boolean)
   const last = segments[segments.length - 1]
-  if (!last) return null
+  if (!last) return { status: 'external' }
 
   // Only files of the same language: `crate::pane` in Rust cannot mean a
   // TypeScript file that happens to share the name.
   const family = FAMILY[own]
   const sharing = index.byStem.get(last.toLowerCase()) ?? []
   const matches = sharing.filter((file) => FAMILY[extname(file).toLowerCase()] === family)
-  return matches.length === 1 ? (matches[0] ?? null) : null
+  return resolve(fromPath, matches, { tieBreak: 'refuse', whenEmpty: { status: 'external' } })
 }
