@@ -71,9 +71,6 @@ export function importsFamily(filePath: string): boolean {
   return extname(filePath).toLowerCase() in FAMILY
 }
 
-/** Extensions worth reading for a graph, imports or not. */
-export const CODE_EXTENSIONS: readonly string[] = Object.keys(FAMILY)
-
 const PATTERNS: Record<Family, RegExp[]> = {
   js: [
     // `import x from 'y'`, `import 'y'`, `export * from 'y'`, all quote styles.

@@ -1165,40 +1165,6 @@ textarea {
   line-height: 1.5;
 }
 
-.sidebar__footer {
-  border-top: 1px solid var(--or-border);
-  padding: 6px 8px;
-  background: var(--or-panel-bg);
-}
-
-.sidebar__footer-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-}
-
-.sidebar__footer-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 4px;
-  border-radius: var(--or-radius-sm);
-  color: var(--or-fg-muted);
-  font-size: 11.5px;
-  font-weight: 500;
-  transition:
-    background var(--or-transition-fast),
-    color var(--or-transition-fast);
-}
-
-.sidebar__footer-btn:hover {
-  background: var(--or-hover-bg);
-  color: var(--or-fg);
-}
-
 .sidebar__resizer {
   position: absolute;
   top: 0;
@@ -1674,10 +1640,6 @@ textarea {
 .status-bar__btn:hover {
   background: var(--or-hover-bg);
   color: var(--or-fg);
-}
-
-.status-bar__btn--on {
-  color: var(--or-accent-text);
 }
 
 .status-bar__theme-label {

@@ -1,6 +1,6 @@
 import type { GraphEdge, GraphNode, LinkGraph } from '@shared/types'
 import { findImports, importsFamily, resolveImport } from './code-links'
-import { dirname, extname } from './paths'
+import { dirname } from './paths'
 import { findTags } from './tags'
 import { findWikilinks } from './wikilinks'
 
@@ -108,9 +108,4 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   }
 
   return { nodes: [...nodes.values()], edges }
-}
-
-/** Extension without the dot, for a graph that colours by language. */
-export function languageOf(filePath: string): string {
-  return extname(filePath).replace('.', '').toLowerCase()
 }

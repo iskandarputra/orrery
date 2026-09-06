@@ -12,10 +12,6 @@ export function setClient(next: OrreryApi): void {
   client = next
 }
 
-export function getClient(): OrreryApi {
-  return client
-}
-
 export const invoke: OrreryApi['invoke'] = (channel, req) => client.invoke(channel, req)
 export const on: OrreryApi['on'] = (channel, listener) => client.on(channel, listener)
 

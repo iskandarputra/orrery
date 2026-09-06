@@ -48,10 +48,6 @@ export function pluginEditorExtensions(settings: Settings): Extension[] {
   return editorExtensionFactories.map((factory) => factory(settings))
 }
 
-export function getActivePlugins(): readonly OrreryPlugin[] {
-  return activePlugins
-}
-
 /** Every registered surface, for building commands and menus from them. */
 export function allDocumentSurfaces(): readonly DocumentSurface[] {
   return documentSurfaces

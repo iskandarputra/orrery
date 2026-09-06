@@ -15,12 +15,6 @@ export interface SearchOptions {
   wholeWord: boolean
 }
 
-export const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
-  regex: false,
-  caseSensitive: false,
-  wholeWord: false
-}
-
 /** Escape every regex metacharacter, so a literal query means itself. */
 export function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

@@ -22,8 +22,6 @@ export interface CsvTable {
   eol: '\n' | '\r\n'
 }
 
-export const EMPTY_TABLE: CsvTable = { rows: [], delimiter: ',', eol: '\n' }
-
 /**
  * Guess the delimiter from the first line.
  *

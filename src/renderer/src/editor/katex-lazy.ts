@@ -24,11 +24,6 @@ interface Katex {
 let loaded: Katex | null = null
 let loading: Promise<Katex | null> | null = null
 
-/** Kick the download off without waiting for it. */
-export function preloadKatex(): void {
-  void load()
-}
-
 function load(): Promise<Katex | null> {
   if (loaded) return Promise.resolve(loaded)
   loading ??= Promise.all([import('katex'), import('katex/dist/katex.min.css')])

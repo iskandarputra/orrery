@@ -15,6 +15,7 @@ import { equalSizes, fitSizes } from '@core/pane-sizes'
 import { captureWorkspace, pathsToOpen, restoreLayout, restoreSizes } from '@core/workspaces'
 import { surfaceForFile } from '@/plugins/registry'
 import { closeDocument } from '@/editor/lsp-session'
+import { clearDocVersion } from '@/state/doc-version'
 
 export type { DocumentKind }
 
@@ -671,6 +672,9 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
     // Reading mode, and any consent this file was given to fetch its remote
     // pictures, belong to the tab that was showing it.
     get().forgetHtmlView(id)
+    // And the change counter, which is keyed by buffer and had nothing to
+    // remove it: every file opened in a session left an entry behind.
+    clearDocVersion(id)
     // Let the language server drop the file too; a server that is never told
     // keeps analysing documents nobody has open.
     if (buffer.filePath) closeDocument(id, buffer.filePath)

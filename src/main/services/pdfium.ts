@@ -125,16 +125,6 @@ function load(): Promise<Pdfium> {
   return engine
 }
 
-/** Whether the engine can be loaded at all, for a UI that should not offer what it cannot do. */
-export async function pdfiumAvailable(): Promise<boolean> {
-  try {
-    await load()
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * Build a new document from these ones, following the plan.
  *
