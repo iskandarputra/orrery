@@ -115,7 +115,7 @@ export interface AnalyzedGraphNode extends GraphNode, NodeMetrics {}
 
 /** A note referenced by [[wikilink]] that has no file behind it. */
 export interface BrokenLink {
-  /** Ghost node id. */
+  /** `ghost:<stem>` for an unwritten note; `missing:<path>` for a broken import. */
   id: string
   label: string
   /**
