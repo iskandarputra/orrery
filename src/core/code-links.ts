@@ -294,7 +294,19 @@ export function resolveImport(fromPath: string, spec: string, index: ImportIndex
     }
     // A path names exactly one file, so this can never be ambiguous: either
     // that file is in the vault or the import is broken.
-    return hit(target) ?? { status: 'missing', at: target }
+    const found = hit(target)
+    if (found) return found
+    // A spec can spell its own extension ('./gone.ts') or leave it for the
+    // resolver to guess ('./gone'). Both name the same absent file, and a
+    // missing node keyed on whichever spelling happened to appear would draw
+    // two rows in the broken-imports list for a file that was never there at
+    // all. Stripped only when the trailing extension is one this importer's
+    // own language would have tried anyway, so a genuinely different target
+    // (`./data.json` imported from a `.ts` file) keeps its own identity.
+    const ownExt = [...tries]
+      .sort((a, b) => b.length - a.length)
+      .find((ext) => target.endsWith(ext))
+    return { status: 'missing', at: ownExt ? target.slice(0, -ownExt.length) : target }
   }
 
   // A package path, a crate path, a module name. Its last meaningful segment is

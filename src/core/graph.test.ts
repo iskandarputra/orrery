@@ -235,6 +235,23 @@ describe('imports that resolve nowhere', () => {
     expect(graph.nodes).toHaveLength(1)
   })
 
+  it('gives two spellings of the one missing file a single node', () => {
+    // `./gone` leaves the extension for the resolver to guess; `./gone.ts`
+    // spells it out. Both name the same absent file, and the broken-imports
+    // list should say so once, not twice.
+    const graph = buildGraph(
+      [
+        { path: '/v/src/a.ts', stem: 'a', content: "import x from './gone'" },
+        { path: '/v/src/b.ts', stem: 'b', content: "import y from './gone.ts'" }
+      ],
+      '/v'
+    )
+    const broken = graph.nodes.filter((n) => !n.exists)
+    expect(broken).toHaveLength(1)
+    expect(graph.edges.filter((e) => e.kind === 'import')).toHaveLength(2)
+    expect(graph.edges.every((e) => e.to === broken[0]!.id)).toBe(true)
+  })
+
   it('draws nothing for an import it refused to guess at', () => {
     const graph = buildGraph(
       [
