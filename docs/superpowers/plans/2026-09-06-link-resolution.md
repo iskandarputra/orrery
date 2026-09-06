@@ -21,6 +21,7 @@
 - Unit tests run with `--maxWorkers=1`. `npm run test` is already configured; a bare parallel `npx vitest` is where flakes come from.
 - **Red-first is mandatory.** Every test below must be watched failing before its implementation is written. Three of these tests describe behaviour that exists today and would otherwise pass by accident, which is the exact failure mode `CLAUDE.md` warns about.
 - Run a single test file with `npm run test -- src/core/<file>.test.ts`.
+- **Out of scope:** rename does not rewrite wikilinks. `src/main/services/file-system.ts:301` stays a bare `fs.rename`. It is the obvious next thing and it is deliberately not in this plan: rewriting a link safely needs one resolver that agrees what the link means, which is what this builds.
 
 ---
 
@@ -370,7 +371,7 @@ quietly different answer here than the graph gives for the same link."
 
 **Interfaces:**
 - Consumes: `resolve` from Task 1, `resolveNote` from Task 2.
-- Produces: `GraphEdge` gains `ambiguous: boolean`. Task 6 adds `line` to the same interface.
+- Produces: `GraphEdge` gains `ambiguous: boolean`. Task 7 adds `line` to the same interface.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -916,7 +917,125 @@ found the six call sites, which is why the parameter is required."
 
 ---
 
-### Task 6: Edges carry the line they were written on
+### Task 6: A broken import is not an unwritten note
+
+**Files:**
+- Modify: `src/core/metrics.ts:298-307`
+- Modify: `src/shared/types.ts` (`BrokenLink`)
+- Modify: `src/renderer/src/components/AnalyticsView.tsx` (the broken links list)
+- Test: `src/core/metrics.test.ts`
+
+**Interfaces:**
+- Consumes: the `missing:` nodes from Task 4.
+- Produces: `BrokenLink` gains `kind: 'note' | 'import'`.
+
+`computeInsights` pushes every node with `exists: false` into `brokenLinks`.
+Task 4 made a second kind of such node, so broken imports would land in the
+analytics list beside ghost notes without anyone deciding they should. The two
+are not the same thing and do not have the same fix: a ghost is a note somebody
+intends to write, and an import naming a path that is not there is damage.
+The comment at `metrics.ts:300` argues for the old lumping and goes stale the
+moment Task 4 lands, which is worse than no comment because it will be trusted.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `src/core/metrics.test.ts`:
+
+```ts
+describe('broken links of two kinds', () => {
+  it('tells an unwritten note apart from an import that resolves nowhere', () => {
+    const analysis = analyzeGraph(
+      buildGraph(
+        [
+          { path: '/v/note.md', stem: 'note', content: 'see [[Nowhere]]' },
+          { path: '/v/app.ts', stem: 'app', content: "import x from './gone'" }
+        ],
+        '/v'
+      )
+    )
+    const kinds = Object.fromEntries(analysis.insights.brokenLinks.map((b) => [b.id, b.kind]))
+    expect(kinds['ghost:nowhere']).toBe('note')
+    expect(kinds['missing:/v/gone']).toBe('import')
+  })
+})
+```
+
+`metrics.test.ts` imports `analyzeGraph`; add `buildGraph` from `./graph` if it
+is not already imported there.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm run test -- src/core/metrics.test.ts`
+Expected: FAIL, `kind` is not on `BrokenLink`.
+
+- [ ] **Step 3: Write the implementation**
+
+In `src/shared/types.ts`, add to `BrokenLink`:
+
+```ts
+  /**
+   * Which kind of nothing this points at.
+   *
+   * `note` is a wikilink to a note nobody has written, which is a normal thing
+   * to have in a vault and is fixed by writing it. `import` is a path that is
+   * not there, which is usually what a rename left behind and is fixed by
+   * correcting the path. Listing them together made the list read as a to-do
+   * where half the rows were aspirations and half were faults.
+   */
+  kind: 'note' | 'import'
+```
+
+In `src/core/metrics.ts`, replace the `!node.exists` branch:
+
+```ts
+    if (!node.exists) {
+      // Neither kind is an orphan: there is no file to fix up, only a link.
+      brokenLinks.push({
+        id: node.id,
+        label: node.label,
+        kind: node.id.startsWith('missing:') ? 'import' : 'note',
+        from: into[i]!.map((j) => nodes[j]!.id).sort()
+      })
+      return
+    }
+```
+
+This is the one place the id prefix is still read, because it is the only place
+that has to tell the two apart after the fact and `kind` on the node would be
+`'code'` for both a real file and a missing one.
+
+In `AnalyticsView.tsx`, label the rows in the broken links list by `kind`:
+"not written yet" for `note`, "path not found" for `import`, using the same
+muted text style the list already uses for its secondary line.
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `npm run test -- src/core/metrics.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Run the full gate**
+
+Run: `./orrery.sh check`
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/core/metrics.ts src/core/metrics.test.ts src/shared/types.ts src/renderer/src/components/AnalyticsView.tsx
+git commit -m "fix(analytics): separate an unwritten note from a path that is gone
+
+computeInsights listed every node without a file as a broken link, which was
+right while the only such node was a ghost. Broken imports are nodes now, so
+the list would have mixed notes somebody intends to write with paths a rename
+broke, and the two have different fixes.
+
+The comment arguing for the old lumping is corrected rather than left, since
+a stale reason is worse than none: it gets trusted."
+```
+
+---
+
+### Task 7: Edges carry the line they were written on
 
 **Files:**
 - Modify: `src/shared/types.ts` (`GraphEdge`)
@@ -924,7 +1043,7 @@ found the six call sites, which is why the parameter is required."
 - Test: `src/core/graph.test.ts`
 
 **Interfaces:**
-- Produces: `GraphEdge` gains `line: number`, 1-based. Task 7 reads it.
+- Produces: `GraphEdge` gains `line: number`, 1-based. Task 8 reads it.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1019,7 +1138,7 @@ prepared index per file. Counting newlines per link would make a file with
 
 ---
 
-### Task 7: Backlinks come from the graph
+### Task 8: Backlinks come from the graph
 
 **Files:**
 - Modify: `src/shared/ipc.ts:205-209`
@@ -1029,7 +1148,7 @@ prepared index per file. Counting newlines per link would make a file with
 - Test: `src/main/services/link-scanner.test.ts`
 
 **Interfaces:**
-- Consumes: `GraphEdge.line` and `.ambiguous` from Tasks 3 and 6, `LinkScanner.graph` as it already is.
+- Consumes: `GraphEdge.line` and `.ambiguous` from Tasks 3 and 7, `LinkScanner.graph` as it already is.
 - Produces: `LinkScanner.backlinks(rootPath: string, targetPath: string, withCode: boolean): Promise<BacklinkHit[]>`. `workspace:scanLinks` takes `{ rootPath, targetPath, withCode }`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1038,48 +1157,38 @@ Append to `src/main/services/link-scanner.test.ts`, following the existing real-
 
 ```ts
 describe('backlinks from the graph', () => {
-  it('finds a wikilink and an import pointing at the same file', async () => {
-    const root = await tempVault({
-      'note.md': 'see [[helper]]',
-      'helper.ts': 'export const helper = 1',
-      'app.ts': "import { helper } from './helper'"
-    })
-    const hits = await new LinkScanner().backlinks(root, join(root, 'helper.ts'), true)
-    expect(hits.map((h) => basename(h.path)).sort()).toEqual(['app.ts', 'note.md'])
-    expect(hits.find((h) => h.path.endsWith('app.ts'))).toMatchObject({
-      line: 1,
-      snippet: "import { helper } from './helper'"
+  it('finds a wikilink and an import pointing at the same file', () => {
+    writeFileSync(path.join(vault, 'note.md'), 'see [[helper]]\n')
+    writeFileSync(path.join(vault, 'helper.ts'), 'export const helper = 1\n')
+    writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
+    return scanner.backlinks(vault, path.join(vault, 'helper.ts'), true).then((hits) => {
+      expect(hits.map((h) => path.basename(h.path)).sort()).toEqual(['app.ts', 'note.md'])
+      expect(hits.find((h) => h.path.endsWith('app.ts'))).toMatchObject({
+        line: 1,
+        snippet: "import { helper } from './helper'"
+      })
     })
   })
 
   it('does not report the file linking to itself', async () => {
-    const root = await tempVault({ 'a.md': 'see [[a]] and [[b]]', 'b.md': '' })
-    const hits = await new LinkScanner().backlinks(root, join(root, 'a.md'), false)
+    writeFileSync(path.join(vault, 'self.md'), 'see [[self]] and [[B]]\n')
+    const hits = await scanner.backlinks(vault, path.join(vault, 'self.md'), false)
     expect(hits).toEqual([])
   })
 
   it('leaves source files out when the graph is set to notes only', async () => {
-    const root = await tempVault({
-      'helper.ts': 'export const helper = 1',
-      'app.ts': "import { helper } from './helper'"
-    })
-    const hits = await new LinkScanner().backlinks(root, join(root, 'helper.ts'), false)
+    writeFileSync(path.join(vault, 'helper.ts'), 'export const helper = 1\n')
+    writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
+    const hits = await scanner.backlinks(vault, path.join(vault, 'helper.ts'), false)
     expect(hits).toEqual([])
   })
 })
 ```
 
-If `tempVault` does not already exist in that file, write it beside the tests:
-
-```ts
-async function tempVault(files: Record<string, string>): Promise<string> {
-  const root = await fs.mkdtemp(join(tmpdir(), 'orrery-links-'))
-  for (const [name, content] of Object.entries(files)) {
-    await fs.writeFile(join(root, name), content, 'utf-8')
-  }
-  return root
-}
-```
+The `vault` and `scanner` come from the `beforeEach` already at the top of that
+file, which seeds `A.md` and `B.md`. Use `writeFileSync` and `path.join` as the
+rest of the file does; there is no async fs helper in it and adding one would
+leave two styles side by side.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1105,7 +1214,7 @@ In `src/main/services/link-scanner.ts`, replace `scan` and delete `walk`:
    */
   async backlinks(rootPath: string, targetPath: string, withCode: boolean): Promise<BacklinkHit[]> {
     const analysis = await this.graph(rootPath, withCode)
-    const incoming = analysis.graph.edges.filter(
+    const incoming = analysis.edges.filter(
       (edge) => edge.to === targetPath && edge.from !== targetPath
     )
     if (incoming.length === 0) return []
@@ -1140,7 +1249,7 @@ In `src/main/services/link-scanner.ts`, replace `scan` and delete `walk`:
   }
 ```
 
-Add `GraphEdge` to the type import from `@shared/types`. Check whether `GraphAnalysis` exposes the raw graph; if it does not, add `graph: LinkGraph` to it in `src/shared/types.ts` and set it in `analyzeGraph`, since the analysis is already the only thing cached.
+Add `GraphEdge` to the type import from `@shared/types`. `GraphAnalysis` already carries `edges: GraphEdge[]` (`src/shared/types.ts:153`), so nothing new is needed on it.
 
 - [ ] **Step 4: Change the IPC contract**
 
@@ -1218,14 +1327,14 @@ into every graph build and every IPC reply for text that fills a panel."
 
 ---
 
-### Task 8: Measure the new surfaces
+### Task 9: Measure the new surfaces
 
 **Files:**
 - Modify: `e2e/ui-audit.spec.ts`
 - Test: `e2e/ui-audit.spec.ts`
 
 **Interfaces:**
-- Consumes: the backlinks panel from Task 7, the broken-import node from Task 4.
+- Consumes: the backlinks panel from Task 8, the broken-import node from Task 4.
 
 - [ ] **Step 1: Add a Surface for each new piece of UI**
 
