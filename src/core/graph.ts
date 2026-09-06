@@ -181,3 +181,18 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
 
   return { nodes: [...nodes.values()], edges }
 }
+
+/**
+ * Which kind of nothing an absent node points at.
+ *
+ * Only meaningful when `exists` is false. Told by the id prefix rather than by
+ * `kind`, which would work today (a ghost is built 'note' and a missing import
+ * 'code') but only because of how the two are constructed: a ghost for
+ * `[[script.ts]]` could reasonably be made to look like code, and a `kind` test
+ * would mislabel from then on without failing. The prefix is the node's own
+ * identity, and this is the one function that reads it, so a third kind of
+ * absent node has one place to change rather than several to be found by hand.
+ */
+export function absentKind(id: string): 'note' | 'import' {
+  return id.startsWith('missing:') ? 'import' : 'note'
+}

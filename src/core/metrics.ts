@@ -7,6 +7,7 @@ import type {
   RankedNote,
   VaultStats
 } from '@shared/types'
+import { absentKind } from './graph'
 
 const DAMPING = 0.85
 const PAGERANK_ITERATIONS = 30
@@ -298,16 +299,10 @@ function computeInsights(nodes: AnalyzedGraphNode[], into: number[][], top: numb
   nodes.forEach((node, i) => {
     if (!node.exists) {
       // Neither kind is an orphan: there is no file to fix up, only a link.
-      // Told apart by the id prefix rather than by `kind`. Inside this branch
-      // `kind` would work today, since a ghost is built 'note' and a missing
-      // import 'code', but that is how the two happen to be constructed and
-      // not a guarantee: a ghost for `[[script.ts]]` could reasonably be made
-      // to look like code, and a `kind` test would mislabel from then on
-      // without failing. The prefix is the node's own identity.
       brokenLinks.push({
         id: node.id,
         label: node.label,
-        kind: node.id.startsWith('missing:') ? 'import' : 'note',
+        kind: absentKind(node.id),
         from: into[i]!.map((j) => nodes[j]!.id).sort()
       })
       return

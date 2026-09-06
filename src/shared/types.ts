@@ -44,11 +44,11 @@ export interface GraphNode {
    * the prefix: there are two prefixes now, and a third would be missed by
    * every `startsWith` found by hand.
    *
-   * `core/metrics.ts` is the one permitted reader of the prefix, because it
-   * has to tell an unwritten note from a broken import and `kind` is not a
-   * safe way to do it: the two only differ there because a ghost is built
-   * 'note' and a missing import 'code', which is a construction detail rather
-   * than a promise. The prefix is the node's own identity.
+   * `absentKind` in `core/graph.ts` is the one permitted reader of the prefix,
+   * because it has to tell an unwritten note from a broken import and `kind`
+   * is not a safe way to do it: the two only differ there because a ghost is
+   * built 'note' and a missing import 'code', which is a construction detail
+   * rather than a promise. The prefix is the node's own identity.
    */
   id: string
   label: string
