@@ -51,6 +51,8 @@ looking at the table rather than a change to the file. `$inline$` and `$$block$$
 and diagrams open full screen. A long code fence scrolls inside its own card,
 leaving the rest of the document where it was.
 
+![Reading mode: a displayed equation, a mermaid flowchart and a TypeScript code card, with the outline panel listing the note's headings](docs/screenshots/reading.png)
+
 **Raw HTML renders too**, which markdown files are full of: the centred title,
 the row of badges and the `<details>` fold that every README opens with. It goes
 through an allow-list, so a note can lay itself out and cannot run anything. A
@@ -215,11 +217,19 @@ It is not a browser and does not pretend to be, so there is a **Browser**
 button that hands the file to yours. What you lose on the way there is listed
 in [SECURITY.md](SECURITY.md).
 
+![An HTML file being read: the bar says one diagram drawn and two equations typeset, and offers to run the page's scripts or load its one remote item](docs/screenshots/html.png)
+
 **Tables and databases.** A `.csv` opens as a grid you can sort, filter, resize
 and rearrange by dragging, edited in place. Sorting and filtering never touch
 the file: they choose an order to draw in, and an edit goes back to the row it
-really came from. A `.db` or `.sqlite` opens as its tables, with row counts, a
-page at a time, sortable, and a box for a query. It is strictly read-only, twice
+really came from.
+
+![A CSV open as a grid of ten rows and five columns, with a filter box and buttons to add a row or a column](docs/screenshots/csv.png)
+A `.db` or `.sqlite` opens as its tables, with row counts, a
+page at a time, sortable, and a box for a query.
+
+![A SQLite file open as its tables: two of them listed with row counts, one shown as a grid, marked read-only](docs/screenshots/database.png)
+It is strictly read-only, twice
 over: the file is opened read-only and anything that is not a question is
 refused before it reaches the database.
 
@@ -232,6 +242,8 @@ runs over embeddings computed on your own machine. API keys stay in the main
 process and never reach the renderer.
 
 ## PDFs, read and edited
+
+![A PDF open as a document: its own sidebar showing the outline, with the page toolbar above and the first page rendered](docs/screenshots/pdf.png)
 
 A PDF opens as a document rather than as bytes: pages, selectable text, find,
 an outline, thumbnails. Vault search reads _inside_ them, `[[paper.pdf#page=12]]`
