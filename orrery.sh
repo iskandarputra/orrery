@@ -154,9 +154,10 @@ cmd_e2e() {
 }
 
 cmd_icon() {
-  # The window icon, drawn from the mark the app itself shows so the two cannot
-  # drift. `--sheet` also writes a contact sheet at the sizes an icon has to
-  # survive, which is the only way to judge one.
+  # The window icon and the readme's mark, both drawn from the one the app
+  # itself shows so none of the three can drift. `--sheet` also writes a contact
+  # sheet at the sizes an icon has to survive, which is the only way to judge
+  # one.
   step "icon"
   node scripts/make-icon.mjs "$@"
 }

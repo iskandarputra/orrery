@@ -10,7 +10,11 @@
  * and because the icon should be drawn by the same engine that draws the mark
  * in the app. There is no separate rasteriser to keep working.
  *
- *   node scripts/make-icon.mjs            # build/icon.png at 512
+ * It writes two files. `build/icon.png` is what electron-builder packages, and
+ * `docs/logo.png` is what the README shows, so the mark in the readme cannot
+ * drift from the mark in the app either.
+ *
+ *   node scripts/make-icon.mjs            # build/icon.png and docs/logo.png
  *   node scripts/make-icon.mjs --sheet    # also a contact sheet, for looking
  */
 import { spawn } from 'node:child_process'
@@ -121,6 +125,17 @@ function shoot(pageFile, out, w, h) {
 
 await shoot('icon.html', join(root, 'build/icon.png'), 512, 512)
 console.log('wrote build/icon.png (512x512)')
+
+// The readme's copy, drawn at the size it is shown at rather than scaled down
+// by the browser: a 512px mark displayed at 128 is four times the bytes and
+// softer than one drawn at 256 for a retina screen.
+const readme = `<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+svg{display:block}</style>
+${svg.replace('width="512"', 'width="256"').replace('height="512"', 'height="256"')}`
+writeFileSync(join(work, 'readme.html'), readme)
+await shoot('readme.html', join(root, 'docs/logo.png'), 256, 256)
+console.log('wrote docs/logo.png (256x256)')
 if (sheet) {
   const out = join(work, 'sheet.png')
   await shoot('sheet.html', out, 760, 230)

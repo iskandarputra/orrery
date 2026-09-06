@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="" width="96" height="96">
+</p>
+
 <h1 align="center">Orrery</h1>
 
 <p align="center">
@@ -213,6 +217,10 @@ Saying yes once is enough. The answer is kept against the file and against the
 bytes it had at the time, so a page you come back to opens the way you left it,
 and a file whose contents have been swapped underneath the same name asks again.
 The bar's notice that the page is running is also the way to take that back.
+If you would rather never be asked, **Settings → General → Run scripts in HTML
+files** answers it once for every local page. It is off to begin with, and it
+changes nothing about the internet: remote content is still a decision per file,
+and remote code still never runs.
 
 Two things it draws that a browser would need the page's scripts for: a
 ` ```mermaid ` block becomes a diagram and TeX becomes typeset maths, both

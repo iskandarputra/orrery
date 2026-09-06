@@ -19,7 +19,7 @@ Everything goes through one entry point.
 ./orrery.sh e2e       # the built app, driven by Playwright
 ./orrery.sh e2e e2e/html-reader.spec.ts   # one spec
 ./orrery.sh shots     # regenerate the README screenshots
-./orrery.sh icon      # redraw build/icon.png from the app's own mark
+./orrery.sh icon      # redraw build/icon.png and docs/logo.png from the mark
 ```
 
 Four things bite people who run the underlying tools directly:
