@@ -306,13 +306,20 @@ function computeInsights(nodes: AnalyzedGraphNode[], into: number[][], top: numb
       return
     }
     if (node.inDegree === 0 && node.outDegree === 0) {
-      orphans.push({ id: node.id, label: node.label, score: node.words })
+      orphans.push({ id: node.id, label: node.label, score: node.words, exists: node.exists })
     } else if (node.outDegree === 0) {
-      deadEnds.push({ id: node.id, label: node.label, score: node.inDegree })
+      deadEnds.push({ id: node.id, label: node.label, score: node.inDegree, exists: node.exists })
     }
-    if (node.pagerank > 0) hubs.push({ id: node.id, label: node.label, score: node.pagerank })
+    if (node.pagerank > 0) {
+      hubs.push({ id: node.id, label: node.label, score: node.pagerank, exists: node.exists })
+    }
     if (node.betweenness > 0) {
-      connectors.push({ id: node.id, label: node.label, score: node.betweenness })
+      connectors.push({
+        id: node.id,
+        label: node.label,
+        score: node.betweenness,
+        exists: node.exists
+      })
     }
   })
 

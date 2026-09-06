@@ -47,9 +47,9 @@ export function AnalyticsView(): React.JSX.Element | null {
 
   if (!open) return null
 
-  const openNote = (id: string): void => {
-    if (id.startsWith('ghost:')) return // no file behind it yet
-    void openPaths([id])
+  const openNote = (note: RankedNote): void => {
+    if (!note.exists) return // no file behind it yet
+    void openPaths([note.id])
     close()
   }
 
@@ -101,7 +101,7 @@ function AnalyticsBody({
   onOpen
 }: {
   analysis: GraphAnalysis
-  onOpen: (id: string) => void
+  onOpen: (note: RankedNote) => void
 }): React.JSX.Element {
   const { stats, insights, nodes } = analysis
 
@@ -150,7 +150,8 @@ function AnalyticsBody({
             notes={insights.brokenLinks.map((b) => ({
               id: b.id,
               label: b.label,
-              score: b.from.length
+              score: b.from.length,
+              exists: false
             }))}
             empty="No broken links."
             format={(n) => `${n.score} ref${n.score === 1 ? '' : 's'}`}
@@ -254,7 +255,7 @@ function NoteList({
   empty: string
   format: (note: RankedNote) => string
   bars?: boolean
-  onOpen: (id: string) => void
+  onOpen: (note: RankedNote) => void
 }): React.JSX.Element {
   const peak = Math.max(...notes.map((n) => n.score), 0)
   return (
@@ -272,8 +273,8 @@ function NoteList({
             <li key={note.id}>
               <button
                 className="analytics__row"
-                onClick={() => onOpen(note.id)}
-                title={note.id.startsWith('ghost:') ? 'This note does not exist yet' : note.id}
+                onClick={() => onOpen(note)}
+                title={note.exists ? note.id : 'This note does not exist yet'}
               >
                 {bars && (
                   <span

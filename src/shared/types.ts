@@ -36,7 +36,19 @@ export interface FsChangedPayload {
 export type CloseConfirmChoice = 'save' | 'discard' | 'cancel'
 
 export interface GraphNode {
-  /** File path for real notes, `ghost:<stem>` for linked-but-missing notes. */
+  /**
+   * File path for a file that is there.
+   *
+   * `ghost:<stem>` is a wikilink to a note nobody has written; `missing:<path>`
+   * is an import naming a path that is not there. Read `exists` rather than
+   * the prefix: there are two prefixes now, and a third would be missed by
+   * every `startsWith` found by hand.
+   *
+   * `core/metrics.ts` is the one permitted reader of the prefix: `kind` is
+   * `'code'` for a real source file and for a missing one alike, so `exists`
+   * cannot tell an unwritten note from a broken import there, and metrics
+   * needs to.
+   */
   id: string
   label: string
   exists: boolean
@@ -111,6 +123,12 @@ export interface RankedNote {
   id: string
   label: string
   score: number
+  /**
+   * False for a broken link: `brokenLinks` reuses this shape for an id with
+   * no file behind it, and the panel rendering it needs to know before it
+   * tries to open one.
+   */
+  exists: boolean
 }
 
 export interface VaultStats {
