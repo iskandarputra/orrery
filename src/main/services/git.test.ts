@@ -338,3 +338,33 @@ describe('commitDetail', () => {
     expect(await git.commitDetail(repo, 'deadbeef')).toEqual({ body: '', files: [] })
   })
 })
+
+describe('a git that stops listening', () => {
+  it('does not take the process down when the pipe closes under a write', async () => {
+    // The crash the packaged app opened with: "A JavaScript error occurred in
+    // the main process", `Error: write EPIPE`, and quit.
+    //
+    // `check-ignore --stdin` is handed every entry of a directory. In a folder
+    // that is not a repository git exits at once, and if the list is longer
+    // than the pipe will hold there is still a write in flight when the far end
+    // closes. Node reports that as an `error` event on the stream, not as a
+    // throw, so the `try/catch` in `ignored` never saw it and it surfaced as an
+    // unhandled `error` on an EventEmitter.
+    const dir = mkdtempSync(join(tmpdir(), 'orrery-git-nonrepo-'))
+    const paths = Array.from({ length: 40_000 }, (_, i) => join(dir, `file${i}`))
+
+    const uncaught: unknown[] = []
+    const onUncaught = (err: unknown): void => void uncaught.push(err)
+    process.on('uncaughtException', onUncaught)
+    try {
+      // Nothing is ignored, because nothing here is a repository.
+      await expect(new GitService().ignored(dir, paths)).resolves.toEqual([])
+      // Give the stream a turn to deliver the EPIPE it is going to deliver.
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    } finally {
+      process.off('uncaughtException', onUncaught)
+      rmSync(dir, { recursive: true, force: true })
+    }
+    expect(uncaught).toEqual([])
+  })
+})

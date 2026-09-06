@@ -73,6 +73,12 @@ export class SidecarClient {
 
     try {
       const proc = spawn(this.binaryPath, [], { stdio: 'pipe' })
+      // A child that dies mid-write closes the pipe under us, and Node reports
+      // that as an `error` event on the stream rather than as a throw from
+      // `write`. Unheard, it is an unhandled `error` on an EventEmitter and it
+      // takes the whole main process down. The `try/catch` at the write site
+      // cannot see it, and the `writable` check only narrows the window.
+      proc.stdin.on('error', () => {})
       proc.stdout.on('data', (chunk: Buffer) => this.receive(chunk))
       // Captured rather than drained. A Rust panic written to stderr and thrown
       // away is indistinguishable from "no results", which is an afternoon lost.

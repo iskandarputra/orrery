@@ -148,6 +148,12 @@ export class LspService {
     try {
       const proc = spawn(spec.command, spec.args, { cwd: session.root, stdio: 'pipe' })
       session.proc = proc
+      // A child that dies mid-write closes the pipe under us, and Node reports
+      // that as an `error` event on the stream rather than as a throw from
+      // `write`. Unheard, it is an unhandled `error` on an EventEmitter and it
+      // takes the whole main process down. The `try/catch` at the write site
+      // cannot see it, and the `writable` check only narrows the window.
+      proc.stdin.on('error', () => {})
       proc.stdout.on('data', (chunk: Buffer) => this.receive(session, chunk))
       // A server's stderr is its own business; draining it stops the pipe
       // filling and blocking the server.

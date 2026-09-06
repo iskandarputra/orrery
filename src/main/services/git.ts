@@ -139,6 +139,32 @@ export class GitService {
           else reject(err instanceof Error ? err : new Error('git failed'))
         }
       )
+      /**
+       * A child that has already gone is not an exception.
+       *
+       * If git exits before it has read all of this, the pipe closes under the
+       * write and Node emits `EPIPE` on the stream. With nothing listening that
+       * is an unhandled `error` on an EventEmitter, which takes the whole main
+       * process down: the packaged app opened, showed "A JavaScript error
+       * occurred in the main process", and quit.
+       *
+       * The `try/catch` around the caller cannot help, because this arrives as
+       * an event rather than as a rejected promise. It needs a listener, here.
+       *
+       * Reaching it takes two things at once, which is why it survived: git has
+       * to exit early, as it does immediately in a folder that is not a
+       * repository, and the input has to be longer than the pipe will hold, so
+       * that a write is still outstanding when the far end closes. A vault with
+       * a few dozen entries at the top never got there. A folder with thousands
+       * did.
+       *
+       * Ignoring it is right rather than merely convenient. Whatever git
+       * decided is already on its way to the callback above, which resolves
+       * with the output or rejects with the error. This event says only that
+       * the rest of the question went unheard by a process that had stopped
+       * listening.
+       */
+      child.stdin?.on('error', () => {})
       child.stdin?.end(input)
     })
   }
