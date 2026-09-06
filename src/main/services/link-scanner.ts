@@ -187,7 +187,7 @@ export class LinkScanner {
    * the two walks read different files, and answering one from the other's
    * cache would show a map with half of itself missing.
    */
-  async graph(rootPath: string, withCode = false): Promise<GraphAnalysis> {
+  async graph(rootPath: string, withCode: boolean): Promise<GraphAnalysis> {
     const stamps = await this.stamps(rootPath, withCode)
     const fingerprint = `${withCode ? 'code:' : 'notes:'}${fingerprintVault(stamps)}`
     const cached = this.cache.get(rootPath)
