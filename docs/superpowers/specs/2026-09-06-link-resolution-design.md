@@ -13,9 +13,9 @@ The answer is already in the code, five times, and three of those disagree.
 | Resolver | Question | 0 candidates | N candidates |
 | --- | --- | --- | --- |
 | `core/notes.ts:79` `resolveNote` | click a `[[link]]` | offer to create | `find` takes the **first** in walk order |
-| `core/graph.ts:46` `byStem` | draw the map | `ghost:<stem>` node | `Map.set` leaves the **last** in walk order |
-| `core/wikilinks.ts:118` `findLinkLines` | backlinks panel | nothing to show | matches **all** of them |
-| `core/code-links.ts:298` `resolveImport` | draw the map | dropped, no node | refuses, no edge |
+| `core/graph.ts:45` `byStem` | draw the map | `ghost:<stem>` node | `Map.set` leaves the **last** in walk order |
+| `core/wikilinks.ts:116` `findLinkLines` | backlinks panel | nothing to show | matches **all** of them |
+| `core/code-links.ts:299` `resolveImport` | draw the map | dropped, no node | refuses, no edge |
 | `core/notes.ts:73` `resolveFile` | `[[paper.pdf]]` | offer to create | first in walk order |
 
 Two consequences, both live:
@@ -30,7 +30,7 @@ Two consequences, both live:
 
 A broken relative import is invisible. `resolveImport` returns null for a
 package that is not in the vault and for a path that no longer exists, and
-`graph.ts:99` drops both with the same `continue`. Renaming a file breaks
+`graph.ts:103` drops both with the same `continue`. Renaming a file breaks
 every import naming it, and nothing in the app says so.
 
 ## Decisions
