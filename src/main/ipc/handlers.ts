@@ -343,8 +343,12 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   handle(
     'workspace:scanLinks',
-    z.object({ rootPath: z.string().min(1), targetStem: z.string().min(1) }),
-    (_e, req) => links.scan(req.rootPath, req.targetStem)
+    z.object({
+      rootPath: z.string().min(1),
+      targetPath: z.string().min(1),
+      withCode: z.boolean()
+    }),
+    (_e, req) => links.backlinks(req.rootPath, req.targetPath, req.withCode)
   )
 
   handle(

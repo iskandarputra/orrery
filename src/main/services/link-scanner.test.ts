@@ -136,3 +136,43 @@ describe('searching inside PDFs', () => {
     expect(await new LinkScanner().search(vault, 'kestrels', options)).toEqual([])
   })
 })
+
+describe('backlinks from the graph', () => {
+  it('finds a wikilink and an import pointing at the same file', () => {
+    writeFileSync(path.join(vault, 'note.md'), 'see [[helper]]\n')
+    writeFileSync(path.join(vault, 'helper.ts'), 'export const helper = 1\n')
+    writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
+    return scanner.backlinks(vault, path.join(vault, 'helper.ts'), true).then((hits) => {
+      expect(hits.map((h) => path.basename(h.path)).sort()).toEqual(['app.ts', 'note.md'])
+      expect(hits.find((h) => h.path.endsWith('app.ts'))).toMatchObject({
+        line: 1,
+        snippet: "import { helper } from './helper'"
+      })
+    })
+  })
+
+  it('does not report the file linking to itself', async () => {
+    writeFileSync(path.join(vault, 'self.md'), 'see [[self]] and [[B]]\n')
+    const hits = await scanner.backlinks(vault, path.join(vault, 'self.md'), false)
+    expect(hits).toEqual([])
+  })
+
+  it('leaves source files out when the graph is set to notes only', async () => {
+    writeFileSync(path.join(vault, 'helper.ts'), 'export const helper = 1\n')
+    writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
+    const hits = await scanner.backlinks(vault, path.join(vault, 'helper.ts'), false)
+    expect(hits).toEqual([])
+  })
+})
+
+describe('findNote', () => {
+  it('resolves a bare name to the note the graph already knows', async () => {
+    const found = await scanner.findNote(vault, 'A', false)
+    expect(found).toBe(path.join(vault, 'A.md'))
+  })
+
+  it('returns null for a name with no file', async () => {
+    const found = await scanner.findNote(vault, 'Nowhere', false)
+    expect(found).toBeNull()
+  })
+})

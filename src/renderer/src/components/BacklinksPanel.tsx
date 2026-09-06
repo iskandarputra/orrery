@@ -12,17 +12,18 @@ export function BacklinksBody(): React.JSX.Element {
     s.activeId ? (s.buffers[s.activeId]?.filePath ?? null) : null
   )
   const openPaths = useStore((s) => s.openPaths)
+  const withCode = useStore((s) => s.settings.graph.includeCode)
   const [result, setResult] = useState<{ key: string; hits: BacklinkHit[] } | null>(null)
 
-  const scanKey = `${rootPath}|${activePath}`
+  const scanKey = `${rootPath}|${activePath}|${withCode}`
 
   const scan = useCallback((): void => {
     if (!rootPath || !activePath) return
-    const key = `${rootPath}|${activePath}`
-    void invoke('workspace:scanLinks', { rootPath, targetStem: stem(activePath) })
-      .then((hits) => setResult({ key, hits: hits.filter((h) => h.path !== activePath) }))
+    const key = `${rootPath}|${activePath}|${withCode}`
+    void invoke('workspace:scanLinks', { rootPath, targetPath: activePath, withCode })
+      .then((hits) => setResult({ key, hits }))
       .catch(() => setResult({ key, hits: [] }))
-  }, [rootPath, activePath])
+  }, [rootPath, activePath, withCode])
 
   useEffect(() => scan(), [scan])
 
@@ -35,6 +36,9 @@ export function BacklinksBody(): React.JSX.Element {
       <EmptyState icon="link">
         Nothing links to <strong>{stem(activePath)}</strong> yet. Reference it with{' '}
         <code>[[{stem(activePath)}]]</code>.
+        {withCode
+          ? null
+          : ' Imports are not included. Turn on code in the graph settings to see them.'}
       </EmptyState>
     )
   return (

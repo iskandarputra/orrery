@@ -4,10 +4,10 @@ import { fingerprintVault, type FileStamp } from '@core/fingerprint'
 import { buildGraph, type GraphFile } from '@core/graph'
 import { importsFamily } from '@core/code-links'
 import { matchesAnyGlob, parsePatternList } from '@core/glob'
+import { resolve } from '@core/link-resolution'
 import { analyzeGraph } from '@core/metrics'
 import { buildSearchMatcher, type SearchOptions } from '@core/search-query'
-import { findLinkLines } from '@core/wikilinks'
-import type { BacklinkHit, GraphAnalysis } from '@shared/types'
+import type { BacklinkHit, GraphAnalysis, GraphEdge } from '@shared/types'
 import type { SidecarClient } from './sidecar'
 
 const IGNORED_DIRS = new Set(['.git', 'node_modules', '.svn', '.hg'])
@@ -27,10 +27,10 @@ const isPdf = (name: string): boolean => /\.pdf$/i.test(name)
 const MAX_HITS = 200
 
 /**
- * Finds [[wikilink]] references to a note across the workspace. A plain
- * recursive scan is deliberate for now — no index to invalidate, and fast
- * enough for personal-vault sizes. Swap for a persistent index when the
- * knowledge layer grows (the IPC contract stays the same).
+ * Reads the vault: backlinks and full-text search, plus the cached graph both
+ * of them and the map lean on. Search still walks the filesystem fresh on
+ * every call, fast enough for personal-vault sizes; backlinks does not, since
+ * `graph` already keeps an analysis behind a fingerprint for the map.
  */
 export class LinkScanner {
   /**
@@ -58,10 +58,80 @@ export class LinkScanner {
     private readonly pdfText: { read(path: string): Promise<{ pages: string[] }> } | null = null
   ) {}
 
-  async scan(rootPath: string, targetStem: string): Promise<BacklinkHit[]> {
+  /**
+   * What links to a file, answered from the graph rather than from a scan.
+   *
+   * It used to be its own recursive text walk for `[[stem]]` over markdown
+   * only, which made it a third answer to a question the map and the editor
+   * were already answering two other ways: it never saw an import, so a
+   * source file had no backlinks at all, and with two files of the same name
+   * it reported both while the map had already picked one of them.
+   *
+   * `withCode` is the caller's graph setting rather than a decision made
+   * here, so the panel and the map describe the same vault. Asking for one
+   * while the other is loaded rebuilds, because the two walks read different
+   * files.
+   */
+  async backlinks(rootPath: string, targetPath: string, withCode: boolean): Promise<BacklinkHit[]> {
+    const analysis = await this.graph(rootPath, withCode)
+    const incoming = analysis.edges.filter(
+      (edge) => edge.to === targetPath && edge.from !== targetPath
+    )
+    if (incoming.length === 0) return []
+
+    // Snippets are read here, not carried on every edge. A 200-character
+    // snippet per edge would put megabytes into every graph build and every
+    // IPC reply, for text that only ever fills a panel.
+    const byFile = new Map<string, GraphEdge[]>()
+    for (const edge of incoming.slice(0, MAX_HITS)) {
+      const bucket = byFile.get(edge.from)
+      if (bucket) bucket.push(edge)
+      else byFile.set(edge.from, [edge])
+    }
+
     const hits: BacklinkHit[] = []
-    await this.walk(rootPath, targetStem, hits)
+    for (const [file, edges] of byFile) {
+      let lines: string[]
+      try {
+        lines = (await fs.readFile(file, 'utf-8')).split('\n')
+      } catch {
+        continue // vanished since the graph was built
+      }
+      for (const edge of edges) {
+        hits.push({
+          path: file,
+          line: edge.line,
+          snippet: (lines[edge.line - 1] ?? '').trim().slice(0, 200)
+        })
+      }
+    }
     return hits
+  }
+
+  /**
+   * A note's path, given its name rather than a path.
+   *
+   * MCP holds a note NAME, not a path: a client asking "what links to X" knows
+   * the title, not where the vault keeps it. Candidates go through the same
+   * arbiter every other resolver uses, so an agent gets the file the map and
+   * the panel would also call X rather than a fourth opinion.
+   *
+   * `rootPath` stands in for `fromPath`. There is no file the request was
+   * written in to rank folders against: the vault root is the honest neutral
+   * home, and it makes the ranking fall through to the deterministic
+   * shallowest-then-lexicographic tiers rather than to anything order
+   * dependent.
+   */
+  async findNote(rootPath: string, name: string, withCode: boolean): Promise<string | null> {
+    const analysis = await this.graph(rootPath, withCode)
+    const candidates = analysis.nodes
+      .filter((node) => node.exists && node.label.toLowerCase() === name.toLowerCase())
+      .map((node) => node.id)
+    const resolution = resolve(rootPath, candidates, {
+      tieBreak: 'nearest',
+      whenEmpty: { status: 'missing', at: name }
+    })
+    return resolution.status === 'resolved' ? resolution.to : null
   }
 
   /** Every markdown file's stats, without reading any of them. */
@@ -319,35 +389,5 @@ export class LinkScanner {
         typeof h?.path === 'string' && typeof h?.line === 'number' && typeof h?.snippet === 'string'
     )
     return shaped ? hits : null
-  }
-
-  private async walk(dir: string, targetStem: string, hits: BacklinkHit[]): Promise<void> {
-    if (hits.length >= MAX_HITS) return
-    let entries
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (hits.length >= MAX_HITS) return
-      if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        await this.walk(full, targetStem, hits)
-      } else if (entry.isFile() && /\.(md|markdown|mdown|mkd)$/i.test(entry.name)) {
-        try {
-          const stat = await fs.stat(full)
-          if (stat.size > MAX_FILE_BYTES) continue
-          const content = await fs.readFile(full, 'utf-8')
-          for (const hit of findLinkLines(content, targetStem)) {
-            hits.push({ path: full, line: hit.line, snippet: hit.snippet })
-            if (hits.length >= MAX_HITS) return
-          }
-        } catch {
-          // unreadable file — skip
-        }
-      }
-    }
   }
 }

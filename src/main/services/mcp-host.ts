@@ -329,7 +329,13 @@ export class McpHostService {
         const note = text('note')
         if (!note) return { text: 'backlinks needs a note.', isError: true }
         const stem = note.replace(/\.md$/i, '').split('/').pop() ?? note
-        const hits = await this.deps.links.scan(root, stem)
+        const withCode = this.deps.settings.get().graph.includeCode
+        const target = await this.deps.links.findNote(root, stem, withCode)
+        // Not found and zero backlinks are different answers: an agent that
+        // hears "nothing links to it" for a note that does not exist will act
+        // on that difference, so the two are not allowed to read the same.
+        if (!target) return { text: `No note named ${stem}.`, isError: true }
+        const hits = await this.deps.links.backlinks(root, target, withCode)
         return {
           text:
             hits.length > 0
