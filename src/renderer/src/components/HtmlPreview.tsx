@@ -49,6 +49,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
   const allowScripts = useStore((s) => !!s.htmlScripts[bufferId])
   const allowHtmlScripts = useStore((s) => s.allowHtmlScripts)
   const setHtmlReading = useStore((s) => s.setHtmlReading)
+  const isDirty = useStore((s) => !!s.buffers[bufferId]?.isDirty)
 
   /** null until the pane's editor has been found and read. */
   const [source, setSource] = useState<string | null>(null)
@@ -333,8 +334,34 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
           </span>
         )}
 
+        {filePath && (
+          <button
+            className="htmlv__action htmlv__action--end"
+            onClick={() => void invoke('shell:openInBrowser', { path: filePath })}
+            /**
+             * The way out of a reader that withholds most of what a browser
+             * does — no remote code, no network, no storage, no navigation, and
+             * a light colour scheme whatever the page asked for. When the
+             * answer to "why does this not look right" is "because this is not
+             * a browser", the useful next step is a browser.
+             *
+             * It opens what is *on disk*, which is not always what is on
+             * screen: the reader shows the buffer. The title says so when those
+             * two have come apart, rather than quietly showing an older page.
+             */
+            title={
+              isDirty
+                ? 'Open the saved file in your browser. This buffer has unsaved changes, which the browser will not show.'
+                : 'Open this file in your browser, with none of the reader’s restrictions'
+            }
+          >
+            <Icon name="external-link" size={12} />
+            Browser
+          </button>
+        )}
+
         <button
-          className="htmlv__action htmlv__action--end"
+          className={`htmlv__action${filePath ? '' : ' htmlv__action--end'}`}
           onClick={() => setHtmlReading(bufferId, false)}
           title="Back to the source (Ctrl+Shift+V)"
         >

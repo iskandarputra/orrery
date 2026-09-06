@@ -40,6 +40,7 @@ import type { WatcherService } from '../services/watcher'
 import type { WindowManager } from '../windows'
 import { buildAppMenu } from '../menu'
 import { handle, send } from './registry'
+import { isHtmlFile } from '@core/html-document'
 import { dropPreview, putPreview } from '../preview-protocol'
 
 export interface HandlerDeps {
@@ -323,6 +324,21 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   handle('shell:showItemInFolder', pathReq, (_e, req) => {
     shell.showItemInFolder(req.path)
+  })
+
+  /**
+   * The reader's way out to a real browser, and only ever for a page.
+   *
+   * `showItemInFolder` above only reveals a file; this one *opens* it, which
+   * means the system runs whatever it associates with that extension. Handed an
+   * `.exe`, a `.desktop` or a shell script it would execute it, so the type is
+   * checked here rather than trusted from the caller — the renderer has no
+   * business opening anything but the page it is showing, and this is the only
+   * place that can insist on it.
+   */
+  handle('shell:openInBrowser', pathReq, async (_e, req) => {
+    if (!isHtmlFile(req.path)) return false
+    return (await shell.openPath(req.path)) === ''
   })
 
   handle(

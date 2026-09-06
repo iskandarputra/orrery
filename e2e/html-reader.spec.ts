@@ -532,3 +532,47 @@ test('the page still runs nothing of its own, with the reader in there', async (
   await page.waitForTimeout(600)
   await expect(rendered().locator('#ran')).toHaveText('scripts did not run')
 })
+
+test('offers a way out to a real browser, for a page and nothing else', async () => {
+  // The reader withholds most of what a browser does on purpose, so the honest
+  // answer to "why does this not look right" needs somewhere to go.
+  await openFile('page.html')
+  await read()
+  const out = page.locator('.htmlv__action', { hasText: 'Browser' })
+  await expect(out).toBeVisible()
+  await expect(out).toHaveAttribute('title', /none of the reader/)
+
+  // Not clicked: it would launch a browser. What is worth checking is the
+  // guard behind it, because this handler *opens* a file — the system runs
+  // whatever it associates with the extension — where the one beside it only
+  // reveals one. A caller asking for anything but a page is refused in main.
+  const refused = await page.evaluate(
+    async (paths: string[]) =>
+      Promise.all(paths.map((path) => window.orrery.invoke('shell:openInBrowser', { path }))),
+    [join(vault, 'Note.md'), join(vault, 'logo.png'), '/bin/sh', join(vault, 'nothing.sh')]
+  )
+  expect(refused).toEqual([false, false, false, false])
+})
+
+test('says so when the file on disk is not what you are looking at', async () => {
+  // It opens what is saved; the reader shows the buffer. When those have come
+  // apart the button has to admit it rather than quietly showing an old page.
+  await openFile('page.html')
+  await edit()
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type('<p>unsaved</p>')
+  await read()
+
+  await expect(page.locator('.htmlv__action', { hasText: 'Browser' })).toHaveAttribute(
+    'title',
+    /unsaved changes, which the browser will not show/
+  )
+
+  await runCommand('file.save')
+  await page.waitForTimeout(400)
+  await expect(page.locator('.htmlv__action', { hasText: 'Browser' })).toHaveAttribute(
+    'title',
+    /none of the reader/
+  )
+})

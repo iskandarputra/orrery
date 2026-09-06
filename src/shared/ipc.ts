@@ -195,6 +195,13 @@ export interface IpcInvokeContract {
   'fs:rename': { req: { path: string; newName: string }; res: string }
   'fs:trash': { req: { path: string }; res: void }
   'shell:showItemInFolder': { req: { path: string }; res: void }
+  /**
+   * Hand one HTML file to whatever the system opens HTML with.
+   *
+   * The escape hatch from a reader that deliberately withholds most of what a
+   * browser does. Resolves false if the system refused it.
+   */
+  'shell:openInBrowser': { req: { path: string }; res: boolean }
   /** Scan workspace markdown files for [[wikilinks]] pointing at a note. */
   'workspace:scanLinks': {
     req: { rootPath: string; targetStem: string }
