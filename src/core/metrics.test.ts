@@ -1,5 +1,6 @@
 import type { GraphNode, LinkGraph } from '@shared/types'
 import { describe, expect, it } from 'vitest'
+import { buildGraph } from './graph'
 import { analyzeGraph } from './metrics'
 
 function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
@@ -175,7 +176,9 @@ describe('insights', () => {
     const a = analyzeGraph(g)
     expect(a.insights.orphans.map((n) => n.id)).toEqual(['Lonely'])
     expect(a.insights.deadEnds.map((n) => n.id)).toEqual(['B'])
-    expect(a.insights.brokenLinks).toEqual([{ id: 'ghost:missing', label: 'missing', from: ['A'] }])
+    expect(a.insights.brokenLinks).toEqual([
+      { id: 'ghost:missing', label: 'missing', kind: 'note', from: ['A'] }
+    ])
   })
 
   it('does not count a ghost as an orphan or a dead end', () => {
@@ -281,5 +284,22 @@ describe('scale', () => {
     // above the ~0.6s this actually runs in, so a busy CI core can't fail it.
     expect(elapsed).toBeLessThan(15_000)
     console.log(`  analyzeGraph: 5000 nodes / ${links.length} links in ${Math.round(elapsed)}ms`)
+  })
+})
+
+describe('broken links of two kinds', () => {
+  it('tells an unwritten note apart from an import that resolves nowhere', () => {
+    const analysis = analyzeGraph(
+      buildGraph(
+        [
+          { path: '/v/note.md', stem: 'note', content: 'see [[Nowhere]]' },
+          { path: '/v/app.ts', stem: 'app', content: "import x from './gone'" }
+        ],
+        '/v'
+      )
+    )
+    const kinds = Object.fromEntries(analysis.insights.brokenLinks.map((b) => [b.id, b.kind]))
+    expect(kinds['ghost:nowhere']).toBe('note')
+    expect(kinds['missing:/v/gone']).toBe('import')
   })
 })

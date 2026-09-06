@@ -108,6 +108,13 @@ function AnalyticsBody({
   const clusters = useMemo(() => summariseClusters(nodes), [nodes])
   const histogram = useMemo(() => foldHistogram(stats.linkHistogram), [stats.linkHistogram])
   const isolated = stats.components - 1
+  // NoteList's row format only sees the RankedNote shape it maps brokenLinks
+  // into, which drops `kind`; look it back up by id rather than widening that
+  // shared shape for one list.
+  const brokenLinkKind = useMemo(
+    () => new Map(insights.brokenLinks.map((b) => [b.id, b.kind])),
+    [insights.brokenLinks]
+  )
 
   return (
     <div className="analytics__body">
@@ -146,7 +153,7 @@ function AnalyticsBody({
           />
           <NoteList
             heading="Broken links"
-            hint="Referenced by [[wikilink]], but no note exists."
+            hint="A wikilink to a note nobody's written, or an import to a path that's gone."
             notes={insights.brokenLinks.map((b) => ({
               id: b.id,
               label: b.label,
@@ -154,7 +161,11 @@ function AnalyticsBody({
               exists: false
             }))}
             empty="No broken links."
-            format={(n) => `${n.score} ref${n.score === 1 ? '' : 's'}`}
+            format={(n) => {
+              const kind = brokenLinkKind.get(n.id)
+              const why = kind === 'import' ? 'path not found' : 'not written yet'
+              return `${n.score} ref${n.score === 1 ? '' : 's'} · ${why}`
+            }}
             onOpen={onOpen}
           />
           {isolated > 0 && (

@@ -44,10 +44,11 @@ export interface GraphNode {
    * the prefix: there are two prefixes now, and a third would be missed by
    * every `startsWith` found by hand.
    *
-   * `core/metrics.ts` is the one permitted reader of the prefix: `kind` is
-   * `'code'` for a real source file and for a missing one alike, so `exists`
-   * cannot tell an unwritten note from a broken import there, and metrics
-   * needs to.
+   * `core/metrics.ts` is the one permitted reader of the prefix, because it
+   * has to tell an unwritten note from a broken import and `kind` is not a
+   * safe way to do it: the two only differ there because a ghost is built
+   * 'note' and a missing import 'code', which is a construction detail rather
+   * than a promise. The prefix is the node's own identity.
    */
   id: string
   label: string
@@ -115,6 +116,16 @@ export interface BrokenLink {
   /** Ghost node id. */
   id: string
   label: string
+  /**
+   * Which kind of nothing this points at.
+   *
+   * `note` is a wikilink to a note nobody has written, which is a normal thing
+   * to have in a vault and is fixed by writing it. `import` is a path that is
+   * not there, which is usually what a rename left behind and is fixed by
+   * correcting the path. Listing them together made the list read as a to-do
+   * where half the rows were aspirations and half were faults.
+   */
+  kind: 'note' | 'import'
   /** Paths of the notes pointing at it. */
   from: string[]
 }
