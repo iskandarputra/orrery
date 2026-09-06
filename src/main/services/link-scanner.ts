@@ -37,6 +37,14 @@ export class LinkScanner {
    * Last analysis per vault, keyed by a fingerprint of the files' stats. Held
    * in memory only: it is rebuilt in well under a second, and a stale cache on
    * disk is a worse problem than a cold start.
+   *
+   * One entry per root, and the fingerprint folds in `withCode`. Two callers
+   * that disagreed about it would thrash: each call would find the other's
+   * entry, see the wrong `withCode` baked into the fingerprint, and rebuild
+   * the whole vault, alternating forever. What keeps that from happening is
+   * that the MCP tool reads `settings.graph.includeCode` (the same setting
+   * the map itself uses) rather than deciding its own; nothing else takes
+   * that on faith, and a future caller with its own opinion pays for it here.
    */
   private cache = new Map<string, { fingerprint: string; analysis: GraphAnalysis }>()
 
