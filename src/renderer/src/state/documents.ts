@@ -235,11 +235,48 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   focusedPane: 0,
   paneSizes: [1],
 
+  /**
+   * Open files, and end up looking at one of them.
+   *
+   * The one thing to keep right here is that it activates **once**, at the end.
+   * It used to set `activeId` on every pass of the loop, which meant reopening
+   * a session pointed the visible pane at every restored file in turn: thirty
+   * tabs made the editor mount, lay out and tear down thirty whole documents
+   * before settling on the one you actually wanted. That is what made starting
+   * up with a lot of tabs open feel like the app had hung, and why deferring
+   * the `EditorState` alone did nothing to fix it, because the pane went and
+   * asked for every one of them anyway.
+   *
+   * One `set` at the end, for the same reason in miniature: thirty of them was
+   * thirty renders of the tab bar.
+   */
   async openPaths(paths) {
+    const opened: { id: string; path: string; mtimeMs: number }[] = []
+    /** Already open, or opened by this call: either way, not a second tab. */
+    const seen = new Set(
+      Object.values(get().buffers)
+        .map((b) => b.filePath)
+        .filter((p): p is string => !!p)
+    )
+    /**
+     * What to look at when this is over: the last thing asked for.
+     *
+     * Whether it was already open matters. A file that is open goes through
+     * `tabs.activate`, which moves focus to the pane already holding it rather
+     * than putting a second copy in the focused one, because a buffer is never
+     * shown in two panes. A file being opened now has no pane yet and goes into
+     * the focused one.
+     */
+    let activate: { id: string; wasOpen: boolean } | null = null
+
     for (const path of paths) {
-      const existing = Object.values(get().buffers).find((b) => b.filePath === path)
-      if (existing) {
-        get().setActive(existing.id)
+      if (seen.has(path)) {
+        const existing = Object.values(get().buffers).find((b) => b.filePath === path)
+        if (existing) activate = { id: existing.id, wasOpen: true }
+        else {
+          const opening = opened.find((o) => o.path === path)
+          if (opening) activate = { id: opening.id, wasOpen: false }
+        }
         continue
       }
       try {
@@ -251,36 +288,60 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           ? { path, content: '', mtimeMs: Date.now() }
           : await invoke('fs:readFile', { path })
         const id = crypto.randomUUID()
-        const state = createDocumentState({
-          id,
-          content: file.content,
-          settings: get().settings,
-          filePath: path,
-          kind: kindOf(path),
-          onDirtyChange: (dirty) => get().setDirty(id, dirty)
+        // The state is not built here. Building an `EditorState` is the
+        // expensive part of opening a file by two orders of magnitude: about
+        // 70ms for a large note against under 3ms to read it off the disk. At
+        // most four tabs are on screen, so the rest are built when something
+        // asks, which is a pane about to show one or a save about to read one.
+        bufferRegistry.createPending(id, () => {
+          const state = createDocumentState({
+            id,
+            content: file.content,
+            settings: get().settings,
+            filePath: path,
+            kind: kindOf(path),
+            onDirtyChange: (dirty) => get().setDirty(id, dirty)
+          })
+          return { state, savedDoc: state.doc }
         })
-        bufferRegistry.create(id, state, state.doc)
-        set((s) => ({
-          buffers: {
-            ...s.buffers,
-            [id]: {
-              id,
-              filePath: path,
-              fileName: basename(path),
-              savedMtimeMs: file.mtimeMs,
-              isDirty: false,
-              kind: kindOf(path)
-            }
-          },
-          tabOrder: [...s.tabOrder, id],
-          activeId: id,
-          paneIds: s.paneIds.map((pane, i) => (i === s.focusedPane ? id : pane))
-        }))
+        seen.add(path)
+        opened.push({ id, path, mtimeMs: file.mtimeMs })
+        activate = { id, wasOpen: false }
         void invoke('app:addRecentFile', { path })
       } catch (err) {
         console.error('Failed to open', path, parseIpcError(err).message)
       }
     }
+
+    if (opened.length > 0) {
+      // The new tabs, and the focused pane pointed at whichever of them is the
+      // one to look at. If the thing to look at was already open, the pane is
+      // left alone here and `setActive` below decides, since it knows how to
+      // find the pane that already has it.
+      const shown = activate && !activate.wasOpen ? activate.id : null
+      set((s) => {
+        const buffers = { ...s.buffers }
+        for (const { id, path, mtimeMs } of opened) {
+          buffers[id] = {
+            id,
+            filePath: path,
+            fileName: basename(path),
+            savedMtimeMs: mtimeMs,
+            isDirty: false,
+            kind: kindOf(path)
+          }
+        }
+        return {
+          buffers,
+          tabOrder: [...s.tabOrder, ...opened.map((o) => o.id)],
+          activeId: shown ?? s.activeId,
+          paneIds: shown
+            ? s.paneIds.map((pane, i) => (i === s.focusedPane ? shown : pane))
+            : s.paneIds
+        }
+      })
+    }
+    if (activate?.wasOpen) get().setActive(activate.id)
     rememberSession(get())
   },
 
@@ -381,15 +442,20 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       // leaving the old copy behind to be restored a second time.
       const { id, n, content } = draft
       if (get().buffers[id]) continue
-      const state = createDocumentState({
-        id,
-        content,
-        settings: get().settings,
-        onDirtyChange: (dirty) => get().setDirty(id, dirty)
-      })
+      // Deferred for the same reason as a restored file: these arrive in a
+      // batch at start-up and are mostly not looked at.
+      //
       // No saved document to compare against, which is what an unsaved note is:
       // it comes back with its dot, because it still has nowhere to be.
-      bufferRegistry.create(id, state, null)
+      bufferRegistry.createPending(id, () => ({
+        state: createDocumentState({
+          id,
+          content,
+          settings: get().settings,
+          onDirtyChange: (dirty) => get().setDirty(id, dirty)
+        }),
+        savedDoc: null
+      }))
       set((s) => ({
         buffers: {
           ...s.buffers,

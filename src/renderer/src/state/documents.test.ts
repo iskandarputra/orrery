@@ -112,6 +112,45 @@ describe('documents slice', () => {
     expect(bufferRegistry.get(buffer!.id)?.state.doc.toString()).toBe('# Hello')
   })
 
+  it("opens a session's worth of tabs without showing every one of them", async () => {
+    // The start-up hang. `openPaths` set `activeId` on every pass, so reopening
+    // a session pointed the visible pane at each restored file in turn and the
+    // editor mounted, laid out and tore down every document before settling on
+    // the one that was wanted. Thirty large notes took four and a half seconds
+    // of that; the files themselves read in seventy-five milliseconds.
+    //
+    // Only the last one is shown, and only that one has a state built for it.
+    // The rest wait to be asked for.
+    const paths = Array.from({ length: 12 }, (_, i) => `/ws/n${i}.md`)
+    for (const p of paths) fake.files.set(p, { content: `# ${p}`, mtimeMs: 1 })
+
+    await useStore.getState().openPaths(paths)
+
+    const s = useStore.getState()
+    expect(s.tabOrder).toHaveLength(12)
+    expect(s.buffers[s.activeId!]?.fileName).toBe('n11.md')
+
+    // Not one document has been built. There is no pane here to ask for one,
+    // which is the point: opening a file no longer builds it, so a restore
+    // costs whatever the panes on screen decide to look at and nothing else.
+    const built = s.tabOrder.filter((id) => !bufferRegistry.isPending(id))
+    expect(built).toEqual([])
+  })
+
+  it('builds a deferred document the moment anything asks for it', async () => {
+    fake.files.set('/ws/a.md', { content: '# A', mtimeMs: 1 })
+    fake.files.set('/ws/b.md', { content: '# B', mtimeMs: 1 })
+    await useStore.getState().openPaths(['/ws/a.md', '/ws/b.md'])
+
+    const s = useStore.getState()
+    const a = s.tabOrder.find((id) => s.buffers[id]?.fileName === 'a.md')!
+    expect(bufferRegistry.isPending(a)).toBe(true)
+    // Asking is what builds it, and what comes back is the file, not an empty
+    // document: a deferred tab that opened blank would be worse than a slow one.
+    expect(bufferRegistry.get(a)?.state.doc.toString()).toBe('# A')
+    expect(bufferRegistry.isPending(a)).toBe(false)
+  })
+
   it('focuses the existing tab instead of duplicating on re-open', async () => {
     fake.files.set('/ws/a.md', { content: 'x', mtimeMs: 1 })
     fake.files.set('/ws/b.md', { content: 'y', mtimeMs: 1 })
