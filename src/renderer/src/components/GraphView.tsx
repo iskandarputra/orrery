@@ -288,15 +288,25 @@ export function GraphView(): React.JSX.Element | null {
       viz: Array.from({ length: VIZ_SLOTS }, (_, i) => cssVar(`--or-viz-${i + 1}`))
     }
 
-    const resize = (): void => {
+    const sizeCanvas = (): void => {
       const dpr = window.devicePixelRatio || 1
       canvas.width = canvas.clientWidth * dpr
       canvas.height = canvas.clientHeight * dpr
+    }
+    // Size only, no wake: `tick` is declared further down this same effect as
+    // a `const`, so calling wake() (which calls tick) from here, before that
+    // declaration runs, would read `tick` out of its temporal dead zone and
+    // throw. That is exactly the shape of bug this split exists to prevent:
+    // resize() below is safe because the window 'resize' event cannot fire
+    // until this whole effect body, tick included, has finished running.
+    sizeCanvas()
+
+    const resize = (): void => {
+      sizeCanvas()
       // The canvas was just cleared by the resize itself, so a sleeping
       // layout has to redraw once even though nothing about the physics changed.
       wake()
     }
-    resize()
     window.addEventListener('resize', resize)
 
     const toWorld = (cx: number, cy: number): [number, number] => {
