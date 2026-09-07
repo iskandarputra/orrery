@@ -48,10 +48,28 @@ export function buildDecorationRanges(
     lineRevealed: (from, to) => reveal && selectionTouchesLines(state, from, to),
     add: (deco) => all.push(deco),
     conceal: (from, to) => {
-      if (from < to) {
-        const deco = concealDeco.range(from, to)
-        all.push(deco)
-        conceals.push(deco)
+      if (from >= to) return
+      // Split at every line end, because a replacing decoration may not cross
+      // one when it comes from a view plugin: `@codemirror/view` throws
+      // "Decorations that replace line breaks may not be specified via
+      // plugins", the pane's React tree unmounts, and the window goes blank
+      // with nothing on screen saying why. Reading mode found this by
+      // concealing a comment written across several lines in one span.
+      //
+      // The line breaks survive the split, so a construct that has to vanish
+      // whole rather than line by line cannot be a feature here at all: that
+      // needs a block decoration, which is legal only from the state, which is
+      // why `frontmatter.ts` is a state field of its own.
+      let start = from
+      while (start < to) {
+        const line = state.doc.lineAt(start)
+        const end = Math.min(to, line.to)
+        if (end > start) {
+          const deco = concealDeco.range(start, end)
+          all.push(deco)
+          conceals.push(deco)
+        }
+        start = line.to + 1
       }
     }
   }
