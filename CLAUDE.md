@@ -24,9 +24,13 @@ Everything goes through one entry point.
 
 Four things bite people who run the underlying tools directly:
 
-- **Unit tests want `--maxWorkers=1`.** `list-layout.test.ts` is order dependent
-  under parallel load. `npm run test` is fine; a bare `npx vitest` in parallel
-  is where the flakes come from.
+- **Unit tests want `--maxWorkers=1`**, which `npm run test` and
+  `./orrery.sh check` both pass for you. The tests under
+  `src/renderer/src/editor/live-preview/` are order dependent under parallel
+  load, and which file fails moves between runs, so a bare `npx vitest` reports
+  failures that have nothing to do with your change. Two symptoms to recognise:
+  a decoration that came back empty, and a `parseFully` throw saying the syntax
+  tree covers fewer characters than the document.
 - **e2e must go through the wrapper.** `e2e/global-setup.ts` refuses an
   unwrapped run that has a display, because Electron opens real windows and a
   suite that takes over the screen is one people stop running. Use
