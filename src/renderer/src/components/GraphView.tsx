@@ -1,4 +1,14 @@
 import { absentKind } from '@core/graph'
+import { showsLabel } from '@core/graph-labels'
+import {
+  catchupCap,
+  drainSteps,
+  MAX_CATCHUP_STEPS,
+  settled,
+  step,
+  STEP_MS,
+  type Link
+} from '@core/graph-sim'
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
@@ -53,7 +63,10 @@ const DEFAULTS: Controls = {
   linkForce: 1,
   linkDistance: 1,
   arrows: false,
-  labels: true,
+  // Off: a map that names every note at rest is mostly text, and the two names
+  // worth having (the node under the pointer, the note that is open) are shown
+  // whatever this says. See `showsLabel`.
+  labels: false,
   scale: true,
   sizeBy: 'links',
   colorBy: 'none',
@@ -97,6 +110,9 @@ export function GraphView(): React.JSX.Element | null {
   const workNodesRef = useRef<SimNode[]>([])
   const workEdgesRef = useRef<GraphEdge[]>([])
   const workByIdRef = useRef<Map<string, SimNode>>(new Map())
+  // Index-based, built once per rebuild rather than resolved through byId per
+  // edge per frame, which is the per-frame Map lookup this move exists to drop.
+  const workLinksRef = useRef<Link[]>([])
   const readyRef = useRef(false)
   /** Largest metric values on screen — the scale that sizing is relative to. */
   const peakRef = useRef({ pagerank: 0, betweenness: 0 })
@@ -105,6 +121,24 @@ export function GraphView(): React.JSX.Element | null {
   const folderRankRef = useRef<Map<string, number>>(new Map())
   /** Set by the canvas effect, so a rescan can reach the running view. */
   const ingestRef = useRef<((data: GraphAnalysis | null) => void) | null>(null)
+  /**
+   * Set by the canvas effect. The one path back into a sleeping animation
+   * loop, so every handler that changes the layout or the view calls this
+   * rather than repeating "clear the flag, request a frame": a handler that
+   * forgets to call it is a visible missing call, not a graph that silently
+   * stops responding.
+   *
+   * Two variants exist because "redraw this" and "the layout has new work"
+   * are different requests. `wake` alone almost never buys a step on the
+   * first frame back (see `wakeLayoutRef` below), which is invisible for a
+   * view change but means a force slider dragged on a settled graph wakes,
+   * draws one frame from before the change, and sleeps again without ever
+   * having moved. Use `wakeRef` for a redraw, `wakeLayoutRef` for anything
+   * that gives the physics new work.
+   */
+  const wakeRef = useRef<(() => void) | null>(null)
+  /** See `wakeRef`. Call this one when the layout itself has changed. */
+  const wakeLayoutRef = useRef<(() => void) | null>(null)
   const zoomControlsRef = useRef<{
     zoomIn(): void
     zoomOut(): void
@@ -120,7 +154,14 @@ export function GraphView(): React.JSX.Element | null {
       workNodesRef.current = []
       workEdgesRef.current = []
       workByIdRef.current = new Map()
+      workLinksRef.current = []
       setStatus(message)
+      // The visible set just collapsed to nothing (local mode with no active
+      // note, or every filter switched off), so the last frame drawn is still
+      // on screen under a status line that now disagrees with it. A sleeping
+      // loop needs one frame to draw that empty canvas; there is nothing left
+      // to step, so a redraw is all this needs.
+      wakeRef.current?.()
     }
     if (all.size === 0) return empty('')
 
@@ -135,16 +176,34 @@ export function GraphView(): React.JSX.Element | null {
 
     const nodes: SimNode[] = []
     const byId = new Map<string, SimNode>()
+    const indexOf = new Map<string, number>()
     for (const id of ids) {
       const node = all.get(id)
       if (node) {
+        indexOf.set(id, nodes.length)
         nodes.push(node)
         byId.set(id, node)
       }
     }
+    const links: Link[] = []
+    for (const e of edges) {
+      const a = indexOf.get(e.from)
+      const b = indexOf.get(e.to)
+      // Same guard as the per-frame `if (!a || !b) continue` this replaces:
+      // an edge whose end fell outside the visible set is dropped here once,
+      // rather than checked on every frame.
+      if (a === undefined || b === undefined) continue
+      links.push({ a, b })
+    }
     workNodesRef.current = nodes
     workEdgesRef.current = edges
     workByIdRef.current = byId
+    workLinksRef.current = links
+    // The visible set just changed shape (a node came back in, a link
+    // dropped out), so a sleeping layout needs to run again to react to it:
+    // wakeLayout, not wake, or the sleep test right after would be judged on
+    // energy left over from before the change.
+    wakeLayoutRef.current?.()
     // Named for what is actually on the map: calling a source file a note was
     // fine while the graph only had notes in it.
     const code = nodes.filter((n) => n.kind === 'code').length
@@ -171,6 +230,9 @@ export function GraphView(): React.JSX.Element | null {
     if (!open || !rootPath) return
     const canvas = canvasRef.current
     if (!canvas) return
+    // 0 means no frame is currently scheduled: set on entry to tick, so a
+    // handler firing between frames can tell the loop is not about to run on
+    // its own and knows to ask for one.
     let raf = 0
     let disposed = false
     let hover: SimNode | null = null
@@ -179,19 +241,78 @@ export function GraphView(): React.JSX.Element | null {
     let panX = 0
     let panY = 0
     let panning = false
+    // Physics runs on a fixed clock, drawing on every frame: this state
+    // therefore has to live here rather than inside tick.
+    // - `last`: how much wall time has passed since the previous frame.
+    // - `lag`: unspent time banked toward the next 16ms step. It has to
+    //   persist across frames, not just across steps within one frame: a
+    //   frame under 16ms (any refresh rate above 60Hz) buys less than a full
+    //   step by itself, and a `lag` that started fresh every frame never
+    //   crossed the line, so nothing ever stepped above 60Hz.
+    // - `energy`: last frame's energy, needed even on a frame that steps zero
+    //   times, to judge whether the layout has settled.
+    // - `lastStepMs`: how long the previous step took, so a step already
+    //   costing more than its own budget (large vaults) tightens next
+    //   frame's catch-up cap instead of paying for three of them at once.
+    let last = performance.now()
+    let lag = 0
+    let energy = Infinity
+    let lastStepMs = 0
     readyRef.current = false
+
+    /**
+     * Bring the loop back from a stop, or do nothing if it is already running.
+     * The one path back in: every handler that changes the layout or the view
+     * calls this instead of touching `raf` itself.
+     */
+    const wake = (): void => {
+      if (disposed) return
+      if (raf === 0) {
+        // Start the clock fresh. `last` survives the sleep, so without this a
+        // wake after a long idle would see minutes of elapsed time, clamp it,
+        // and pay three catch-up steps for what is usually just a request to
+        // redraw.
+        last = performance.now()
+        raf = requestAnimationFrame(tick)
+      }
+    }
+    wakeRef.current = wake
+
+    /**
+     * `wake`, plus a guarantee that the loop cannot judge itself settled
+     * before it has actually measured a step.
+     *
+     * Resetting `last` above means the first frame after a wake almost always
+     * has only the wake-to-vsync gap of credit, usually under 16ms, so it
+     * steps zero times. With zero steps, `tick`'s sleep test would read
+     * whatever `energy` was left over from before the sleep, which is by
+     * definition already at or below the threshold: draw one frame, sleep
+     * again, and the layout never actually reacts. Forcing `energy` back to
+     * Infinity means that test cannot pass until `advance()` has run again
+     * and reported a real number. Call this, not `wake`, whenever the change
+     * is to the layout itself (a force multiplier, the visible node set), not
+     * just to what is drawn.
+     */
+    const wakeLayout = (): void => {
+      energy = Infinity
+      wake()
+    }
+    wakeLayoutRef.current = wakeLayout
 
     zoomControlsRef.current = {
       zoomIn: () => {
         zoom = Math.min(3, zoom * 1.25)
+        wake()
       },
       zoomOut: () => {
         zoom = Math.max(0.2, zoom * 0.8)
+        wake()
       },
       resetZoom: () => {
         zoom = 1
         panX = 0
         panY = 0
+        wake()
       },
       fit: () => {
         const nodes = workNodesRef.current
@@ -211,6 +332,7 @@ export function GraphView(): React.JSX.Element | null {
         zoom = Math.min(2, Math.max(0.3, Math.min(canvas.clientWidth / w, canvas.clientHeight / h)))
         panX = (-(minX + maxX) / 2) * zoom
         panY = (-(minY + maxY) / 2) * zoom
+        wake()
       }
     }
 
@@ -223,12 +345,25 @@ export function GraphView(): React.JSX.Element | null {
       viz: Array.from({ length: VIZ_SLOTS }, (_, i) => cssVar(`--or-viz-${i + 1}`))
     }
 
-    const resize = (): void => {
+    const sizeCanvas = (): void => {
       const dpr = window.devicePixelRatio || 1
       canvas.width = canvas.clientWidth * dpr
       canvas.height = canvas.clientHeight * dpr
     }
-    resize()
+    // Size only, no wake: `tick` is declared further down this same effect as
+    // a `const`, so calling wake() (which calls tick) from here, before that
+    // declaration runs, would read `tick` out of its temporal dead zone and
+    // throw. That is exactly the shape of bug this split exists to prevent:
+    // resize() below is safe because the window 'resize' event cannot fire
+    // until this whole effect body, tick included, has finished running.
+    sizeCanvas()
+
+    const resize = (): void => {
+      sizeCanvas()
+      // The canvas was just cleared by the resize itself, so a sleeping
+      // layout has to redraw once even though nothing about the physics changed.
+      wake()
+    }
     window.addEventListener('resize', resize)
 
     const toWorld = (cx: number, cy: number): [number, number] => {
@@ -277,55 +412,29 @@ export function GraphView(): React.JSX.Element | null {
       return best
     }
 
-    const tick = (): void => {
+    /**
+     * Run one fixed 16ms step of the force simulation and return its kinetic
+     * energy: the signal `tick` uses to decide whether the layout has
+     * settled.
+     */
+    const advance = (): number => {
+      const c = ctlRef.current
+      const nodes = workNodesRef.current
+      const pinned = drag ? nodes.indexOf(drag) : -1
+      return step(
+        nodes,
+        workLinksRef.current,
+        { repel: c.repel, linkForce: c.linkForce, linkDistance: c.linkDistance, center: c.center },
+        pinned
+      )
+    }
+
+    const draw = (): void => {
       const c = ctlRef.current
       const nodes = workNodesRef.current
       const edges = workEdgesRef.current
       const byId = workByIdRef.current
 
-      // Physics
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i]!
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j]!
-          let dx = a.x - b.x
-          let dy = a.y - b.y
-          const d2 = Math.max(64, dx * dx + dy * dy)
-          const f = (900 * c.repel) / d2
-          const d = Math.sqrt(d2)
-          dx /= d
-          dy /= d
-          a.vx += dx * f
-          a.vy += dy * f
-          b.vx -= dx * f
-          b.vy -= dy * f
-        }
-      }
-      const rest = 90 * c.linkDistance
-      const spring = 0.004 * c.linkForce
-      for (const e of edges) {
-        const a = byId.get(e.from)
-        const b = byId.get(e.to)
-        if (!a || !b) continue
-        const dx = b.x - a.x
-        const dy = b.y - a.y
-        const d = Math.max(1, Math.hypot(dx, dy))
-        const f = (d - rest) * spring
-        a.vx += (dx / d) * f
-        a.vy += (dy / d) * f
-        b.vx -= (dx / d) * f
-        b.vy -= (dy / d) * f
-      }
-      const gravity = 0.0015 * c.center
-      for (const n of nodes) {
-        if (n === drag) continue
-        n.vx = (n.vx - n.x * gravity) * 0.85
-        n.vy = (n.vy - n.y * gravity) * 0.85
-        n.x += n.vx
-        n.y += n.vy
-      }
-
-      // Draw
       const ctx = canvas.getContext('2d')!
       const dpr = window.devicePixelRatio || 1
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -393,7 +502,16 @@ export function GraphView(): React.JSX.Element | null {
           ctx.stroke()
         }
 
-        if (c.labels && !dimmed && (zoom > 0.6 || n === hover || n.degree >= 2 || isActiveNode)) {
+        if (
+          showsLabel({
+            always: c.labels,
+            dimmed,
+            zoom,
+            degree: n.degree,
+            isHover: n === hover,
+            isActive: isActiveNode
+          })
+        ) {
           const isSpecial = n === hover || isActiveNode
           const maxChars = isSpecial ? 28 : Math.max(12, Math.floor(18 * zoom))
           const displayLabel =
@@ -412,7 +530,59 @@ export function GraphView(): React.JSX.Element | null {
         }
       }
       ctx.globalAlpha = 1
-      if (!disposed) raf = requestAnimationFrame(tick)
+    }
+
+    const tick = (): void => {
+      // No frame is pending until the bottom of this function schedules one,
+      // so a handler that fires while this frame runs (it can't, JS is
+      // single threaded, but between frames) sees an accurate raf === 0.
+      raf = 0
+
+      // Step the layout on a fixed 16ms clock instead of once per drawn
+      // frame, so the same vault settles in the same wall-clock time on a
+      // 60Hz screen and a 120Hz one: `lag` is an accumulator that survives
+      // across frames (only drained below, in whole 16ms steps), so a frame
+      // that arrives before a full step's worth of time has passed still
+      // banks its share instead of losing it. Miss that and every frame above
+      // 60Hz, where the per-frame delta is under 16ms on its own, never
+      // crosses the line and the layout never steps at all.
+      const now = performance.now()
+      lag += Math.min(now - last, MAX_CATCHUP_STEPS * STEP_MS)
+      last = now
+
+      // Cap how many of those steps run in this one frame: ordinarily
+      // MAX_CATCHUP_STEPS, so a backgrounded tab or a stalled machine pays for
+      // at most three catch-up steps rather than a burst that flings the
+      // arrangement apart. Tightened to one when the last step cost more than
+      // its own budget (roughly 5,000 nodes and up): at that size the frame
+      // delta that measures the overrun is large too, so the ordinary cap
+      // would spend the same frame on three expensive steps in a row, which
+      // is the same burst the cap exists to prevent, just paid in fewer,
+      // longer frames instead of many short ones.
+      const cap = catchupCap(lastStepMs)
+      const drained = drainSteps(lag, cap)
+      lag = drained.lag
+      for (let i = 0; i < drained.steps; i++) {
+        const before = performance.now()
+        energy = advance()
+        lastStepMs = performance.now() - before
+      }
+
+      // Draw every scheduled frame regardless of how many of those steps
+      // ran, including zero: a wake still has to produce a visible frame
+      // even when less than 16ms has elapsed since the last one.
+      draw()
+
+      if (disposed) return
+      // Below the threshold and nothing is being dragged or panned: stop
+      // asking for frames rather than integrating a graph that is not
+      // visibly moving. `wake()` is what restarts this, from any handler
+      // that changes the layout or the view. Judged per body, not by the raw
+      // total `step` returns: a fixed total gets stricter as the vault gets
+      // bigger, and this repository's own 491 node graph is exactly the size
+      // where that used to bite.
+      if (settled(energy, workNodesRef.current.length) && !drag && !panning) return
+      raf = requestAnimationFrame(tick)
     }
 
     /**
@@ -445,8 +615,11 @@ export function GraphView(): React.JSX.Element | null {
       folderRankRef.current = rankByFrequency(data.nodes.map((n) => n.folder))
       readyRef.current = true
       rebuildRef.current()
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(tick)
+      // rebuild() already wakes (empty() or the full path, both below), but
+      // every node here just got a fresh ring position: a rescan of a graph
+      // that had settled needs the layout to actually run, not just redraw
+      // once and judge itself against the old energy.
+      wakeLayout()
     }
     ingestRef.current = ingest
 
@@ -464,7 +637,18 @@ export function GraphView(): React.JSX.Element | null {
         panX += e.movementX
         panY += e.movementY
       } else {
-        hover = pick(e.clientX, e.clientY)
+        const found = pick(e.clientX, e.clientY)
+        if (found !== hover) {
+          hover = found
+          // A settled graph draws no frames, so the highlight and the label
+          // showsLabel grants the hovered node would never appear. Waking on
+          // a change of hover rather than on every move is what keeps the
+          // graph asleep while the pointer merely travels across it: the
+          // mouse fires this handler continuously, and most of the time
+          // somebody is looking at the graph is time spent with the pointer
+          // over it, not moving off a node.
+          wake()
+        }
         canvas.style.cursor = hover ? 'pointer' : 'grab'
         if (hover) {
           setHoverNode({ node: hover, x: e.clientX, y: e.clientY })
@@ -476,6 +660,13 @@ export function GraphView(): React.JSX.Element | null {
     const onDown = (e: MouseEvent): void => {
       drag = pick(e.clientX, e.clientY)
       if (!drag) panning = true
+      // Either branch needs frames for the whole gesture, not just one: a
+      // dragged node's new position and a pan's new offset only reach the
+      // canvas if tick keeps running until the mouse comes back up. A pan
+      // only needs a redraw, but a drag pins a node and lets the rest of the
+      // layout react to it, which is layout work: wakeLayout covers the drag
+      // case correctly and costs a pan nothing it would notice.
+      wakeLayout()
     }
     const onUp = (e: MouseEvent): void => {
       if (drag && !panning) {
@@ -491,6 +682,7 @@ export function GraphView(): React.JSX.Element | null {
     const onWheel = (e: WheelEvent): void => {
       e.preventDefault()
       zoom = Math.min(3, Math.max(0.2, zoom * (e.deltaY > 0 ? 0.9 : 1.1)))
+      wake()
     }
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') close()
@@ -505,6 +697,8 @@ export function GraphView(): React.JSX.Element | null {
       disposed = true
       readyRef.current = false
       zoomControlsRef.current = null
+      wakeRef.current = null
+      wakeLayoutRef.current = null
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       canvas.removeEventListener('mousemove', onMove)
@@ -517,7 +711,20 @@ export function GraphView(): React.JSX.Element | null {
 
   if (!open) return null
 
-  const up = (patch: Partial<Controls>): void => setCtl((c) => ({ ...c, ...patch }))
+  const up = (patch: Partial<Controls>): void => {
+    setCtl((c) => ({ ...c, ...patch }))
+    // The draw loop reads ctlRef.current, which a passive effect fills in
+    // after this render commits. Nothing guarantees that effect runs before
+    // the animation frame wakeLayout is about to produce; it usually does,
+    // which is why this went unnoticed while the loop never slept between
+    // wakes. Patch the ref synchronously too, so that frame cannot read
+    // stale controls.
+    ctlRef.current = { ...ctlRef.current, ...patch }
+    // Every Range/Check/Select goes through here, including the force
+    // sliders, so this has to be able to make the layout actually run, not
+    // just redraw once against energy left over from before the change.
+    wakeLayoutRef.current?.()
+  }
 
   return (
     <div className="modal-backdrop">
@@ -744,7 +951,15 @@ export function GraphView(): React.JSX.Element | null {
                     }}
                   />
                 </section>
-                <button className="graph__reset" onClick={() => setCtl({ ...DEFAULTS })}>
+                <button
+                  className="graph__reset"
+                  // Routed through up() rather than setCtl()+wake() directly:
+                  // resetting the forces is exactly the same "layout changed"
+                  // case up() already handles, ctlRef sync and wakeLayout
+                  // included, and a second copy of that logic here is a
+                  // second place for it to go stale.
+                  onClick={() => up({ ...DEFAULTS })}
+                >
                   Reset to defaults
                 </button>
               </div>

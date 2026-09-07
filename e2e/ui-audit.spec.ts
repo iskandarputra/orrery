@@ -479,6 +479,51 @@ async function graphCanvasLabels(): Promise<Omit<Fail, 'surface'>[]> {
   })
 }
 
+/**
+ * Is the resting label ink on the canvas yet?
+ *
+ * `graphCanvasLabels` reads the canvas once, and the graph now starts with
+ * note labels off, so the surface that measures them has to turn them on and
+ * then wait for a frame drawn with them. Waiting for the ink itself beats a
+ * fixed pause, which on a loaded machine is a guess either way.
+ *
+ * The colour arithmetic is repeated from `graphCanvasLabels` rather than
+ * shared, because each runs inside its own `page.evaluate` and nothing crosses
+ * that boundary but data.
+ */
+async function restingLabelInkPainted(): Promise<boolean> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector('.graph__canvas') as HTMLCanvasElement | null
+    if (!canvas) return false
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--or-fg-muted').trim()
+    const hex = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+    let ink: [number, number, number]
+    if (hex) {
+      const h = hex[1]!
+      const full = h.length === 3 ? [...h].map((x) => x + x).join('') : h
+      ink = [
+        parseInt(full.slice(0, 2), 16),
+        parseInt(full.slice(2, 4), 16),
+        parseInt(full.slice(4, 6), 16)
+      ]
+    } else {
+      const m = raw.match(/[\d.]+/g)!.map(Number)
+      ink = [m[0]!, m[1]!, m[2]!]
+    }
+    const d = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3]! < 200) continue
+      if (
+        Math.abs(d[i]! - ink[0]) + Math.abs(d[i + 1]! - ink[1]) + Math.abs(d[i + 2]! - ink[2]) <=
+        12
+      ) {
+        return true
+      }
+    }
+    return false
+  })
+}
+
 interface Target {
   sel: string
   label: string
@@ -978,14 +1023,29 @@ const SURFACES: Surface[] = [
     }
   },
   {
-    // At rest, with the settings drawer open: every note label is painted in
-    // its resting ink, which is what `graphCanvasLabels` goes looking for.
+    // With the settings drawer open and note labels turned on: every label is
+    // painted in its resting ink, which is what `graphCanvasLabels` goes
+    // looking for.
+    //
+    // The toggle is switched on here rather than left alone, because the app
+    // now ships it off: at rest the graph names only the node under the pointer
+    // and the note that is open. Left at its default this surface would paint
+    // no label at all, and `graphCanvasLabels` reports an unpainted label as a
+    // failure rather than a pass, which is the right behaviour and the wrong
+    // outcome. Turning it on measures the resting ink the setting exists for.
     name: 'graph',
     root: '[aria-label="Knowledge Graph View"]',
     open: async () => {
       await openGraph()
       await page.locator('button[aria-label="Graph Physics & Display Settings"]').click()
       await expect(page.locator('.graph__panel')).toBeVisible()
+      await page
+        .locator('.graph__panel')
+        .getByRole('checkbox', { name: 'Always show note labels' })
+        .click()
+      // The toggle is React state and the canvas redraws on the next frame, so
+      // the scan below would otherwise read a canvas painted without labels.
+      await expect.poll(restingLabelInkPainted, { timeout: 15_000 }).toBe(true)
     },
     close: async () => {
       // The drawer outlives a close, so the next surface would open with it
