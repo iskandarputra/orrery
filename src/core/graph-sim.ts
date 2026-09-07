@@ -24,6 +24,20 @@ export interface Link {
   b: number
 }
 
+/**
+ * Kinetic energy below which the layout is done moving.
+ *
+ * Read by the animation loop to stop stepping and stop asking for frames. The
+ * graph used to damp velocity by a flat 0.85 with nothing testing the result,
+ * so it integrated forever: nodes never came to rest, and an idle map cost the
+ * same as a moving one.
+ *
+ * Tuned against `graph-sim.test.ts`: high enough that a four body layout
+ * reaches it in well under 5,000 steps, low enough that the arrangement has
+ * visibly stopped rather than merely slowed.
+ */
+export const SETTLED = 0.02
+
 export interface Forces {
   /** Multipliers, where 1 is the baseline the graph shipped with. */
   repel: number

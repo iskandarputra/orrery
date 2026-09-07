@@ -1,5 +1,5 @@
 import { showsLabel } from '@core/graph-labels'
-import { step, type Link } from '@core/graph-sim'
+import { SETTLED, step, type Link } from '@core/graph-sim'
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
@@ -112,6 +112,14 @@ export function GraphView(): React.JSX.Element | null {
   const folderRankRef = useRef<Map<string, number>>(new Map())
   /** Set by the canvas effect, so a rescan can reach the running view. */
   const ingestRef = useRef<((data: GraphAnalysis | null) => void) | null>(null)
+  /**
+   * Set by the canvas effect. The one path back into a sleeping animation
+   * loop, so every handler that changes the layout or the view calls this
+   * rather than repeating "clear the flag, request a frame": a handler that
+   * forgets to call it is a visible missing call, not a graph that silently
+   * stops responding.
+   */
+  const wakeRef = useRef<(() => void) | null>(null)
   const zoomControlsRef = useRef<{
     zoomIn(): void
     zoomOut(): void
@@ -166,6 +174,9 @@ export function GraphView(): React.JSX.Element | null {
     workEdgesRef.current = edges
     workByIdRef.current = byId
     workLinksRef.current = links
+    // The visible set just changed shape (a node came back in, a link
+    // dropped out), so a sleeping layout needs to run again to react to it.
+    wakeRef.current?.()
     // Named for what is actually on the map: calling a source file a note was
     // fine while the graph only had notes in it.
     const code = nodes.filter((n) => n.kind === 'code').length
@@ -192,6 +203,9 @@ export function GraphView(): React.JSX.Element | null {
     if (!open || !rootPath) return
     const canvas = canvasRef.current
     if (!canvas) return
+    // 0 means no frame is currently scheduled: set on entry to tick, so a
+    // handler firing between frames can tell the loop is not about to run on
+    // its own and knows to ask for one.
     let raf = 0
     let disposed = false
     let hover: SimNode | null = null
@@ -202,17 +216,31 @@ export function GraphView(): React.JSX.Element | null {
     let panning = false
     readyRef.current = false
 
+    /**
+     * Bring the loop back from a stop, or do nothing if it is already running.
+     * The one path back in: every handler that changes the layout or the view
+     * calls this instead of touching `raf` itself.
+     */
+    const wake = (): void => {
+      if (disposed) return
+      if (raf === 0) raf = requestAnimationFrame(tick)
+    }
+    wakeRef.current = wake
+
     zoomControlsRef.current = {
       zoomIn: () => {
         zoom = Math.min(3, zoom * 1.25)
+        wake()
       },
       zoomOut: () => {
         zoom = Math.max(0.2, zoom * 0.8)
+        wake()
       },
       resetZoom: () => {
         zoom = 1
         panX = 0
         panY = 0
+        wake()
       },
       fit: () => {
         const nodes = workNodesRef.current
@@ -232,6 +260,7 @@ export function GraphView(): React.JSX.Element | null {
         zoom = Math.min(2, Math.max(0.3, Math.min(canvas.clientWidth / w, canvas.clientHeight / h)))
         panX = (-(minX + maxX) / 2) * zoom
         panY = (-(minY + maxY) / 2) * zoom
+        wake()
       }
     }
 
@@ -248,6 +277,9 @@ export function GraphView(): React.JSX.Element | null {
       const dpr = window.devicePixelRatio || 1
       canvas.width = canvas.clientWidth * dpr
       canvas.height = canvas.clientHeight * dpr
+      // The canvas was just cleared by the resize itself, so a sleeping
+      // layout has to redraw once even though nothing about the physics changed.
+      wake()
     }
     resize()
     window.addEventListener('resize', resize)
@@ -299,13 +331,17 @@ export function GraphView(): React.JSX.Element | null {
     }
 
     const tick = (): void => {
+      // No frame is pending until the bottom of this function schedules one,
+      // so a handler that fires while this frame runs (it can't, JS is
+      // single threaded, but between frames) sees an accurate raf === 0.
+      raf = 0
       const c = ctlRef.current
       const nodes = workNodesRef.current
       const edges = workEdgesRef.current
       const byId = workByIdRef.current
 
       const pinned = drag ? nodes.indexOf(drag) : -1
-      step(
+      const energy = step(
         nodes,
         workLinksRef.current,
         { repel: c.repel, linkForce: c.linkForce, linkDistance: c.linkDistance, center: c.center },
@@ -408,7 +444,13 @@ export function GraphView(): React.JSX.Element | null {
         }
       }
       ctx.globalAlpha = 1
-      if (!disposed) raf = requestAnimationFrame(tick)
+      if (disposed) return
+      // Below the threshold and nothing is being dragged or panned: stop
+      // asking for frames rather than integrating a graph that is not
+      // visibly moving. `wake()` is what restarts this, from any handler
+      // that changes the layout or the view.
+      if (energy <= SETTLED && !drag && !panning) return
+      raf = requestAnimationFrame(tick)
     }
 
     /**
@@ -441,8 +483,10 @@ export function GraphView(): React.JSX.Element | null {
       folderRankRef.current = rankByFrequency(data.nodes.map((n) => n.folder))
       readyRef.current = true
       rebuildRef.current()
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(tick)
+      // Fresh positions on a fresh scan: rebuild() already wakes for the new
+      // node set, but a rescan of a graph that had settled needs this too in
+      // case rebuild bailed out early (an empty result, say).
+      wake()
     }
     ingestRef.current = ingest
 
@@ -460,7 +504,18 @@ export function GraphView(): React.JSX.Element | null {
         panX += e.movementX
         panY += e.movementY
       } else {
-        hover = pick(e.clientX, e.clientY)
+        const found = pick(e.clientX, e.clientY)
+        if (found !== hover) {
+          hover = found
+          // A settled graph draws no frames, so the highlight and the label
+          // showsLabel grants the hovered node would never appear. Waking on
+          // a change of hover rather than on every move is what keeps the
+          // graph asleep while the pointer merely travels across it: the
+          // mouse fires this handler continuously, and most of the time
+          // somebody is looking at the graph is time spent with the pointer
+          // over it, not moving off a node.
+          wake()
+        }
         canvas.style.cursor = hover ? 'pointer' : 'grab'
         if (hover) {
           setHoverNode({ node: hover, x: e.clientX, y: e.clientY })
@@ -472,6 +527,10 @@ export function GraphView(): React.JSX.Element | null {
     const onDown = (e: MouseEvent): void => {
       drag = pick(e.clientX, e.clientY)
       if (!drag) panning = true
+      // Either branch needs frames for the whole gesture, not just one: a
+      // dragged node's new position and a pan's new offset only reach the
+      // canvas if tick keeps running until the mouse comes back up.
+      wake()
     }
     const onUp = (e: MouseEvent): void => {
       if (drag && !panning) {
@@ -487,6 +546,7 @@ export function GraphView(): React.JSX.Element | null {
     const onWheel = (e: WheelEvent): void => {
       e.preventDefault()
       zoom = Math.min(3, Math.max(0.2, zoom * (e.deltaY > 0 ? 0.9 : 1.1)))
+      wake()
     }
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') close()
@@ -501,6 +561,7 @@ export function GraphView(): React.JSX.Element | null {
       disposed = true
       readyRef.current = false
       zoomControlsRef.current = null
+      wakeRef.current = null
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       canvas.removeEventListener('mousemove', onMove)
@@ -513,7 +574,13 @@ export function GraphView(): React.JSX.Element | null {
 
   if (!open) return null
 
-  const up = (patch: Partial<Controls>): void => setCtl((c) => ({ ...c, ...patch }))
+  const up = (patch: Partial<Controls>): void => {
+    setCtl((c) => ({ ...c, ...patch }))
+    // Every Range/Check/Select goes through here, so this one call wakes a
+    // sleeping layout for all of them, whether the change moves a force or
+    // only what gets drawn.
+    wakeRef.current?.()
+  }
 
   return (
     <div className="modal-backdrop">
@@ -736,7 +803,13 @@ export function GraphView(): React.JSX.Element | null {
                     }}
                   />
                 </section>
-                <button className="graph__reset" onClick={() => setCtl({ ...DEFAULTS })}>
+                <button
+                  className="graph__reset"
+                  onClick={() => {
+                    setCtl({ ...DEFAULTS })
+                    wakeRef.current?.()
+                  }}
+                >
                   Reset to defaults
                 </button>
               </div>

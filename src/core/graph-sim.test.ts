@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { step, type Body, type Forces, type Link } from './graph-sim'
+import { step, SETTLED, type Body, type Forces, type Link } from './graph-sim'
 
 const forces: Forces = { repel: 1, linkForce: 1, linkDistance: 1, center: 1 }
 
@@ -64,5 +64,29 @@ describe('step', () => {
     for (let i = 0; i < 1000; i++) step(b, [], forces)
     expect(Number.isFinite(b[0]!.x)).toBe(true)
     expect(Math.abs(b[0]!.x)).toBeLessThan(1000)
+  })
+})
+
+describe('settling', () => {
+  it('falls below the settled threshold and stays there', () => {
+    // Without a threshold there is nothing for the loop to test, and the graph
+    // asks for frames forever. The number matters: too high and the layout
+    // freezes mid-arrangement, too low and it never sleeps.
+    const b = bodies([120, 0], [-120, 0], [0, 140], [40, -90])
+    const links: Link[] = [
+      { a: 0, b: 1 },
+      { a: 1, b: 2 }
+    ]
+    let energy = Infinity
+    let steps = 0
+    while (energy > SETTLED && steps < 5000) {
+      energy = step(b, links, forces)
+      steps++
+    }
+    expect(steps).toBeLessThan(5000)
+    // And it stays settled rather than bouncing back above the line.
+    for (let i = 0; i < 200; i++) {
+      expect(step(b, links, forces)).toBeLessThanOrEqual(SETTLED)
+    }
   })
 })
