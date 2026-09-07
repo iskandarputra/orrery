@@ -10,13 +10,13 @@ The answer is already in the code, five times, and three of those disagree.
 
 ## What is there now
 
-| Resolver | Question | 0 candidates | N candidates |
-| --- | --- | --- | --- |
-| `core/notes.ts:79` `resolveNote` | click a `[[link]]` | offer to create | `find` takes the **first** in walk order |
-| `core/graph.ts:45` `byStem` | draw the map | `ghost:<stem>` node | `Map.set` leaves the **last** in walk order |
-| `core/wikilinks.ts:116` `findLinkLines` | backlinks panel | nothing to show | matches **all** of them |
-| `core/code-links.ts:299` `resolveImport` | draw the map | dropped, no node | refuses, no edge |
-| `core/notes.ts:73` `resolveFile` | `[[paper.pdf]]` | offer to create | first in walk order |
+| Resolver                                 | Question           | 0 candidates        | N candidates                                |
+| ---------------------------------------- | ------------------ | ------------------- | ------------------------------------------- |
+| `core/notes.ts:79` `resolveNote`         | click a `[[link]]` | offer to create     | `find` takes the **first** in walk order    |
+| `core/graph.ts:45` `byStem`              | draw the map       | `ghost:<stem>` node | `Map.set` leaves the **last** in walk order |
+| `core/wikilinks.ts:116` `findLinkLines`  | backlinks panel    | nothing to show     | matches **all** of them                     |
+| `core/code-links.ts:299` `resolveImport` | draw the map       | dropped, no node    | refuses, no edge                            |
+| `core/notes.ts:73` `resolveFile`         | `[[paper.pdf]]`    | offer to create     | first in walk order                         |
 
 Two consequences, both live:
 
@@ -78,12 +78,12 @@ so it can never reach the tie-break.
 
 ### The dangling policy
 
-| Case | Node | Reason |
-| --- | --- | --- |
-| Wikilink, 0 candidates | `ghost:<stem>`, `exists: false` | an unresolved wikilink is an intent to create, and `plugins/wikilinks/index.ts:40` already offers to create it |
-| Relative or dotted import, 0 candidates | `missing:<path>`, `exists: false`, `kind: 'code'` | it names a path in this vault that is not there, which is the rename breakage, currently silent |
-| Bare import, 0 candidates | none | `react` is a real dependency and not part of this folder; drawing every package buries the map |
-| Ambiguous and refused | none | recorded on the edge, not drawn |
+| Case                                    | Node                                              | Reason                                                                                                         |
+| --------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Wikilink, 0 candidates                  | `ghost:<stem>`, `exists: false`                   | an unresolved wikilink is an intent to create, and `plugins/wikilinks/index.ts:40` already offers to create it |
+| Relative or dotted import, 0 candidates | `missing:<path>`, `exists: false`, `kind: 'code'` | it names a path in this vault that is not there, which is the rename breakage, currently silent                |
+| Bare import, 0 candidates               | none                                              | `react` is a real dependency and not part of this folder; drawing every package buries the map                 |
+| Ambiguous and refused                   | none                                              | recorded on the edge, not drawn                                                                                |
 
 A relative specifier that does not resolve is the only new node type. It is
 rare by construction, so the map does not fill with them, and when one does
