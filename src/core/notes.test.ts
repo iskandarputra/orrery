@@ -46,12 +46,36 @@ describe('resolveNote', () => {
   const index = buildNoteIndex(tree)
 
   it('matches stems case-insensitively', () => {
-    expect(resolveNote(index, 'orrery plan')?.path).toBe('/vault/projects/Orrery Plan.md')
-    expect(resolveNote(index, 'INBOX')?.path).toBe('/vault/Inbox.md')
+    expect(resolveNote(index, 'orrery plan', '/vault/Inbox.md')?.path).toBe(
+      '/vault/projects/Orrery Plan.md'
+    )
+    expect(resolveNote(index, 'INBOX', '/vault/Inbox.md')?.path).toBe('/vault/Inbox.md')
   })
 
   it('returns null for unknown targets', () => {
-    expect(resolveNote(index, 'Missing Note')).toBeNull()
+    expect(resolveNote(index, 'Missing Note', '/vault/Inbox.md')).toBeNull()
+  })
+})
+
+describe('resolveNote with more than one candidate', () => {
+  const duplicates = [
+    { path: '/vault/archive/Store.md', stem: 'Store' },
+    { path: '/vault/projects/Store.md', stem: 'Store' }
+  ]
+
+  it('prefers the note beside the one doing the linking', () => {
+    expect(resolveNote(duplicates, 'store', '/vault/projects/Plan.md')?.path).toBe(
+      '/vault/projects/Store.md'
+    )
+  })
+
+  it('gives the same answer whichever order the walk found them', () => {
+    // `find` used to take the first match, so reversing the index changed the
+    // answer. That is half of the bug: buildGraph kept the last match, so the
+    // two halves of the app pointed at different files.
+    const forwards = resolveNote(duplicates, 'store', '/vault/A.md')?.path
+    const backwards = resolveNote([...duplicates].reverse(), 'store', '/vault/A.md')?.path
+    expect(backwards).toBe(forwards)
   })
 })
 

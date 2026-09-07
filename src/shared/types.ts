@@ -36,7 +36,20 @@ export interface FsChangedPayload {
 export type CloseConfirmChoice = 'save' | 'discard' | 'cancel'
 
 export interface GraphNode {
-  /** File path for real notes, `ghost:<stem>` for linked-but-missing notes. */
+  /**
+   * File path for a file that is there.
+   *
+   * `ghost:<stem>` is a wikilink to a note nobody has written; `missing:<path>`
+   * is an import naming a path that is not there. Read `exists` rather than
+   * the prefix: there are two prefixes now, and a third would be missed by
+   * every `startsWith` found by hand.
+   *
+   * `absentKind` in `core/graph.ts` is the one permitted reader of the prefix,
+   * because it has to tell an unwritten note from a broken import and `kind`
+   * is not a safe way to do it: the two only differ there because a ghost is
+   * built 'note' and a missing import 'code', which is a construction detail
+   * rather than a promise. The prefix is the node's own identity.
+   */
   id: string
   label: string
   exists: boolean
@@ -65,6 +78,15 @@ export interface GraphEdge {
   to: string
   /** `link` is a wikilink between notes; `import` is one file requiring another. */
   kind: 'link' | 'import'
+  /**
+   * True when more than one file could have been meant and one was picked.
+   *
+   * Worth carrying rather than recomputing: the panel showing a backlink is a
+   * long way from the index that knew there were two candidates.
+   */
+  ambiguous: boolean
+  /** 1-based line the link was written on, so a panel can open it there. */
+  line: number
 }
 
 /** The raw link graph, before analysis. */
@@ -93,9 +115,19 @@ export interface AnalyzedGraphNode extends GraphNode, NodeMetrics {}
 
 /** A note referenced by [[wikilink]] that has no file behind it. */
 export interface BrokenLink {
-  /** Ghost node id. */
+  /** `ghost:<stem>` for an unwritten note; `missing:<path>` for a broken import. */
   id: string
   label: string
+  /**
+   * Which kind of nothing this points at.
+   *
+   * `note` is a wikilink to a note nobody has written, which is a normal thing
+   * to have in a vault and is fixed by writing it. `import` is a path that is
+   * not there, which is usually what a rename left behind and is fixed by
+   * correcting the path. Listing them together made the list read as a to-do
+   * where half the rows were aspirations and half were faults.
+   */
+  kind: 'note' | 'import'
   /** Paths of the notes pointing at it. */
   from: string[]
 }
@@ -104,6 +136,12 @@ export interface RankedNote {
   id: string
   label: string
   score: number
+  /**
+   * False for a broken link: `brokenLinks` reuses this shape for an id with
+   * no file behind it, and the panel rendering it needs to know before it
+   * tries to open one.
+   */
+  exists: boolean
 }
 
 export interface VaultStats {
@@ -167,6 +205,15 @@ export interface BacklinkHit {
    * hit is a line in a text file, as every hit used to be.
    */
   page?: number
+  /**
+   * The graph edge this hit came from had `ambiguous` set: more than one file
+   * could have answered to the name written here, and this one was picked.
+   *
+   * Only `LinkScanner.backlinks` sets it, from the edge it read the hit off.
+   * Present and true means the panel should say so; absent means the edge
+   * (or the search hit that isn't an edge at all) never had a choice to make.
+   */
+  ambiguous?: boolean
 }
 
 /** One diagnostic from a language server, flattened to what the editor draws. */

@@ -98,6 +98,25 @@ test.beforeAll(async () => {
       'An image: ![red](pic.png)\n\n$$\n\\int_0^1 x^2 dx = \\frac{1}{3}\n$$\n\nTail.\n'
   )
   writeFileSync(join(vault, 'Folder', 'Deep.md'), '# Deep\n\nSee [[Index]].\n')
+  // Code joining the map: app.ts imports a file that exists and one that
+  // doesn't, so the backlinks panel has an import hit to show and the graph
+  // has a broken-import node drawn in its "does not exist" styling, which
+  // before this branch only an unwritten note ever wore.
+  writeFileSync(
+    join(vault, 'app.ts'),
+    "import { helper } from './helper'\nimport { gone } from './gone'\n\n" +
+      'export function run(): number {\n  return helper() + gone()\n}\n'
+  )
+  writeFileSync(join(vault, 'helper.ts'), 'export function helper(): number {\n  return 1\n}\n')
+  // A second `helper.ts`, so `[[helper]]` in note.md has somewhere else it
+  // could have meant. `note.md` sits next to the root one and wins on folder,
+  // but the choice still happened, and the backlinks row for it carries the
+  // ambiguous marker this measures.
+  writeFileSync(
+    join(vault, 'Folder', 'helper.ts'),
+    'export function helper(): number {\n  return 2\n}\n'
+  )
+  writeFileSync(join(vault, 'note.md'), '# Note\n\nSee [[helper]] for the code behind this.\n')
   // A repository with one changed file, so the source control panel and the
   // side-by-side diff have real content to be measured against rather than an
   // empty state that says nothing about either.
@@ -190,6 +209,13 @@ test.beforeAll(async () => {
   await page.keyboard.type('\n\nA second thought, saved.')
   await runCommand('file.save')
   await expect(page.locator('.tab__close--dirty')).toBeHidden({ timeout: 10_000 })
+
+  // Include code in the graph explicitly rather than trusting the schema
+  // default: the graph and backlinks surfaces below only have anything of
+  // their own to show once source files are part of the map.
+  await page.evaluate(async () => {
+    await window.orrery.invoke('settings:set', { graph: { includeCode: true } })
+  })
 
   // One MCP server, connected once here rather than per theme: the panel and
   // the approval dialog are measured against a real server's tools, and 28
@@ -577,41 +603,65 @@ async function closeGraph(): Promise<void> {
   await page.mouse.move(2, 2)
 }
 
-/** Hover a node the way a mouse finds one — by moving until the graph reacts. */
-async function hoverGraphNode(): Promise<void> {
+/**
+ * Hover a node the way a mouse finds one, by moving until the graph reacts.
+ *
+ * `label`, when given, keeps trying candidate points until the card names
+ * that node rather than settling for whichever one the sweep reaches first.
+ * The layout is a physics simulation with no exposed coordinates, so which
+ * node ends up under which point on screen is not the caller's to predict.
+ * The only way to find a specific one is to keep asking until it turns up.
+ */
+async function hoverGraphNode(label?: string): Promise<void> {
   const card = page.locator('.graph__hover-card')
   for (let attempt = 0; attempt < 5; attempt++) {
-    const point = await page.evaluate(() => {
+    // The whole search runs inside the page, not through Playwright's driver.
+    // An earlier version drove the sweep from outside: a real page.mouse.move
+    // plus a 1s card.waitFor for every 8px grid cell that merely hit *some*
+    // node, so that a run naming a label kept going past the first candidate.
+    // On this fixture that was dozens of round trips, most of them a wrong
+    // node the card was already showing, and it burned through Playwright's
+    // whole 60s test timeout rather than the few seconds this takes. The
+    // cursor is set synchronously by the graph's own handler, so a synthetic
+    // dispatch answers "is anything here" for free; only the label check
+    // needs a painted frame, so that wait is paid once per node actually
+    // found, not once per grid cell.
+    const point = await page.evaluate(async (wanted: string | null) => {
       const canvas = document.querySelector('.graph__canvas') as HTMLCanvasElement
       const r = canvas.getBoundingClientRect()
-      // The graph sets the cursor synchronously from its own hit test, so a
-      // sweep can ask it where the nodes are without waiting for a repaint.
+      const frame = (): Promise<void> =>
+        new Promise((resolve) => requestAnimationFrame(() => resolve()))
       // A node's hit radius is never under 12px, so an 8px grid cannot step
       // over one.
       for (let y = r.top + 4; y < r.bottom; y += 8) {
         for (let x = r.left + 4; x < r.right; x += 8) {
           canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y }))
-          if (canvas.style.cursor === 'pointer') return { x, y }
+          if (canvas.style.cursor !== 'pointer') continue
+          if (!wanted) return { x, y }
+          await frame()
+          const title = document.querySelector('.graph__hover-title')?.textContent?.trim()
+          if (title === wanted) return { x, y }
         }
       }
       return null
-    })
+    }, label ?? null)
     if (point) {
+      // One real hover, so what is actually asserted is a genuine pointer
+      // event painting the card, not just the synthetic sweep that found it.
       await page.mouse.move(point.x, point.y)
-      // The card is a React render away from the mouse event, so it is waited
-      // for rather than looked at; and while the simulation is still moving the
-      // node can drift out from under the pointer between the sweep and the
-      // move, which is what the second attempt is for.
       try {
         await card.waitFor({ state: 'visible', timeout: 1_000 })
-        return
+        if (!label) return
+        const title = (await page.locator('.graph__hover-title').textContent())?.trim()
+        if (title === label) return
       } catch {
-        // Missed it — sweep again against where the nodes are now.
+        // Drifted since the sweep found it: the next attempt sweeps again
+        // against wherever the simulation has settled by then.
       }
     }
     await page.waitForTimeout(200)
   }
-  throw new Error('no graph node could be hovered')
+  throw new Error(`no graph node could be hovered${label ? ` (wanted "${label}")` : ''}`)
 }
 
 async function openBoard(): Promise<void> {
@@ -915,6 +965,12 @@ const SURFACES: Surface[] = [
     open: async () => {
       await runCommand('view.toggleAnalytics')
       await expect(page.locator('.analytics__body')).toBeVisible()
+      // Bridges was empty before code joined the map, so scrolling to it was
+      // never needed: the whole panel fit. Two rows of real content now push
+      // it past the fold, and a control the corner-reach check cannot find
+      // because it is scrolled away is a false positive rather than a real
+      // target-size defect.
+      await page.locator('.analytics__list', { hasText: 'Bridges' }).scrollIntoViewIfNeeded()
     },
     close: async () => {
       await page.keyboard.press('Escape')
@@ -948,6 +1004,34 @@ const SURFACES: Surface[] = [
       // A query in the filter box is what puts its clear button on screen.
       await page.locator('.graph__header-search input').fill('e')
       await hoverGraphNode()
+    },
+    close: closeGraph
+  },
+  {
+    // `app.ts` imports `./gone`, which has no file behind it, so the graph
+    // draws it in the same ghost styling a missing wikilink already had.
+    // Before this branch the only non-existent nodes were unwritten notes.
+    // The hover card's "nothing behind this" branch is only reachable by
+    // finding that specific node, since the layout gives no other way to
+    // aim at it.
+    name: 'graph broken import',
+    root: '[aria-label="Knowledge Graph View"]',
+    open: async () => {
+      await openGraph()
+      // The node itself has no DOM to assert on: it is drawn on the canvas.
+      // Checked directly over IPC first, so a fixture that stopped producing
+      // it fails here with a clear message rather than as a hover search that
+      // never finds anything.
+      const graph = await page.evaluate(
+        (root) => window.orrery.invoke('workspace:graph', { rootPath: root, withCode: true }),
+        vault
+      )
+      expect(
+        graph.nodes.some((n) => !n.exists && n.kind === 'code' && n.label === 'gone'),
+        'the fixture has a missing-import node to draw'
+      ).toBe(true)
+      await hoverGraphNode('gone')
+      await expect(page.locator('.graph__hover-ghost')).toBeVisible()
     },
     close: closeGraph
   },
@@ -994,6 +1078,34 @@ const SURFACES: Surface[] = [
       await expect(page.locator('.outgoing__row').first()).toBeVisible({ timeout: 15_000 })
     },
     close: async () => {
+      await runCommand('view.toggleOutline')
+      await expect(page.locator('.outline-filter__input')).toBeVisible()
+    }
+  },
+  {
+    // Before this branch the panel only ever listed wikilinks, so every row in
+    // it was a note. `app.ts` importing `helper.ts` gives it a source file
+    // instead, which is text and a row style neither was ever measured. The
+    // second `Folder/helper.ts` gives `note.md`'s `[[helper]]` a choice to
+    // make, so the ambiguous marker on that row is measured too, not just
+    // asserted to exist.
+    name: 'backlinks',
+    root: '.rpanel',
+    open: async () => {
+      await page.locator('.tree-row--file', { hasText: 'helper.ts' }).click()
+      await runCommand('view.toggleBacklinks')
+      await expect(page.locator('.result-group__name', { hasText: 'app.ts' })).toBeVisible({
+        timeout: 15_000
+      })
+      await expect(page.locator('.result-snippet__ambiguous')).toBeVisible()
+    },
+    close: async () => {
+      // The tab goes too. Every open tab narrows the ones beside it, and the
+      // next surface's close buttons are already at the size 2.5.8 asks for
+      // with nothing to spare, the same reason the html reader closes its own
+      // tab on the way out.
+      await page.getByRole('button', { name: 'Close helper.ts' }).click()
+      await expect(page.locator('.tab', { hasText: 'helper.ts' })).toHaveCount(0)
       await runCommand('view.toggleOutline')
       await expect(page.locator('.outline-filter__input')).toBeVisible()
     }

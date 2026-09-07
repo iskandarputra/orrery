@@ -7,6 +7,7 @@ import type {
   RankedNote,
   VaultStats
 } from '@shared/types'
+import { absentKind } from './graph'
 
 const DAMPING = 0.85
 const PAGERANK_ITERATIONS = 30
@@ -297,22 +298,30 @@ function computeInsights(nodes: AnalyzedGraphNode[], into: number[][], top: numb
 
   nodes.forEach((node, i) => {
     if (!node.exists) {
-      // A ghost is a broken link, not an orphan: there is no note to fix up.
+      // Neither kind is an orphan: there is no file to fix up, only a link.
       brokenLinks.push({
         id: node.id,
         label: node.label,
+        kind: absentKind(node.id),
         from: into[i]!.map((j) => nodes[j]!.id).sort()
       })
       return
     }
     if (node.inDegree === 0 && node.outDegree === 0) {
-      orphans.push({ id: node.id, label: node.label, score: node.words })
+      orphans.push({ id: node.id, label: node.label, score: node.words, exists: node.exists })
     } else if (node.outDegree === 0) {
-      deadEnds.push({ id: node.id, label: node.label, score: node.inDegree })
+      deadEnds.push({ id: node.id, label: node.label, score: node.inDegree, exists: node.exists })
     }
-    if (node.pagerank > 0) hubs.push({ id: node.id, label: node.label, score: node.pagerank })
+    if (node.pagerank > 0) {
+      hubs.push({ id: node.id, label: node.label, score: node.pagerank, exists: node.exists })
+    }
     if (node.betweenness > 0) {
-      connectors.push({ id: node.id, label: node.label, score: node.betweenness })
+      connectors.push({
+        id: node.id,
+        label: node.label,
+        score: node.betweenness,
+        exists: node.exists
+      })
     }
   })
 

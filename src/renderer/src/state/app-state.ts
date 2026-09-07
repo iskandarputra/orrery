@@ -14,3 +14,8 @@ import type { WorkspaceSlice } from './workspace'
  * cycles is one nobody reads, and the next cycle would be a real one.
  */
 export type AppState = DocumentsSlice & WorkspaceSlice & UiSlice & GraphSlice & McpSlice
+
+/** The file in the focused pane, or '' when the pane holds nothing saved yet. */
+export function activeFilePath(state: AppState): string {
+  return (state.activeId && state.buffers[state.activeId]?.filePath) || ''
+}

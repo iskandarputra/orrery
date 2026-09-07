@@ -86,7 +86,8 @@ follows a link. Follow one to a note you have never written and Orrery creates
 it. Links inside code fences stay as text, since a snippet showing the syntax is
 documentation rather than a reference.
 
-**Backlinks** (`Ctrl+Shift+B`) list every note pointing at this one, with the
+**Backlinks** (`Ctrl+Shift+B`) list every note pointing at this one, and every
+importing source file too when the include-code graph setting is on, with the
 line each mention sits on. **Outgoing links** does the reverse, and names the
 links that lead nowhere yet, which is usually where the next note comes from.
 **Bookmarks** keeps the files you return to. **Tags**, an **outline** and

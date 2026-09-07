@@ -129,7 +129,7 @@ describe('seedCanvasFromNotes', () => {
   }
   const graph: LinkGraph = {
     nodes: ['/v/A.md', '/v/B.md', '/v/C.md'].map(node),
-    edges: [{ from: '/v/A.md', to: '/v/B.md', kind: 'link' }]
+    edges: [{ from: '/v/A.md', to: '/v/B.md', kind: 'link', ambiguous: false, line: 1 }]
   }
 
   it('turns notes into file nodes and keeps the links between them', () => {

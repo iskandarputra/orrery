@@ -1,3 +1,4 @@
+import { absentKind } from '@core/graph'
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
@@ -628,7 +629,11 @@ export function GraphView(): React.JSX.Element | null {
                     </span>
                   )}
                   {!hoverNode.node.exists && (
-                    <span className="graph__hover-ghost">(Uncreated note)</span>
+                    <span className="graph__hover-ghost">
+                      {absentKind(hoverNode.node.id) === 'import'
+                        ? '(Missing file)'
+                        : '(Uncreated note)'}
+                    </span>
                   )}
                 </div>
               </div>

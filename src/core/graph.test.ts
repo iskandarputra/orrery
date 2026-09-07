@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGraph, type GraphFile } from './graph'
+import { resolveNote } from './notes'
 
 const files = [
   { path: '/v/A.md', stem: 'A', content: 'links [[B]] and [[Ghost]] and [[B]] again' },
@@ -78,8 +79,8 @@ describe('code in the graph', () => {
     const graph = buildGraph(mixed, '/v')
     const imports = graph.edges.filter((edge) => edge.kind === 'import')
     expect(imports).toEqual([
-      { from: '/v/src/app.ts', to: '/v/src/pane.ts', kind: 'import' },
-      { from: '/v/src/pane.ts', to: '/v/src/style.css', kind: 'import' }
+      { from: '/v/src/app.ts', to: '/v/src/pane.ts', kind: 'import', ambiguous: false, line: 1 },
+      { from: '/v/src/pane.ts', to: '/v/src/style.css', kind: 'import', ambiguous: false, line: 1 }
     ])
   })
 
@@ -106,7 +107,9 @@ describe('code in the graph', () => {
     expect(graph.edges).toContainEqual({
       from: '/v/notes/Editor.md',
       to: '/v/src/pane.ts',
-      kind: 'link'
+      kind: 'link',
+      ambiguous: false,
+      line: 1
     })
   })
 
@@ -157,5 +160,150 @@ describe('a repository-sized vault', () => {
     expect(g.edges.filter((e) => e.kind === 'import')).toHaveLength(8000)
     expect(elapsed).toBeLessThan(10_000)
     console.log(`  buildGraph: 4000 files / ${g.edges.length} edges in ${Math.round(elapsed)}ms`)
+  })
+})
+
+describe('two files with the same name', () => {
+  // The archive copy comes second on purpose. The old index was a Map filled in
+  // walk order, so last-wins landed on whichever came last, and with projects
+  // last it agreed with the right answer by accident and the test below could
+  // not fail. Ordered this way, last-wins picks archive and nearest picks
+  // projects, which is the difference the test is there to see.
+  const duplicates: GraphFile[] = [
+    { path: '/v/projects/Store.md', stem: 'Store', content: '' },
+    { path: '/v/archive/Store.md', stem: 'Store', content: '' },
+    { path: '/v/projects/Plan.md', stem: 'Plan', content: 'see [[Store]]' }
+  ]
+
+  it('draws the edge to the file a click would open', () => {
+    // The bug in one assertion. buildGraph kept the last stem match and
+    // resolveNote took the first, so this link opened /v/archive/Store.md
+    // while the map drew an edge to /v/projects/Store.md.
+    const graph = buildGraph(duplicates, '/v')
+    const drawn = graph.edges.find((e) => e.from === '/v/projects/Plan.md')!.to
+    const opened = resolveNote(
+      duplicates.map((f) => ({ path: f.path, stem: f.stem })),
+      'Store',
+      '/v/projects/Plan.md'
+    )!.path
+    expect(drawn).toBe(opened)
+    expect(drawn).toBe('/v/projects/Store.md')
+  })
+
+  it('gives the same edge whichever order the walk found the files', () => {
+    const forwards = buildGraph(duplicates, '/v').edges.find((e) => e.kind === 'link')!.to
+    const backwards = buildGraph([...duplicates].reverse(), '/v').edges.find(
+      (e) => e.kind === 'link'
+    )!.to
+    expect(backwards).toBe(forwards)
+  })
+
+  it('marks the edge as a choice between candidates', () => {
+    const edge = buildGraph(duplicates, '/v').edges.find((e) => e.kind === 'link')!
+    expect(edge.ambiguous).toBe(true)
+  })
+
+  it('leaves an unambiguous edge unmarked', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: '[[B]]' },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges[0]!.ambiguous).toBe(false)
+  })
+})
+
+describe('imports that resolve nowhere', () => {
+  it('keeps a broken relative import as a node you can see', () => {
+    const graph = buildGraph(
+      [{ path: '/v/src/app.ts', stem: 'app', content: "import x from './editorr'" }],
+      '/v'
+    )
+    const broken = graph.nodes.find((n) => !n.exists)!
+    expect(broken).toMatchObject({ id: 'missing:/v/src/editorr', kind: 'code', exists: false })
+    expect(graph.edges).toHaveLength(1)
+  })
+
+  it('draws nothing at all for a package', () => {
+    const graph = buildGraph(
+      [{ path: '/v/src/app.ts', stem: 'app', content: "import x from 'react'" }],
+      '/v'
+    )
+    expect(graph.edges).toHaveLength(0)
+    expect(graph.nodes).toHaveLength(1)
+  })
+
+  it('gives two spellings of the one missing file a single node', () => {
+    // `./gone` leaves the extension for the resolver to guess; `./gone.ts`
+    // spells it out. Both name the same absent file, and the broken-imports
+    // list should say so once, not twice.
+    const graph = buildGraph(
+      [
+        { path: '/v/src/a.ts', stem: 'a', content: "import x from './gone'" },
+        { path: '/v/src/b.ts', stem: 'b', content: "import y from './gone.ts'" }
+      ],
+      '/v'
+    )
+    const broken = graph.nodes.filter((n) => !n.exists)
+    expect(broken).toHaveLength(1)
+    expect(graph.edges.filter((e) => e.kind === 'import')).toHaveLength(2)
+    expect(graph.edges.every((e) => e.to === broken[0]!.id)).toBe(true)
+  })
+
+  it('draws nothing for an import it refused to guess at', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/main.rs', stem: 'main', content: 'use crate::pane;' },
+        { path: '/v/a/pane.rs', stem: 'pane', content: '' },
+        { path: '/v/b/pane.rs', stem: 'pane', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.filter((e) => e.kind === 'import')).toHaveLength(0)
+    expect(graph.nodes.every((n) => n.exists)).toBe(true)
+  })
+})
+
+describe('where a link was written', () => {
+  it('records the line of a wikilink and of an import', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: 'first\nsecond\nsee [[B]]' },
+        { path: '/v/B.md', stem: 'B', content: '' },
+        { path: '/v/a.ts', stem: 'a', content: "// header\nimport x from './b'" },
+        { path: '/v/b.ts', stem: 'b', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.find((e) => e.kind === 'link')!.line).toBe(3)
+    expect(graph.edges.find((e) => e.kind === 'import')!.line).toBe(2)
+  })
+
+  // The brief's own case only checks lines 3 and 2, which an off-by-one in a
+  // single direction could still slip past. A link on line 1 catches an
+  // implementation that assumes there is always a newline before it; a link
+  // straight after a blank line catches one that miscounts consecutive breaks.
+  it('records line 1 for a wikilink with nothing before it', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: '[[B]] first' },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.find((e) => e.kind === 'link')!.line).toBe(1)
+  })
+
+  it('records the right line for a wikilink straight after a blank line', () => {
+    const graph = buildGraph(
+      [
+        { path: '/v/A.md', stem: 'A', content: 'first\n\n[[B]]' },
+        { path: '/v/B.md', stem: 'B', content: '' }
+      ],
+      '/v'
+    )
+    expect(graph.edges.find((e) => e.kind === 'link')!.line).toBe(3)
   })
 })

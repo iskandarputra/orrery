@@ -2753,6 +2753,15 @@ textarea {
   color: var(--or-fg-faint);
 }
 
+/* Same faint, small-text treatment as .result-snippet__line: this is a note
+   about the hit, not a warning, so it reads as quiet detail rather than an
+   alert. */
+.result-snippet__ambiguous {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--or-fg-faint);
+}
+
 .rpanel-count {
   padding: 2px 4px 8px;
   font-size: 11px;

@@ -2,12 +2,13 @@ import { StateField, type EditorState, type Extension, type Range } from '@codem
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { EditorView as EditorViewType } from '@codemirror/view'
 import { resolveAssetUrl } from '@core/asset'
-import { resolveFile } from '@core/notes'
+import { resolveFile, resolveNote } from '@core/notes'
 import { extractSection } from '@core/section'
 import { findWikilinks } from '@core/wikilinks'
 import { mountPreview } from '@/editor/preview-view'
 import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
+import { docPathFacet } from '../doc-context'
 import { revealSource } from './reveal-source'
 
 /** Longest embedded excerpt shown before it is cut off. */
@@ -34,10 +35,19 @@ const mounted = new WeakMap<HTMLElement, EditorViewType>()
  */
 const discarded = new WeakSet<HTMLElement>()
 
-function resolveNotePath(target: string): string | null {
-  const { noteIndex } = appState()
-  const wanted = target.trim().toLowerCase()
-  return noteIndex.find((note) => note.stem.toLowerCase() === wanted)?.path ?? null
+/**
+ * A thin wrapper rather than an inlined call: `![[Store]]` and `[[Store]]`
+ * must pick the same file out of two `Store.md`, and that only holds if both
+ * go through `resolveNote` with the same `fromPath` instead of each keeping
+ * its own lookup.
+ *
+ * `sourcePath` is the note the embed is written in, not whatever tab happens
+ * to be focused: a split pane showing a background note still has to rank an
+ * embed's candidates against that note's own folder, not the one in front.
+ */
+function resolveNotePath(target: string, sourcePath: string): string | null {
+  const state = appState()
+  return resolveNote(state.noteIndex, target, sourcePath)?.path ?? null
 }
 
 /**
@@ -59,9 +69,10 @@ const EMBEDDABLE_IMAGE = /\.(png|jpe?g|gif|webp|bmp|avif|ico|svg)$/i
  * which is the point of the double-bracket form: where the file actually sits
  * is not something you should have to remember when writing.
  */
-function showImage(target: string, el: HTMLElement): boolean {
+function showImage(target: string, el: HTMLElement, sourcePath: string): boolean {
   if (!EMBEDDABLE_IMAGE.test(target.trim())) return false
-  const found = resolveFile(appState().fileIndex, target)
+  const state = appState()
+  const found = resolveFile(state.fileIndex, target, sourcePath)
   const url = found ? resolveAssetUrl(null, found.path) : null
   if (!url) {
     el.classList.add('cm-or-embed--missing')
@@ -82,10 +93,15 @@ function showImage(target: string, el: HTMLElement): boolean {
   return true
 }
 
-async function loadEmbed(target: string, heading: string | null, el: HTMLElement): Promise<void> {
+async function loadEmbed(
+  target: string,
+  heading: string | null,
+  el: HTMLElement,
+  sourcePath: string
+): Promise<void> {
   // A picture is shown, not read: it has no sections and no markdown in it.
-  if (showImage(target, el)) return
-  const path = resolveNotePath(target)
+  if (showImage(target, el, sourcePath)) return
+  const path = resolveNotePath(target, sourcePath)
   if (!path) {
     el.classList.add('cm-or-embed--missing')
     el.textContent = `“${target}” doesn't exist yet`
@@ -128,7 +144,7 @@ async function loadEmbed(target: string, heading: string | null, el: HTMLElement
   // Rendered, not raw: an embed showing markdown source beside rendered text
   // reads as broken. Same renderer as the editor itself.
   const shown = body.length > MAX_EMBED_CHARS ? `${body.slice(0, MAX_EMBED_CHARS)}…` : body
-  const preview = mountPreview(content, shown || '_(empty note)_')
+  const preview = mountPreview(content, shown || '_(empty note)_', path)
   // The field rebuilds on every document change, so the view it replaces has
   // to go with it or each keystroke leaks an editor.
   mounted.set(el, preview)
@@ -155,7 +171,10 @@ class EmbedWidget extends WidgetType {
     const el = document.createElement('div')
     el.className = 'cm-or-embed'
     el.textContent = `Loading ${this.target}…`
-    void loadEmbed(this.target, this.heading, el)
+    // The note this embed is written in, not whatever tab is focused: a split
+    // pane can show a note nobody has clicked into, and its embeds still have
+    // to rank candidates against that note's own folder.
+    void loadEmbed(this.target, this.heading, el, view.state.facet(docPathFacet) ?? '')
 
     if (this.interactive) {
       // Click the card to get at the source that produced it, like every other

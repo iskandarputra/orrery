@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findLinkLines, findWikilinks, stemMatches } from './wikilinks'
+import { findWikilinks, stemMatches } from './wikilinks'
 
 describe('findWikilinks', () => {
   it('parses a plain wikilink', () => {
@@ -39,22 +39,6 @@ describe('stemMatches', () => {
     expect(stemMatches('My Note', 'my note')).toBe(true)
     expect(stemMatches(' My Note ', 'My Note')).toBe(true)
     expect(stemMatches('Other', 'My Note')).toBe(false)
-  })
-})
-
-describe('findLinkLines', () => {
-  it('reports 1-based line numbers with snippets', () => {
-    const content = 'intro\nsee [[Target]] for details\nno link\nalias [[target|t]] too'
-    const hits = findLinkLines(content, 'Target')
-    expect(hits).toEqual([
-      { line: 2, snippet: 'see [[Target]] for details' },
-      { line: 4, snippet: 'alias [[target|t]] too' }
-    ])
-  })
-
-  it('does not match different targets or bare mentions', () => {
-    const hits = findLinkLines('mentions Target without link\n[[Other]]', 'Target')
-    expect(hits).toHaveLength(0)
   })
 })
 

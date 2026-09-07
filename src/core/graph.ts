@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode, LinkGraph } from '@shared/types'
 import { findImports, importsFamily, indexImports, resolveImport } from './code-links'
+import { resolve } from './link-resolution'
 import { dirname } from './paths'
 import { findTags } from './tags'
 import { findWikilinks } from './wikilinks'
@@ -29,6 +30,44 @@ function folderOf(filePath: string, rootPath: string): string {
   return dir.slice(rootPath.length).replace(/^[/\\]/, '')
 }
 
+/** File name without its extension, for labelling a path that has no file. */
+function stemOfPath(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '')
+}
+
+/**
+ * Offset to 1-based line, over one prepared index per file.
+ *
+ * `findWikilinks` reports character offsets and a backlinks panel needs lines.
+ * Counting newlines per link would rescan the file once per link; a file with
+ * 200 links would read itself 200 times.
+ *
+ * Built lazily, on the first offset actually asked for, rather than up front:
+ * `buildGraph` calls this for every file, and a source file's imports already
+ * carry their own line from `findImports` and never call the function back.
+ * A vault with more code than notes was building a newline-position array,
+ * one allocation per file, that a code-heavy majority of them never indexed.
+ */
+function lineIndex(content: string): (offset: number) => number {
+  let starts: number[] | null = null
+  return (offset) => {
+    if (!starts) {
+      starts = [0]
+      for (let at = content.indexOf('\n'); at !== -1; at = content.indexOf('\n', at + 1)) {
+        starts.push(at + 1)
+      }
+    }
+    let low = 0
+    let high = starts.length - 1
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      if (starts[mid]! <= offset) low = mid
+      else high = mid - 1
+    }
+    return low + 1
+  }
+}
+
 /**
  * Build the vault link graph from file contents (pure — tested in Node).
  *
@@ -41,8 +80,16 @@ function folderOf(filePath: string, rootPath: string): string {
  * the vault is read once; `analyzeGraph` adds the structural measures.
  */
 export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
-  const byStem = new Map<string, string>()
-  for (const f of files) byStem.set(f.stem.toLowerCase(), f.path)
+  // Every file carrying a stem, not the last one seen. A plain `Map.set` in
+  // this loop left whichever file the walk reached last, which is how the map
+  // came to draw an edge to a different Store.md than a click would open.
+  const byStem = new Map<string, string[]>()
+  for (const f of files) {
+    const key = f.stem.toLowerCase()
+    const bucket = byStem.get(key)
+    if (bucket) bucket.push(f.path)
+    else byStem.set(key, [f.path])
+  }
 
   const nodes = new Map<string, GraphNode>()
   for (const f of files) {
@@ -62,10 +109,16 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   const edges: GraphEdge[] = []
   const seen = new Set<string>()
   for (const f of files) {
+    const lineAt = lineIndex(f.content)
     for (const link of findWikilinks(f.content)) {
-      const targetPath = byStem.get(link.target.toLowerCase())
-      const to = targetPath ?? `ghost:${link.target.toLowerCase()}`
-      if (!targetPath && !nodes.has(to)) {
+      const found = resolve(f.path, byStem.get(link.target.toLowerCase()) ?? [], {
+        tieBreak: 'nearest',
+        whenEmpty: { status: 'missing', at: link.target }
+      })
+      // A wikilink to nothing is a note somebody intends to write, and the
+      // editor already offers to create it on click, so the graph keeps it.
+      const to = found.status === 'resolved' ? found.to : `ghost:${link.target.toLowerCase()}`
+      if (found.status !== 'resolved' && !nodes.has(to)) {
         // A linked-but-missing note: no file, so no words, folder or mtime.
         nodes.set(to, {
           id: to,
@@ -83,7 +136,13 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ from: f.path, to, kind: 'link' })
+      edges.push({
+        from: f.path,
+        to,
+        kind: 'link',
+        ambiguous: found.status === 'resolved' && found.ambiguous,
+        line: lineAt(link.from)
+      })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
     }
@@ -99,16 +158,50 @@ export function buildGraph(files: GraphFile[], rootPath = ''): LinkGraph {
   for (const f of files) {
     if (!importsFamily(f.path)) continue
     for (const found of findImports(f.content, f.path)) {
-      const to = resolveImport(f.path, found.spec, index)
-      if (!to || to === f.path) continue
+      const where = resolveImport(f.path, found.spec, index)
+      // A package is a real dependency and not part of this folder, and a
+      // refusal is a guess not worth making. Neither draws anything.
+      if (where.status === 'external' || where.status === 'ambiguous') continue
+      const to = where.status === 'resolved' ? where.to : `missing:${where.at}`
+      if (where.status === 'missing' && !nodes.has(to)) {
+        // What a rename leaves behind. Rare by construction, so it does not
+        // fill the map, and when one appears it is the thing worth seeing.
+        nodes.set(to, {
+          id: to,
+          label: stemOfPath(where.at),
+          exists: false,
+          kind: 'code',
+          degree: 0,
+          folder: '',
+          words: 0,
+          mtimeMs: 0,
+          tags: []
+        })
+      }
+      if (to === f.path) continue
       const key = `${f.path}→${to}`
       if (seen.has(key)) continue
       seen.add(key)
-      edges.push({ from: f.path, to, kind: 'import' })
+      edges.push({ from: f.path, to, kind: 'import', ambiguous: false, line: found.line })
       nodes.get(f.path)!.degree++
       nodes.get(to)!.degree++
     }
   }
 
   return { nodes: [...nodes.values()], edges }
+}
+
+/**
+ * Which kind of nothing an absent node points at.
+ *
+ * Only meaningful when `exists` is false. Told by the id prefix rather than by
+ * `kind`, which would work today (a ghost is built 'note' and a missing import
+ * 'code') but only because of how the two are constructed: a ghost for
+ * `[[script.ts]]` could reasonably be made to look like code, and a `kind` test
+ * would mislabel from then on without failing. The prefix is the node's own
+ * identity, and this is the one function that reads it, so a third kind of
+ * absent node has one place to change rather than several to be found by hand.
+ */
+export function absentKind(id: string): 'note' | 'import' {
+  return id.startsWith('missing:') ? 'import' : 'note'
 }

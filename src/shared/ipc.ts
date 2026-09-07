@@ -202,9 +202,17 @@ export interface IpcInvokeContract {
    * browser does. Resolves false if the system refused it.
    */
   'shell:openInBrowser': { req: { path: string }; res: boolean }
-  /** Scan workspace markdown files for [[wikilinks]] pointing at a note. */
+  /**
+   * What links to a file: wikilinks and imports, read from the vault graph.
+   *
+   * No longer markdown-only and no longer a scan: it used to walk the
+   * filesystem itself looking for `[[stem]]`, which meant an import never
+   * showed up here and a same-named note the map had already disambiguated
+   * could still be listed twice. It now selects incoming edges from the same
+   * analysis the map draws from.
+   */
   'workspace:scanLinks': {
-    req: { rootPath: string; targetStem: string }
+    req: { rootPath: string; targetPath: string; withCode: boolean }
     res: BacklinkHit[]
   }
   /**

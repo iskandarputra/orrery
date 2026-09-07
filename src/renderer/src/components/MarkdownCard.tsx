@@ -11,7 +11,10 @@ export function MarkdownCard({ text }: { text: string }): React.JSX.Element {
   const viewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
-    const view = mountPreview(hostRef.current!, text)
+    // A card's text is not a file: there is nothing for a link inside it to
+    // rank against, so it falls back to the same "no file" convention
+    // `activeFilePath` uses elsewhere.
+    const view = mountPreview(hostRef.current!, text, '')
     viewRef.current = view
     return () => {
       view.destroy()

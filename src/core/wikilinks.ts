@@ -111,20 +111,3 @@ export function findWikilinks(text: string, offset = 0): WikilinkMatch[] {
 export function stemMatches(target: string, stem: string): boolean {
   return target.trim().toLowerCase() === stem.trim().toLowerCase()
 }
-
-/** Lines of `content` containing a wikilink to `targetStem` (for backlinks). */
-export function findLinkLines(
-  content: string,
-  targetStem: string
-): { line: number; snippet: string }[] {
-  const hits: { line: number; snippet: string }[] = []
-  const lines = content.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!
-    if (!line.includes('[[')) continue
-    if (findWikilinks(line).some((l) => stemMatches(l.target, targetStem))) {
-      hits.push({ line: i + 1, snippet: line.trim().slice(0, 200) })
-    }
-  }
-  return hits
-}

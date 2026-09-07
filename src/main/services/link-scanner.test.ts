@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, rmSync, unlinkSync, utimesSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, unlinkSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -20,45 +20,45 @@ afterEach(() => rmSync(vault, { recursive: true, force: true }))
 
 describe('graph caching', () => {
   it('analyses the vault on the first call', async () => {
-    const analysis = await scanner.graph(vault)
+    const analysis = await scanner.graph(vault, false)
     expect(analysis.stats.notes).toBe(2)
     expect(analysis.stats.links).toBe(2)
   })
 
   it('returns the very same analysis when nothing changed', async () => {
-    const first = await scanner.graph(vault)
-    const second = await scanner.graph(vault)
+    const first = await scanner.graph(vault, false)
+    const second = await scanner.graph(vault, false)
     // Identity, not just equality: the cached object was handed back.
     expect(second).toBe(first)
   })
 
   it('re-analyses after a note is edited', async () => {
-    const first = await scanner.graph(vault)
+    const first = await scanner.graph(vault, false)
     writeFileSync(path.join(vault, 'B.md'), '# B\n\nNo links any more.\n')
-    const second = await scanner.graph(vault)
+    const second = await scanner.graph(vault, false)
     expect(second).not.toBe(first)
     expect(second.stats.links).toBe(1)
   })
 
   it('re-analyses after a note is added or removed', async () => {
-    await scanner.graph(vault)
+    await scanner.graph(vault, false)
     writeFileSync(path.join(vault, 'C.md'), '# C\n')
-    const withC = await scanner.graph(vault)
+    const withC = await scanner.graph(vault, false)
     expect(withC.stats.notes).toBe(3)
 
     unlinkSync(path.join(vault, 'C.md'))
-    const withoutC = await scanner.graph(vault)
+    const withoutC = await scanner.graph(vault, false)
     expect(withoutC.stats.notes).toBe(2)
   })
 
   it('notices an edit that keeps the same timestamp but changes the size', async () => {
     const target = path.join(vault, 'B.md')
-    const first = await scanner.graph(vault)
+    const first = await scanner.graph(vault, false)
     const stamp = new Date(2020, 0, 1)
     writeFileSync(target, '# B\n\nBack to [[A]] and [[A]] again, longer now.\n')
     utimesSync(target, stamp, stamp)
     // Force the first file's mtime to match too, so only size differs overall.
-    const second = await scanner.graph(vault)
+    const second = await scanner.graph(vault, false)
     expect(second).not.toBe(first)
   })
 
@@ -66,11 +66,11 @@ describe('graph caching', () => {
     const other = mkdtempSync(path.join(tmpdir(), 'orrery-scan2-'))
     writeFileSync(path.join(other, 'Only.md'), '# Only\n')
     try {
-      const a = await scanner.graph(vault)
-      const b = await scanner.graph(other)
+      const a = await scanner.graph(vault, false)
+      const b = await scanner.graph(other, false)
       expect(a.stats.notes).toBe(2)
       expect(b.stats.notes).toBe(1)
-      expect(await scanner.graph(vault)).toBe(a)
+      expect(await scanner.graph(vault, false)).toBe(a)
     } finally {
       rmSync(other, { recursive: true, force: true })
     }
@@ -134,5 +134,65 @@ describe('searching inside PDFs', () => {
     // The scanner still has to stand up without one.
     withPaper()
     expect(await new LinkScanner().search(vault, 'kestrels', options)).toEqual([])
+  })
+})
+
+describe('backlinks from the graph', () => {
+  it('finds a wikilink and an import pointing at the same file', () => {
+    writeFileSync(path.join(vault, 'note.md'), 'see [[helper]]\n')
+    writeFileSync(path.join(vault, 'helper.ts'), 'export const helper = 1\n')
+    writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
+    return scanner.backlinks(vault, path.join(vault, 'helper.ts'), true).then((hits) => {
+      expect(hits.map((h) => path.basename(h.path)).sort()).toEqual(['app.ts', 'note.md'])
+      expect(hits.find((h) => h.path.endsWith('app.ts'))).toMatchObject({
+        line: 1,
+        snippet: "import { helper } from './helper'"
+      })
+    })
+  })
+
+  it('does not report the file linking to itself', async () => {
+    writeFileSync(path.join(vault, 'self.md'), 'see [[self]] and [[B]]\n')
+    const hits = await scanner.backlinks(vault, path.join(vault, 'self.md'), false)
+    expect(hits).toEqual([])
+  })
+
+  it('leaves source files out when the graph is set to notes only', async () => {
+    writeFileSync(path.join(vault, 'helper.ts'), 'export const helper = 1\n')
+    writeFileSync(path.join(vault, 'app.ts'), "import { helper } from './helper'\n")
+    const hits = await scanner.backlinks(vault, path.join(vault, 'helper.ts'), false)
+    expect(hits).toEqual([])
+  })
+
+  it('marks a hit ambiguous when its edge picked between two candidates', async () => {
+    // Two `Store.md`, so `[[Store]]` has somewhere else it could have meant.
+    // `Note.md` sits next to the root one, which wins on folder, but the
+    // choice still happened and the hit for it should say so.
+    mkdirSync(path.join(vault, 'Deep'))
+    writeFileSync(path.join(vault, 'Store.md'), '# Store\n')
+    writeFileSync(path.join(vault, 'Deep', 'Store.md'), '# Store\n')
+    writeFileSync(path.join(vault, 'Note.md'), 'see [[Store]]\n')
+
+    const ambiguous = await scanner.backlinks(vault, path.join(vault, 'Store.md'), false)
+    const hit = ambiguous.find((h) => h.path.endsWith('Note.md'))
+    expect(hit?.ambiguous).toBe(true)
+
+    // A.md's [[B]] has exactly one B.md to mean: no choice, so no flag at all,
+    // not a flag set to false. Absence is how the panel tells the two apart.
+    const unambiguous = await scanner.backlinks(vault, path.join(vault, 'B.md'), false)
+    expect(unambiguous).toHaveLength(1)
+    expect(unambiguous[0]?.ambiguous).toBeUndefined()
+  })
+})
+
+describe('findNote', () => {
+  it('resolves a bare name to the note the graph already knows', async () => {
+    const found = await scanner.findNote(vault, 'A', false)
+    expect(found).toBe(path.join(vault, 'A.md'))
+  })
+
+  it('returns null for a name with no file', async () => {
+    const found = await scanner.findNote(vault, 'Nowhere', false)
+    expect(found).toBeNull()
   })
 })

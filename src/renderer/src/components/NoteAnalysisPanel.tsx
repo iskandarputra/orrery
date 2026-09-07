@@ -16,6 +16,7 @@ const MAX_SUGGESTIONS = 5
 interface Neighbour {
   id: string
   label: string
+  exists: boolean
   /** Which way the link runs, from the active note's point of view. */
   direction: 'in' | 'out' | 'both'
 }
@@ -115,7 +116,7 @@ export function NoteAnalysisBody(): React.JSX.Element {
               <li key={n.id}>
                 <button
                   className="analytics__row"
-                  onClick={() => n.id.startsWith('ghost:') || void openPaths([n.id])}
+                  onClick={() => n.exists && void openPaths([n.id])}
                   title={n.id}
                 >
                   <Icon
@@ -232,7 +233,7 @@ function Metric({ value, label }: { value: string; label: string }): React.JSX.E
 
 /** Both directions of every link touching the note, in one list. */
 function collectNeighbours(analysis: GraphAnalysis, id: string): Neighbour[] {
-  const labels = new Map(analysis.nodes.map((n) => [n.id, n.label]))
+  const nodes = new Map(analysis.nodes.map((n) => [n.id, n]))
   const directions = new Map<string, 'in' | 'out' | 'both'>()
   const add = (other: string, direction: 'in' | 'out'): void => {
     const seen = directions.get(other)
@@ -243,7 +244,12 @@ function collectNeighbours(analysis: GraphAnalysis, id: string): Neighbour[] {
     else if (edge.to === id) add(edge.from, 'in')
   }
   return [...directions.entries()]
-    .map(([other, direction]) => ({ id: other, label: labels.get(other) ?? other, direction }))
+    .map(([other, direction]) => ({
+      id: other,
+      label: nodes.get(other)?.label ?? other,
+      exists: nodes.get(other)?.exists ?? false,
+      direction
+    }))
     .sort((a, b) => a.label.localeCompare(b.label))
 }
 
