@@ -1,4 +1,5 @@
 import { showsLabel } from '@core/graph-labels'
+import { step, type Link } from '@core/graph-sim'
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
@@ -100,6 +101,9 @@ export function GraphView(): React.JSX.Element | null {
   const workNodesRef = useRef<SimNode[]>([])
   const workEdgesRef = useRef<GraphEdge[]>([])
   const workByIdRef = useRef<Map<string, SimNode>>(new Map())
+  // Index-based, built once per rebuild rather than resolved through byId per
+  // edge per frame, which is the per-frame Map lookup this move exists to drop.
+  const workLinksRef = useRef<Link[]>([])
   const readyRef = useRef(false)
   /** Largest metric values on screen — the scale that sizing is relative to. */
   const peakRef = useRef({ pagerank: 0, betweenness: 0 })
@@ -123,6 +127,7 @@ export function GraphView(): React.JSX.Element | null {
       workNodesRef.current = []
       workEdgesRef.current = []
       workByIdRef.current = new Map()
+      workLinksRef.current = []
       setStatus(message)
     }
     if (all.size === 0) return empty('')
@@ -138,16 +143,29 @@ export function GraphView(): React.JSX.Element | null {
 
     const nodes: SimNode[] = []
     const byId = new Map<string, SimNode>()
+    const indexOf = new Map<string, number>()
     for (const id of ids) {
       const node = all.get(id)
       if (node) {
+        indexOf.set(id, nodes.length)
         nodes.push(node)
         byId.set(id, node)
       }
     }
+    const links: Link[] = []
+    for (const e of edges) {
+      const a = indexOf.get(e.from)
+      const b = indexOf.get(e.to)
+      // Same guard as the per-frame `if (!a || !b) continue` this replaces:
+      // an edge whose end fell outside the visible set is dropped here once,
+      // rather than checked on every frame.
+      if (a === undefined || b === undefined) continue
+      links.push({ a, b })
+    }
     workNodesRef.current = nodes
     workEdgesRef.current = edges
     workByIdRef.current = byId
+    workLinksRef.current = links
     // Named for what is actually on the map: calling a source file a note was
     // fine while the graph only had notes in it.
     const code = nodes.filter((n) => n.kind === 'code').length
@@ -286,47 +304,13 @@ export function GraphView(): React.JSX.Element | null {
       const edges = workEdgesRef.current
       const byId = workByIdRef.current
 
-      // Physics
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i]!
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j]!
-          let dx = a.x - b.x
-          let dy = a.y - b.y
-          const d2 = Math.max(64, dx * dx + dy * dy)
-          const f = (900 * c.repel) / d2
-          const d = Math.sqrt(d2)
-          dx /= d
-          dy /= d
-          a.vx += dx * f
-          a.vy += dy * f
-          b.vx -= dx * f
-          b.vy -= dy * f
-        }
-      }
-      const rest = 90 * c.linkDistance
-      const spring = 0.004 * c.linkForce
-      for (const e of edges) {
-        const a = byId.get(e.from)
-        const b = byId.get(e.to)
-        if (!a || !b) continue
-        const dx = b.x - a.x
-        const dy = b.y - a.y
-        const d = Math.max(1, Math.hypot(dx, dy))
-        const f = (d - rest) * spring
-        a.vx += (dx / d) * f
-        a.vy += (dy / d) * f
-        b.vx -= (dx / d) * f
-        b.vy -= (dy / d) * f
-      }
-      const gravity = 0.0015 * c.center
-      for (const n of nodes) {
-        if (n === drag) continue
-        n.vx = (n.vx - n.x * gravity) * 0.85
-        n.vy = (n.vy - n.y * gravity) * 0.85
-        n.x += n.vx
-        n.y += n.vy
-      }
+      const pinned = drag ? nodes.indexOf(drag) : -1
+      step(
+        nodes,
+        workLinksRef.current,
+        { repel: c.repel, linkForce: c.linkForce, linkDistance: c.linkDistance, center: c.center },
+        pinned
+      )
 
       // Draw
       const ctx = canvas.getContext('2d')!
