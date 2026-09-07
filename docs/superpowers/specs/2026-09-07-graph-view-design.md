@@ -7,10 +7,11 @@ three dimensions.
 
 ## What is wrong now, with numbers
 
-`GraphView.tsx` is 955 lines holding a React component, fourteen controls, a
-hit test and a canvas renderer. The step itself has since moved out to
-`core/graph-sim.ts`, on its own clock, but the drawing still shares the
-component with everything else below.
+`GraphView.tsx` holds a React component, fourteen controls, a force
+simulation, a hit test, a canvas renderer, and now the clock and the sleep
+decision that step it as well: over a thousand lines. The physics equations
+have moved out to `core/graph-sim.ts`; the loop that drives them on that
+clock, and the drawing, have not.
 
 **The repulsion is all pairs, every frame.** The inner loop compares every node
 to every other node with no spatial index: 120,295 comparisons a frame on this
