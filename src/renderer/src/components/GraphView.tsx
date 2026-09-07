@@ -214,6 +214,14 @@ export function GraphView(): React.JSX.Element | null {
     let panX = 0
     let panY = 0
     let panning = false
+    // Physics runs on a fixed clock, drawing on every frame: `last` and
+    // `energy` therefore have to live here rather than inside tick. A frame
+    // that lands less than 16ms after the previous one steps zero times and
+    // still needs last frame's energy to judge whether the layout has
+    // settled, and `last` to know how much time has passed once one finally
+    // does step.
+    let last = performance.now()
+    let energy = Infinity
     readyRef.current = false
 
     /**
@@ -223,7 +231,14 @@ export function GraphView(): React.JSX.Element | null {
      */
     const wake = (): void => {
       if (disposed) return
-      if (raf === 0) raf = requestAnimationFrame(tick)
+      if (raf === 0) {
+        // Start the clock fresh. `last` survives the sleep, so without this a
+        // wake after a long idle would see minutes of elapsed time, clamp it,
+        // and pay three catch-up steps for what is usually just a request to
+        // redraw.
+        last = performance.now()
+        raf = requestAnimationFrame(tick)
+      }
     }
     wakeRef.current = wake
 
@@ -330,25 +345,29 @@ export function GraphView(): React.JSX.Element | null {
       return best
     }
 
-    const tick = (): void => {
-      // No frame is pending until the bottom of this function schedules one,
-      // so a handler that fires while this frame runs (it can't, JS is
-      // single threaded, but between frames) sees an accurate raf === 0.
-      raf = 0
+    /**
+     * Run one fixed 16ms step of the force simulation and return its kinetic
+     * energy: the signal `tick` uses to decide whether the layout has
+     * settled.
+     */
+    const advance = (): number => {
       const c = ctlRef.current
       const nodes = workNodesRef.current
-      const edges = workEdgesRef.current
-      const byId = workByIdRef.current
-
       const pinned = drag ? nodes.indexOf(drag) : -1
-      const energy = step(
+      return step(
         nodes,
         workLinksRef.current,
         { repel: c.repel, linkForce: c.linkForce, linkDistance: c.linkDistance, center: c.center },
         pinned
       )
+    }
 
-      // Draw
+    const draw = (): void => {
+      const c = ctlRef.current
+      const nodes = workNodesRef.current
+      const edges = workEdgesRef.current
+      const byId = workByIdRef.current
+
       const ctx = canvas.getContext('2d')!
       const dpr = window.devicePixelRatio || 1
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -444,6 +463,33 @@ export function GraphView(): React.JSX.Element | null {
         }
       }
       ctx.globalAlpha = 1
+    }
+
+    const tick = (): void => {
+      // No frame is pending until the bottom of this function schedules one,
+      // so a handler that fires while this frame runs (it can't, JS is
+      // single threaded, but between frames) sees an accurate raf === 0.
+      raf = 0
+
+      // Step the layout on a fixed 16ms clock instead of once per drawn
+      // frame, so the same vault settles in the same wall-clock time on a
+      // 60Hz screen and a 120Hz one. The 48ms cap is three steps: past that,
+      // a backgrounded tab or a stalled machine would otherwise hand back a
+      // burst of catch-up steps that flings the arrangement apart, so the
+      // layout is left to arrive slightly late rather than arrive wrong.
+      const now = performance.now()
+      let lag = Math.min(now - last, 48)
+      last = now
+      while (lag >= 16) {
+        energy = advance()
+        lag -= 16
+      }
+
+      // Draw every scheduled frame regardless of how many of those steps
+      // ran, including zero: a wake still has to produce a visible frame
+      // even when less than 16ms has elapsed since the last one.
+      draw()
+
       if (disposed) return
       // Below the threshold and nothing is being dragged or panned: stop
       // asking for frames rather than integrating a graph that is not
