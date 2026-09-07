@@ -12,12 +12,29 @@ force simulation, a hit test and a canvas renderer. The simulation and the
 drawing share one `tick`, so neither can be changed without the other.
 
 **The repulsion is all pairs, every frame.** The inner loop compares every node
-to every other node with no spatial index:
+to every other node with no spatial index: 120,295 comparisons a frame on this
+repository's 491 files, and 6.9 million on a 3,721 file one.
 
-- 491 nodes, which is this repository: 120,295 comparisons a frame, 7.2 million
-  a second.
-- 3,721 files, the repository size quoted elsewhere in this codebase: 6.9
-  million comparisons a frame, 415 million a second.
+**That comparison count is not the sluggishness, and this section originally
+said it was.** Measured (`src/core/graph-sim.bench.test.ts`):
+
+| bodies | all-pairs | Barnes-Hut quadtree         |
+| ------ | --------- | --------------------------- |
+| 100    | 0.051ms   | 0.235ms, 4.6 times slower   |
+| 500    | 0.833ms   | 1.580ms, 1.9 times slower   |
+| 2,000  | 13.072ms  | 11.476ms, 1.14 times faster |
+
+A 60fps frame has 16.7ms. This repository's 491 nodes cost 0.83ms of it, so
+the layout is spending 5% of a frame and the quadratic loop is not what anybody
+is feeling. Barnes-Hut carries a large constant factor and a tree of JS objects
+is cache hostile, so a tight quadratic loop wins outright until somewhere
+between 5,000 and 8,000 bodies.
+
+The quadtree was built, tested to agree with all-pairs inside 3.85%, measured,
+and then discarded on that measurement. If a vault ever grows past the
+crossover the answer is known and the crossover is recorded here, so nobody has
+to find it twice. What is left of the performance work is the two things below,
+which are about a layout that never stops rather than one that is slow.
 
 **The simulation never comes to rest.** Velocity is damped by a flat `0.85`
 every frame with no sleep threshold, so an idle graph keeps integrating
@@ -110,16 +127,14 @@ in a drawer, because it is the one control somebody toggles repeatedly.
 
 ### Performance: measure, then fix the thing itself
 
-The all-pairs loop and the missing sleep threshold are the two candidates, and
-both are visible in the code rather than inferred. Even so, the first task is a
-measurement harness that reports frame time and step time at 100, 500 and 2,000
+The all-pairs loop and the missing sleep threshold looked like the two
+candidates, both visible in the code. Measurement cleared the first one
+entirely, which is why the first task is a measurement harness that reports frame time and step time at 100, 500 and 2,000
 nodes, because every performance bug in this project so far has had an obvious
 cause that turned out to be wrong, and a fix aimed at the wrong 2% is wasted.
 
 The intended fixes, to be confirmed by that harness rather than assumed:
 
-- A Barnes-Hut quadtree (octree in 3D) for repulsion, turning the per-frame
-  cost from quadratic to `n log n`.
 - A sleep threshold: below a total kinetic energy, stop stepping and stop
   requesting frames. An idle graph should cost nothing.
 - Separating the step from the draw, so the renderer can draw at display rate

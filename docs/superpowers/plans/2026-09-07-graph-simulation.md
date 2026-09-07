@@ -505,7 +505,32 @@ read two commits from now."
 
 ---
 
-### Task 3: Replace all-pairs repulsion with a quadtree
+### Task 3: Replace all-pairs repulsion with a quadtree (DROPPED, measured and rejected)
+
+**This task was built, measured and discarded. Do not implement it.** The task
+text below is left in place because it carries the working quadtree code and
+the agreement test, and because a plan that quietly deletes a rejected task
+teaches nobody anything.
+
+What happened: the tree was written, its forces were made to agree with
+all-pairs inside 3.85% (the brief's `theta` 0.5 gave 9.88% against a 5% bound,
+fixed with `theta` 0.55 and a 24 body leaf bucket), and all seven of Task 2's
+invariants passed against it unmodified. Then it was measured:
+
+| bodies | all-pairs | quadtree                    |
+| ------ | --------- | --------------------------- |
+| 100    | 0.051ms   | 0.235ms, 4.6 times slower   |
+| 500    | 0.833ms   | 1.580ms, 1.9 times slower   |
+| 2,000  | 13.072ms  | 11.476ms, 1.14 times faster |
+
+Barnes-Hut carries a large constant factor and a tree of JS objects is cache
+hostile, so the tight quadratic loop wins until roughly 5,000 to 8,000 bodies.
+A 60fps frame is 16.7ms and this repository's 491 nodes cost 0.83ms of it, so
+the layout was never what anybody was feeling.
+
+The spec's claim that the comparison count was the sluggishness was wrong, and
+it has been corrected there rather than left standing. Skip to Task 4, which
+addresses the problem that is real: a layout that never stops moving.
 
 **Files:**
 
