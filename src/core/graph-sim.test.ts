@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { step, settled, SETTLED, type Body, type Forces, type Link } from './graph-sim'
+import {
+  step,
+  settled,
+  SETTLED,
+  STEP_MS,
+  MAX_CATCHUP_STEPS,
+  drainSteps,
+  catchupCap,
+  type Body,
+  type Forces,
+  type Link
+} from './graph-sim'
 
 const forces: Forces = { repel: 1, linkForce: 1, linkDistance: 1, center: 1 }
 
@@ -111,5 +122,68 @@ describe('settling', () => {
     // 0 / 0 is not a number, and there is nothing left to move regardless.
     expect(settled(0, 0)).toBe(true)
     expect(settled(1000, 0)).toBe(true)
+  })
+})
+
+describe('drainSteps', () => {
+  // Runs a clock for `totalMs` of wall time at a fixed `frameMs` per frame,
+  // feeding the running lag through drainSteps exactly as GraphView's tick()
+  // does, and returns the total number of physics steps taken.
+  const stepsOverTime = (
+    frameMs: number,
+    totalMs: number,
+    maxSteps = MAX_CATCHUP_STEPS
+  ): number => {
+    let lag = 0
+    let steps = 0
+    for (let elapsed = 0; elapsed < totalMs; elapsed += frameMs) {
+      lag += frameMs
+      const drained = drainSteps(lag, maxSteps)
+      lag = drained.lag
+      steps += drained.steps
+    }
+    return steps
+  }
+
+  it('carries the sub-step remainder across frames, so a faster-than-60Hz display still steps', () => {
+    // At 75Hz a frame is 13.3ms: below STEP_MS on its own. If the accumulator
+    // were reset every frame instead of carried (the bug in fix 1), lag would
+    // never reach 16 and this would stay zero forever.
+    const steps75 = stepsOverTime(1000 / 75, 5000)
+    expect(steps75).toBeGreaterThan(0)
+  })
+
+  it('steps at the same long-run rate at 60Hz and 75Hz', () => {
+    const steps60 = stepsOverTime(1000 / 60, 20000)
+    const steps75 = stepsOverTime(1000 / 75, 20000)
+    // Same wall-clock time bought, same number of 16ms steps taken, to within
+    // the one-step rounding either frame rate can carry over the cutoff.
+    expect(Math.abs(steps60 - steps75)).toBeLessThanOrEqual(1)
+  })
+
+  it('caps a huge delta at maxSteps and keeps the remainder as lag', () => {
+    const { steps, lag } = drainSteps(10_000, MAX_CATCHUP_STEPS)
+    expect(steps).toBe(MAX_CATCHUP_STEPS)
+    expect(lag).toBe(10_000 - MAX_CATCHUP_STEPS * STEP_MS)
+  })
+
+  it('caps to a single step when maxSteps is 1, regardless of how much lag is waiting', () => {
+    const { steps } = drainSteps(10_000, 1)
+    expect(steps).toBe(1)
+  })
+})
+
+describe('catchupCap', () => {
+  it('allows the ordinary catch-up cap when the last step was within budget', () => {
+    expect(catchupCap(0)).toBe(MAX_CATCHUP_STEPS)
+    expect(catchupCap(STEP_MS)).toBe(MAX_CATCHUP_STEPS)
+  })
+
+  it('tightens to one step once the last step overran the frame budget', () => {
+    // A vault big enough that a single step costs more than STEP_MS must not
+    // then be charged for MAX_CATCHUP_STEPS of them in the same frame: that
+    // is three times the blocking chunk the cap exists to bound.
+    expect(catchupCap(STEP_MS + 1)).toBe(1)
+    expect(catchupCap(40)).toBe(1)
   })
 })

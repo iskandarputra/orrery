@@ -56,6 +56,54 @@ export function settled(energy: number, bodies: number): boolean {
   return bodies <= 0 || energy / bodies <= SETTLED
 }
 
+/** Fixed physics timestep, in milliseconds. Independent of the screen's refresh rate. */
+export const STEP_MS = 16
+
+/**
+ * How many steps a single frame may take when it is catching up after a
+ * stall (a backgrounded tab, a slow machine): past this, a burst of steps
+ * flings the layout apart rather than letting it arrive slightly late.
+ */
+export const MAX_CATCHUP_STEPS = 3
+
+/**
+ * Turn an accumulated lag into a whole number of fixed timesteps, keeping
+ * the sub-step remainder for the next call.
+ *
+ * `lag` must be the caller's running total, not the elapsed time since the
+ * last frame on its own. A frame faster than STEP_MS, which is every frame
+ * above 60Hz, buys less than one full step by itself: thrown away instead of
+ * carried forward, that remainder never crosses the line and a 75Hz, 90Hz,
+ * 120Hz or 144Hz display never steps at all. See graph-sim.test.ts's
+ * accumulator case, which is the test that would have caught that bug.
+ *
+ * `maxSteps` bounds how many steps this one call can hand back, regardless
+ * of how much lag is waiting.
+ */
+export function drainSteps(lag: number, maxSteps: number): { steps: number; lag: number } {
+  let steps = 0
+  while (lag >= STEP_MS && steps < maxSteps) {
+    lag -= STEP_MS
+    steps++
+  }
+  return { steps, lag }
+}
+
+/**
+ * How many steps the next frame may run, tightened after a step that cost
+ * more than its own budget.
+ *
+ * Somewhere around 5,000 nodes a single step starts to cost more than
+ * STEP_MS. Once that happens, the frame delta that measures it is large too,
+ * so the ordinary cap of `MAX_CATCHUP_STEPS` would spend that same frame on
+ * three of them in a row: roughly three times the blocking chunk the cap
+ * exists to bound, just paid by fewer, longer frames instead of many short
+ * ones. Capping to one trades a slower catch-up for a smaller one.
+ */
+export function catchupCap(lastStepMs: number): number {
+  return lastStepMs > STEP_MS ? 1 : MAX_CATCHUP_STEPS
+}
+
 export interface Forces {
   /** Multipliers, where 1 is the baseline the graph shipped with. */
   repel: number
@@ -75,8 +123,14 @@ export interface Forces {
  * it, and this loop is already there.
  */
 export function step(bodies: Body[], links: readonly Link[], forces: Forces, pinned = -1): number {
-  // Repulsion, every pair. Quadratic, and replaced in the next commit; kept
-  // here first so the move can be proved to change nothing.
+  // Repulsion, every pair, deliberately: a Barnes-Hut quadtree was built,
+  // tested to agree with this within 3.85%, and measured against it
+  // (`graph-sim.bench.test.ts`). All-pairs won at every size this project
+  // has: 4.6 times slower at 100 bodies, 1.9 times slower at 500, only 1.14
+  // times faster at 2,000. The crossover is somewhere around 5,000 to 8,000
+  // bodies; below that a tight quadratic loop over plain arrays beats a tree
+  // of JS objects, which is cache hostile and carries a large constant
+  // factor. Revisit with a fresh measurement if a vault ever grows past that.
   for (let i = 0; i < bodies.length; i++) {
     const a = bodies[i]!
     for (let j = i + 1; j < bodies.length; j++) {
