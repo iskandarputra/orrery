@@ -922,14 +922,26 @@ const SURFACES: Surface[] = [
     }
   },
   {
-    // At rest, with the settings drawer open: every note label is painted in
-    // its resting ink, which is what `graphCanvasLabels` goes looking for.
+    // With the settings drawer open and note labels turned on: every label is
+    // painted in its resting ink, which is what `graphCanvasLabels` goes
+    // looking for.
+    //
+    // The toggle is switched on here rather than left alone, because the app
+    // now ships it off: at rest the graph names only the node under the pointer
+    // and the note that is open. Left at its default this surface would paint
+    // no label at all, and `graphCanvasLabels` reports an unpainted label as a
+    // failure rather than a pass, which is the right behaviour and the wrong
+    // outcome. Turning it on measures the resting ink the setting exists for.
     name: 'graph',
     root: '[aria-label="Knowledge Graph View"]',
     open: async () => {
       await openGraph()
       await page.locator('button[aria-label="Graph Physics & Display Settings"]').click()
       await expect(page.locator('.graph__panel')).toBeVisible()
+      await page
+        .locator('.graph__panel')
+        .getByRole('checkbox', { name: 'Always show note labels' })
+        .click()
     },
     close: async () => {
       // The drawer outlives a close, so the next surface would open with it

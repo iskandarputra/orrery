@@ -1,3 +1,4 @@
+import { showsLabel } from '@core/graph-labels'
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
@@ -52,7 +53,10 @@ const DEFAULTS: Controls = {
   linkForce: 1,
   linkDistance: 1,
   arrows: false,
-  labels: true,
+  // Off: a map that names every note at rest is mostly text, and the two names
+  // worth having (the node under the pointer, the note that is open) are shown
+  // whatever this says. See `showsLabel`.
+  labels: false,
   scale: true,
   sizeBy: 'links',
   colorBy: 'none',
@@ -392,7 +396,16 @@ export function GraphView(): React.JSX.Element | null {
           ctx.stroke()
         }
 
-        if (c.labels && !dimmed && (zoom > 0.6 || n === hover || n.degree >= 2 || isActiveNode)) {
+        if (
+          showsLabel({
+            always: c.labels,
+            dimmed,
+            zoom,
+            degree: n.degree,
+            isHover: n === hover,
+            isActive: isActiveNode
+          })
+        ) {
           const isSpecial = n === hover || isActiveNode
           const maxChars = isSpecial ? 28 : Math.max(12, Math.floor(18 * zoom))
           const displayLabel =
