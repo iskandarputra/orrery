@@ -19,7 +19,7 @@ Nothing points back up the list. `main` and `renderer` never import each other.
 They meet at `shared/ipc.ts`, the only description of what may cross.
 
 **`src/core` is the important one.** It runs in a bare Node process, so its
-tests need no Electron, no browser and no build step: 68 modules, one test
+tests need no Electron, no browser and no build step: 71 modules, one test
 file each, and the whole suite is seconds. That is why logic belongs there
 and not in a component or a store.
 

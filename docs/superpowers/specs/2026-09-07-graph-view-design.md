@@ -7,9 +7,10 @@ three dimensions.
 
 ## What is wrong now, with numbers
 
-`GraphView.tsx` is 839 lines holding a React component, fourteen controls, a
-force simulation, a hit test and a canvas renderer. The simulation and the
-drawing share one `tick`, so neither can be changed without the other.
+`GraphView.tsx` is 955 lines holding a React component, fourteen controls, a
+hit test and a canvas renderer. The step itself has since moved out to
+`core/graph-sim.ts`, on its own clock, but the drawing still shares the
+component with everything else below.
 
 **The repulsion is all pairs, every frame.** The inner loop compares every node
 to every other node with no spatial index: 120,295 comparisons a frame on this
