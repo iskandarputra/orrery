@@ -1,5 +1,5 @@
 import { showsLabel } from '@core/graph-labels'
-import { SETTLED, step, type Link } from '@core/graph-sim'
+import { settled, step, type Link } from '@core/graph-sim'
 import { filterGraphView, rankByFrequency } from '@core/graph-view'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AnalyzedGraphNode, GraphAnalysis, GraphEdge } from '@shared/types'
@@ -494,8 +494,11 @@ export function GraphView(): React.JSX.Element | null {
       // Below the threshold and nothing is being dragged or panned: stop
       // asking for frames rather than integrating a graph that is not
       // visibly moving. `wake()` is what restarts this, from any handler
-      // that changes the layout or the view.
-      if (energy <= SETTLED && !drag && !panning) return
+      // that changes the layout or the view. Judged per body, not by the raw
+      // total `step` returns: a fixed total gets stricter as the vault gets
+      // bigger, and this repository's own 491 node graph is exactly the size
+      // where that used to bite.
+      if (settled(energy, workNodesRef.current.length) && !drag && !panning) return
       raf = requestAnimationFrame(tick)
     }
 

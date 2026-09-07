@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { step, SETTLED, type Body, type Forces, type Link } from './graph-sim'
+import { step, settled, SETTLED, type Body, type Forces, type Link } from './graph-sim'
 
 const forces: Forces = { repel: 1, linkForce: 1, linkDistance: 1, center: 1 }
 
@@ -79,14 +79,37 @@ describe('settling', () => {
     ]
     let energy = Infinity
     let steps = 0
-    while (energy > SETTLED && steps < 5000) {
+    while (!settled(energy, b.length) && steps < 5000) {
       energy = step(b, links, forces)
       steps++
     }
     expect(steps).toBeLessThan(5000)
     // And it stays settled rather than bouncing back above the line.
     for (let i = 0; i < 200; i++) {
-      expect(step(b, links, forces)).toBeLessThanOrEqual(SETTLED)
+      expect(settled(step(b, links, forces), b.length)).toBe(true)
     }
+  })
+
+  it('judges the same energy per body as settled regardless of how many bodies there are', () => {
+    // step returns a SUM over every body. Comparing that sum against a fixed
+    // total made the threshold stricter in exact proportion to body count:
+    // four bodies shared 0.02 between them, but this repository's own 491
+    // node vault had to share the same 0.02, a hundred times less each, for
+    // no reason anybody chose. A layout twice the size of another, at the
+    // same energy per body, has to be judged settled either way: an absolute
+    // total would call the bigger one still moving.
+    const perBody = SETTLED - 0.001
+    expect(settled(perBody * 4, 4)).toBe(true)
+    expect(settled(perBody * 491, 491)).toBe(true)
+    // And just over the line, at either size, is not settled.
+    const overPerBody = SETTLED + 0.001
+    expect(settled(overPerBody * 4, 4)).toBe(false)
+    expect(settled(overPerBody * 491, 491)).toBe(false)
+  })
+
+  it('treats a layout with no bodies as already settled', () => {
+    // 0 / 0 is not a number, and there is nothing left to move regardless.
+    expect(settled(0, 0)).toBe(true)
+    expect(settled(1000, 0)).toBe(true)
   })
 })

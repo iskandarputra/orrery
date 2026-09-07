@@ -25,18 +25,36 @@ export interface Link {
 }
 
 /**
- * Kinetic energy below which the layout is done moving.
+ * Kinetic energy PER BODY below which the layout is done moving.
  *
- * Read by the animation loop to stop stepping and stop asking for frames. The
- * graph used to damp velocity by a flat 0.85 with nothing testing the result,
- * so it integrated forever: nodes never came to rest, and an idle map cost the
- * same as a moving one.
+ * `step` returns a sum over every body, so comparing that sum against a fixed
+ * total made the threshold stricter in exact proportion to how many bodies
+ * were in the layout: four bodies had to share 0.02 between them, but 491
+ * bodies (this repository's own vault) had to share the same 0.02, a hundred
+ * times less each, for no reason anybody chose. Measured against this
+ * repository's graph, that cost 11,149 steps (185.8s at 60 steps a second) to
+ * reach the same total a four body layout reaches in 4,139 steps (69.0s) of
+ * per-body energy. The feature was weakest on the vaults where an idle graph
+ * burning frames costs the most.
  *
- * Tuned against `graph-sim.test.ts`: high enough that a four body layout
- * reaches it in well under 5,000 steps, low enough that the arrangement has
- * visibly stopped rather than merely slowed.
+ * Use `settled`, not this constant directly, so the division by body count
+ * lives in one place.
+ *
+ * Tuned against `graph-sim.test.ts`: a four body layout reaches roughly this
+ * per-body energy (0.0049) in well under 5,000 steps, low enough that the
+ * arrangement has visibly stopped rather than merely slowed.
  */
-export const SETTLED = 0.02
+export const SETTLED = 0.005
+
+/**
+ * Whether the layout has stopped moving, judged per body rather than by the
+ * raw total `step` returns. `bodies <= 0` counts as settled: nothing is left
+ * to move, and dividing by zero bodies is not a question with a numeric
+ * answer.
+ */
+export function settled(energy: number, bodies: number): boolean {
+  return bodies <= 0 || energy / bodies <= SETTLED
+}
 
 export interface Forces {
   /** Multipliers, where 1 is the baseline the graph shipped with. */
