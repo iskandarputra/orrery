@@ -125,7 +125,7 @@ describe('GitWatchService', () => {
 })
 
 describe('reads leave the index alone', () => {
-  it('neither status nor the line counts rewrite .git/index', async () => {
+  it('neither status, the line counts nor the gutter rewrite .git/index', async () => {
     // Stale stat data on a tracked file: exactly what a plain `git status`
     // refreshes and writes back.
     const past = new Date(Date.now() - 60_000)
@@ -135,6 +135,8 @@ describe('reads leave the index alone', () => {
     await git.status(repo)
     await git.diffStats(repo, [])
     await git.status(repo)
+    // And the gutter's read of one file, which runs on every open and save.
+    await git.fileChanges(join(repo, 'a.md'))
     expect(statSync(index).mtimeMs).toBe(before)
   })
 })

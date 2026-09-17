@@ -497,20 +497,23 @@ export class GitService {
 
   async fileChanges(filePath: string): Promise<LineChange[]> {
     try {
-      const { stdout } = await run(
-        'git',
-        [
-          '--no-pager',
-          'diff',
-          '--no-color',
-          '--no-ext-diff',
-          // No context lines: the hunk headers alone carry what a gutter needs.
-          '-U0',
-          '--',
-          filePath
-        ],
-        { cwd: dirname(filePath), timeout: TIMEOUT_MS, maxBuffer: MAX_OUTPUT }
-      )
+      const stdout = await this.git(dirname(filePath), [
+        // `diff-files`, not `diff`, and through `git()` for its flags. This runs
+        // every time a code file is opened or saved, and the porcelain writes
+        // the index whenever a file has been touched without changing. Measured
+        // on 2.53 with two files touched and left as they were: `git diff -U0
+        // -- file` rewrote .git/index with `--no-optional-locks` and without
+        // it, and the watch on the index then had source control read
+        // everything again. The plumbing gives the same hunks and writes
+        // nothing.
+        'diff-files',
+        '-p',
+        '--no-ext-diff',
+        // No context lines: the hunk headers alone carry what a gutter needs.
+        '-U0',
+        '--',
+        filePath
+      ])
       return parseDiffHunks(stdout)
     } catch {
       return []
