@@ -397,8 +397,10 @@
 
 /* Git change bars. A thin column beside the line numbers, present whenever the
    gutter is — a column that appeared with the first change would shift the whole
-   document sideways on every edit. Non-text marks, so the semantic hues match
-   the toast palette rather than any theme accent. */
+   document sideways on every edit. In the diff colours, so a change is the same
+   colour here, in the diff, on the scrollbar ruler and in source control, and
+   because those are deepened per theme: the toast palette they used before
+   measured under 3:1 against a white editor. */
 .cm-or-git-gutter {
   width: 3px;
   padding: 0;
@@ -414,11 +416,11 @@
 }
 
 .cm-or-git-mark--added {
-  background: #34d399;
+  background: var(--or-diff-add);
 }
 
 .cm-or-git-mark--modified {
-  background: #fbbf24;
+  background: var(--or-diff-mod);
 }
 
 /* A removal has no line left to sit beside, so it reads as a wedge under the
@@ -427,7 +429,7 @@
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 5px solid #f87171;
+  border-left: 5px solid var(--or-diff-del);
   border-radius: 0;
   margin-top: auto;
 }

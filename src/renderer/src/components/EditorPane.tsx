@@ -42,6 +42,7 @@ function Pane({
   const settings = useStore((s) => s.settings)
   const kind = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind : undefined))
   const isDirty = useStore((s) => (bufferId ? (s.buffers[bufferId]?.isDirty ?? false) : false))
+  const repositoryRevision = useStore((s) => s.gitRepositoryRevision)
   const viewMode = useStore((s) => (bufferId ? s.buffers[bufferId]?.viewMode : undefined))
   const isCanvas = kind === 'canvas'
   const isDiff = kind === 'diff'
@@ -138,7 +139,9 @@ function Pane({
     const view = viewRef.current
     if (!view || kind !== 'code' || isDirty) return
     void refreshGitGutter(view)
-  }, [bufferId, kind, isDirty])
+    // And when the repository moves, wherever it was moved from. A commit made
+    // in a terminal left every bar standing until the file was next saved.
+  }, [bufferId, kind, isDirty, repositoryRevision])
 
   // Keep the registry's copy fresh so store actions can read a consistent
   // state for a buffer whose pane isn't focused.
