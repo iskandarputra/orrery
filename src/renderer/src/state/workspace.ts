@@ -33,6 +33,22 @@ export interface WorkspaceSlice {
   /** Watch the vault root and whichever directories are open, and nothing else. */
   syncWatchPaths(): void
   onFsChanged(events: FsEvent[]): void
+
+  /**
+   * Bumped when the repository's state moves: a commit, a stage, a checkout, a
+   * new branch, wherever it was done. Status and history both read again.
+   */
+  gitRepositoryRevision: number
+  /** Bumped when files in the work tree may have changed. Status reads again. */
+  gitWorktreeRevision: number
+  /**
+   * Say that something git reports on may have changed.
+   *
+   * Coalesced, because the signals come in bursts: a save is a write and a
+   * rename, a checkout rewrites many files, and each read of status is a git
+   * process. A burst is one read.
+   */
+  noteGitChange(scope: 'repository' | 'worktree'): void
 }
 
 /**
@@ -46,6 +62,12 @@ export interface WorkspaceSlice {
 const MAX_INDEXED_FILES = 60_000
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
+/** Short enough not to be noticed, long enough to swallow a burst. */
+const GIT_SETTLE_MS = 150
+const gitTimers: Record<'repository' | 'worktree', ReturnType<typeof setTimeout> | null> = {
+  repository: null,
+  worktree: null
+}
 /** Directories with changes waiting to be read again. */
 const pendingDirs = new Set<string>()
 
@@ -83,6 +105,8 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
   noteIndex: [],
   fileIndex: [],
   indexTruncated: false,
+  gitRepositoryRevision: 0,
+  gitWorktreeRevision: 0,
 
   async openFolder(path) {
     const target = path ?? (await invoke('dialog:openFolder', undefined))
@@ -208,6 +232,9 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
   },
 
   onFsChanged(events) {
+    // Any of these can change what git reports, a file's contents as much as
+    // its existence.
+    if (events.length > 0) get().noteGitChange('worktree')
     // Reload open buffers whose backing file changed externally (clean only).
     for (const event of events) {
       if (event.kind === 'changed' && !event.isDirectory) {
@@ -234,5 +261,18 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
       // The index is a list of names, and names have changed.
       void get().refreshIndex()
     }, 200)
+  },
+
+  noteGitChange(scope) {
+    const timer = gitTimers[scope]
+    if (timer) clearTimeout(timer)
+    gitTimers[scope] = setTimeout(() => {
+      gitTimers[scope] = null
+      set((s) =>
+        scope === 'repository'
+          ? { gitRepositoryRevision: s.gitRepositoryRevision + 1 }
+          : { gitWorktreeRevision: s.gitWorktreeRevision + 1 }
+      )
+    }, GIT_SETTLE_MS)
   }
 })

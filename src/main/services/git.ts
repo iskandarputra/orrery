@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { parseDiffHunks, type LineChange } from '@core/git-diff'
 import { EMPTY_STATUS, parseGitStatus, type GitStatus } from '@core/git-status'
@@ -49,9 +49,18 @@ export class GitService {
    * Always `execFile` with an argument vector, never a shell: paths and commit
    * messages are user data, and a vault is full of names with spaces, quotes
    * and `$` in them.
+   *
+   * `--no-optional-locks` on everything, because the panel now re-reads status
+   * whenever `.git/index` changes, and a plain read writes it. Measured on git
+   * 2.53 against a repository with two files touched: `git status` rewrote the
+   * index, a second `git status` with nothing else touched rewrote it again
+   * (files changed within the index's own second are checked afresh every
+   * time), and `git diff --numstat` rewrote it too. Each write would have
+   * started another read. The flag only drops the refresh git does on the
+   * side; a stage or a commit takes the lock it needs regardless.
    */
   private async git(cwd: string, args: string[]): Promise<string> {
-    const { stdout } = await run('git', ['--no-pager', ...args], {
+    const { stdout } = await run('git', ['--no-pager', '--no-optional-locks', ...args], {
       cwd,
       timeout: TIMEOUT_MS,
       maxBuffer: MAX_OUTPUT
@@ -132,7 +141,7 @@ export class GitService {
     return new Promise((resolve, reject) => {
       const child = execFile(
         'git',
-        ['--no-pager', ...args],
+        ['--no-pager', '--no-optional-locks', ...args],
         { cwd, timeout: TIMEOUT_MS, maxBuffer: MAX_OUTPUT },
         (err, stdout) => {
           if (typeof stdout === 'string') resolve(stdout)
@@ -192,7 +201,11 @@ export class GitService {
 
     const [staged, unstaged, newFiles] = await Promise.all([
       side(['diff', '--cached', '--numstat', '-z']),
-      side(['diff', '--numstat', '-z']),
+      // `diff-files`, not `diff`: the porcelain refreshes the index on its way
+      // out and writes it, `--no-optional-locks` or not (measured on 2.53), and
+      // this runs every time the index changes. The plumbing compares the same
+      // two sides and writes nothing.
+      side(['diff-files', '--numstat', '-z']),
       this.untrackedStats(rootPath, untracked)
     ])
 
@@ -410,6 +423,29 @@ export class GitService {
   /** Apply one commit's changes on top of the current branch. */
   async cherryPick(rootPath: string, hash: string): Promise<void> {
     await this.git(rootPath, ['cherry-pick', hash])
+  }
+
+  /**
+   * The git directories that hold this work tree's state, absolute.
+   *
+   * Asked of git rather than assumed to be `<vault>/.git`. A vault is often a
+   * folder inside a larger repository, whose `.git` is further up, and a linked
+   * worktree keeps its `HEAD` and `index` in one directory and its branches in
+   * the shared one. Empty when there is no repository.
+   */
+  async gitDirectories(rootPath: string): Promise<string[]> {
+    try {
+      const out = await this.git(rootPath, ['rev-parse', '--absolute-git-dir', '--git-common-dir'])
+      // The common directory can come back relative to where git was run.
+      const dirs = out
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => resolve(rootPath, line))
+      return [...new Set(dirs)]
+    } catch {
+      return []
+    }
   }
 
   /** Whether this directory is inside a git work tree at all. */

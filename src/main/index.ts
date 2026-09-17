@@ -31,6 +31,7 @@ import { FileSystemService } from './services/file-system'
 import { LinkScanner } from './services/link-scanner'
 import { SettingsStore } from './services/settings-store'
 import { WatcherService } from './services/watcher'
+import { GitWatchService } from './services/git-watch'
 import { WindowManager } from './windows'
 
 /**
@@ -98,6 +99,13 @@ if (!gotLock) {
   const embeddings = new EmbeddingService(() => settings.get(), app.getPath('userData'))
   const history = new HistoryService(app.getPath('userData'))
   const git = new GitService()
+  const gitWatch = new GitWatchService(
+    (rootPath) => git.gitDirectories(rootPath),
+    (rootPath) => {
+      const win = windows.window
+      if (win) send(win, 'git:changed', { rootPath })
+    }
+  )
   const sqlite = new SqliteService()
   const terminal = new TerminalService({
     onData: (id, data) => {
@@ -200,6 +208,7 @@ if (!gotLock) {
       embeddings,
       history,
       git,
+      gitWatch,
       lsp,
       terminal,
       mcp,
@@ -236,5 +245,6 @@ if (!gotLock) {
   app.on('before-quit', () => {
     void settings.flush()
     void watcher.dispose()
+    void gitWatch.dispose()
   })
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   EMPTY_STATUS,
   stagedChanges,
@@ -98,16 +98,38 @@ export function SourceControlPanel(): React.JSX.Element {
   const viewMode = git.fileViewMode
   const updateSettings = useStore((s) => s.updateSettings)
   const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS)
-  const [stats, setStats] = useState<DiffStats>(EMPTY_DIFF_STATS)
+  /**
+   * The line counts, with the vault they were read for.
+   *
+   * Kept until replaced, so a read in the background does not blank every
+   * number while it runs. But only for that vault: a count from the last one
+   * must not land on a row of this one that happens to share its path.
+   */
+  const [counted, setCounted] = useState<{ rootPath: string | null; stats: DiffStats }>({
+    rootPath: null,
+    stats: EMPTY_DIFF_STATS
+  })
+  const stats = counted.rootPath === rootPath ? counted.stats : EMPTY_DIFF_STATS
   const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
-  /** Which section is open. Both can be, but the panel is narrow. */
-  const [showGraph, setShowGraph] = useState(false)
+  const sections = git.sections
   const [busy, setBusy] = useState(false)
 
-  /** Bumped to re-read status; the reading itself belongs in the effect. */
-  const [reloadToken, setReloadToken] = useState(0)
-  const refresh = useCallback((): void => setReloadToken((n) => n + 1), [])
+  /**
+   * What makes the panel read again. Not a button any more, or not only: a
+   * commit in a terminal, a save, a checkout from the graph and the window
+   * coming back all arrive here as a revision, so the list and the history
+   * move together and nobody has to ask.
+   */
+  const repositoryRevision = useStore((s) => s.gitRepositoryRevision)
+  const worktreeRevision = useStore((s) => s.gitWorktreeRevision)
+  const noteGitChange = useStore((s) => s.noteGitChange)
+  const refresh = (): void => noteGitChange('repository')
+
+  // Hear about commits and checkouts made anywhere, not only from this panel.
+  useEffect(() => {
+    if (rootPath && isRepo) void invoke('git:watch', { rootPath })
+  }, [rootPath, isRepo])
 
   useEffect(() => {
     if (!rootPath) return
@@ -127,18 +149,17 @@ export function SourceControlPanel(): React.JSX.Element {
       // more git processes and a read for each new file, and a repository too
       // large or too broken to count should still list what changed. So they
       // arrive late and land on rows that are already on screen.
-      setStats(EMPTY_DIFF_STATS)
       if (!repo) return
       const untracked = next.changes
         .filter((c) => c.staged === 'untracked' || c.unstaged === 'untracked')
         .map((c) => c.path)
-      const counted = await invoke('git:diffStats', { rootPath, untracked })
-      if (live) setStats(counted)
+      const read = await invoke('git:diffStats', { rootPath, untracked })
+      if (live) setCounted({ rootPath, stats: read })
     })()
     return () => {
       live = false
     }
-  }, [rootPath, reloadToken])
+  }, [rootPath, repositoryRevision, worktreeRevision])
 
   const act = async (run: () => Promise<unknown>): Promise<void> => {
     setBusy(true)
@@ -184,6 +205,9 @@ export function SourceControlPanel(): React.JSX.Element {
     )
   }
 
+  const toggleSection = (name: keyof typeof sections): void =>
+    updateSettings({ git: { ...git, sections: { ...sections, [name]: !sections[name] } } })
+
   const commit = async (): Promise<void> => {
     if (!message.trim() || staged.length === 0) return
     await act(async () => {
@@ -198,7 +222,7 @@ export function SourceControlPanel(): React.JSX.Element {
   }
 
   return (
-    <div className="scm">
+    <div className={`scm${sections.changes && sections.graph ? ' scm--both' : ''}`}>
       {/* This view's own header, built like the file tree's so the two views
           match: the branch is the title, and the actions that belong to source
           control sit where the tree's actions sit. */}
@@ -265,87 +289,96 @@ export function SourceControlPanel(): React.JSX.Element {
         </button>
       </div>
 
-      <button
-        className={`scm__section${showGraph ? '' : ' scm__section--open'}`}
-        aria-expanded={!showGraph}
-        onClick={() => setShowGraph(false)}
-      >
-        <Icon name={showGraph ? 'chevron-right' : 'chevron-down'} size={12} />
-        Changes
-      </button>
-
-      {!showGraph &&
-        (clean ? (
-          <EmptyState icon="check">No changes — the working tree is clean.</EmptyState>
-        ) : (
-          <>
-            {staged.length > 0 && (
+      {/* Two sections that open and close on their own. They were one or the
+          other, so looking at what was about to be committed meant hiding the
+          history it was about to join. */}
+      <div className={`scm__part scm__part--changes${sections.changes ? ' scm__part--open' : ''}`}>
+        <button
+          className={`scm__section${sections.changes ? ' scm__section--open' : ''}`}
+          aria-expanded={sections.changes}
+          onClick={() => toggleSection('changes')}
+        >
+          <Icon name={sections.changes ? 'chevron-down' : 'chevron-right'} size={12} />
+          Changes
+        </button>
+        {sections.changes && (
+          <div className="scm__body">
+            {clean ? (
+              <EmptyState icon="check">No changes — the working tree is clean.</EmptyState>
+            ) : (
               <>
-                <div className="scm__group">
-                  <span className="scm__group-label">Staged</span>
-                  <span className="rpanel-count__badge">{staged.length}</span>
-                  <button
-                    className="scm__group-act"
-                    onClick={() => void unstage(staged.map((c) => c.path))}
-                  >
-                    Unstage all
-                  </button>
-                </div>
-                <ChangeTree
-                  items={staged}
-                  getPath={(c) => c.path}
-                  mode={viewMode}
-                  renderRow={(c) => (
-                    <Row
-                      change={c}
-                      side="staged"
-                      stat={stats.staged[c.path]}
-                      onPrimary={(x) => void unstage([x.path])}
+                {staged.length > 0 && (
+                  <>
+                    <div className="scm__group">
+                      <span className="scm__group-label">Staged</span>
+                      <span className="rpanel-count__badge">{staged.length}</span>
+                      <button
+                        className="scm__group-act"
+                        onClick={() => void unstage(staged.map((c) => c.path))}
+                      >
+                        Unstage all
+                      </button>
+                    </div>
+                    <ChangeTree
+                      items={staged}
+                      getPath={(c) => c.path}
+                      mode={viewMode}
+                      renderRow={(c) => (
+                        <Row
+                          change={c}
+                          side="staged"
+                          stat={stats.staged[c.path]}
+                          onPrimary={(x) => void unstage([x.path])}
+                        />
+                      )}
                     />
-                  )}
-                />
+                  </>
+                )}
+                {unstaged.length > 0 && (
+                  <>
+                    <div className="scm__group">
+                      <span className="scm__group-label">Unstaged</span>
+                      <span className="rpanel-count__badge">{unstaged.length}</span>
+                      <button
+                        className="scm__group-act"
+                        onClick={() => void stage(unstaged.map((c) => c.path))}
+                      >
+                        Stage all
+                      </button>
+                    </div>
+                    <ChangeTree
+                      items={unstaged}
+                      getPath={(c) => c.path}
+                      mode={viewMode}
+                      renderRow={(c) => (
+                        <Row
+                          change={c}
+                          side="unstaged"
+                          stat={stats.unstaged[c.path]}
+                          onPrimary={(x) => void stage([x.path])}
+                          onDiscard={(x) => void discard(x)}
+                        />
+                      )}
+                    />
+                  </>
+                )}
               </>
             )}
-            {unstaged.length > 0 && (
-              <>
-                <div className="scm__group">
-                  <span className="scm__group-label">Unstaged</span>
-                  <span className="rpanel-count__badge">{unstaged.length}</span>
-                  <button
-                    className="scm__group-act"
-                    onClick={() => void stage(unstaged.map((c) => c.path))}
-                  >
-                    Stage all
-                  </button>
-                </div>
-                <ChangeTree
-                  items={unstaged}
-                  getPath={(c) => c.path}
-                  mode={viewMode}
-                  renderRow={(c) => (
-                    <Row
-                      change={c}
-                      side="unstaged"
-                      stat={stats.unstaged[c.path]}
-                      onPrimary={(x) => void stage([x.path])}
-                      onDiscard={(x) => void discard(x)}
-                    />
-                  )}
-                />
-              </>
-            )}
-          </>
-        ))}
+          </div>
+        )}
+      </div>
 
-      <button
-        className={`scm__section${showGraph ? ' scm__section--open' : ''}`}
-        aria-expanded={showGraph}
-        onClick={() => setShowGraph(true)}
-      >
-        <Icon name={showGraph ? 'chevron-down' : 'chevron-right'} size={12} />
-        Graph
-      </button>
-      {showGraph && <GitGraph />}
+      <div className={`scm__part scm__part--graph${sections.graph ? ' scm__part--open' : ''}`}>
+        <button
+          className={`scm__section${sections.graph ? ' scm__section--open' : ''}`}
+          aria-expanded={sections.graph}
+          onClick={() => toggleSection('graph')}
+        >
+          <Icon name={sections.graph ? 'chevron-down' : 'chevron-right'} size={12} />
+          Graph
+        </button>
+        {sections.graph && <GitGraph />}
+      </div>
     </div>
   )
 }

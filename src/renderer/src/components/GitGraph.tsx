@@ -235,7 +235,10 @@ export function GitGraph(): React.JSX.Element {
   const showToast = useStore((s) => s.showToast)
   const [commits, setCommits] = useState<Commit[] | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
-  const [reloadToken, setReloadToken] = useState(0)
+  // Shared with the change list, so a checkout here updates the files there,
+  // and a commit made anywhere appears here without being asked for.
+  const repositoryRevision = useStore((s) => s.gitRepositoryRevision)
+  const noteGitChange = useStore((s) => s.noteGitChange)
   /**
    * The commit a new branch is being named for.
    *
@@ -258,7 +261,7 @@ export function GitGraph(): React.JSX.Element {
     void work
       .then(() => {
         showToast(label, 'success')
-        setReloadToken((n) => n + 1)
+        noteGitChange('repository')
       })
       .catch((err) => showToast(parseIpcError(err).message, 'error'))
   }
@@ -331,7 +334,7 @@ export function GitGraph(): React.JSX.Element {
     return () => {
       live = false
     }
-  }, [rootPath, reloadToken])
+  }, [rootPath, repositoryRevision])
 
   if (commits === null) return <p className="gitgraph__note">Reading history…</p>
   if (commits.length === 0) return <p className="gitgraph__note">No commits yet.</p>
