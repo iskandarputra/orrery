@@ -14,6 +14,7 @@ import { DiffCount } from './DiffCount'
 import { FileTypeIcon } from './FileIcon'
 import { openContextMenu, type MenuItem } from './context-menu/context-menu'
 import { Icon } from './Icon'
+import { copyText } from '@/services/clipboard'
 
 /** How much history to draw. Enough to see where you are, not an archive. */
 const LIMIT = 120
@@ -82,9 +83,7 @@ function CommitMessage({
           <button
             className="commit-message__copy"
             onClick={() =>
-              void navigator.clipboard.writeText(
-                commit.body ? `${commit.subject}\n\n${commit.body}` : commit.subject
-              )
+              void copyText(commit.body ? `${commit.subject}\n\n${commit.body}` : commit.subject)
             }
           >
             <Icon name="copy" size={13} /> Copy message
@@ -282,17 +281,17 @@ export function GitGraph(): React.JSX.Element {
       {
         label: 'Copy commit hash',
         icon: 'copy',
-        onSelect: () => void navigator.clipboard.writeText(commit.hash)
+        onSelect: () => void copyText(commit.hash)
       },
       {
         label: `Copy short hash (${short})`,
         icon: 'copy',
-        onSelect: () => void navigator.clipboard.writeText(short)
+        onSelect: () => void copyText(short)
       },
       {
         label: 'Copy message',
         icon: 'copy',
-        onSelect: () => void navigator.clipboard.writeText(commit.subject)
+        onSelect: () => void copyText(commit.subject)
       },
       { separator: true },
       {

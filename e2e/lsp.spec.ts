@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -9,6 +9,8 @@ let page: Page
 let vault: string
 let binDir: string
 let originalPath: string | undefined
+/** What the stub server was asked, one request per line. */
+let stubLog: string
 
 const SOURCE = ['const fine = 1', 'const BAD = 2', 'const alsoFine = 3'].join('\n') + '\n'
 
@@ -43,6 +45,8 @@ test.beforeAll(async () => {
   chmodSync(shim, 0o755)
   originalPath = process.env['PATH']
   process.env['PATH'] = `${binDir}:${originalPath ?? ''}`
+  stubLog = join(binDir, 'requests.log')
+  process.env['ORRERY_STUB_LSP_LOG'] = stubLog
 
   app = await launchApp()
   page = await app.firstWindow()
@@ -54,6 +58,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await closeCleanly(app, page)
   if (originalPath !== undefined) process.env['PATH'] = originalPath
+  delete process.env['ORRERY_STUB_LSP_LOG']
   rmSync(vault, { recursive: true, force: true })
   rmSync(binDir, { recursive: true, force: true })
 })
@@ -90,16 +95,59 @@ test('hovering a symbol shows what the server knows about it', async () => {
     .poll(async () => (await diagnostics()).length, { timeout: 20_000 })
     .toBeGreaterThan(0)
 
+  // The server first, asked directly, so a failure further down is about the
+  // pointer and not about whether an answer was there to show. This test fails
+  // on CI and passes locally, and until it said which half broke, nothing did.
+  const direct = await page.evaluate(
+    (path) => window.orrery.invoke('lsp:hover', { path, line: 0, character: 6 }),
+    join(vault, 'code.ts')
+  )
+  expect(direct, 'the server answers a hover asked for directly').toContain('stub docs for')
+
   // Hover the word "fine" on the first line.
   // CodeMirror tracks the pointer across a run of mousemove events and then
   // waits for it to settle; one jump to the target coordinate produces neither.
   const box = (await page.locator('.cm-content .cm-line').first().boundingBox())!
   await page.locator('.cm-content').click()
-  await page.mouse.move(box.x + 10, box.y + box.height / 2, { steps: 5 })
-  await page.mouse.move(box.x + 48, box.y + box.height / 2, { steps: 15 })
+  const target = { x: box.x + 48, y: box.y + box.height / 2 }
+  // And the pointer's target is text on that line, not padding or another line.
+  const under = await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y)
+    const line = el?.closest('.cm-line')
+    const first = document.querySelector('.cm-content .cm-line')
+    return { onFirstLine: !!line && line === first, text: line?.textContent ?? el?.className ?? '' }
+  }, target)
+  expect(under, 'the pointer is over the first line').toEqual({
+    onFirstLine: true,
+    text: 'const fine = 1'
+  })
+  await page.mouse.move(box.x + 10, target.y, { steps: 5 })
+  await page.mouse.move(target.x, target.y, { steps: 15 })
 
   const tip = page.locator('.cm-or-hover')
-  await expect(tip).toBeVisible({ timeout: 15_000 })
+  // If nothing shows, say whether the pointer ever asked: the direct request
+  // above is one hover, so a second means CodeMirror asked and the tooltip is
+  // what went missing, and only one means the pointer never reached it.
+  //
+  // CI has only ever shown one. Ruled out there, each by a run that reported
+  // it: the server answering, the point hovered, the mousemoves the editor
+  // received (the same 28, at the same points, with no mouseleave, as a
+  // passing local run), the page's visibility, focus and frame rate, its
+  // window and screen size; and, locally, hiding user fonts. No other spec
+  // changes the environment this one inherits. What differs is still unknown.
+  const hovers = (): string[] =>
+    (existsSync(stubLog) ? readFileSync(stubLog, 'utf-8') : '')
+      .split('\n')
+      .filter((l) => l.startsWith('textDocument/hover'))
+  try {
+    await expect(tip).toBeVisible({ timeout: 15_000 })
+  } catch (err) {
+    // Read after the wait, not before it: a request can land at any point in it.
+    throw new Error(
+      `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}`,
+      { cause: err }
+    )
+  }
   await expect(tip).toContainText('stub docs for')
 })
 

@@ -70,6 +70,28 @@ async function showOutline(): Promise<void> {
  * workspace surface each theme opens with types into the tree's filter, which
  * only exists on this view.
  */
+/**
+ * Wait for whatever a surface animated in with to finish.
+ *
+ * A surface counts as open once it is visible, which is the first frame of its
+ * entrance, and most of them enter with `pop-in`, from `scale(0.98)`. Measured
+ * then, a 24px row in the analytics panel is 23.52px and fails the target-size
+ * check whenever its corners are not on screen: that was the analytics failure
+ * on every CI run and on some local ones, and never a fault in the panel.
+ * Infinite animations, a spinner or a blinking caret, would never finish, and
+ * are not waited for.
+ */
+async function animationsSettled(): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined))
+    )
+  )
+}
+
 async function showFiles(): Promise<void> {
   if (!(await page.locator('.sidebar__filter-input').isVisible())) {
     await runCommand('view.toggleFiles')
@@ -1326,6 +1348,7 @@ for (const [id, appearance] of THEMES) {
     const fails: Fail[] = []
     for (const surface of SURFACES) {
       await surface.open()
+      await animationsSettled()
       const scan = await contrastFailures(surface.root)
       expect(scan.scanned, `${surface.name} has text to measure`).toBeGreaterThan(0)
       const found = [...scan.fails, ...(surface.hidden ? await surface.hidden() : [])]
@@ -1377,6 +1400,7 @@ test('every control is reachable and named', async () => {
 
   for (const surface of SURFACES) {
     await surface.open()
+    await animationsSettled()
     const found = await controls(surface.root)
     expect(found.length, `${surface.name} has controls to measure`).toBeGreaterThan(0)
     counted += found.length

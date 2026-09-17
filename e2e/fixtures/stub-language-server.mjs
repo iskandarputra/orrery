@@ -12,8 +12,15 @@
  * That makes the assertions in the spec real round trips — spawn, frame,
  * handshake, sync, request, correlate, decode, draw — rather than mocks.
  */
+import { appendFileSync } from 'node:fs'
+
 let buffer = Buffer.alloc(0)
 const documents = new Map()
+/**
+ * Where to note each request, when a test wants to know what reached the
+ * server: a failed hover then says whether it was ever asked for.
+ */
+const LOG = process.env['ORRERY_STUB_LSP_LOG']
 
 function send(message) {
   const body = Buffer.from(JSON.stringify(message), 'utf8')
@@ -55,6 +62,10 @@ process.stdin.on('data', (chunk) => {
     if (buffer.length < start + length) return
     const message = JSON.parse(buffer.subarray(start, start + length).toString('utf8'))
     buffer = buffer.subarray(start + length)
+    if (LOG && message.method) {
+      const at = message.params?.position
+      appendFileSync(LOG, `${message.method}${at ? ` ${at.line}:${at.character}` : ''}\n`)
+    }
 
     if (message.method === 'initialize') {
       send({

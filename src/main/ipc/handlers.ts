@@ -1,6 +1,6 @@
 import { promises as fsp } from 'node:fs'
 import path from 'node:path'
-import { app, dialog, nativeImage, shell } from 'electron'
+import { app, clipboard, dialog, nativeImage, shell } from 'electron'
 import { z } from 'zod'
 import { pushRecent } from '@core/recent'
 import type { AiService } from '../services/ai'
@@ -327,6 +327,9 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     (_e, req) => fs.createDirectory(req.dirPath, req.name)
   )
 
+  handle('clipboard:writeText', z.object({ text: z.string().max(10_000_000) }), (_e, req) =>
+    clipboard.writeText(req.text)
+  )
   handle('shell:showItemInFolder', pathReq, (_e, req) => {
     shell.showItemInFolder(req.path)
   })
