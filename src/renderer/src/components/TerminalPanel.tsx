@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { Terminal } from '@xterm/xterm'
+import { commandSettle } from '@core/command-settle'
 import { invoke, on } from '@/services/client'
 import { useStore } from '@/state/store'
 import { getTheme, resolveTheme } from '@/themes/themes'
@@ -51,6 +52,13 @@ async function fontReady(stack: string): Promise<void> {
  * xterm already holds one, and a second copy in React state would re-render the
  * whole buffer on every keystroke.
  */
+/**
+ * How long the shell has to be quiet after a command before source control
+ * looks again: long enough for the prompt to be redrawn, short enough that the
+ * count has moved by the time anyone looks for it.
+ */
+const COMMAND_QUIET_MS = 700
+
 export function TerminalPanel(): React.JSX.Element | null {
   const open = useStore((s) => s.terminalOpen)
   const close = useStore((s) => s.closeTerminal)
@@ -64,6 +72,15 @@ export function TerminalPanel(): React.JSX.Element | null {
   const fitRef = useRef<FitAddon | null>(null)
   const idRef = useRef<string | null>(null)
   const [status, setStatus] = useState<'starting' | 'running' | 'unavailable'>('starting')
+  // A command run here changes files that nothing else reports: see
+  // `core/command-settle`.
+  const [settle] = useState(() =>
+    commandSettle(() => useStore.getState().noteGitChange('worktree'), COMMAND_QUIET_MS, {
+      set: (run, ms) => setTimeout(run, ms),
+      clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>)
+    })
+  )
+  useEffect(() => () => settle.dispose(), [settle])
 
   useEffect(() => {
     const host = hostRef.current
@@ -125,7 +142,10 @@ export function TerminalPanel(): React.JSX.Element | null {
       }
       idRef.current = id
       setStatus('running')
-      term.onData((data) => void invoke('terminal:write', { id, data }))
+      term.onData((data) => {
+        void invoke('terminal:write', { id, data })
+        settle.input(data)
+      })
       term.focus()
     })()
 
@@ -154,13 +174,15 @@ export function TerminalPanel(): React.JSX.Element | null {
       term?.dispose()
       termRef.current = null
     }
-  }, [open, rootPath, themeId])
+  }, [open, rootPath, themeId, settle])
 
   // Output arrives for whichever shell produced it, so it is matched by id
   // rather than assumed to belong to the terminal on screen.
   useEffect(() => {
     const offData = on('terminal:data', ({ id, data }) => {
-      if (id === idRef.current) termRef.current?.write(data)
+      if (id !== idRef.current) return
+      termRef.current?.write(data)
+      settle.output()
     })
     const offExit = on('terminal:exit', ({ id }) => {
       if (id !== idRef.current) return
@@ -171,7 +193,7 @@ export function TerminalPanel(): React.JSX.Element | null {
       offData()
       offExit()
     }
-  }, [])
+  }, [settle])
 
   if (!open) return null
 
