@@ -194,6 +194,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     terminal.resize(req.id, req.cols, req.rows)
   )
   handle('terminal:kill', termId, (_e, req) => terminal.kill(req.id))
+  handle('terminal:busy', termId, (_e, req) => terminal.busy(req.id))
 
   // --- git ------------------------------------------------------------------
   handle('git:fileChanges', pathReq, (_e, req) => git.fileChanges(req.path))
@@ -840,6 +841,9 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
 
   handle('fs:trash', pathReq, (_e, req) => fs.trash(req.path))
 
+  const moveReq = z.object({ from: z.string().min(1), to: z.string().min(1) })
+  handle('fs:copy', moveReq, (_e, req) => fs.copy(req.from, req.to))
+  handle('fs:move', moveReq, (_e, req) => fs.move(req.from, req.to))
   handle('fs:watch', pathReq, async (_e, req) => ({ watchId: await watcher.watch(req.path) }))
 
   handle('fs:unwatch', z.object({ watchId: z.string() }), (_e, req) => watcher.unwatch(req.watchId))

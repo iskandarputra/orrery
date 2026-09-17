@@ -1,4 +1,12 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -186,5 +194,50 @@ describe('rename', () => {
     const next = await fsvc.rename(file('old.md'), 'new.md')
     expect(next).toBe(file('new.md'))
     expect(readFileSync(next, 'utf-8')).toBe('body')
+  })
+})
+
+describe('copy and move', () => {
+  const tree = (): void => {
+    mkdirSync(file('src/deep'), { recursive: true })
+    mkdirSync(file('dest'))
+    writeFileSync(file('src/a.md'), 'a\n')
+    writeFileSync(file('src/deep/b.md'), 'b\n')
+  }
+
+  it('copies a folder with everything in it, leaving the original', async () => {
+    tree()
+    const made = await fsvc.copy(file('src'), file('dest/src'))
+    expect(made).toBe(file('dest/src'))
+    expect(readFileSync(file('dest/src/deep/b.md'), 'utf-8')).toBe('b\n')
+    expect(existsSync(file('src/deep/b.md'))).toBe(true)
+  })
+
+  it('moves a folder, leaving nothing behind', async () => {
+    tree()
+    await fsvc.move(file('src'), file('dest/src'))
+    expect(readFileSync(file('dest/src/a.md'), 'utf-8')).toBe('a\n')
+    expect(existsSync(file('src'))).toBe(false)
+  })
+
+  it('never writes over a name already there, by either means', async () => {
+    tree()
+    writeFileSync(file('dest/a.md'), 'kept\n')
+    await expect(fsvc.copy(file('src/a.md'), file('dest/a.md'))).rejects.toThrow(/EEXIST/)
+    await expect(fsvc.move(file('src/a.md'), file('dest/a.md'))).rejects.toThrow(/EEXIST/)
+    expect(readFileSync(file('dest/a.md'), 'utf-8')).toBe('kept\n')
+    expect(existsSync(file('src/a.md'))).toBe(true)
+  })
+
+  it('refuses to put a folder inside itself, and touches nothing', async () => {
+    tree()
+    await expect(fsvc.copy(file('src'), file('src/deep/src'))).rejects.toThrow(/inside itself/)
+    await expect(fsvc.move(file('src'), file('src/deep/src'))).rejects.toThrow(/inside itself/)
+    expect(readdirSync(file('src/deep'))).toEqual(['b.md'])
+  })
+
+  it('says so when the thing to copy is not there', async () => {
+    tree()
+    await expect(fsvc.copy(file('src/gone.md'), file('dest/gone.md'))).rejects.toThrow(/ENOENT/)
   })
 })

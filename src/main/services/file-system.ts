@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { shell } from 'electron'
 import type { FileNode, FileReadResult, FileWriteResult } from '@shared/types'
+import { isSameOrInside } from '@core/tree-actions'
 import { IpcError, toIpcError } from '../ipc/errors'
 
 /**
@@ -312,6 +313,55 @@ export class FileSystemService {
     } catch (err) {
       throw toIpcError(err)
     }
+  }
+
+  /**
+   * Copy a file or a folder, with everything in it, to a path not yet in use.
+   *
+   * The renderer picks a free name before asking (see `core/tree-actions`), and
+   * both refusals are made here again anyway: a name taken between that choice
+   * and this copy must not be overwritten, and a folder copied into itself
+   * would recurse until the disk was full.
+   */
+  async copy(from: string, to: string): Promise<string> {
+    try {
+      await this.assertPlaceable(from, to)
+      await fs.cp(from, to, { recursive: true, errorOnExist: true, force: false })
+      return to
+    } catch (err) {
+      throw toIpcError(err)
+    }
+  }
+
+  /** Move a file or a folder to a path not yet in use, across disks if need be. */
+  async move(from: string, to: string): Promise<string> {
+    try {
+      await this.assertPlaceable(from, to)
+      try {
+        await fs.rename(from, to)
+      } catch (err) {
+        // A rename cannot cross from one filesystem to another; a copy can.
+        if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+        await fs.cp(from, to, { recursive: true, errorOnExist: true, force: false })
+        await fs.rm(from, { recursive: true, force: true })
+      }
+      return to
+    } catch (err) {
+      throw toIpcError(err)
+    }
+  }
+
+  private async assertPlaceable(from: string, to: string): Promise<void> {
+    if (isSameOrInside(to, from)) {
+      throw new IpcError('UNKNOWN', 'A folder cannot be put inside itself')
+    }
+    await fs.access(from)
+    await fs.access(to).then(
+      () => {
+        throw new IpcError('EEXIST', 'A file with that name already exists')
+      },
+      () => undefined
+    )
   }
 
   async trash(targetPath: string): Promise<void> {

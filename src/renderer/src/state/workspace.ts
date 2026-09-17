@@ -4,6 +4,8 @@ import { filesFromPaths, notesFromPaths, type NoteRef } from '@core/notes'
 import { loadedDirs, parentDir, withChildren } from '@core/file-tree'
 import { pushRecent } from '@core/recent'
 import { EMPTY_STATUS, type GitStatus } from '@core/git-status'
+import { planPaste, type ClipboardMode } from '@core/tree-actions'
+import { basename } from '@core/paths'
 import { invoke, parseIpcError } from '@/services/client'
 import type { AppState } from './app-state'
 
@@ -59,6 +61,18 @@ export interface WorkspaceSlice {
   gitStatus: { rootPath: string; isRepo: boolean; status: GitStatus } | null
   /** Read it again, and start hearing about the repository if there is one. */
   refreshGitStatus(): Promise<void>
+
+  /**
+   * Files and folders cut or copied from the tree, waiting to be pasted.
+   *
+   * The app's own, not the system clipboard: a path is not something another
+   * program can paste as a file, and writing it there would replace whatever
+   * text was on the clipboard for nothing.
+   */
+  treeClipboard: { mode: ClipboardMode; paths: string[] } | null
+  setTreeClipboard(mode: ClipboardMode, paths: string[]): void
+  /** Paste what the tree clipboard holds into this folder. */
+  pasteInto(dir: string): Promise<void>
 }
 
 /**
@@ -120,6 +134,7 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
   gitRepositoryRevision: 0,
   gitWorktreeRevision: 0,
   gitStatus: null,
+  treeClipboard: null,
 
   async openFolder(path) {
     const target = path ?? (await invoke('dialog:openFolder', undefined))
@@ -312,5 +327,55 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
     // after the vault opened starts being watched on the next read. Main does
     // nothing when it is already watching this one.
     if (isRepo) void invoke('git:watch', { rootPath }).catch(() => undefined)
+  },
+
+  setTreeClipboard(mode, paths) {
+    set({ treeClipboard: { mode, paths } })
+  },
+
+  async pasteInto(dir) {
+    const clip = get().treeClipboard
+    if (!clip) return
+    let taken: Set<string>
+    try {
+      taken = new Set(
+        (await invoke('fs:readDir', { path: dir, showHidden: true })).map((n) => n.name)
+      )
+    } catch (err) {
+      get().showToast(`Could not paste: ${parseIpcError(err).message}`, 'error')
+      return
+    }
+    let moved = false
+    for (const from of clip.paths) {
+      const plan = planPaste(clip.mode, from, dir, taken)
+      if (plan.kind === 'nothing') continue
+      if (plan.kind === 'refused') {
+        get().showToast(
+          plan.reason === 'into-itself'
+            ? `"${basename(from)}" cannot be put inside itself`
+            : `"${basename(from)}" is already in that folder`,
+          'error'
+        )
+        continue
+      }
+      const to = `${dir.replace(/[\\/]+$/, '')}/${plan.name}`
+      try {
+        const made = await invoke(clip.mode === 'cut' ? 'fs:move' : 'fs:copy', { from, to })
+        taken.add(plan.name)
+        if (clip.mode === 'cut') {
+          // Open tabs follow the file, as they do after a rename.
+          get().updatePathsAfterRename(from, made)
+          moved = true
+        }
+      } catch (err) {
+        get().showToast(
+          `Could not paste "${basename(from)}": ${parseIpcError(err).message}`,
+          'error'
+        )
+      }
+    }
+    // A cut is used up by pasting it; a copy can be pasted again.
+    if (clip.mode === 'cut' && moved) set({ treeClipboard: null })
+    void get().refreshTree()
   }
 })

@@ -4,7 +4,7 @@ import { isMarkdownFile } from '@core/paths'
 import { useStore } from '@/state/store'
 import { openContextMenu } from './context-menu/context-menu'
 import { Icon } from './Icon'
-import { buildTreeMenu } from './menus'
+import { buildTreeMenu, buildTreeRootMenu } from './menus'
 import { TreeEditInput } from './TreeEditInput'
 import { FileTypeIcon, FolderTypeIcon } from './FileIcon'
 
@@ -179,7 +179,16 @@ export function FileTree(): React.JSX.Element | null {
   const creatingAtRoot = treeEdit && treeEdit.type !== 'rename' && treeEdit.dirPath === tree?.path
 
   return (
-    <div className="file-tree" role="tree">
+    <div
+      className="file-tree"
+      role="tree"
+      // Rows stop their own right-clicks, so this is only the space around them.
+      onContextMenu={(e) => {
+        if (!tree) return
+        e.preventDefault()
+        openContextMenu(e, buildTreeRootMenu(tree.path))
+      }}
+    >
       {creatingAtRoot && <TreeEditInput edit={treeEdit} indentPx={8} />}
       {filteredTree.children?.map((child) => (
         <TreeNode key={child.path} node={child} />
