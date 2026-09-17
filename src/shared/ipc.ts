@@ -96,6 +96,11 @@ export interface IpcInvokeContract {
   'terminal:write': { req: { id: string; data: string }; res: void }
   'terminal:resize': { req: { id: string; cols: number; rows: number }; res: void }
   'terminal:kill': { req: { id: string }; res: void }
+  /**
+   * Whether a shell is running a command rather than sitting at its prompt.
+   * Null where that cannot be known, which is Windows.
+   */
+  'terminal:busy': { req: { id: string }; res: boolean | null }
   /** Recent commits across all branches, newest first, for the graph. */
   'git:log': { req: { rootPath: string; limit: number }; res: Commit[] }
   /** Absolute path for a repo-relative one, so the editor can open it. */
@@ -199,6 +204,10 @@ export interface IpcInvokeContract {
   'fs:createDirectory': { req: { dirPath: string; name: string }; res: FileNode }
   'fs:rename': { req: { path: string; newName: string }; res: string }
   'fs:trash': { req: { path: string }; res: void }
+  /** Copy a file or folder to a path not yet in use. Resolves to that path. */
+  'fs:copy': { req: { from: string; to: string }; res: string }
+  /** Move a file or folder to a path not yet in use. Resolves to that path. */
+  'fs:move': { req: { from: string; to: string }; res: string }
   'shell:showItemInFolder': { req: { path: string }; res: void }
   /**
    * Hand one HTML file to whatever the system opens HTML with.

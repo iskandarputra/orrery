@@ -1232,6 +1232,10 @@ textarea {
    ========================================================================== */
 .file-tree {
   padding-top: 2px;
+  /* Down to the bottom of the sidebar, so the space under the last row is the
+     tree's too: it is where the vault's own menu opens, and the only place a
+     paste into the top of the vault can be asked for. */
+  min-height: 100%;
 }
 
 .tree-row {
@@ -5011,12 +5015,15 @@ kbd {
   cursor: default;
 }
 
+/* A destructive item, in the red each theme deepens until it reads. A fixed
+   #ef4444 was 3.76:1 on Zinc Light's menu, found the day this menu was first
+   put in front of the UI audit. */
 .ctx-menu__item--danger {
-  color: #ef4444;
+  color: var(--or-diff-del);
 }
 
 .ctx-menu__item--danger .ctx-menu__icon {
-  color: #ef4444;
+  color: var(--or-diff-del);
 }
 
 .ctx-menu__icon {

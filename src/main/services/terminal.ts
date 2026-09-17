@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
+import { shellIsBusy } from '@core/shell-busy'
 
 /**
  * Pseudo-terminals for the integrated terminal.
@@ -15,6 +16,8 @@ import { homedir } from 'node:os'
  */
 
 interface Pty {
+  /** The foreground process: the shell at its prompt, or what it is running. */
+  readonly process?: string
   onData(listener: (data: string) => void): void
   onExit(listener: (event: { exitCode: number }) => void): void
   write(data: string): void
@@ -42,6 +45,8 @@ export interface TerminalEvents {
 
 export class TerminalService {
   private readonly sessions = new Map<string, Pty>()
+  /** The shell each session was started with, to tell it from what it runs. */
+  private readonly shells = new Map<string, string>()
   private module: PtyModule | null = null
   private loadFailed = false
 
@@ -95,9 +100,11 @@ export class TerminalService {
       session.onData((data) => this.events.onData(id, data))
       session.onExit(({ exitCode }) => {
         this.sessions.delete(id)
+        this.shells.delete(id)
         this.events.onExit(id, exitCode)
       })
       this.sessions.set(id, session)
+      this.shells.set(id, shell)
       return id
     } catch (err) {
       console.error('Failed to start a terminal:', err)
@@ -122,6 +129,17 @@ export class TerminalService {
     }
   }
 
+  /** See `core/shell-busy`. A session that has gone is not running anything. */
+  busy(id: string): boolean | null {
+    const session = this.sessions.get(id)
+    if (!session) return false
+    try {
+      return shellIsBusy(session.process, this.shells.get(id) ?? '', process.platform)
+    } catch {
+      return null
+    }
+  }
+
   kill(id: string): void {
     try {
       this.sessions.get(id)?.kill()
@@ -129,6 +147,7 @@ export class TerminalService {
       // Already gone.
     }
     this.sessions.delete(id)
+    this.shells.delete(id)
   }
 
   /** Stop every shell. Called on quit, so none outlive the window. */

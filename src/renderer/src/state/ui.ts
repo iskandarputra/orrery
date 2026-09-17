@@ -4,6 +4,7 @@ import { remember, withdraw, type HtmlGrant } from '@core/html-trust'
 import { getTheme } from '@/themes/themes'
 import { invoke } from '@/services/client'
 import type { AppState } from './app-state'
+import { folderInclude, relativeToRoot } from '@core/tree-actions'
 
 /** Inline editing state in the file tree (create/rename inputs). */
 export interface TreeEdit {
@@ -123,7 +124,7 @@ export interface UiSlice {
    * makes each request distinct, so the panel can tell a new one from a repeat
    * without the store having to be cleared afterwards.
    */
-  searchSeed: { query: string; token: number }
+  searchSeed: { query: string; token: number; include?: string }
   /** File tree sort mode. */
   fileTreeSort: 'name' | 'modified'
   /** Zen / Focus distraction-free full mode. */
@@ -180,6 +181,8 @@ export interface UiSlice {
   setSidePanel(panel: SidePanel | null): void
   /** Open the search panel already looking for `query`. */
   searchVaultFor(query: string): void
+  /** Open search limited to one folder, ready for a query. */
+  searchInFolder(dir: string): void
   toggleGraph(): void
   toggleAnalytics(): void
   toggleHistory(): void
@@ -253,6 +256,13 @@ export interface UiSlice {
   forgetHtmlView(bufferId: string): void
   toggleTerminal(): void
   closeTerminal(): void
+  /**
+   * Where the terminal was last asked to start, and a token that changes with
+   * each ask so asking twice for the same folder still counts.
+   */
+  terminalRequest: { dir: string; token: number } | null
+  /** Open the terminal in a folder, starting a new shell there. */
+  openTerminalAt(dir: string): void
   openMediaViewer(target: MediaViewerTarget): void
   closeMediaViewer(): void
 }
@@ -275,6 +285,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   toast: null,
   fileTreeFilter: '',
   searchSeed: { query: '', token: 0 },
+  terminalRequest: null,
   fileTreeSort: 'name',
   zenMode: false,
   docStatsOpen: false,
@@ -329,6 +340,16 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     set((s) => ({
       sidePanel: 'search',
       searchSeed: { query, token: s.searchSeed.token + 1 }
+    }))
+  },
+
+  searchInFolder(dir) {
+    const root = get().rootPath
+    const include = root ? folderInclude(relativeToRoot(root, dir)) : ''
+    get().setSidePanel('search')
+    set((s) => ({
+      sidePanel: 'search',
+      searchSeed: { query: '', include, token: s.searchSeed.token + 1 }
     }))
   },
 
@@ -561,6 +582,13 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   closeTerminal() {
     set({ terminalOpen: false })
+  },
+
+  openTerminalAt(dir) {
+    set((s) => ({
+      terminalOpen: true,
+      terminalRequest: { dir, token: (s.terminalRequest?.token ?? 0) + 1 }
+    }))
   },
 
   openMediaViewer(target) {

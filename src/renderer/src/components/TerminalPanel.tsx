@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { Terminal } from '@xterm/xterm'
 import { commandSettle } from '@core/command-settle'
+import { basename } from '@core/paths'
 import { invoke, on } from '@/services/client'
 import { useStore } from '@/state/store'
 import { getTheme, resolveTheme } from '@/themes/themes'
@@ -63,6 +64,7 @@ export function TerminalPanel(): React.JSX.Element | null {
   const open = useStore((s) => s.terminalOpen)
   const close = useStore((s) => s.closeTerminal)
   const rootPath = useStore((s) => s.rootPath)
+  const request = useStore((s) => s.terminalRequest)
   const themeId = useStore((s) =>
     s.settings.theme === 'dark' ? s.settings.darkTheme : s.settings.lightTheme
   )
@@ -81,6 +83,42 @@ export function TerminalPanel(): React.JSX.Element | null {
     })
   )
   useEffect(() => () => settle.dispose(), [settle])
+
+  /**
+   * Where the shell starts: the vault, unless "Open in Integrated Terminal"
+   * asked for a folder in it. Tied to the vault it was asked in, so opening
+   * another vault starts in that one. The token is what restarts the shell when
+   * the same folder is asked for twice.
+   */
+  const [startAt, setStartAt] = useState<{ rootPath: string; dir: string; token: number } | null>(
+    null
+  )
+  const start = startAt && startAt.rootPath === rootPath ? startAt : null
+  const startDir = start?.dir ?? rootPath
+  const handledRequest = useRef(0)
+
+  useEffect(() => {
+    if (!request || !rootPath || request.token === handledRequest.current) return
+    handledRequest.current = request.token
+    void (async () => {
+      const id = idRef.current
+      if (id) {
+        // A new shell replaces the one running. At its prompt that costs
+        // nothing; in the middle of a dev server or an editor it is not ours
+        // to stop without asking, nor where the answer cannot be known.
+        const busy = await invoke('terminal:busy', { id }).catch(() => null)
+        if (
+          busy !== false &&
+          !window.confirm(
+            `The terminal is still running something. Stop it and open a new shell in "${basename(request.dir)}"?`
+          )
+        ) {
+          return
+        }
+      }
+      setStartAt({ rootPath, dir: request.dir, token: request.token })
+    })()
+  }, [request, rootPath])
 
   useEffect(() => {
     const host = hostRef.current
@@ -127,8 +165,9 @@ export function TerminalPanel(): React.JSX.Element | null {
       fit.fit()
 
       const id = await invoke('terminal:create', {
-        // The vault, so `ls` shows the notes rather than wherever the app started.
-        cwd: rootPath ?? '',
+        // The vault, so `ls` shows the notes rather than wherever the app
+        // started, or the folder the terminal was opened in.
+        cwd: startDir ?? '',
         cols: term.cols,
         rows: term.rows
       })
@@ -174,7 +213,7 @@ export function TerminalPanel(): React.JSX.Element | null {
       term?.dispose()
       termRef.current = null
     }
-  }, [open, rootPath, themeId, settle])
+  }, [open, rootPath, themeId, settle, startDir, start?.token])
 
   // Output arrives for whichever shell produced it, so it is matched by id
   // rather than assumed to belong to the terminal on screen.

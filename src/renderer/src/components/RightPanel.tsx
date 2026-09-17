@@ -140,14 +140,28 @@ function SearchBody(): React.JSX.Element {
   const [regex, setRegex] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
-  const [include, setInclude] = useState('')
+  // "Find in Folder" arrives as a seed with the folder in it: taken as the
+  // starting value when the panel opens for it, and applied below when the
+  // panel was already open.
+  const [include, setInclude] = useState(seed.include ?? '')
   const [exclude, setExclude] = useState('')
   // The filters are collapsed until wanted, and stay open once a filter is set
   // — hiding a filter that is narrowing the results is how you get a search
   // that appears to be broken.
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(!!seed.include)
+  // During render rather than in an effect, as React has state follow a prop:
+  // an effect would draw the old filter first and then the new one.
+  const [includeSeed, setIncludeSeed] = useState(seed.token)
+  if (seed.token !== includeSeed) {
+    setIncludeSeed(seed.token)
+    if (seed.include !== undefined) {
+      setInclude(seed.include)
+      setFiltersOpen(true)
+    }
+  }
   const [hits, setHits] = useState<BacklinkHit[] | null>(null)
   const [searched, setSearched] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const run = useCallback(
     (term = query): void => {
@@ -189,6 +203,12 @@ function SearchBody(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed])
 
+  // Arriving from "Find in Folder", with the folder already set above: ready
+  // for the query, wherever the focus was.
+  useEffect(() => {
+    if (seed.include !== undefined) inputRef.current?.focus()
+  }, [seed])
+
   if (!rootPath) return <EmptyState icon="search">Open a folder to search across it.</EmptyState>
 
   const fileCount = new Set((hits ?? []).map((h) => h.path)).size
@@ -198,6 +218,7 @@ function SearchBody(): React.JSX.Element {
       <div className="gsearch__bar">
         <Icon name="search" size={14} className="gsearch__icon" />
         <input
+          ref={inputRef}
           className="gsearch__input"
           placeholder="Search vault… (path: file: tag:)"
           value={query}

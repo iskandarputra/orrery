@@ -1171,6 +1171,27 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    // The file tree's context menu on a folder, the longest it gets. Something
+    // is copied first, so Paste is measured as the live item it is when it can
+    // be used rather than the dimmed one it is otherwise.
+    name: 'file tree menu',
+    root: '.ctx-menu',
+    open: async () => {
+      await showFiles()
+      const folder = page.locator('.tree-row--dir', { hasText: 'Folder' }).first()
+      await folder.click({ button: 'right' })
+      await page.locator('.ctx-menu').getByRole('menuitem', { name: 'Copy', exact: true }).click()
+      await folder.click({ button: 'right' })
+      await expect(
+        page.locator('.ctx-menu').getByRole('menuitem', { name: 'Paste', exact: true })
+      ).toBeEnabled()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.ctx-menu')).toHaveCount(0)
+    }
+  },
+  {
     name: 'bookmarks',
     root: '.rpanel',
     open: async () => {
