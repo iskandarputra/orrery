@@ -1269,6 +1269,24 @@ textarea {
   font-weight: 500;
 }
 
+/* Selected in the tree: neutral, so it never reads as the file that is open,
+   which has the accent. A selected row that is also the open one keeps the
+   accent, below. */
+.tree-row--selected {
+  background: var(--or-active-bg);
+  color: var(--or-fg);
+}
+
+/* The tree takes focus itself rather than each row, so the ring goes on the
+   row the keyboard is on, and only when the keyboard is what moved it. */
+.file-tree:focus {
+  outline: none;
+}
+
+.file-tree:focus-visible .tree-row--focused {
+  box-shadow: inset 0 0 0 1px var(--or-accent);
+}
+
 .tree-row--active {
   background: var(--or-accent-soft);
   color: var(--or-accent-text);

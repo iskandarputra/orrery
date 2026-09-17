@@ -1193,6 +1193,27 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    // Rows selected in the file tree, with the keyboard's ring on one of them:
+    // the selected look is a tint under the label, and a tint is where contrast
+    // goes missing. Chosen with Ctrl so nothing opens, then moved by a key so
+    // the ring is the one a keyboard user sees.
+    name: 'file tree selection',
+    root: '.file-tree',
+    open: async () => {
+      await showFiles()
+      const files = page.locator('.file-tree .tree-row--file')
+      await files.nth(0).click({ modifiers: ['ControlOrMeta'] })
+      await files.nth(1).click({ modifiers: ['ControlOrMeta'] })
+      await page.keyboard.press('Shift+ArrowDown')
+      await expect(page.locator('.file-tree [aria-selected="true"]').first()).toBeVisible()
+      await expect(page.locator('.file-tree .tree-row--focused')).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.file-tree [aria-selected="true"]')).toHaveCount(0)
+    }
+  },
+  {
     // The file tree's context menu on a folder, the longest it gets. Something
     // is copied first, so Paste is measured as the live item it is when it can
     // be used rather than the dimmed one it is otherwise.

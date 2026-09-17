@@ -5,6 +5,7 @@ import { getTheme } from '@/themes/themes'
 import { invoke } from '@/services/client'
 import type { AppState } from './app-state'
 import { folderInclude, relativeToRoot } from '@core/tree-actions'
+import { EMPTY_SELECTION, type TreeSelection } from '@core/tree-selection'
 
 /** Inline editing state in the file tree (create/rename inputs). */
 export interface TreeEdit {
@@ -103,6 +104,8 @@ export interface UiSlice {
   paletteMode: PaletteMode | null
   /** Expanded directories in the file tree (transient, session-scoped). */
   expandedDirs: Record<string, true>
+  /** Which rows of the file tree are selected, and which the keyboard is on. */
+  treeSelection: TreeSelection
   /**
    * A PDF somebody asked to see a particular page of.
    *
@@ -210,6 +213,7 @@ export interface UiSlice {
   openPdfAt(path: string, page: number): void
   toggleDir(path: string): void
   collapseAllDirs(): void
+  setTreeSelection(selection: TreeSelection): void
   toggleFormattingToolbar(): void
   showToast(
     message: string,
@@ -279,6 +283,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   historyOpen: false,
   paletteMode: null,
   expandedDirs: {},
+  treeSelection: EMPTY_SELECTION,
   pdfTarget: null,
   treeEdit: null,
   showFormattingToolbar: false,
@@ -447,6 +452,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   collapseAllDirs() {
     set({ expandedDirs: {} })
     get().syncWatchPaths()
+  },
+
+  setTreeSelection(selection) {
+    set({ treeSelection: selection })
   },
 
   toggleFormattingToolbar() {

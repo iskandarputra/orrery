@@ -1,9 +1,10 @@
 import type { FileNode } from '@shared/types'
 import { MAX_PANES } from '@core/tab-layout'
-import { dirname } from '@core/paths'
+import { basename, dirname } from '@core/paths'
+import { topmostSelected } from '@core/tree-selection'
 import { relativeToRoot } from '@core/tree-actions'
 import { appState } from '@/state/app-state-access'
-import { invoke } from '@/services/client'
+import { invoke, parseIpcError } from '@/services/client'
 import type { MenuItem } from './context-menu/context-menu'
 import { closeBuffersUnder, editNameOf } from './TreeEditInput'
 import { copyText } from '@/services/clipboard'
@@ -103,9 +104,68 @@ function pasteItem(intoDir: string): MenuItem {
   }
 }
 
-/** Context menu for a file-tree node. */
+/**
+ * Move files and folders to the trash, after asking once for all of them.
+ *
+ * One at a time, so a failure names the item it failed on and the rest still
+ * go, and a tab showing any of them closes as it does after a single delete.
+ */
+export function trashWithConfirm(paths: readonly string[]): void {
+  if (paths.length === 0) return
+  const state = appState()
+  const what = paths.length === 1 ? `"${basename(paths[0]!)}"` : `${paths.length} items`
+  if (!window.confirm(`Move ${what} to trash?`)) return
+  void (async () => {
+    for (const path of paths) {
+      try {
+        await invoke('fs:trash', { path })
+        closeBuffersUnder(path)
+      } catch (err) {
+        state.showToast(
+          `Could not move "${basename(path)}" to trash: ${parseIpcError(err).message}`,
+          'error'
+        )
+      }
+    }
+    void state.refreshTree()
+  })()
+}
+
+/**
+ * The menu for several selected rows: only what makes sense for all of them.
+ * Rename and Open are one row's actions, and a paste has no single place to go.
+ */
+function buildSelectionMenu(paths: string[]): MenuItem[] {
+  const state = appState()
+  const root = state.rootPath
+  return [
+    { label: 'Cut', onSelect: () => state.setTreeClipboard('cut', paths) },
+    { label: 'Copy', onSelect: () => state.setTreeClipboard('copy', paths) },
+    { separator: true },
+    { label: 'Copy Paths', icon: 'copy', onSelect: () => void copyText(paths.join('\n')) },
+    {
+      label: 'Copy Relative Paths',
+      disabled: !root,
+      onSelect: () =>
+        void copyText(paths.map((p) => (root ? relativeToRoot(root, p) : p)).join('\n'))
+    },
+    { separator: true },
+    {
+      label: `Delete ${paths.length} Items`,
+      icon: 'x',
+      danger: true,
+      onSelect: () => trashWithConfirm(paths)
+    }
+  ]
+}
+
+/** Context menu for a file-tree node, or for the selection it is part of. */
 export function buildTreeMenu(node: FileNode): MenuItem[] {
   const state = appState()
+  const selected = state.treeSelection.paths
+  if (selected.length > 1 && selected.includes(node.path)) {
+    return buildSelectionMenu(topmostSelected(selected, selected))
+  }
   const isDir = node.kind === 'directory'
   // A file's folder is where its terminal opens and where a paste on it lands,
   // as they do in VS Code: there is nowhere inside a file to put anything.
@@ -124,19 +184,7 @@ export function buildTreeMenu(node: FileNode): MenuItem[] {
       onSelect: () =>
         state.setTreeEdit({ type: 'rename', path: node.path, ...editNameOf(node.path) })
     },
-    {
-      label: 'Delete',
-      icon: 'x',
-      danger: true,
-      onSelect: () => {
-        if (window.confirm(`Move "${node.name}" to trash?`)) {
-          void invoke('fs:trash', { path: node.path }).then(() => {
-            closeBuffersUnder(node.path)
-            void state.refreshTree()
-          })
-        }
-      }
-    }
+    { label: 'Delete', icon: 'x', danger: true, onSelect: () => trashWithConfirm([node.path]) }
   ]
 
   if (isDir) {
