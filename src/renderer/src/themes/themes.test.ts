@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { contrast } from './color'
-import { generateThemeCss, getTheme, highContrastCodeTokens, resolveTheme, THEMES } from './themes'
+import { contrast, difference, mix } from './color'
+import {
+  DIFF_TINT_MAX,
+  DIFF_TINT_MIN,
+  DIFF_TINT_TARGET,
+  DIFF_TINT_TEXT_FLOOR,
+  diffTokens,
+  generateThemeCss,
+  getTheme,
+  highContrastCodeTokens,
+  resolveTheme,
+  THEMES
+} from './themes'
 
 const HEX = /^#[0-9a-f]{6}$/i
 
@@ -97,5 +108,103 @@ describe('themes', () => {
   it('falls back to the first theme for unknown ids', () => {
     expect(getTheme('nope').id).toBe(THEMES[0]!.id)
     expect(getTheme('dracula').id).toBe('dracula')
+  })
+})
+
+describe('the band behind a changed line in a diff', () => {
+  /** Each theme's two bands, with the strength and the colour they paint. */
+  const bands = THEMES.flatMap((spec) => {
+    const resolved = resolveTheme(spec)
+    const tokens = diffTokens(spec, resolved)
+    return (['add', 'del'] as const).map((side) => {
+      const [, r, g, b, a] = /rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/.exec(
+        tokens[`diff-${side}-tint`]!
+      )!
+      const hue = `#${[r, g, b].map((v) => Number(v).toString(16).padStart(2, '0')).join('')}`
+      const strength = Number(a)
+      const ground = resolved['editor-bg']
+      const paint = (s: number): string => mix(ground, hue, s)
+      return { id: `${spec.id} ${side}`, spec, resolved, hue, strength, ground, paint }
+    })
+  })
+
+  it('is drawn in the diff colour itself', () => {
+    for (const band of bands) {
+      const side = band.id.endsWith('add') ? 'diff-add' : 'diff-del'
+      expect(band.hue, band.id).toBe(diffTokens(band.spec, band.resolved)[side])
+    }
+  })
+
+  it('is never weaker than it was, nor strong enough to compete with the code', () => {
+    for (const band of bands) {
+      expect(band.strength, band.id).toBeGreaterThanOrEqual(DIFF_TINT_MIN)
+      expect(band.strength, band.id).toBeLessThanOrEqual(DIFF_TINT_MAX + 1e-9)
+    }
+  })
+
+  it('is lighter than the editor in a dark theme and darker in a light one', () => {
+    for (const band of bands) {
+      const painted = band.paint(band.strength)
+      const white = '#ffffff'
+      const lighter = contrast(painted, white) < contrast(band.ground, white)
+      expect(lighter, band.id).toBe(band.spec.appearance === 'dark')
+    }
+  })
+
+  it('keeps the editor text at AA on top of it in every theme', () => {
+    for (const band of bands) {
+      expect(contrast(band.resolved.fg, band.paint(band.strength)), band.id).toBeGreaterThanOrEqual(
+        4.5
+      )
+    }
+  })
+
+  it('stands out clearly, unless the text or the ceiling stopped it first', () => {
+    const shortOf: string[] = []
+    for (const band of bands) {
+      if (difference(band.paint(band.strength), band.ground) >= DIFF_TINT_TARGET) continue
+      // Short of the target is allowed for exactly two reasons.
+      const atCeiling = band.strength >= DIFF_TINT_MAX - 1e-9
+      const textWouldFail =
+        contrast(band.resolved.fg, band.paint(band.strength + 0.01)) < DIFF_TINT_TEXT_FLOOR
+      if (!atCeiling && !textWouldFail) shortOf.push(band.id)
+    }
+    expect(shortOf).toEqual([])
+  })
+
+  it('reaches the target in the light theme where it was faintest', () => {
+    // GitHub Light's bands were ΔE 5.7 at the old fixed 8%.
+    for (const band of bands.filter((b) => b.spec.id === 'github-light')) {
+      expect(difference(band.paint(band.strength), band.ground), band.id).toBeGreaterThanOrEqual(
+        DIFF_TINT_TARGET
+      )
+    }
+  })
+
+  it('stops short in the palettes whose text cannot afford it', () => {
+    // Their text is 4.6:1 over the old band, so the floor stops the climb early.
+    for (const band of bands.filter((b) => /^(solarized|everforest)-light /.test(b.id))) {
+      expect(difference(band.paint(band.strength), band.ground), band.id).toBeLessThan(
+        DIFF_TINT_TARGET
+      )
+      expect(contrast(band.resolved.fg, band.paint(band.strength)), band.id).toBeGreaterThanOrEqual(
+        4.5
+      )
+    }
+  })
+})
+
+describe('difference', () => {
+  it('is nothing between a colour and itself, and most between black and white', () => {
+    expect(difference('#3fb950', '#3fb950')).toBe(0)
+    expect(difference('#000000', '#ffffff')).toBeCloseTo(100, 0)
+  })
+
+  it('sees a hue that contrast does not', () => {
+    // Nearly the same lightness, plainly different colours.
+    const red = '#d0443c'
+    const grey = '#8a8a8a'
+    expect(contrast(red, grey)).toBeLessThan(1.4)
+    expect(difference(red, grey)).toBeGreaterThan(40)
   })
 })

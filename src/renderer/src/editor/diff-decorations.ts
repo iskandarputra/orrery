@@ -74,11 +74,10 @@ const changedLine = {
 /**
  * The bar beside a changed line.
  *
- * The tint alone was the whole of how a change was shown, and it cannot be made
- * strong enough to find by eye: it sits under the text, so every step darker
- * takes contrast from the code on the line. At the 8% it is held to, a removed
- * line in Tokyo Night measured 1.07:1 against an unchanged one. The bar and the
- * number sit where there is no code, so they take the diff colour at full
+ * The tint alone was the whole of how a change was shown, and it can only go
+ * so far: it sits under the text, so every step stronger takes contrast from
+ * the code on the line (see `diffTint` for where each theme stops). The bar and
+ * the number sit where there is no code, so they take the diff colour at full
  * strength and cost the text nothing.
  */
 class ChangeBar extends GutterMarker {

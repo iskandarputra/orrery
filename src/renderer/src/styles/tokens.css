@@ -24,6 +24,10 @@
   --or-diff-add: #3fb950;
   --or-diff-del: #f85149;
   --or-diff-mod: #d29922;
+  /* The band behind a changed line, as strong as each theme can afford (see
+     diffTint). The fallback is the old fixed strength. */
+  --or-diff-add-tint: rgba(63, 185, 80, 0.08);
+  --or-diff-del-tint: rgba(248, 81, 73, 0.08);
 
   --or-editor-font-size: 16px;
   --or-editor-line-height: 1.7;

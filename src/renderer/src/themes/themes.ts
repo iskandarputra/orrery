@@ -1,4 +1,4 @@
-import { alpha, fade, fillFor, mix, reinforce } from './color'
+import { alpha, contrast, difference, fade, fillFor, mix, reinforce } from './color'
 
 /**
  * A theme is a small hand-picked palette; the full CSS token set is derived
@@ -271,15 +271,67 @@ export function highContrastCodeTokens(spec: ThemeSpec): Record<string, string> 
  * a light one, and a status letter nobody can read conveys nothing at all. So
  * the hue is kept and only its depth moves, and only as far as AA requires.
  */
-function diffTokens(spec: ThemeSpec, resolved: ResolvedTheme): Record<string, string> {
+export function diffTokens(spec: ThemeSpec, resolved: ResolvedTheme): Record<string, string> {
   const surfaces = [resolved.bg, resolved['panel-bg'], resolved['editor-bg']]
   const toward = spec.appearance === 'light' ? '#000000' : '#ffffff'
   const deepen = (hue: string): string => reinforce(hue, toward, surfaces, 4.5)
+  const add = deepen('#3fb950')
+  const del = deepen('#f85149')
   return {
-    'diff-add': deepen('#3fb950'),
-    'diff-del': deepen('#f85149'),
-    'diff-mod': deepen('#d29922')
+    'diff-add': add,
+    'diff-del': del,
+    'diff-mod': deepen('#d29922'),
+    'diff-add-tint': diffTint(add, resolved),
+    'diff-del-tint': diffTint(del, resolved)
   }
+}
+
+/** How far a changed line's band should stand from the editor, as ΔE. */
+export const DIFF_TINT_TARGET = 12
+/** What every band was before, and the least any band is now. */
+export const DIFF_TINT_MIN = 0.08
+/** Past this the band stops reading as a tint and starts competing with the code. */
+export const DIFF_TINT_MAX = 0.2
+/**
+ * The contrast the editor's text keeps on a band: AA, with a little to spare.
+ * The browser paints a translucent colour through 8-bit channels, and a band
+ * worked out here at 4.50:1 measured 4.49:1 in Everforest Light as drawn.
+ */
+export const DIFF_TINT_TEXT_FLOOR = 4.6
+
+/**
+ * The band behind a changed line in a diff: the diff hue, translucent.
+ *
+ * It was 8% in every theme, and 8% is a different thing in each. Measured
+ * against the editor background it came out at ΔE 5.7 in GitHub Light, a
+ * change that takes close attention to find, and 10.3 in Tokyo Night. So the
+ * strength is worked out per theme and per hue: the least that reaches
+ * `DIFF_TINT_TARGET`, which is lighter than the background in a dark theme and
+ * darker in a light one because the hue is.
+ *
+ * It sits under the code, so it is also held to what the code can afford: never
+ * so strong that the editor's own text drops under AA on it. Two palettes
+ * stop there first. Solarized Light and Everforest Light ship their text at
+ * 4.6:1 over the old 8% band already, so their bands stay nearer that. Syntax
+ * colours are not held to it; 26 of the 28 palettes ship some under AA before
+ * any tint, and high-contrast code is the setting for that.
+ */
+export function diffTint(hue: string, resolved: ResolvedTheme): string {
+  const ground = resolved['editor-bg']
+  let strength = DIFF_TINT_MIN
+  // In whole percent, from the old strength up: the first that is visible
+  // enough wins, and the first that costs the text its AA stops the climb.
+  for (
+    let step = Math.round(DIFF_TINT_MIN * 100) + 1;
+    step <= Math.round(DIFF_TINT_MAX * 100);
+    step++
+  ) {
+    if (difference(mix(ground, hue, strength), ground) >= DIFF_TINT_TARGET) break
+    const next = step / 100
+    if (contrast(resolved.fg, mix(ground, hue, next)) < DIFF_TINT_TEXT_FLOOR) break
+    strength = next
+  }
+  return alpha(hue, strength)
 }
 
 export function generateThemeCss(): string {

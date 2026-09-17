@@ -338,26 +338,32 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
         </span>
         <span className="diff__stat diff__stat--added">+{diff?.added ?? 0}</span>
         <span className="diff__stat diff__stat--removed">-{diff?.removed ?? 0}</span>
-        {editable && (
+        {/* One group, pushed right as a whole. Each button used to push itself
+            with its own auto margin, and a row with three of those shares the
+            free space between them, so Save and Open floated in the middle of
+            the bar, well away from the close button they belong with. */}
+        <div className="diff__actions">
+          {editable && (
+            <button
+              className="diff__edit"
+              title="Save changes (Ctrl+S)"
+              disabled={!dirty}
+              onClick={() => void saveRef.current()}
+            >
+              <Icon name="download" size={13} /> {dirty ? 'Save' : 'Saved'}
+            </button>
+          )}
           <button
             className="diff__edit"
-            title="Save changes (Ctrl+S)"
-            disabled={!dirty}
-            onClick={() => void saveRef.current()}
+            title="Open this file in the editor"
+            onClick={() => void openInEditor()}
           >
-            <Icon name="download" size={13} /> {dirty ? 'Save' : 'Saved'}
+            <Icon name="pencil" size={13} /> Open
           </button>
-        )}
-        <button
-          className="diff__edit"
-          title="Open this file in the editor"
-          onClick={() => void openInEditor()}
-        >
-          <Icon name="pencil" size={13} /> Open
-        </button>
-        <button className="icon-btn" aria-label="Close" title="Close this tab" onClick={close}>
-          <Icon name="x" size={15} />
-        </button>
+          <button className="icon-btn" aria-label="Close" title="Close this tab" onClick={close}>
+            <Icon name="x" size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="diff__heads" ref={headsRef} style={{ gridTemplateColumns: columns(split) }}>
