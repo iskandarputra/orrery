@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -9,6 +9,8 @@ let page: Page
 let vault: string
 let binDir: string
 let originalPath: string | undefined
+/** What the stub server was asked, one request per line. */
+let stubLog: string
 
 const SOURCE = ['const fine = 1', 'const BAD = 2', 'const alsoFine = 3'].join('\n') + '\n'
 
@@ -43,6 +45,8 @@ test.beforeAll(async () => {
   chmodSync(shim, 0o755)
   originalPath = process.env['PATH']
   process.env['PATH'] = `${binDir}:${originalPath ?? ''}`
+  stubLog = join(binDir, 'requests.log')
+  process.env['ORRERY_STUB_LSP_LOG'] = stubLog
 
   app = await launchApp()
   page = await app.firstWindow()
@@ -54,6 +58,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await closeCleanly(app, page)
   if (originalPath !== undefined) process.env['PATH'] = originalPath
+  delete process.env['ORRERY_STUB_LSP_LOG']
   rmSync(vault, { recursive: true, force: true })
   rmSync(binDir, { recursive: true, force: true })
 })
@@ -120,7 +125,22 @@ test('hovering a symbol shows what the server knows about it', async () => {
   await page.mouse.move(target.x, target.y, { steps: 15 })
 
   const tip = page.locator('.cm-or-hover')
-  await expect(tip).toBeVisible({ timeout: 15_000 })
+  // If nothing shows, say whether the pointer ever asked: the direct request
+  // above is one hover, so a second means CodeMirror asked and the tooltip is
+  // what went missing, and only one means the pointer never reached it.
+  const hovers = (): string[] =>
+    (existsSync(stubLog) ? readFileSync(stubLog, 'utf-8') : '')
+      .split('\n')
+      .filter((l) => l.startsWith('textDocument/hover'))
+  try {
+    await expect(tip).toBeVisible({ timeout: 15_000 })
+  } catch (err) {
+    // Read after the wait, not before it: a request can land at any point in it.
+    throw new Error(
+      `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}`,
+      { cause: err }
+    )
+  }
   await expect(tip).toContainText('stub docs for')
 })
 
