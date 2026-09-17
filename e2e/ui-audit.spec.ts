@@ -1206,7 +1206,12 @@ const SURFACES: Surface[] = [
     close: async () => {
       await page.locator('.scm__message').fill('')
       await page.locator('[aria-label^="Unstage "]').first().click()
-      await expect(page.locator('[aria-label^="Stage "]').first()).toBeVisible({ timeout: 10_000 })
+      // Until the file has left Staged, not until any Stage button shows: the
+      // vault's untracked files have one each, so that was true before the
+      // click, and the next surface opened a stale staged row.
+      await expect(page.locator('[aria-label="Unstage lexer.ts"]')).toHaveCount(0, {
+        timeout: 10_000
+      })
       // Both views put back: source control leaves the sidebar off the file
       // tree, and the workspace surface every later theme opens first types
       // into that tree's filter.

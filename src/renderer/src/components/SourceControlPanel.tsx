@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react'
-import {
-  EMPTY_STATUS,
-  stagedChanges,
-  unstagedChanges,
-  type GitChange,
-  type GitStatus
-} from '@core/git-status'
+import { EMPTY_STATUS, stagedChanges, unstagedChanges, type GitChange } from '@core/git-status'
 import { EMPTY_DIFF_STATS, type DiffStat, type DiffStats } from '@core/git-numstat'
 import { basename } from '@core/paths'
+import { changeTotals, type ChangeTotals } from '@core/change-totals'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { EmptyState } from './PanelBits'
@@ -84,6 +79,41 @@ function Row({
 }
 
 /**
+ * How much has changed, on the right of the Changes header: the lines, as the
+ * rows add up to, and the number of files.
+ *
+ * Shown with the section closed as much as open, since a closed section is
+ * exactly when the size of what is in it is worth knowing.
+ */
+function ChangeSummary({
+  totals,
+  counted
+}: {
+  totals: ChangeTotals
+  /** Whether the line counts have arrived; until then the files stand alone. */
+  counted: boolean
+}): React.JSX.Element | null {
+  if (totals.files === 0) return null
+  const files = `${totals.files} file${totals.files === 1 ? '' : 's'}`
+  const lines = counted
+    ? `: ${totals.insertions} line${totals.insertions === 1 ? '' : 's'} added, ${totals.deletions} removed`
+    : ''
+  return (
+    <span className="scm__summary" title={`${files} changed${lines}`}>
+      {/* A side with nothing on it is left out, as it is on a row: "+0" reads
+          as a count that went wrong rather than as no lines. */}
+      {counted && totals.insertions > 0 && (
+        <span className="scm-count__add">+{totals.insertions}</span>
+      )}
+      {counted && totals.deletions > 0 && (
+        <span className="scm-count__del">-{totals.deletions}</span>
+      )}
+      <span className="scm__summary-files">{files}</span>
+    </span>
+  )
+}
+
+/**
  * Source control for the vault.
  *
  * Deliberately a working-tree view rather than a git client: what changed,
@@ -97,7 +127,11 @@ export function SourceControlPanel(): React.JSX.Element {
   const git = useStore((s) => s.settings.git)
   const viewMode = git.fileViewMode
   const updateSettings = useStore((s) => s.updateSettings)
-  const [status, setStatus] = useState<GitStatus>(EMPTY_STATUS)
+  // Read in the store, where the source control icon counts it too.
+  const repo = useStore((s) => (s.gitStatus?.rootPath === rootPath ? s.gitStatus : null))
+  const refreshGitStatus = useStore((s) => s.refreshGitStatus)
+  const isRepo = repo ? repo.isRepo : null
+  const status = repo?.status ?? EMPTY_STATUS
   /**
    * The line counts, with the vault they were read for.
    *
@@ -110,7 +144,6 @@ export function SourceControlPanel(): React.JSX.Element {
     stats: EMPTY_DIFF_STATS
   })
   const stats = counted.rootPath === rootPath ? counted.stats : EMPTY_DIFF_STATS
-  const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [message, setMessage] = useState('')
   const sections = git.sections
   const [busy, setBusy] = useState(false)
@@ -118,53 +151,47 @@ export function SourceControlPanel(): React.JSX.Element {
   /**
    * What makes the panel read again. Not a button any more, or not only: a
    * commit in a terminal, a save, a checkout from the graph and the window
-   * coming back all arrive here as a revision, so the list and the history
-   * move together and nobody has to ask.
+   * coming back all arrive as a new status in the store, so the list, the
+   * history and the icon's count move together and nobody has to ask.
    */
-  const repositoryRevision = useStore((s) => s.gitRepositoryRevision)
-  const worktreeRevision = useStore((s) => s.gitWorktreeRevision)
   const noteGitChange = useStore((s) => s.noteGitChange)
   const refresh = (): void => noteGitChange('repository')
 
-  // Hear about commits and checkouts made anywhere, not only from this panel.
+  // Read again whenever the panel opens. What it draws first is the store's
+  // last read, which is only as current as the last signal that arrived, and an
+  // edit made from the integrated terminal in a closed folder sends none.
   useEffect(() => {
-    if (rootPath && isRepo) void invoke('git:watch', { rootPath })
-  }, [rootPath, isRepo])
+    if (rootPath) void refreshGitStatus()
+  }, [rootPath, refreshGitStatus])
 
+  // The counts follow each status, and the rows are drawn without waiting for
+  // them. They are a number on a row rather than the row itself, they cost two
+  // more git processes and a read for each new file, and a repository too large
+  // or too broken to count should still list what changed. So they arrive late
+  // and land on rows already on screen, and only while the panel is: the icon
+  // needs the files, not the lines.
   useEffect(() => {
-    if (!rootPath) return
+    if (!rootPath || !repo?.isRepo) return
     let live = true
-    void (async () => {
-      const repo = await invoke('git:isRepository', { rootPath })
-      if (!live) return
-      setIsRepo(repo)
-      const next = repo ? await invoke('git:status', { rootPath }) : EMPTY_STATUS
-      // Status is two round trips, and the vault can change between them.
-      // Without this guard a slow answer lands on a folder nobody is looking at.
-      if (!live) return
-      setStatus(next)
-
-      // The counts come after, and the rows are drawn without waiting for them.
-      // They are a number on a row rather than the row itself, they cost two
-      // more git processes and a read for each new file, and a repository too
-      // large or too broken to count should still list what changed. So they
-      // arrive late and land on rows that are already on screen.
-      if (!repo) return
-      const untracked = next.changes
-        .filter((c) => c.staged === 'untracked' || c.unstaged === 'untracked')
-        .map((c) => c.path)
-      const read = await invoke('git:diffStats', { rootPath, untracked })
+    const untracked = repo.status.changes
+      .filter((c) => c.staged === 'untracked' || c.unstaged === 'untracked')
+      .map((c) => c.path)
+    void invoke('git:diffStats', { rootPath, untracked }).then((read) => {
       if (live) setCounted({ rootPath, stats: read })
-    })()
+    })
     return () => {
       live = false
     }
-  }, [rootPath, repositoryRevision, worktreeRevision])
+  }, [rootPath, repo])
 
   const act = async (run: () => Promise<unknown>): Promise<void> => {
     setBusy(true)
     try {
       await run()
+      // Read now, not after the settle every other signal waits for. The rows
+      // are drawn from the store's last read, so for those 150ms a staged file
+      // still showed as staged, and a click on it opened a diff of nothing.
+      void refreshGitStatus()
       refresh()
     } finally {
       setBusy(false)
@@ -300,6 +327,10 @@ export function SourceControlPanel(): React.JSX.Element {
         >
           <Icon name={sections.changes ? 'chevron-down' : 'chevron-right'} size={12} />
           Changes
+          <ChangeSummary
+            totals={changeTotals(status, stats)}
+            counted={counted.rootPath === rootPath}
+          />
         </button>
         {sections.changes && (
           <div className="scm__body">
