@@ -121,6 +121,23 @@ test('hovering a symbol shows what the server knows about it', async () => {
     onFirstLine: true,
     text: 'const fine = 1'
   })
+  // What the editor itself receives while the pointer moves, for the failure
+  // message: CI's server has been shown to see no hover from the pointer.
+  await page.evaluate(() => {
+    const events: string[] = []
+    ;(window as unknown as { __hoverEvents: string[] }).__hoverEvents = events
+    const start = performance.now()
+    const note = (e: MouseEvent): void => {
+      const t = e.target as Element
+      events.push(
+        `${Math.round(performance.now() - start)}ms ${e.type} ${e.clientX},${e.clientY} ${t.className || t.tagName}`
+      )
+    }
+    const dom = document.querySelector('.cm-editor')!
+    for (const type of ['mousemove', 'mouseleave', 'mouseover', 'mouseout'] as const) {
+      dom.addEventListener(type, note as EventListener, true)
+    }
+  })
   await page.mouse.move(box.x + 10, target.y, { steps: 5 })
   await page.mouse.move(target.x, target.y, { steps: 15 })
 
@@ -136,8 +153,12 @@ test('hovering a symbol shows what the server knows about it', async () => {
     await expect(tip).toBeVisible({ timeout: 15_000 })
   } catch (err) {
     // Read after the wait, not before it: a request can land at any point in it.
+    const events = await page.evaluate(
+      () => (window as unknown as { __hoverEvents?: string[] }).__hoverEvents ?? []
+    )
     throw new Error(
-      `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}`,
+      `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}` +
+        `\neditor mouse events (last 12 of ${events.length}): ${JSON.stringify(events.slice(-12))}`,
       { cause: err }
     )
   }
