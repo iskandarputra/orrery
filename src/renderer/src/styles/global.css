@@ -3001,6 +3001,39 @@ textarea {
   background: color-mix(in srgb, var(--or-diff-add) 8%, transparent);
 }
 
+/* What makes a change findable, since the tint above cannot be: a bar beside
+   the text and the line's number, both in the diff colour at full strength.
+   Neither sits under code, and the diff tokens are deepened per theme to 4.5:1
+   against the editor background, so both clear AA as text and as a mark. */
+.cm-or-diff-gutter {
+  width: 3px;
+  padding: 0;
+  margin-right: 6px;
+}
+
+.cm-or-diff-bar {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.cm-or-diff-bar--old {
+  background: var(--or-diff-del);
+}
+
+.cm-or-diff-bar--new {
+  background: var(--or-diff-add);
+}
+
+.cm-lineNumbers .cm-or-diff-changed--old {
+  color: var(--or-diff-del);
+}
+
+.cm-lineNumbers .cm-or-diff-changed--new {
+  color: var(--or-diff-add);
+}
+
 .diff__head {
   padding: 0.25rem 0.9rem;
   font-size: 11px;
