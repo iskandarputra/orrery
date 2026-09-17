@@ -31,7 +31,7 @@ const openGraph = async (): Promise<void> => {
     }
     // Open by default. A section header toggles, so it is clicked only when
     // the graph is closed; clicking it open would close it.
-    const header = page.locator('.scm__section', { hasText: 'GRAPH' }).first()
+    const header = page.locator('[data-section="graph"] .scm__section-toggle')
     await expect(header).toBeVisible({ timeout: 15_000 })
     if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click()
   }

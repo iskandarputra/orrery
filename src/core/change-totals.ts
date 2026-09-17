@@ -1,24 +1,25 @@
-import type { DiffStats } from './git-numstat'
-import { stagedChanges, unstagedChanges, type GitStatus } from './git-status'
+import type { DiffStatsByPath } from './git-numstat'
+import type { GitChange, GitStatus } from './git-status'
 
 /**
- * How much the working tree has changed, all told: the number beside the
- * source control icon, and the totals on the Changes header.
+ * How much the working tree has changed: the number beside the source control
+ * icon, and the totals on each section's header.
  */
 export interface ChangeTotals {
-  /** Files with any change, each counted once. */
+  /** Files, each counted once. */
   files: number
-  /** Lines added across every row the panel lists. */
+  /** Lines added across the rows counted. */
   insertions: number
-  /** Lines removed across every row the panel lists. */
+  /** Lines removed across the rows counted. */
   deletions: number
 }
 
 /**
  * Files with any change, each counted once.
  *
- * A file staged and then edited again is listed twice, once under Staged and
- * once under Unstaged, and a count of rows would call that two changed files.
+ * A file staged and then edited again is listed twice, once under Staged
+ * Changes and once under Changes, and a count of rows would call that two
+ * changed files.
  * It is one file, and "how many files have I touched" is the question the
  * badge answers. Status already reports each path once, with both sides on it.
  */
@@ -27,23 +28,22 @@ export function changedFileCount(status: GitStatus): number {
 }
 
 /**
- * The files, and the sum of the line counts on every row.
+ * One section's files and the sum of the line counts on its rows: Staged
+ * Changes with the staged counts, Changes with the unstaged ones.
  *
- * Summed by row rather than by file, so the totals are exactly what adding up
- * the column beside the names would give. A file on both sides contributes
- * its staged lines and its unstaged lines, which are different edits. A row
- * whose count has not arrived, or a binary file, adds nothing: a total that
- * guessed would be a number nobody could check against the list.
+ * Summed by row, so the totals are exactly what adding up the column beside
+ * the names in that section gives. A row whose count has not arrived, or a
+ * binary file, adds nothing: a total that guessed would be a number nobody
+ * could check against the list.
  */
-export function changeTotals(status: GitStatus, stats: DiffStats): ChangeTotals {
+export function sectionTotals(changes: readonly GitChange[], stats: DiffStatsByPath): ChangeTotals {
   let insertions = 0
   let deletions = 0
-  const add = (stat: DiffStats['staged'][string] | undefined): void => {
-    if (!stat || stat.binary) return
+  for (const change of changes) {
+    const stat = stats[change.path]
+    if (!stat || stat.binary) continue
     insertions += stat.insertions
     deletions += stat.deletions
   }
-  for (const change of stagedChanges(status)) add(stats.staged[change.path])
-  for (const change of unstagedChanges(status)) add(stats.unstaged[change.path])
-  return { files: changedFileCount(status), insertions, deletions }
+  return { files: changes.length, insertions, deletions }
 }

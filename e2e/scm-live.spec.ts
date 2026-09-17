@@ -36,7 +36,9 @@ async function openPanel(): Promise<void> {
   await expect(page.locator('.scm__section').first()).toBeVisible({ timeout: 15_000 })
 }
 
-const section = (name: 'Changes' | 'Graph') => page.locator('.scm__section', { hasText: name })
+/** A section's toggle, found by name rather than text: "Staged Changes" contains "Changes". */
+const section = (name: 'Changes' | 'Graph') =>
+  page.locator(`[data-section="${name.toLowerCase()}"] .scm__section-toggle`)
 const row = (name: string) => page.locator('.scm-row__name', { hasText: name })
 
 /** Open or close a section, whichever state it is in now. */

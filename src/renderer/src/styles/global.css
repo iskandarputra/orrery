@@ -3380,10 +3380,10 @@ textarea {
 }
 
 /* Source control sections. VS Code's source control container holds several
-   views; this is the same idea at panel scale. The change list and the graph
-   are different questions, but they are asked together (what is about to be
-   committed, and onto what), so each opens and closes on its own and each
-   scrolls within its own share of the panel. */
+   views; this is the same idea at panel scale. Staged Changes, Changes and the
+   graph are different questions, but they are asked together (what is about
+   to be committed, and onto what), so each opens and closes on its own and
+   each scrolls within its own share of the panel. */
 .scm__part {
   display: flex;
   flex-direction: column;
@@ -3391,16 +3391,19 @@ textarea {
   min-height: 0;
 }
 
-.scm__part--open {
-  flex: 1 1 0;
+/* An open list is as tall as its rows, and gives way when there is not room
+   for everything, though never past its own header and a row. An even split
+   would give a two-file list as much of the panel as a two-hundred-file one. */
+.scm__part--list.scm__part--open {
+  flex: 0 1 auto;
+  min-height: 4.5rem;
 }
 
-/* Both open: the change list takes the height it needs, up to half, and the
-   history has the rest. An even split would give a two-file list half the
-   panel while the history scrolled in what was left. */
-.scm--both .scm__part--changes {
-  flex: 0 1 auto;
-  max-height: 50%;
+/* The history has what the lists leave, and never less than half: a long
+   change list must not squeeze it out of sight. */
+.scm__part--graph.scm__part--open {
+  flex: 1 1 0;
+  min-height: 50%;
 }
 
 .scm__body {
@@ -3412,22 +3415,60 @@ textarea {
 .scm__section {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.45rem 0.6rem;
+  padding: 0.2rem 0.6rem 0.2rem 0.4rem;
   border-top: 1px solid var(--or-border);
   color: var(--or-fg-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* The title opens and closes the section; the totals and the action beside it
+   are not part of that button, because the action is a button of its own. */
+.scm__section-toggle {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 0.2rem;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-/* The totals on the right of the Changes header. Not in the header's voice:
+/* In a narrow sidebar the title is what gives way, to an ellipsis. It ran on
+   under the totals instead, and the chevron beside it was squeezed to nothing. */
+.scm__section-toggle > svg {
+  flex: none;
+}
+
+.scm__section-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stage all and Unstage all, in the voice of a link rather than of the title. */
+.scm__section .scm__group-act {
+  flex: none;
+  margin-left: 0;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The totals on the right of a section's header. Not in the header's voice:
    it is bold uppercase, and a count set that way reads as part of the title. */
 .scm__summary {
   display: inline-flex;
+  flex: none;
   align-items: baseline;
   gap: 0.4rem;
   margin-left: auto;

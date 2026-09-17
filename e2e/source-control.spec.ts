@@ -30,7 +30,8 @@ async function openPanel(): Promise<void> {
  * already open would close it.
  */
 async function setSection(name: 'Changes' | 'Graph', open: boolean): Promise<void> {
-  const header = page.locator('.scm__section').filter({ hasText: name })
+  // By name rather than text: "Staged Changes" contains "Changes".
+  const header = page.locator(`[data-section="${name.toLowerCase()}"] .scm__section-toggle`)
   if ((await header.getAttribute('aria-expanded')) !== String(open)) await header.click()
   await expect(header).toHaveAttribute('aria-expanded', String(open))
 }
@@ -98,12 +99,12 @@ test('lists an edit, stages it, and commits it', async () => {
   await openPanel()
   await refresh()
 
-  // Appears as an unstaged change.
-  await expect(page.locator('.scm__group-label').filter({ hasText: 'Unstaged' })).toBeVisible()
-  await expect(page.locator('.scm-row__file')).toHaveText('Index.md')
+  // Appears as a change, and nothing is staged yet.
+  await expect(page.locator('[data-section="changes"] .scm-row__file')).toHaveText('Index.md')
+  await expect(page.locator('[data-section="staged"]')).toHaveCount(0)
 
   await page.locator('button[aria-label="Stage Index.md"]').click()
-  await expect(page.locator('.scm__group-label').filter({ hasText: 'Staged' })).toBeVisible({
+  await expect(page.locator('[data-section="staged"] .scm-row__file')).toHaveText('Index.md', {
     timeout: 10_000
   })
 
@@ -125,14 +126,13 @@ test('an untracked file shows, and unstaging returns it', async () => {
   await expect(page.locator('.scm-row__file')).toHaveText('brand new.md')
 
   await page.locator('button[aria-label="Stage brand new.md"]').click()
-  await expect(page.locator('.scm__group-label').filter({ hasText: 'Staged' })).toBeVisible({
+  await expect(page.locator('[data-section="staged"] .scm-row__file')).toHaveText('brand new.md', {
     timeout: 10_000
   })
 
   await page.locator('button[aria-label="Unstage brand new.md"]').click()
-  await expect(page.locator('.scm__group-label').filter({ hasText: 'Unstaged' })).toBeVisible({
-    timeout: 10_000
-  })
+  await expect(page.locator('[data-section="staged"]')).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.locator('[data-section="changes"] .scm-row__file')).toHaveText('brand new.md')
   // Still on disk — unstaging must never touch the working tree.
   expect(execFileSync('git', ['status', '--porcelain'], { cwd: vault }).toString()).toContain(
     'brand new.md'
@@ -270,7 +270,7 @@ test('the graph section shows the history', async () => {
   // Closing the graph hides it and leaves the changes where they were.
   await setSection('Graph', false)
   await expect(graph).toBeHidden()
-  await expect(page.locator('.scm__section').filter({ hasText: 'Changes' })).toHaveAttribute(
+  await expect(page.locator('[data-section="changes"] .scm__section-toggle')).toHaveAttribute(
     'aria-expanded',
     'true'
   )
