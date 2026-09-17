@@ -8,6 +8,7 @@ import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
 import { useStore } from '@/state/store'
 import { Icon } from './Icon'
+import { copyText } from '@/services/clipboard'
 
 export function HeaderBar(): React.JSX.Element | null {
   const activeId = useStore((s) => s.activeId)
@@ -102,7 +103,7 @@ export function HeaderBar(): React.JSX.Element | null {
     setExportMenuOpen(false)
     const view = getActiveView()
     if (!view) return
-    await navigator.clipboard.writeText(view.state.doc.toString())
+    await copyText(view.state.doc.toString())
     showToast('Markdown copied to clipboard', 'success')
   }
 

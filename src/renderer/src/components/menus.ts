@@ -6,6 +6,7 @@ import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
 import type { MenuItem } from './context-menu/context-menu'
 import { closeBuffersUnder, editNameOf } from './TreeEditInput'
+import { copyText } from '@/services/clipboard'
 
 /** Context menu for a tab. */
 export function buildTabMenu(bufferId: string): MenuItem[] {
@@ -49,7 +50,7 @@ export function buildTabMenu(bufferId: string): MenuItem[] {
     {
       label: 'Copy Path',
       disabled: !buffer.filePath,
-      onSelect: () => void navigator.clipboard.writeText(buffer.filePath ?? '')
+      onSelect: () => void copyText(buffer.filePath ?? '')
     },
     {
       label: 'Reveal in File Manager',
@@ -83,11 +84,11 @@ function placeItems(dir: string): MenuItem[] {
 function copyPathItems(path: string): MenuItem[] {
   const root = appState().rootPath
   return [
-    { label: 'Copy Path', icon: 'copy', onSelect: () => void navigator.clipboard.writeText(path) },
+    { label: 'Copy Path', icon: 'copy', onSelect: () => void copyText(path) },
     {
       label: 'Copy Relative Path',
       disabled: !root,
-      onSelect: () => void navigator.clipboard.writeText(root ? relativeToRoot(root, path) : path)
+      onSelect: () => void copyText(root ? relativeToRoot(root, path) : path)
     }
   ]
 }
@@ -211,6 +212,6 @@ export function buildTreeRootMenu(root: string): MenuItem[] {
     { separator: true },
     pasteItem(root),
     { separator: true },
-    { label: 'Copy Path', icon: 'copy', onSelect: () => void navigator.clipboard.writeText(root) }
+    { label: 'Copy Path', icon: 'copy', onSelect: () => void copyText(root) }
   ]
 }

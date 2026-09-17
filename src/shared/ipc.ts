@@ -209,6 +209,8 @@ export interface IpcInvokeContract {
   /** Move a file or folder to a path not yet in use. Resolves to that path. */
   'fs:move': { req: { from: string; to: string }; res: string }
   'shell:showItemInFolder': { req: { path: string }; res: void }
+  /** Put text on the system clipboard, from main, which needs no focus to. */
+  'clipboard:writeText': { req: { text: string }; res: void }
   /**
    * Hand one HTML file to whatever the system opens HTML with.
    *

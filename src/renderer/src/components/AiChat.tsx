@@ -6,6 +6,7 @@ import { invoke, on, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
 import type { AiToolStep } from '@shared/types'
 import { Icon } from './Icon'
+import { copyText } from '@/services/clipboard'
 
 interface Turn {
   role: 'user' | 'assistant'
@@ -165,7 +166,7 @@ export function AiChatBody(): React.JSX.Element {
   }
 
   const handleCopyTurn = async (content: string): Promise<void> => {
-    await navigator.clipboard.writeText(content)
+    await copyText(content)
     showToast('Copied to clipboard', 'success')
   }
 

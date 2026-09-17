@@ -14,6 +14,7 @@ import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { Icon } from '@/components/Icon'
 import { NumberField, SettingRow, TextField, Toggle } from '../controls'
+import { copyText } from '@/services/clipboard'
 
 /**
  * The servers Orrery talks to, and what they are allowed to do.
@@ -414,7 +415,7 @@ function VaultServer(): React.JSX.Element {
               <button
                 className="btn"
                 onClick={() => {
-                  void navigator.clipboard.writeText(status.token)
+                  void copyText(status.token)
                   showToast('Token copied', 'success')
                 }}
               >

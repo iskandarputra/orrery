@@ -90,13 +90,34 @@ test('hovering a symbol shows what the server knows about it', async () => {
     .poll(async () => (await diagnostics()).length, { timeout: 20_000 })
     .toBeGreaterThan(0)
 
+  // The server first, asked directly, so a failure further down is about the
+  // pointer and not about whether an answer was there to show. This test fails
+  // on CI and passes locally, and until it said which half broke, nothing did.
+  const direct = await page.evaluate(
+    (path) => window.orrery.invoke('lsp:hover', { path, line: 0, character: 6 }),
+    join(vault, 'code.ts')
+  )
+  expect(direct, 'the server answers a hover asked for directly').toContain('stub docs for')
+
   // Hover the word "fine" on the first line.
   // CodeMirror tracks the pointer across a run of mousemove events and then
   // waits for it to settle; one jump to the target coordinate produces neither.
   const box = (await page.locator('.cm-content .cm-line').first().boundingBox())!
   await page.locator('.cm-content').click()
-  await page.mouse.move(box.x + 10, box.y + box.height / 2, { steps: 5 })
-  await page.mouse.move(box.x + 48, box.y + box.height / 2, { steps: 15 })
+  const target = { x: box.x + 48, y: box.y + box.height / 2 }
+  // And the pointer's target is text on that line, not padding or another line.
+  const under = await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y)
+    const line = el?.closest('.cm-line')
+    const first = document.querySelector('.cm-content .cm-line')
+    return { onFirstLine: !!line && line === first, text: line?.textContent ?? el?.className ?? '' }
+  }, target)
+  expect(under, 'the pointer is over the first line').toEqual({
+    onFirstLine: true,
+    text: 'const fine = 1'
+  })
+  await page.mouse.move(box.x + 10, target.y, { steps: 5 })
+  await page.mouse.move(target.x, target.y, { steps: 15 })
 
   const tip = page.locator('.cm-or-hover')
   await expect(tip).toBeVisible({ timeout: 15_000 })

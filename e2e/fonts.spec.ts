@@ -40,15 +40,35 @@ test.afterAll(async () => {
 })
 
 test('the bundled face really loads, in every weight and slant', async () => {
-  const loaded = await page.evaluate(async (family) => {
-    await document.fonts.ready
-    return {
-      regular: document.fonts.check(`12px "${family}"`),
-      bold: document.fonts.check(`bold 12px "${family}"`),
-      italic: document.fonts.check(`italic 12px "${family}"`)
+  // Each face is asked for and then its own declaration is read back, rather
+  // than `document.fonts.check`. Check answers for whatever would draw the
+  // text, and on a machine with Meslo installed that is the system's copy: it
+  // said true for italic while the bundled italic had not loaded, and CI, with
+  // no Meslo installed and nothing yet drawn in italic, said false. A face
+  // whose file is missing ends as `error`, not `loaded`.
+  const status = await page.evaluate(async (family) => {
+    const faces = [
+      ['normal', '400'],
+      ['normal', '700'],
+      ['italic', '400'],
+      ['italic', '700']
+    ] as const
+    const out: Record<string, string> = {}
+    for (const [style, weight] of faces) {
+      await document.fonts.load(`${style} ${weight} 12px "${family}"`).catch(() => [])
+      const declared = Array.from(document.fonts).find(
+        (f) => f.family.replace(/["']/g, '') === family && f.style === style && f.weight === weight
+      )
+      out[`${style} ${weight}`] = declared?.status ?? 'not declared'
     }
+    return out
   }, MESLO)
-  expect(loaded).toEqual({ regular: true, bold: true, italic: true })
+  expect(status).toEqual({
+    'normal 400': 'loaded',
+    'normal 700': 'loaded',
+    'italic 400': 'loaded',
+    'italic 700': 'loaded'
+  })
 })
 
 test('it leads the mono token, so code inherits it', async () => {
