@@ -156,9 +156,32 @@ test('hovering a symbol shows what the server knows about it', async () => {
     const events = await page.evaluate(
       () => (window as unknown as { __hoverEvents?: string[] }).__hoverEvents ?? []
     )
+    // CodeMirror measures on animation frames; a page the browser has decided
+    // is hidden gets none, and a hover then finds no position to ask about.
+    const page_ = await page.evaluate(async () => {
+      let frames = 0
+      const end = performance.now() + 500
+      await new Promise<void>((done) => {
+        const tick = (): void => {
+          frames++
+          if (performance.now() < end) requestAnimationFrame(tick)
+          else done()
+        }
+        requestAnimationFrame(tick)
+        setTimeout(done, 1000)
+      })
+      return {
+        visibility: document.visibilityState,
+        focused: document.hasFocus(),
+        framesIn500ms: frames,
+        window: `${innerWidth}x${innerHeight}`,
+        screen: `${screen.width}x${screen.height}`
+      }
+    })
     throw new Error(
       `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}` +
-        `\neditor mouse events (last 12 of ${events.length}): ${JSON.stringify(events.slice(-12))}`,
+        `\neditor mouse events (last 12 of ${events.length}): ${JSON.stringify(events.slice(-12))}` +
+        `\npage: ${JSON.stringify(page_)}`,
       { cause: err }
     )
   }
