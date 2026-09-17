@@ -346,12 +346,17 @@ export const settingsSchema = z.object({
        */
       fileViewMode: z.enum(['list', 'tree']).default('list'),
       /**
-       * Which of the panel's sections are open. Independent, and both open by
+       * Which of the panel's sections are open. Independent, and all open by
        * default: they were an accordion, so seeing what changed meant hiding
-       * the history it was about to join.
+       * the history it was about to join. Staged Changes only shows when
+       * something is staged; this is whether it is open when it does.
        */
       sections: z
-        .object({ changes: z.boolean().default(true), graph: z.boolean().default(true) })
+        .object({
+          staged: z.boolean().default(true),
+          changes: z.boolean().default(true),
+          graph: z.boolean().default(true)
+        })
         .prefault({})
     })
     .prefault({}),

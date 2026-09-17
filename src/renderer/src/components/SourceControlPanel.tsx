@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { EMPTY_STATUS, stagedChanges, unstagedChanges, type GitChange } from '@core/git-status'
 import { EMPTY_DIFF_STATS, type DiffStat, type DiffStats } from '@core/git-numstat'
 import { basename } from '@core/paths'
-import { changeTotals, type ChangeTotals } from '@core/change-totals'
+import { sectionTotals, type ChangeTotals } from '@core/change-totals'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { EmptyState } from './PanelBits'
@@ -79,8 +79,56 @@ function Row({
 }
 
 /**
- * How much has changed, on the right of the Changes header: the lines, as the
- * rows add up to, and the number of files.
+ * One of the panel's sections: a header that opens and closes it, with the
+ * section's totals and its one action beside the title, and what it holds.
+ *
+ * The header is a row rather than one button, because the action is a button
+ * of its own and a button cannot hold another. `data-section` names it for
+ * anything that has to find one, since "Staged Changes" contains "Changes".
+ */
+function Section({
+  id,
+  title,
+  open,
+  onToggle,
+  summary,
+  action,
+  children
+}: {
+  id: 'staged' | 'changes' | 'graph'
+  title: string
+  open: boolean
+  onToggle: () => void
+  summary?: React.ReactNode
+  action?: { label: string; run: () => void }
+  children: React.ReactNode
+}): React.JSX.Element {
+  const list = id !== 'graph'
+  return (
+    <div
+      className={`scm__part scm__part--${list ? 'list' : 'graph'}${open ? ' scm__part--open' : ''}`}
+      data-section={id}
+    >
+      <div className={`scm__section${open ? ' scm__section--open' : ''}`}>
+        <button className="scm__section-toggle" aria-expanded={open} onClick={onToggle}>
+          <Icon name={open ? 'chevron-down' : 'chevron-right'} size={12} />
+          <span className="scm__section-title">{title}</span>
+        </button>
+        {summary}
+        {action && (
+          <button className="scm__group-act" onClick={action.run}>
+            {action.label}
+          </button>
+        )}
+      </div>
+      {open && (list ? <div className="scm__body">{children}</div> : children)}
+    </div>
+  )
+}
+
+/**
+ * How much a section holds, on the right of its header: the lines, as its rows
+ * add up to, and the number of files.
  *
  * Shown with the section closed as much as open, since a closed section is
  * exactly when the size of what is in it is worth knowing.
@@ -144,6 +192,7 @@ export function SourceControlPanel(): React.JSX.Element {
     stats: EMPTY_DIFF_STATS
   })
   const stats = counted.rootPath === rootPath ? counted.stats : EMPTY_DIFF_STATS
+  const statsIn = counted.rootPath === rootPath
   const [message, setMessage] = useState('')
   const sections = git.sections
   const [busy, setBusy] = useState(false)
@@ -249,7 +298,7 @@ export function SourceControlPanel(): React.JSX.Element {
   }
 
   return (
-    <div className={`scm${sections.changes && sections.graph ? ' scm--both' : ''}`}>
+    <div className="scm">
       {/* This view's own header, built like the file tree's so the two views
           match: the branch is the title, and the actions that belong to source
           control sit where the tree's actions sit. */}
@@ -316,100 +365,79 @@ export function SourceControlPanel(): React.JSX.Element {
         </button>
       </div>
 
-      {/* Two sections that open and close on their own. They were one or the
-          other, so looking at what was about to be committed meant hiding the
-          history it was about to join. */}
-      <div className={`scm__part scm__part--changes${sections.changes ? ' scm__part--open' : ''}`}>
-        <button
-          className={`scm__section${sections.changes ? ' scm__section--open' : ''}`}
-          aria-expanded={sections.changes}
-          onClick={() => toggleSection('changes')}
+      {/* Staged Changes above Changes, as VS Code has them, and the graph under
+          both. Each opens and closes on its own: they were an accordion, so
+          looking at what was about to be committed meant hiding the history
+          it was about to join. Staged Changes is only there when something is. */}
+      {staged.length > 0 && (
+        <Section
+          id="staged"
+          title="Staged Changes"
+          open={sections.staged}
+          onToggle={() => toggleSection('staged')}
+          summary={<ChangeSummary totals={sectionTotals(staged, stats.staged)} counted={statsIn} />}
+          action={{ label: 'Unstage all', run: () => void unstage(staged.map((c) => c.path)) }}
         >
-          <Icon name={sections.changes ? 'chevron-down' : 'chevron-right'} size={12} />
-          Changes
-          <ChangeSummary
-            totals={changeTotals(status, stats)}
-            counted={counted.rootPath === rootPath}
-          />
-        </button>
-        {sections.changes && (
-          <div className="scm__body">
-            {clean ? (
-              <EmptyState icon="check">No changes — the working tree is clean.</EmptyState>
-            ) : (
-              <>
-                {staged.length > 0 && (
-                  <>
-                    <div className="scm__group">
-                      <span className="scm__group-label">Staged</span>
-                      <span className="rpanel-count__badge">{staged.length}</span>
-                      <button
-                        className="scm__group-act"
-                        onClick={() => void unstage(staged.map((c) => c.path))}
-                      >
-                        Unstage all
-                      </button>
-                    </div>
-                    <ChangeTree
-                      items={staged}
-                      getPath={(c) => c.path}
-                      mode={viewMode}
-                      renderRow={(c) => (
-                        <Row
-                          change={c}
-                          side="staged"
-                          stat={stats.staged[c.path]}
-                          onPrimary={(x) => void unstage([x.path])}
-                        />
-                      )}
-                    />
-                  </>
-                )}
-                {unstaged.length > 0 && (
-                  <>
-                    <div className="scm__group">
-                      <span className="scm__group-label">Unstaged</span>
-                      <span className="rpanel-count__badge">{unstaged.length}</span>
-                      <button
-                        className="scm__group-act"
-                        onClick={() => void stage(unstaged.map((c) => c.path))}
-                      >
-                        Stage all
-                      </button>
-                    </div>
-                    <ChangeTree
-                      items={unstaged}
-                      getPath={(c) => c.path}
-                      mode={viewMode}
-                      renderRow={(c) => (
-                        <Row
-                          change={c}
-                          side="unstaged"
-                          stat={stats.unstaged[c.path]}
-                          onPrimary={(x) => void stage([x.path])}
-                          onDiscard={(x) => void discard(x)}
-                        />
-                      )}
-                    />
-                  </>
-                )}
-              </>
+          <ChangeTree
+            items={staged}
+            getPath={(c) => c.path}
+            mode={viewMode}
+            renderRow={(c) => (
+              <Row
+                change={c}
+                side="staged"
+                stat={stats.staged[c.path]}
+                onPrimary={(x) => void unstage([x.path])}
+              />
             )}
-          </div>
-        )}
-      </div>
+          />
+        </Section>
+      )}
 
-      <div className={`scm__part scm__part--graph${sections.graph ? ' scm__part--open' : ''}`}>
-        <button
-          className={`scm__section${sections.graph ? ' scm__section--open' : ''}`}
-          aria-expanded={sections.graph}
-          onClick={() => toggleSection('graph')}
-        >
-          <Icon name={sections.graph ? 'chevron-down' : 'chevron-right'} size={12} />
-          Graph
-        </button>
-        {sections.graph && <GitGraph />}
-      </div>
+      <Section
+        id="changes"
+        title="Changes"
+        open={sections.changes}
+        onToggle={() => toggleSection('changes')}
+        summary={
+          <ChangeSummary totals={sectionTotals(unstaged, stats.unstaged)} counted={statsIn} />
+        }
+        action={
+          unstaged.length > 0
+            ? { label: 'Stage all', run: () => void stage(unstaged.map((c) => c.path)) }
+            : undefined
+        }
+      >
+        {clean ? (
+          <EmptyState icon="check">No changes — the working tree is clean.</EmptyState>
+        ) : unstaged.length === 0 ? (
+          <EmptyState icon="check">Everything is staged.</EmptyState>
+        ) : (
+          <ChangeTree
+            items={unstaged}
+            getPath={(c) => c.path}
+            mode={viewMode}
+            renderRow={(c) => (
+              <Row
+                change={c}
+                side="unstaged"
+                stat={stats.unstaged[c.path]}
+                onPrimary={(x) => void stage([x.path])}
+                onDiscard={(x) => void discard(x)}
+              />
+            )}
+          />
+        )}
+      </Section>
+
+      <Section
+        id="graph"
+        title="Graph"
+        open={sections.graph}
+        onToggle={() => toggleSection('graph')}
+      >
+        <GitGraph />
+      </Section>
     </div>
   )
 }
