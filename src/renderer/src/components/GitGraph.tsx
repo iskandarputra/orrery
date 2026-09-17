@@ -239,6 +239,7 @@ export function GitGraph(): React.JSX.Element {
   // and a commit made anywhere appears here without being asked for.
   const repositoryRevision = useStore((s) => s.gitRepositoryRevision)
   const noteGitChange = useStore((s) => s.noteGitChange)
+  const refreshGitStatus = useStore((s) => s.refreshGitStatus)
   /**
    * The commit a new branch is being named for.
    *
@@ -261,6 +262,8 @@ export function GitGraph(): React.JSX.Element {
     void work
       .then(() => {
         showToast(label, 'success')
+        // The change list at once, as after the panel's own actions.
+        void refreshGitStatus()
         noteGitChange('repository')
       })
       .catch((err) => showToast(parseIpcError(err).message, 'error'))

@@ -3420,6 +3420,26 @@ textarea {
   cursor: pointer;
 }
 
+/* The totals on the right of the Changes header. Not in the header's voice:
+   it is bold uppercase, and a count set that way reads as part of the title. */
+.scm__summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-left: auto;
+  font-family: var(--or-mono-font);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.scm__summary-files {
+  color: var(--or-fg-muted);
+}
+
 .scm__section:hover {
   background: var(--or-hover-bg);
   color: var(--or-fg);
@@ -6177,6 +6197,27 @@ kbd {
 
 .sidebar-rail__btn--active {
   color: var(--or-accent-text);
+}
+
+/* How many files have changed, on the source control icon, where VS Code puts
+   it: a filled chip at the icon's lower right. The accent fill and its ink are
+   a pair each theme already makes legible together. */
+.sidebar-rail__badge {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--or-radius-full);
+  background: var(--or-accent-fill);
+  color: var(--or-accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 /* The marker on the active view, on the edge the rail is attached to. */

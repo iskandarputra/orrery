@@ -3,6 +3,7 @@ import type { FileNode, FsEvent } from '@shared/types'
 import { filesFromPaths, notesFromPaths, type NoteRef } from '@core/notes'
 import { loadedDirs, parentDir, withChildren } from '@core/file-tree'
 import { pushRecent } from '@core/recent'
+import { EMPTY_STATUS, type GitStatus } from '@core/git-status'
 import { invoke, parseIpcError } from '@/services/client'
 import type { AppState } from './app-state'
 
@@ -49,6 +50,15 @@ export interface WorkspaceSlice {
    * process. A burst is one read.
    */
   noteGitChange(scope: 'repository' | 'worktree'): void
+  /**
+   * The vault's repository status, as of the last read: what the source control
+   * icon counts and the panel lists. Kept here rather than in the panel, because
+   * the icon has to show it while the panel is not on screen. Null before the
+   * first read; `rootPath` says which vault it belongs to.
+   */
+  gitStatus: { rootPath: string; isRepo: boolean; status: GitStatus } | null
+  /** Read it again, and start hearing about the repository if there is one. */
+  refreshGitStatus(): Promise<void>
 }
 
 /**
@@ -64,6 +74,8 @@ const MAX_INDEXED_FILES = 60_000
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 /** Short enough not to be noticed, long enough to swallow a burst. */
 const GIT_SETTLE_MS = 150
+/** Bumped per status read, so an answer that has been overtaken is dropped. */
+let statusReads = 0
 const gitTimers: Record<'repository' | 'worktree', ReturnType<typeof setTimeout> | null> = {
   repository: null,
   worktree: null
@@ -107,6 +119,7 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
   indexTruncated: false,
   gitRepositoryRevision: 0,
   gitWorktreeRevision: 0,
+  gitStatus: null,
 
   async openFolder(path) {
     const target = path ?? (await invoke('dialog:openFolder', undefined))
@@ -140,6 +153,9 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
       // the walk that finds every file for quick open and wikilinks is still
       // running.
       void get().refreshIndex()
+      // From the moment the vault opens, not when the panel does: the icon's
+      // count has to be right, and kept right, with the file tree on screen.
+      void get().refreshGitStatus()
     } catch (err) {
       // Folder gone (e.g. a stale recent entry) — drop it from the list.
       console.error('Could not open folder', target, parseIpcError(err).message)
@@ -273,6 +289,28 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
           ? { gitRepositoryRevision: s.gitRepositoryRevision + 1 }
           : { gitWorktreeRevision: s.gitWorktreeRevision + 1 }
       )
+      void get().refreshGitStatus()
     }, GIT_SETTLE_MS)
+  },
+
+  async refreshGitStatus() {
+    const rootPath = get().rootPath
+    if (!rootPath) return
+    const read = ++statusReads
+    let isRepo = false
+    let status = EMPTY_STATUS
+    try {
+      isRepo = (await invoke('git:isRepository', { rootPath })) === true
+      if (isRepo) status = (await invoke('git:status', { rootPath })) ?? EMPTY_STATUS
+    } catch {
+      // No answer is no repository, which is what the panel then says.
+    }
+    // Overtaken by a later read, or by another vault opening in the meantime.
+    if (read !== statusReads || get().rootPath !== rootPath) return
+    set({ gitStatus: { rootPath, isRepo, status } })
+    // Here rather than once at open, so a repository made with `git init`
+    // after the vault opened starts being watched on the next read. Main does
+    // nothing when it is already watching this one.
+    if (isRepo) void invoke('git:watch', { rootPath }).catch(() => undefined)
   }
 })
