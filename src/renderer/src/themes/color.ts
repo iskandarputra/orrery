@@ -47,6 +47,34 @@ export function contrast(a: string, b: string): number {
 }
 
 /**
+ * How different two colours look: CIE76 ΔE, the distance between them in Lab.
+ *
+ * Contrast is the wrong measure for a tint. It only compares lightness, so a
+ * red band on a dark background, which barely lightens it, scores 1.07:1 while
+ * being plainly red. Lab counts the hue as well. Under about 2 takes close
+ * attention to see, up to about 10 shows at a glance, and past that the two
+ * read as different colours.
+ */
+export function difference(a: string, b: string): number {
+  const lab = (hex: string): [number, number, number] => {
+    const [r, g, b] = parse(hex).map((v) => {
+      const c = v / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    }) as [number, number, number]
+    // sRGB to XYZ under D65, each axis relative to the white point.
+    const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047
+    const y = r * 0.2126 + g * 0.7152 + b * 0.0722
+    const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883
+    const f = (t: number): number =>
+      t > 216 / 24389 ? Math.cbrt(t) : ((24389 / 27) * t + 16) / 116
+    return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))]
+  }
+  const [l1, a1, b1] = lab(a)
+  const [l2, a2, b2] = lab(b)
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2)
+}
+
+/**
  * Fade `fg` toward `bg` as far as it can go while still meeting `target`
  * contrast against it.
  *

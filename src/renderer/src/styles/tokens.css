@@ -21,9 +21,15 @@
      overrides these with the same hue deepened until it clears AA against its
      own surfaces (see diffTokens in themes/themes.ts). These are the fallback
      for the moment before a theme is applied. */
-  --or-diff-add: #3fb950;
-  --or-diff-del: #f85149;
+  --or-diff-add: #39ff14;
+  --or-diff-del: #ff073a;
   --or-diff-mod: #d29922;
+  /* The band behind a changed line, as strong as each theme can afford (see
+     diffTint). The fallback is the old fixed strength. */
+  --or-diff-add-tint: rgba(57, 255, 20, 0.08);
+  --or-diff-del-tint: rgba(255, 7, 58, 0.08);
+  --or-diff-add-glow: none;
+  --or-diff-del-glow: none;
 
   --or-editor-font-size: 16px;
   --or-editor-line-height: 1.7;

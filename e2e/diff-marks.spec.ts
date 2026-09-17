@@ -8,12 +8,12 @@ import { closeCleanly, launchApp, openVault } from './helpers'
 /**
  * A changed line in the diff has to be findable at a glance.
  *
- * It was marked by a background tint and nothing else, and the tint is held to
- * 8% because it sits under the code: in Tokyo Night a removed line measured
- * 1.07:1 against the unchanged line beside it, which is a change you find by
- * reading every line. The bar and the coloured number are the fix, so these
- * measure them where they are drawn: which line each one sits beside, what
- * colour it came out, and whether it stands out from the gutter in every theme.
+ * It was marked by an 8% background tint and nothing else: in Tokyo Night a
+ * removed line measured 1.07:1 against the unchanged line beside it, which is a
+ * change you find by reading every line. The bar and the coloured number are
+ * the fix, and the tint now goes as far as each theme can afford. These
+ * measure all three where they are drawn: which line each mark sits beside,
+ * what colour it came out, and whether it stands out in every theme.
  */
 let app: ElectronApplication
 let page: Page
@@ -201,6 +201,34 @@ test('every changed line has a bar and a coloured number, and no other line does
   expectMarked(await readPane('new'), [3, 4, 5])
 })
 
+test('save and open sit beside close, at the right of the bar', async () => {
+  // Each button pushed itself right with its own auto margin, and three of
+  // those in one row share the free space, so Saved and Open floated in the
+  // middle of the bar. Measured as drawn: nothing between them but the gap.
+  const bar = await page.evaluate(() => {
+    const box = (el: Element | null) => el!.getBoundingClientRect()
+    const root = document.querySelector('.diff__bar')!
+    const buttons = Array.from(root.querySelectorAll('button'))
+    const labelled = (text: string) => buttons.find((b) => b.textContent?.trim() === text) ?? null
+    return {
+      bar: { left: box(root).left, right: box(root).right },
+      path: box(root.querySelector('.diff__path')).left,
+      saved: box(labelled('Saved')),
+      open: box(labelled('Open')),
+      close: box(root.querySelector('button[aria-label="Close"]'))
+    }
+  })
+  // Close at the right edge, with only the bar's own padding beyond it.
+  expect(bar.bar.right - bar.close.right).toBeLessThanOrEqual(12)
+  // Open right against close, and Saved right against Open, in that order.
+  expect(bar.close.left - bar.open.right).toBeGreaterThanOrEqual(0)
+  expect(bar.close.left - bar.open.right).toBeLessThanOrEqual(10)
+  expect(bar.open.left - bar.saved.right).toBeGreaterThanOrEqual(0)
+  expect(bar.open.left - bar.saved.right).toBeLessThanOrEqual(10)
+  // And the path still starts the bar.
+  expect(bar.path - bar.bar.left).toBeLessThanOrEqual(20)
+})
+
 test('the marks move with their lines when the working copy is edited', async () => {
   const right = page.locator('.diff__pane--new .cm-content')
   await right.locator('.cm-line').first().click()
@@ -217,7 +245,7 @@ test('the marks move with their lines when the working copy is edited', async ()
     .toEqual([3, 4, 5])
 })
 
-test('the bar and the number stand out from the gutter in every theme', async () => {
+test('the bar, the number and the band stand out in every theme', async () => {
   // Every palette the app ships, read from the stylesheet it injects. The
   // attribute is set directly: these marks are colours from CSS variables and
   // nothing else, so what a theme change does to them is exactly this.
@@ -277,18 +305,47 @@ test('the bar and the number stand out from the gutter in every theme', async ()
         const against = (colour: string): number => ratio(paint(...layers, colour), ground)
         const bar = pane.querySelector('.cm-or-diff-bar')
         const number = pane.querySelector('.cm-lineNumbers .cm-or-diff-changed')
+
+        // The band, as painted behind a changed line, against what the theme's
+        // own tint paints: equal means the stylesheet is using it.
+        const line = pane.querySelector('.cm-or-diff-line')!
+        const behind = opaque(line.parentElement)
+        const plain = paint(behind)
+        const band = paint(behind, getComputedStyle(line).backgroundColor)
+        const root = getComputedStyle(document.documentElement)
+        const tint = root.getPropertyValue(
+          side === 'old' ? '--or-diff-del-tint' : '--or-diff-add-tint'
+        )
+        const expected = paint(behind, tint.trim())
+        const text = paint(
+          behind,
+          getComputedStyle(line).backgroundColor,
+          getComputedStyle(line).color
+        )
         // Absent reads as no contrast at all, which is what it is to the eye.
         return {
           side,
           bar: bar ? against(getComputedStyle(bar).backgroundColor) : 1,
-          number: number ? against(getComputedStyle(number).color) : 1
+          number: number ? against(getComputedStyle(number).color) : 1,
+          bandIsTint: band.every((v, i) => Math.abs(v - expected[i]!) <= 1),
+          bandLighter: luminance(band) > luminance(plain),
+          dark: root.colorScheme.trim() === 'dark',
+          glows: !!bar && getComputedStyle(bar).boxShadow !== 'none',
+          textOnBand: ratio(text, band)
         }
       })
     }, PANE)
-    for (const { side, bar, number } of measured) {
+    for (const m of measured) {
+      const at = `${theme} ${m.side}`
       // 3:1 is what WCAG asks of a mark that carries meaning, 4.5:1 of text.
-      if (bar < 3) shortfalls.push(`${theme} ${side} bar ${bar.toFixed(2)}:1`)
-      if (number < 4.5) shortfalls.push(`${theme} ${side} number ${number.toFixed(2)}:1`)
+      if (m.bar < 3) shortfalls.push(`${at} bar ${m.bar.toFixed(2)}:1`)
+      if (m.number < 4.5) shortfalls.push(`${at} number ${m.number.toFixed(2)}:1`)
+      if (!m.bandIsTint) shortfalls.push(`${at} band is not the theme's tint`)
+      // Lighter than the editor in a dark theme, darker in a light one.
+      if (m.bandLighter !== m.dark) shortfalls.push(`${at} band goes the wrong way`)
+      if (m.textOnBand < 4.5) shortfalls.push(`${at} text on band ${m.textOnBand.toFixed(2)}:1`)
+      // Neon glows in a dark theme; in a light one it would only grey the gutter.
+      if (m.glows !== m.dark) shortfalls.push(`${at} bar ${m.glows ? 'glows' : 'does not glow'}`)
     }
   }
   expect(shortfalls).toEqual([])
