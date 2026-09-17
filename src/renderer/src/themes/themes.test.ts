@@ -135,11 +135,34 @@ describe('the band behind a changed line in a diff', () => {
     }
   })
 
-  it('is never weaker than it was, nor strong enough to compete with the code', () => {
+  it('is never weaker than it was, unless the text could not afford it', () => {
     for (const band of bands) {
-      expect(band.strength, band.id).toBeGreaterThanOrEqual(DIFF_TINT_MIN)
       expect(band.strength, band.id).toBeLessThanOrEqual(DIFF_TINT_MAX + 1e-9)
+      if (band.strength >= DIFF_TINT_MIN - 1e-9) continue
+      // Under the old strength only where the old strength cost the text AA.
+      expect(contrast(band.resolved.fg, band.paint(DIFF_TINT_MIN)), band.id).toBeLessThan(
+        DIFF_TINT_TEXT_FLOOR
+      )
+      expect(band.strength, band.id).toBeGreaterThan(0)
     }
+  })
+
+  it('glows in a dark theme and not in a light one', () => {
+    for (const spec of THEMES) {
+      const tokens = diffTokens(spec, resolveTheme(spec))
+      for (const side of ['add', 'del'] as const) {
+        const glow = tokens[`diff-${side}-glow`]!
+        if (spec.appearance === 'dark') expect(glow, spec.id).toMatch(/^0 0 \d+px rgba\(/)
+        else expect(glow, spec.id).toBe('none')
+      }
+    }
+  })
+
+  it('keeps the neon itself wherever it already reads', () => {
+    // Tokyo Night's background takes the lime as it is; only a light theme, or
+    // a dark one too pale for the red, moves the hue.
+    const tokens = diffTokens(getTheme('tokyo-night'), resolveTheme(getTheme('tokyo-night')))
+    expect(tokens['diff-add']).toBe('#39ff14')
   })
 
   it('is lighter than the editor in a dark theme and darker in a light one', () => {
@@ -173,7 +196,7 @@ describe('the band behind a changed line in a diff', () => {
   })
 
   it('reaches the target in the light theme where it was faintest', () => {
-    // GitHub Light's bands were ΔE 5.7 at the old fixed 8%.
+    // GitHub Light's bands were ΔE 5.7 at the old fixed 8% and hues.
     for (const band of bands.filter((b) => b.spec.id === 'github-light')) {
       expect(difference(band.paint(band.strength), band.ground), band.id).toBeGreaterThanOrEqual(
         DIFF_TINT_TARGET

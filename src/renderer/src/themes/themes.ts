@@ -270,28 +270,41 @@ export function highContrastCodeTokens(spec: ThemeSpec): Record<string, string> 
  * something different. But a hue chosen for a dark background sits at 2.3:1 on
  * a light one, and a status letter nobody can read conveys nothing at all. So
  * the hue is kept and only its depth moves, and only as far as AA requires.
+ *
+ * Neon rather than GitHub's green and red, which read as muted against a dark
+ * editor. The saturation is also what makes the band cheap: the lime reaches
+ * ΔE 17 against Tokyo Night's background at 8%, where the old green needed 13%
+ * to reach 16. A light theme cannot show neon and keep it legible, so there
+ * the same hues are deepened (lime to `#1e840a` in GitHub Light) and come out
+ * vivid rather than glowing.
  */
 export function diffTokens(spec: ThemeSpec, resolved: ResolvedTheme): Record<string, string> {
   const surfaces = [resolved.bg, resolved['panel-bg'], resolved['editor-bg']]
   const toward = spec.appearance === 'light' ? '#000000' : '#ffffff'
   const deepen = (hue: string): string => reinforce(hue, toward, surfaces, 4.5)
-  const add = deepen('#3fb950')
-  const del = deepen('#f85149')
+  const add = deepen('#39ff14')
+  const del = deepen('#ff073a')
+  // A glow is light given off, and only reads as that on a dark ground. On a
+  // light one it is a grey smudge around the bar.
+  const glow = (hue: string): string =>
+    spec.appearance === 'dark' ? `0 0 6px ${alpha(hue, 0.75)}` : 'none'
   return {
     'diff-add': add,
     'diff-del': del,
     'diff-mod': deepen('#d29922'),
     'diff-add-tint': diffTint(add, resolved),
-    'diff-del-tint': diffTint(del, resolved)
+    'diff-del-tint': diffTint(del, resolved),
+    'diff-add-glow': glow(add),
+    'diff-del-glow': glow(del)
   }
 }
 
 /** How far a changed line's band should stand from the editor, as ΔE. */
-export const DIFF_TINT_TARGET = 12
-/** What every band was before, and the least any band is now. */
+export const DIFF_TINT_TARGET = 16
+/** What every band was before, and the least any band is where the text can afford it. */
 export const DIFF_TINT_MIN = 0.08
 /** Past this the band stops reading as a tint and starts competing with the code. */
-export const DIFF_TINT_MAX = 0.2
+export const DIFF_TINT_MAX = 0.24
 /**
  * The contrast the editor's text keeps on a band: AA, with a little to spare.
  * The browser paints a translucent colour through 8-bit channels, and a band
@@ -307,18 +320,25 @@ export const DIFF_TINT_TEXT_FLOOR = 4.6
  * change that takes close attention to find, and 10.3 in Tokyo Night. So the
  * strength is worked out per theme and per hue: the least that reaches
  * `DIFF_TINT_TARGET`, which is lighter than the background in a dark theme and
- * darker in a light one because the hue is.
+ * darker in a light one because the hue is. The target was 12 at first, and
+ * went to 16 with the neon hues, when a band that was merely findable was not
+ * what was asked for.
  *
  * It sits under the code, so it is also held to what the code can afford: never
  * so strong that the editor's own text drops under AA on it. Two palettes
  * stop there first. Solarized Light and Everforest Light ship their text at
- * 4.6:1 over the old 8% band already, so their bands stay nearer that. Syntax
+ * 4.6:1 over the old 8% band, so their bands stay near or under it. Syntax
  * colours are not held to it; 26 of the 28 palettes ship some under AA before
  * any tint, and high-contrast code is the setting for that.
  */
 export function diffTint(hue: string, resolved: ResolvedTheme): string {
   const ground = resolved['editor-bg']
+  const legible = (s: number): boolean =>
+    contrast(resolved.fg, mix(ground, hue, s)) >= DIFF_TINT_TEXT_FLOOR
   let strength = DIFF_TINT_MIN
+  // A palette whose text cannot afford even the old band gets less of one:
+  // Solarized Light's text over the neon red at 8% is 4.48:1.
+  while (strength > 0.02 && !legible(strength)) strength = Math.round(strength * 100 - 1) / 100
   // In whole percent, from the old strength up: the first that is visible
   // enough wins, and the first that costs the text its AA stops the climb.
   for (
@@ -328,7 +348,7 @@ export function diffTint(hue: string, resolved: ResolvedTheme): string {
   ) {
     if (difference(mix(ground, hue, strength), ground) >= DIFF_TINT_TARGET) break
     const next = step / 100
-    if (contrast(resolved.fg, mix(ground, hue, next)) < DIFF_TINT_TEXT_FLOOR) break
+    if (!legible(next)) break
     strength = next
   }
   return alpha(hue, strength)

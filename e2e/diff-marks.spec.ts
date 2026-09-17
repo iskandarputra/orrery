@@ -330,6 +330,7 @@ test('the bar, the number and the band stand out in every theme', async () => {
           bandIsTint: band.every((v, i) => Math.abs(v - expected[i]!) <= 1),
           bandLighter: luminance(band) > luminance(plain),
           dark: root.colorScheme.trim() === 'dark',
+          glows: !!bar && getComputedStyle(bar).boxShadow !== 'none',
           textOnBand: ratio(text, band)
         }
       })
@@ -343,6 +344,8 @@ test('the bar, the number and the band stand out in every theme', async () => {
       // Lighter than the editor in a dark theme, darker in a light one.
       if (m.bandLighter !== m.dark) shortfalls.push(`${at} band goes the wrong way`)
       if (m.textOnBand < 4.5) shortfalls.push(`${at} text on band ${m.textOnBand.toFixed(2)}:1`)
+      // Neon glows in a dark theme; in a light one it would only grey the gutter.
+      if (m.glows !== m.dark) shortfalls.push(`${at} bar ${m.glows ? 'glows' : 'does not glow'}`)
     }
   }
   expect(shortfalls).toEqual([])

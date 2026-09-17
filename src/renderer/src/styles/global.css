@@ -3025,10 +3025,14 @@ textarea {
 
 .cm-or-diff-bar--old {
   background: var(--or-diff-del);
+  box-shadow: var(--or-diff-del-glow);
 }
 
+/* The glow is the theme's (see diffTokens): neon in a dark theme, none in a
+   light one, where it would only grey the gutter around the bar. */
 .cm-or-diff-bar--new {
   background: var(--or-diff-add);
+  box-shadow: var(--or-diff-add-glow);
 }
 
 .cm-lineNumbers .cm-or-diff-changed--old {
