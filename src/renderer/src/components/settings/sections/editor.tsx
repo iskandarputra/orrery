@@ -137,7 +137,7 @@ export function EditorSection(): React.JSX.Element {
       <h3 className="set-group">Modes</h3>
       <SettingRow
         label="Default view mode"
-        description="Edit (source) · Hybrid (live preview) · Reading (view only)"
+        description="How a note opens. The switch in the header changes only the note in front, and a blank note opens in Hybrid so it can be written in."
       >
         <SegmentedControl
           value={e.viewMode}

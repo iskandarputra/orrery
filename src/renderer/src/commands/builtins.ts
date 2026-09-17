@@ -13,6 +13,7 @@ import {
 import { openDailyNote } from '@/notes/daily'
 import { isHtmlFile } from '@core/html-document'
 import { stem } from '@core/paths'
+import { nextViewMode, shownViewMode, type ViewMode } from '@core/view-mode'
 import { toggleHighlight } from '@/editor/inline-format'
 import { mediaAtCursor } from '@/editor/live-preview/media-at-cursor'
 import { goToDefinition } from '@/editor/lsp-definition'
@@ -24,11 +25,11 @@ import type { Command } from './registry'
 /**
  * The active buffer, when it is an HTML file the reader can render.
  *
- * The view-mode commands below write a setting shared by every markdown
- * document. An HTML file has its own two views and its own per-buffer switch,
- * so the shortcut on the menu has to reach whichever of the two the front tab
- * actually has — otherwise Ctrl+Shift+3 over a web page silently reformats
- * every note instead.
+ * The view-mode commands below change the mode of the note in front. An HTML
+ * file has its own two views and its own switch, so the shortcut on the menu
+ * has to reach whichever of the two the front tab actually has. It once wrote
+ * a setting every note shared instead, so Ctrl+Shift+3 over a web page
+ * reformatted every note and left the page as it was.
  */
 function activeHtmlBuffer(state: AppState): string | null {
   const id = state.activeId
@@ -36,6 +37,20 @@ function activeHtmlBuffer(state: AppState): string | null {
   const buffer = state.buffers[id]
   if (!buffer || buffer.kind !== 'code' || !isHtmlFile(buffer.fileName)) return null
   return id
+}
+
+/**
+ * Give the note in front a view mode worked out from the one it is shown in.
+ *
+ * Nothing happens over anything that is not a note. Code, boards and diffs
+ * have no modes, and changing the default from here would be the old mistake
+ * again: a keystroke over one document deciding how every note opens.
+ */
+function setActiveNoteMode(state: AppState, mode: (shown: ViewMode) => ViewMode): void {
+  const id = state.activeId
+  const buffer = id ? state.buffers[id] : undefined
+  if (!id || buffer?.kind !== 'markdown') return
+  state.setViewMode(id, mode(shownViewMode(buffer.viewMode, state.settings.editor.viewMode)))
 }
 
 /**
@@ -201,17 +216,13 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => {
       const html = activeHtmlBuffer(store())
       if (html) return store().setHtmlReading(html, false)
-      const e = store().settings.editor
-      store().updateSettings({ editor: { ...e, viewMode: 'source' } })
+      setActiveNoteMode(store(), () => 'source')
     }
   },
   {
     id: 'view.modeHybrid',
     title: 'View Mode: Hybrid (live preview)',
-    run: ({ store }) => {
-      const e = store().settings.editor
-      store().updateSettings({ editor: { ...e, viewMode: 'live' } })
-    }
+    run: ({ store }) => setActiveNoteMode(store(), () => 'live')
   },
   {
     id: 'view.modeReading',
@@ -219,8 +230,7 @@ export const builtinCommands: Command[] = [
     run: ({ store }) => {
       const html = activeHtmlBuffer(store())
       if (html) return store().setHtmlReading(html, true)
-      const e = store().settings.editor
-      store().updateSettings({ editor: { ...e, viewMode: 'reading' } })
+      setActiveNoteMode(store(), () => 'reading')
     }
   },
   {
@@ -230,9 +240,7 @@ export const builtinCommands: Command[] = [
       // An HTML file has two views, not three; cycling it is toggling it.
       const html = activeHtmlBuffer(store())
       if (html) return store().toggleHtmlReading(html)
-      const e = store().settings.editor
-      const next = e.viewMode === 'live' ? 'reading' : e.viewMode === 'reading' ? 'source' : 'live'
-      store().updateSettings({ editor: { ...e, viewMode: next } })
+      setActiveNoteMode(store(), nextViewMode)
     }
   },
   {
@@ -249,12 +257,8 @@ export const builtinCommands: Command[] = [
     // between source (edit) and hybrid (live).
     id: 'view.toggleSourceMode',
     title: 'Toggle Source Mode',
-    run: ({ store }) => {
-      const e = store().settings.editor
-      store().updateSettings({
-        editor: { ...e, viewMode: e.viewMode === 'source' ? 'live' : 'source' }
-      })
-    }
+    run: ({ store }) =>
+      setActiveNoteMode(store(), (shown) => (shown === 'source' ? 'live' : 'source'))
   },
   {
     id: 'view.toggleTypewriter',

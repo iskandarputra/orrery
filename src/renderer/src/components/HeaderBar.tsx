@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { isHtmlFile } from '@core/html-document'
 import { basename, dirname, stem } from '@core/paths'
+import { shownViewMode } from '@core/view-mode'
 import { getActiveView } from '@/editor/active-view'
 import { formatAndUnwrapNote } from '@/editor/format-helpers'
 import { invoke } from '@/services/client'
@@ -16,11 +17,10 @@ export function HeaderBar(): React.JSX.Element | null {
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const showFormattingToolbar = useStore((s) => s.showFormattingToolbar)
   const toggleFormattingToolbar = useStore((s) => s.toggleFormattingToolbar)
-  const viewMode = useStore((s) => s.settings.editor.viewMode)
+  const defaultViewMode = useStore((s) => s.settings.editor.viewMode)
+  const setViewMode = useStore((s) => s.setViewMode)
   const htmlReading = useStore((s) => (s.activeId ? !!s.htmlReading[s.activeId] : false))
   const setHtmlReading = useStore((s) => s.setHtmlReading)
-  const updateSettings = useStore((s) => s.updateSettings)
-  const editorSettings = useStore((s) => s.settings.editor)
   const sidePanel = useStore((s) => s.sidePanel)
   const toggleSidePanel = useStore((s) => s.toggleSidePanel)
   const toggleGraph = useStore((s) => s.toggleGraph)
@@ -57,16 +57,18 @@ export function HeaderBar(): React.JSX.Element | null {
 
   // Only prose has words, a reading time, and a raw-versus-rendered to switch
   // between. Offering "Edit / Hybrid / Read" over a board, a diff or a
-  // TypeScript file is not merely useless: every one of those buttons changes
-  // a setting that does nothing here, and the one that appears active is
-  // describing some other document. `create-state.ts` returns before the view
-  // mode is read for anything but markdown, which is the same fact from the
-  // other end.
+  // TypeScript file is not merely useless: none of those buttons would change
+  // anything there. `create-state.ts` returns before the view mode is read for
+  // anything but markdown, which is the same fact from the other end.
   const isProse = buffer.kind === 'markdown'
+  // This note's mode, not the default. The switch used to write the setting,
+  // so reading one note decided how every note opened after it, and a new empty
+  // one arrived read-only with nothing to read.
+  const viewMode = shownViewMode(buffer.viewMode, defaultViewMode)
   // An HTML file has the same two things to be looked at — its source and the
-  // page it makes — so it gets a switch of its own. Not the one above: that
-  // writes a setting shared by every document, and reading one page is not a
-  // decision about how the next note opens. This one is about this buffer.
+  // page it makes — so it gets a switch of its own. Not the one above: a page
+  // has two views rather than three, and the reader keeps which one it is in
+  // beside its consents to load and run things.
   const isHtml = buffer.kind === 'code' && isHtmlFile(buffer.fileName)
   const readingTimeMin = Math.max(1, Math.ceil(stats.words / 200))
 
@@ -197,8 +199,8 @@ export function HeaderBar(): React.JSX.Element | null {
           <Icon name="type" size={15} />
         </button>
 
-        {/* View mode segmented switcher — markdown only, since nothing else
-            reads the setting. */}
+        {/* View mode segmented switcher, for this note only. Markdown only,
+            since nothing else has the three modes. */}
         {isProse && (
           <div className="header-viewmode" role="radiogroup" aria-label="View mode">
             <button
@@ -206,7 +208,7 @@ export function HeaderBar(): React.JSX.Element | null {
               aria-checked={viewMode === 'source'}
               className={`header-viewmode__btn${viewMode === 'source' ? ' header-viewmode__btn--active' : ''}`}
               title="Edit mode (raw markdown source)"
-              onClick={() => updateSettings({ editor: { ...editorSettings, viewMode: 'source' } })}
+              onClick={() => setViewMode(activeId, 'source')}
             >
               <Icon name="pencil" size={12} />
               <span>Edit</span>
@@ -216,7 +218,7 @@ export function HeaderBar(): React.JSX.Element | null {
               aria-checked={viewMode === 'live'}
               className={`header-viewmode__btn${viewMode === 'live' ? ' header-viewmode__btn--active' : ''}`}
               title="Hybrid mode (interactive live preview)"
-              onClick={() => updateSettings({ editor: { ...editorSettings, viewMode: 'live' } })}
+              onClick={() => setViewMode(activeId, 'live')}
             >
               <Icon name="columns" size={12} />
               <span>Hybrid</span>
@@ -226,7 +228,7 @@ export function HeaderBar(): React.JSX.Element | null {
               aria-checked={viewMode === 'reading'}
               className={`header-viewmode__btn${viewMode === 'reading' ? ' header-viewmode__btn--active' : ''}`}
               title="Reading mode (rendered read-only)"
-              onClick={() => updateSettings({ editor: { ...editorSettings, viewMode: 'reading' } })}
+              onClick={() => setViewMode(activeId, 'reading')}
             >
               <Icon name="eye" size={12} />
               <span>Read</span>

@@ -10,6 +10,7 @@ import { invoke, parseIpcError } from '@/services/client'
 import { EditorState } from '@codemirror/state'
 import type { AppState } from './app-state'
 import { documentKind, type DocumentKind } from '@core/document-kind'
+import { openingViewMode, settingsForDocument, type ViewMode } from '@core/view-mode'
 import * as tabs from '@core/tab-layout'
 import { equalSizes, fitSizes } from '@core/pane-sizes'
 import { captureWorkspace, pathsToOpen, restoreLayout, restoreSizes } from '@core/workspaces'
@@ -46,6 +47,12 @@ export interface DocumentBuffer {
    * map beside it so that it goes when the buffer does.
    */
   untitledNumber?: number
+  /**
+   * The view mode chosen for this note, when one has been. Absent, the tab
+   * follows `settings.editor.viewMode`. On the buffer for the same reason as
+   * `untitledNumber`: it goes when the tab does.
+   */
+  viewMode?: ViewMode
   /** What this tab is a diff of (kind 'diff' only). */
   diff?: { path: string; staged: boolean; commit?: string }
 }
@@ -73,6 +80,8 @@ export interface DocumentsSlice {
   openPaths(paths: string[]): Promise<void>
   openFileDialog(): Promise<void>
   newUntitled(): void
+  /** Show one note as its source, in Hybrid or read-only. Other tabs keep theirs. */
+  setViewMode(id: string, mode: ViewMode): void
   /** Reopen the unsaved notes a previous run left behind. */
   restoreUntitled(): Promise<void>
   setActive(id: string): void
@@ -251,7 +260,13 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
    * thirty renders of the tab bar.
    */
   async openPaths(paths) {
-    const opened: { id: string; path: string; mtimeMs: number }[] = []
+    const opened: {
+      id: string
+      path: string
+      mtimeMs: number
+      kind: DocumentKind
+      viewMode: ViewMode | undefined
+    }[] = []
     /** Already open, or opened by this call: either way, not a second tab. */
     const seen = new Set(
       Object.values(get().buffers)
@@ -288,6 +303,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           ? { path, content: '', mtimeMs: Date.now() }
           : await invoke('fs:readFile', { path })
         const id = crypto.randomUUID()
+        const kind = kindOf(path)
+        const viewMode = openingViewMode(kind, get().settings.editor.viewMode, file.content)
         // The state is not built here. Building an `EditorState` is the
         // expensive part of opening a file by two orders of magnitude: about
         // 70ms for a large note against under 3ms to read it off the disk. At
@@ -297,15 +314,15 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           const state = createDocumentState({
             id,
             content: file.content,
-            settings: get().settings,
+            settings: settingsForDocument(get().settings, get().buffers[id]?.viewMode),
             filePath: path,
-            kind: kindOf(path),
+            kind,
             onDirtyChange: (dirty) => get().setDirty(id, dirty)
           })
           return { state, savedDoc: state.doc }
         })
         seen.add(path)
-        opened.push({ id, path, mtimeMs: file.mtimeMs })
+        opened.push({ id, path, mtimeMs: file.mtimeMs, kind, viewMode })
         activate = { id, wasOpen: false }
         void invoke('app:addRecentFile', { path })
       } catch (err) {
@@ -321,14 +338,15 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       const shown = activate && !activate.wasOpen ? activate.id : null
       set((s) => {
         const buffers = { ...s.buffers }
-        for (const { id, path, mtimeMs } of opened) {
+        for (const { id, path, mtimeMs, kind, viewMode } of opened) {
           buffers[id] = {
             id,
             filePath: path,
             fileName: basename(path),
             savedMtimeMs: mtimeMs,
             isDirty: false,
-            kind: kindOf(path)
+            kind,
+            ...(viewMode && { viewMode })
           }
         }
         return {
@@ -397,10 +415,11 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
   newUntitled() {
     const id = crypto.randomUUID()
     const n = nextUntitledNumber(get())
+    const viewMode = openingViewMode('markdown', get().settings.editor.viewMode, '')
     const state = createDocumentState({
       id,
       content: '',
-      settings: get().settings,
+      settings: settingsForDocument(get().settings, viewMode),
       onDirtyChange: (dirty) => get().setDirty(id, dirty)
     })
     bufferRegistry.create(id, state, null)
@@ -414,7 +433,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           savedMtimeMs: null,
           isDirty: false,
           kind: 'markdown' as const,
-          untitledNumber: n
+          untitledNumber: n,
+          ...(viewMode && { viewMode })
         }
       },
       tabOrder: [...s.tabOrder, id],
@@ -425,6 +445,16 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       // looked open but could not be typed into.
       paneIds: s.paneIds.map((pane, i) => (i === s.focusedPane ? id : pane))
     }))
+  },
+
+  setViewMode(id, mode) {
+    set((s) => {
+      const buffer = s.buffers[id]
+      // Recorded even when it matches the default: it was chosen for this note,
+      // so a later change to the default is not a reason to move it.
+      if (!buffer || buffer.viewMode === mode) return {}
+      return { buffers: { ...s.buffers, [id]: { ...buffer, viewMode: mode } } }
+    })
   },
 
   async restoreUntitled() {
@@ -442,6 +472,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       // leaving the old copy behind to be restored a second time.
       const { id, n, content } = draft
       if (get().buffers[id]) continue
+      const viewMode = openingViewMode('markdown', get().settings.editor.viewMode, content)
       // Deferred for the same reason as a restored file: these arrive in a
       // batch at start-up and are mostly not looked at.
       //
@@ -451,7 +482,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         state: createDocumentState({
           id,
           content,
-          settings: get().settings,
+          settings: settingsForDocument(get().settings, get().buffers[id]?.viewMode),
           onDirtyChange: (dirty) => get().setDirty(id, dirty)
         }),
         savedDoc: null
@@ -468,7 +499,8 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
             kind: 'markdown' as const,
             // Kept, so the next new note is named past this one rather than
             // over it.
-            untitledNumber: n
+            untitledNumber: n,
+            ...(viewMode && { viewMode })
           }
         },
         tabOrder: [...s.tabOrder, id]
@@ -674,7 +706,10 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         buffers: {
           ...s.buffers,
           [id]: {
-            ...buffer,
+            // The buffer as it is now, not as it was before the write: autosave
+            // lands here while the note is still open, and a view mode chosen
+            // during the round trip was otherwise put back to what it had been.
+            ...(s.buffers[id] ?? buffer),
             filePath: targetPath,
             fileName: basename(targetPath),
             savedMtimeMs: result.mtimeMs,
@@ -703,7 +738,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
           set((s) => ({
             buffers: {
               ...s.buffers,
-              [id]: { ...buffer, savedMtimeMs: result.mtimeMs, isDirty: false }
+              [id]: { ...(s.buffers[id] ?? buffer), savedMtimeMs: result.mtimeMs, isDirty: false }
             }
           }))
           return true
@@ -802,7 +837,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         set((s) => ({
           buffers: {
             ...s.buffers,
-            [buffer.id]: { ...buffer, savedMtimeMs: file.mtimeMs }
+            [buffer.id]: { ...(s.buffers[buffer.id] ?? buffer), savedMtimeMs: file.mtimeMs }
           }
         }))
         return
@@ -820,7 +855,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
         const state = createDocumentState({
           id: buffer.id,
           content: file.content,
-          settings: get().settings,
+          settings: settingsForDocument(get().settings, buffer.viewMode),
           filePath: buffer.filePath,
           onDirtyChange: (dirty) => get().setDirty(buffer.id, dirty)
         })
@@ -829,7 +864,11 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       set((s) => ({
         buffers: {
           ...s.buffers,
-          [buffer.id]: { ...buffer, savedMtimeMs: file.mtimeMs, isDirty: false }
+          [buffer.id]: {
+            ...(s.buffers[buffer.id] ?? buffer),
+            savedMtimeMs: file.mtimeMs,
+            isDirty: false
+          }
         }
       }))
     } catch {

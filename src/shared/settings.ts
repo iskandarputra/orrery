@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServerConfig } from '@core/mcp-config'
 import type { HtmlTrustEntry } from '@core/html-trust'
+import { VIEW_MODES } from '@core/view-mode'
 
 /**
  * Persisted user settings. The zod schema is the single source of truth:
@@ -119,10 +120,12 @@ export const settingsSchema = z.object({
       /** Only used when lineWidth is 'custom' (px). */
       customLineWidth: z.number().int().min(400).max(3000).default(900),
       /**
-       * View mode: 'source' = raw markdown (edit), 'live' = inline rendering
-       * while editing (hybrid), 'reading' = fully rendered and read-only (view).
+       * The mode a note opens in: 'source' = raw markdown (edit), 'live' =
+       * inline rendering while editing (hybrid), 'reading' = fully rendered and
+       * read-only (view). The header switch changes one tab, not this; see
+       * `core/view-mode`.
        */
-      viewMode: z.enum(['source', 'live', 'reading']).default('live'),
+      viewMode: z.enum(VIEW_MODES).default('live'),
       /** Keep the caret line vertically centered while typing. */
       typewriter: z.boolean().default(false),
       /** Dim everything except the paragraph being edited. */
