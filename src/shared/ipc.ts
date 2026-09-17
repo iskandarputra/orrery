@@ -50,6 +50,11 @@ export interface IpcInvokeContract {
   'git:isRepository': { req: { rootPath: string }; res: boolean }
   /** Working-tree status; empty when git cannot answer. */
   'git:status': { req: { rootPath: string }; res: GitStatus }
+  /**
+   * Report changes to this vault's repository as `git:changed`, replacing any
+   * repository watched before. Safe to repeat; nothing happens without a repo.
+   */
+  'git:watch': { req: { rootPath: string }; res: void }
 
   /**
    * Which of these paths git is told to ignore.
@@ -604,6 +609,8 @@ export interface IpcInvokeContract {
 /** Main -> renderer push events. */
 export interface IpcEventContract {
   'fs:changed': FsChangedPayload
+  /** A repository's state moved: a commit, a stage, a checkout, from anywhere. */
+  'git:changed': { rootPath: string }
   /** Output from a shell, as it arrives. */
   'terminal:data': { id: string; data: string }
   /** A shell exited; the panel closes that session. */

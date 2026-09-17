@@ -22,12 +22,18 @@ const git = (...args: string[]): string =>
 
 const openGraph = async (): Promise<void> => {
   if (!(await page.locator('.gitgraph').isVisible())) {
-    await app.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
-        commandId: 'view.toggleGit'
+    if (!(await page.locator('.scm').isVisible())) {
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+          commandId: 'view.toggleGit'
+        })
       })
-    })
-    await page.locator('.scm__section', { hasText: 'GRAPH' }).first().click()
+    }
+    // Open by default. A section header toggles, so it is clicked only when
+    // the graph is closed; clicking it open would close it.
+    const header = page.locator('.scm__section', { hasText: 'GRAPH' }).first()
+    await expect(header).toBeVisible({ timeout: 15_000 })
+    if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click()
   }
   await expect(page.locator('.gitgraph__row').first()).toBeVisible({ timeout: 15_000 })
 }

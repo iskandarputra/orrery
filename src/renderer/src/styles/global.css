@@ -3081,6 +3081,7 @@ textarea {
 .scm {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -3386,8 +3387,35 @@ textarea {
 }
 
 /* Source control sections. VS Code's source control container holds several
-   views; this is the same idea at panel scale — the change list and the graph
-   are different questions, and a narrow panel cannot answer both at once. */
+   views; this is the same idea at panel scale. The change list and the graph
+   are different questions, but they are asked together (what is about to be
+   committed, and onto what), so each opens and closes on its own and each
+   scrolls within its own share of the panel. */
+.scm__part {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.scm__part--open {
+  flex: 1 1 0;
+}
+
+/* Both open: the change list takes the height it needs, up to half, and the
+   history has the rest. An even split would give a two-file list half the
+   panel while the history scrolled in what was left. */
+.scm--both .scm__part--changes {
+  flex: 0 1 auto;
+  max-height: 50%;
+}
+
+.scm__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .scm__section {
   display: flex;
   align-items: center;
@@ -3414,6 +3442,7 @@ textarea {
 
 /* Commit graph. */
 .gitgraph {
+  flex: 1 1 auto;
   overflow-y: auto;
   min-height: 0;
 }

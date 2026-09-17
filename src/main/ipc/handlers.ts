@@ -37,6 +37,7 @@ import type { DraftNotes } from '../services/draft-notes'
 import type { PdfTextService } from '../services/pdf-text'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
+import type { GitWatchService } from '../services/git-watch'
 import type { WindowManager } from '../windows'
 import { buildAppMenu } from '../menu'
 import { handle, send } from './registry'
@@ -54,6 +55,7 @@ export interface HandlerDeps {
   embeddings: EmbeddingService
   history: HistoryService
   git: GitService
+  gitWatch: GitWatchService
   lsp: LspService
   terminal: TerminalService
   mcp: McpClientService
@@ -87,6 +89,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     embeddings,
     history,
     git,
+    gitWatch,
     lsp,
     terminal,
     mcp,
@@ -198,6 +201,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   const rootPathsReq = rootReq.extend({ paths: z.array(z.string()) })
   handle('git:isRepository', rootReq, (_e, req) => git.isRepository(req.rootPath))
   handle('git:status', rootReq, (_e, req) => git.status(req.rootPath))
+  handle('git:watch', rootReq, (_e, req) => gitWatch.watch(req.rootPath))
   handle('git:ignored', rootPathsReq, (_e, req) => git.ignored(req.rootPath, req.paths))
   handle('git:diffStats', rootReq.extend({ untracked: z.array(z.string()) }), (_e, req) =>
     git.diffStats(req.rootPath, req.untracked)

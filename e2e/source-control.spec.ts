@@ -24,6 +24,17 @@ async function openPanel(): Promise<void> {
   await expect(page.locator('.scm')).toBeVisible({ timeout: 15_000 })
 }
 
+/**
+ * Open or close a section. They open and close independently now, so clicking
+ * a header toggles it rather than switching to it, and a click on one that is
+ * already open would close it.
+ */
+async function setSection(name: 'Changes' | 'Graph', open: boolean): Promise<void> {
+  const header = page.locator('.scm__section').filter({ hasText: name })
+  if ((await header.getAttribute('aria-expanded')) !== String(open)) await header.click()
+  await expect(header).toHaveAttribute('aria-expanded', String(open))
+}
+
 const refresh = async (): Promise<void> => {
   await page.locator('button[aria-label="Refresh status"]').click()
   await page.waitForTimeout(300)
@@ -245,7 +256,7 @@ test('an untracked file diffs as all additions', async () => {
 
 test('the graph section shows the history', async () => {
   await openPanel()
-  await page.locator('.scm__section').filter({ hasText: 'Graph' }).click()
+  await setSection('Graph', true)
 
   const graph = page.locator('.gitgraph')
   await expect(graph).toBeVisible({ timeout: 10_000 })
@@ -256,9 +267,13 @@ test('the graph section shows the history', async () => {
   // The branch name is shown as a ref chip on the commit it points at.
   await expect(graph.locator('.gitgraph__ref').first()).toBeVisible()
 
-  // Switching back hides the graph and shows the changes again.
-  await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
+  // Closing the graph hides it and leaves the changes where they were.
+  await setSection('Graph', false)
   await expect(graph).toBeHidden()
+  await expect(page.locator('.scm__section').filter({ hasText: 'Changes' })).toHaveAttribute(
+    'aria-expanded',
+    'true'
+  )
 })
 
 test('a branch is drawn in its own lane', async () => {
@@ -274,7 +289,7 @@ test('a branch is drawn in its own lane', async () => {
   git('commit', '-qm', 'work on main')
 
   await openPanel()
-  await page.locator('.scm__section').filter({ hasText: 'Graph' }).click()
+  await setSection('Graph', true)
   await expect(page.locator('.gitgraph')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.gitgraph')).toContainText('work on the side')
 
@@ -286,8 +301,6 @@ test('a branch is drawn in its own lane', async () => {
     .evaluate((el) => Number(el.getAttribute('width')))
   expect(width).toBeGreaterThan(12)
   await expect(page.locator('.gitgraph')).toContainText('work on main')
-
-  await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
 })
 
 test('a lane crossing a row is drawn without a gap in it', async () => {
@@ -299,7 +312,7 @@ test('a lane crossing a row is drawn without a gap in it', async () => {
   // Measured on the rendered geometry rather than on the markup: what matters
   // is that the painted segments meet, not how many elements say so.
   await openPanel()
-  await page.locator('.scm__section').filter({ hasText: 'Graph' }).click()
+  await setSection('Graph', true)
   await expect(page.locator('.gitgraph')).toBeVisible({ timeout: 10_000 })
 
   const gaps = await page.evaluate(() => {
@@ -334,8 +347,6 @@ test('a lane crossing a row is drawn without a gap in it', async () => {
 
   expect(gaps.rows, 'several commits, so several rows to cross').toBeGreaterThan(2)
   expect(gaps.holes, 'the leftmost lane is one unbroken line').toEqual([])
-
-  await page.locator('.scm__section').filter({ hasText: 'Changes' }).click()
 })
 
 test('commit is refused without a message or staged work', async () => {

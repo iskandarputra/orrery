@@ -68,6 +68,14 @@ export function bootstrap(): CommandRegistry {
   on('menu:command', ({ commandId }) => registry.execute(commandId))
   on('window:closeRequested', () => void useStore.getState().handleWindowCloseRequest())
   on('fs:changed', ({ events }) => useStore.getState().onFsChanged(events))
+  // Only the vault on screen: a change reported for the folder that was open a
+  // moment ago is about a repository nobody is looking at now.
+  on('git:changed', ({ rootPath }) => {
+    if (rootPath === useStore.getState().rootPath) useStore.getState().noteGitChange('repository')
+  })
+  // Coming back to the window is when edits made elsewhere are most likely,
+  // and the vault watch cannot see them in a folder the tree has closed.
+  window.addEventListener('focus', () => useStore.getState().noteGitChange('worktree'))
   // Diagnostics arrive whenever a server has something to say, for whatever
   // file it pleases — including one in a background tab, which is why they
   // are routed by path rather than applied to whatever is on screen.

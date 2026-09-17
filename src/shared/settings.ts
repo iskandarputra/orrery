@@ -344,7 +344,15 @@ export const settingsSchema = z.object({
        * view mode is not the sort of thing that should change under someone on
        * an upgrade. Settings written before this field parse to it anyway.
        */
-      fileViewMode: z.enum(['list', 'tree']).default('list')
+      fileViewMode: z.enum(['list', 'tree']).default('list'),
+      /**
+       * Which of the panel's sections are open. Independent, and both open by
+       * default: they were an accordion, so seeing what changed meant hiding
+       * the history it was about to join.
+       */
+      sections: z
+        .object({ changes: z.boolean().default(true), graph: z.boolean().default(true) })
+        .prefault({})
     })
     .prefault({}),
   /**

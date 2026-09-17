@@ -702,6 +702,10 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
       forgetDraft(get(), id)
       // Any embed showing this note is now stale.
       invalidateEmbed(targetPath)
+      // And source control, which only hears about files in folders the tree
+      // has open. A note saved from quick open in a collapsed folder was not
+      // one of them.
+      get().noteGitChange('worktree')
       set((s) => ({
         buffers: {
           ...s.buffers,
@@ -735,6 +739,7 @@ export const createDocumentsSlice: StateCreator<AppState, [], [], DocumentsSlice
             expectedMtimeMs: null
           })
           bufferRegistry.markSaved(id, state.doc)
+          get().noteGitChange('worktree')
           set((s) => ({
             buffers: {
               ...s.buffers,
