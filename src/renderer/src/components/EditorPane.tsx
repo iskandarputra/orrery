@@ -13,6 +13,7 @@ import { equalSizes, fitSizes, resizePanes, toColumns } from '@core/pane-sizes'
 import { useStore } from '@/state/store'
 import { surfaceForKind } from '@/plugins/registry'
 import { isHtmlFile } from '@core/html-document'
+import { settingsForDocument } from '@core/view-mode'
 import { CanvasEditor } from './CanvasEditor'
 import { DiffView } from './DiffView'
 import { HtmlPreview } from './HtmlPreview'
@@ -41,6 +42,7 @@ function Pane({
   const settings = useStore((s) => s.settings)
   const kind = useStore((s) => (bufferId ? s.buffers[bufferId]?.kind : undefined))
   const isDirty = useStore((s) => (bufferId ? (s.buffers[bufferId]?.isDirty ?? false) : false))
+  const viewMode = useStore((s) => (bufferId ? s.buffers[bufferId]?.viewMode : undefined))
   const isCanvas = kind === 'canvas'
   const isDiff = kind === 'diff'
   // A surface contributed by a plugin, rendered in place of the text editor.
@@ -84,10 +86,14 @@ function Pane({
 
     view.setState(next.state)
     // States created while in the background may carry stale settings.
-    const shownKind = useStore.getState().buffers[bufferId]?.kind ?? 'markdown'
+    const shown = useStore.getState().buffers[bufferId]
+    const shownKind = shown?.kind ?? 'markdown'
     view.dispatch({
       effects: settingsCompartment.reconfigure(
-        settingsExtensions(useStore.getState().settings, shownKind)
+        settingsExtensions(
+          settingsForDocument(useStore.getState().settings, shown?.viewMode),
+          shownKind
+        )
       )
     })
     // Grammars are code-split, so a code buffer opens unhighlighted for as
@@ -115,11 +121,14 @@ function Pane({
 
   useEffect(() => {
     viewRef.current?.dispatch({
-      effects: settingsCompartment.reconfigure(settingsExtensions(settings, kind ?? 'markdown'))
+      effects: settingsCompartment.reconfigure(
+        settingsExtensions(settingsForDocument(settings, viewMode), kind ?? 'markdown')
+      )
     })
     // `kind` matters as much as the settings do: it decides whether this buffer
-    // gets the markdown machinery or the code one.
-  }, [settings, kind])
+    // gets the markdown machinery or the code one. So does the note's own view
+    // mode, which the header switch changes without touching the settings.
+  }, [settings, kind, viewMode])
 
   // Refresh the change bars whenever the file matches disk again — on open,
   // and on the dirty flag clearing after a save. Marks are anchored to

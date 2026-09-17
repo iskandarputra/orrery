@@ -98,7 +98,11 @@ export interface PluginContext {
   registerCommand(command: Command): void
   /**
    * Contribute a CodeMirror extension to every document editor. The factory
-   * re-runs whenever settings change, so plugins can react to preferences.
+   * re-runs whenever settings change, or a note's view mode does, so plugins
+   * can react to preferences.
+   *
+   * `settings.editor.viewMode` is the mode of the document being built for,
+   * which is not always the default: each note can be switched on its own.
    */
   addEditorExtension(factory: (settings: Settings) => Extension): void
   /**
