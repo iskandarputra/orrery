@@ -121,23 +121,6 @@ test('hovering a symbol shows what the server knows about it', async () => {
     onFirstLine: true,
     text: 'const fine = 1'
   })
-  // What the editor itself receives while the pointer moves, for the failure
-  // message: CI's server has been shown to see no hover from the pointer.
-  await page.evaluate(() => {
-    const events: string[] = []
-    ;(window as unknown as { __hoverEvents: string[] }).__hoverEvents = events
-    const start = performance.now()
-    const note = (e: MouseEvent): void => {
-      const t = e.target as Element
-      events.push(
-        `${Math.round(performance.now() - start)}ms ${e.type} ${e.clientX},${e.clientY} ${t.className || t.tagName}`
-      )
-    }
-    const dom = document.querySelector('.cm-editor')!
-    for (const type of ['mousemove', 'mouseleave', 'mouseover', 'mouseout'] as const) {
-      dom.addEventListener(type, note as EventListener, true)
-    }
-  })
   await page.mouse.move(box.x + 10, target.y, { steps: 5 })
   await page.mouse.move(target.x, target.y, { steps: 15 })
 
@@ -145,6 +128,13 @@ test('hovering a symbol shows what the server knows about it', async () => {
   // If nothing shows, say whether the pointer ever asked: the direct request
   // above is one hover, so a second means CodeMirror asked and the tooltip is
   // what went missing, and only one means the pointer never reached it.
+  //
+  // CI has only ever shown one. Ruled out there, each by a run that reported
+  // it: the server answering, the point hovered, the mousemoves the editor
+  // received (the same 28, at the same points, with no mouseleave, as a
+  // passing local run), the page's visibility, focus and frame rate, its
+  // window and screen size; and, locally, hiding user fonts. No other spec
+  // changes the environment this one inherits. What differs is still unknown.
   const hovers = (): string[] =>
     (existsSync(stubLog) ? readFileSync(stubLog, 'utf-8') : '')
       .split('\n')
@@ -153,35 +143,8 @@ test('hovering a symbol shows what the server knows about it', async () => {
     await expect(tip).toBeVisible({ timeout: 15_000 })
   } catch (err) {
     // Read after the wait, not before it: a request can land at any point in it.
-    const events = await page.evaluate(
-      () => (window as unknown as { __hoverEvents?: string[] }).__hoverEvents ?? []
-    )
-    // CodeMirror measures on animation frames; a page the browser has decided
-    // is hidden gets none, and a hover then finds no position to ask about.
-    const page_ = await page.evaluate(async () => {
-      let frames = 0
-      const end = performance.now() + 500
-      await new Promise<void>((done) => {
-        const tick = (): void => {
-          frames++
-          if (performance.now() < end) requestAnimationFrame(tick)
-          else done()
-        }
-        requestAnimationFrame(tick)
-        setTimeout(done, 1000)
-      })
-      return {
-        visibility: document.visibilityState,
-        focused: document.hasFocus(),
-        framesIn500ms: frames,
-        window: `${innerWidth}x${innerHeight}`,
-        screen: `${screen.width}x${screen.height}`
-      }
-    })
     throw new Error(
-      `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}` +
-        `\neditor mouse events (last 12 of ${events.length}): ${JSON.stringify(events.slice(-12))}` +
-        `\npage: ${JSON.stringify(page_)}`,
+      `${(err as Error).message}\nhover requests the server saw: ${JSON.stringify(hovers())}`,
       { cause: err }
     )
   }
