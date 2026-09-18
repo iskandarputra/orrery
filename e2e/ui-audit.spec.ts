@@ -1422,6 +1422,83 @@ for (const [id, appearance] of THEMES) {
   })
 }
 
+/**
+ * The change ruler, which the surface loop cannot speak for.
+ *
+ * Both scans above are about text and about controls. A ruler band is neither:
+ * it paints no glyph and it takes no pointer, so a Surface for it would have
+ * been a row in a list that measured nothing. What it does have is a colour laid
+ * at 0.75 over a scroll track, and that composite is new: the diff tokens are
+ * deepened per theme until they clear AA against the editor's own surfaces, and
+ * this is not one of those surfaces.
+ *
+ * 3:1 is the non-text bar (WCAG 1.4.11): the band is a graphic that carries
+ * meaning, and it has to be findable at a glance rather than merely present.
+ * Over the same seven palettes the scans above sample.
+ */
+test('the change ruler stays legible on every theme', async () => {
+  const worst: { theme: string; ratio: number }[] = []
+  for (const [id, appearance] of THEMES) {
+    // Inside the loop, not before it: `useTheme` reloads the page and lands on
+    // Index.md, which is prose and has no ruler at all. Opening the code file
+    // once outside would measure a theme's ruler on the first pass and nothing
+    // on the rest, and score the nothing as a pass.
+    await useTheme(id, appearance)
+    await page.locator('.tree-row--file', { hasText: 'lexer.ts' }).click()
+    await expect
+      .poll(() => page.locator('.cm-or-ruler-change').count(), { timeout: 15_000 })
+      .toBeGreaterThan(0)
+    const ratio = await page.evaluate(() => {
+      const parse = (c: string): [number, number, number, number] => {
+        const m = c.match(/[\d.]+/g)!.map(Number)
+        return [m[0]!, m[1]!, m[2]!, m[3] ?? 1]
+      }
+      const channel = (v: number): number => {
+        const s = v / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      const lum = (c: [number, number, number]): number =>
+        0.2126 * channel(c[0]) + 0.7152 * channel(c[1]) + 0.0722 * channel(c[2])
+      const over = (
+        ink: [number, number, number, number],
+        base: [number, number, number]
+      ): [number, number, number] => [
+        ink[0] * ink[3] + base[0] * (1 - ink[3]),
+        ink[1] * ink[3] + base[1] * (1 - ink[3]),
+        ink[2] * ink[3] + base[2] * (1 - ink[3])
+      ]
+
+      const band = document.querySelector('.cm-or-ruler-change') as HTMLElement | null
+      if (!band) return 0
+      const style = getComputedStyle(band)
+      // The track behind it, which is the editor's own background: the ruler
+      // itself paints nothing.
+      const track = parse(getComputedStyle(document.querySelector('.cm-editor')!).backgroundColor)
+      const base: [number, number, number] =
+        track[3] > 0.95 ? [track[0], track[1], track[2]] : [255, 255, 255]
+      const raw = parse(style.backgroundColor)
+      const painted = over([raw[0], raw[1], raw[2], Number(style.opacity) * raw[3]], base)
+
+      const a = lum(painted)
+      const b = lum(base)
+      return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100
+    })
+    if (ratio < 3) worst.push({ theme: id, ratio })
+  }
+
+  expect(worst, JSON.stringify(worst, null, 1)).toHaveLength(0)
+
+  // Put the app back the way the surface loop expects to find it. The tab
+  // matters as much as the theme: `useTheme` reloads, and the session brings
+  // the open tabs back with it, so a code file left open here is still open
+  // when the target-size test runs and every tab beside it is that much
+  // narrower. That is the same trap the backlinks surface closes its own tab
+  // for.
+  await page.getByRole('button', { name: 'Close lexer.ts' }).click()
+  await expect(page.locator('.tab', { hasText: 'lexer.ts' })).toHaveCount(0)
+  await useTheme('zinc-light', 'light')
+})
+
 test('high-contrast code makes the worst palette readable', async () => {
   // Ayu Light is the sharpest case: as published, every one of its seven code
   // colours is under AA and its `function` colour sits at 1.78:1.

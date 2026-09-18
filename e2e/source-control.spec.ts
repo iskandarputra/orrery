@@ -439,6 +439,50 @@ test('the preview bands the changes across its width, in green and red', async (
   git('checkout', '-q', '--', 'Preview.md')
 })
 
+test('the working-tree pane rules its scrollbar with the same changes', async () => {
+  // The ruler answers what the preview cannot: where in the whole file the
+  // edits are, rather than where they are in the window of lines the preview
+  // happens to be drawing.
+  // Its own file, not Preview.md: that one is already in HEAD with exactly this
+  // content, so `git add` would stage nothing and the commit would fail.
+  const lines = Array.from({ length: 300 }, (_, i) => `line ${i + 1}`)
+  writeFileSync(join(vault, 'Ruler.md'), `${lines.join('\n')}\n`)
+  git('add', 'Ruler.md')
+  git('commit', '-qm', 'a long file for the ruler')
+
+  const edited = [...lines]
+  edited[224] = 'line 225, rewritten'
+  writeFileSync(join(vault, 'Ruler.md'), `${edited.join('\n')}\n`)
+
+  await openPanel()
+  await refresh()
+  await openDiff('Ruler.md')
+  await expect(page.locator('.diff__pane--new .cm-or-ruler')).toBeVisible({ timeout: 10_000 })
+
+  // One ruler, on the working-tree side, where the minimap is. Two in
+  // half-width panes would spend the space saying the same thing twice.
+  await expect(page.locator('.diff__pane--old .cm-or-ruler')).toHaveCount(0)
+
+  const band = await page.evaluate(() => {
+    const ruler = document.querySelector('.diff__pane--new .cm-or-ruler')!.getBoundingClientRect()
+    const marks = Array.from(
+      document.querySelectorAll('.diff__pane--new .cm-or-ruler-change')
+    ).filter((el) => (el as HTMLElement).style.display !== 'none')
+    if (marks.length === 0) return null
+    const box = marks[0]!.getBoundingClientRect()
+    return { centre: (box.top + box.height / 2 - ruler.top) / ruler.height, count: marks.length }
+  })
+  // Line 225 of 300 is three quarters down. The diff pads both sides to align
+  // them, so the exact row shifts a little; the point is that it is nowhere
+  // near the top, which is where an unscaled ruler would put everything.
+  expect(band).not.toBeNull()
+  expect(band!.centre).toBeGreaterThan(0.7)
+  expect(band!.centre).toBeLessThan(0.8)
+
+  await page.locator('.diff button[aria-label="Close"]').click()
+  git('checkout', '-q', '--', 'Ruler.md')
+})
+
 test('the two columns can be dragged, and the split is remembered', async () => {
   writeFileSync(join(vault, 'Preview.md'), '# rewritten\n\nwith a couple of lines\n')
   await openPanel()

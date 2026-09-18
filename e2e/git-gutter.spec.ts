@@ -15,6 +15,17 @@ const git = (args: string[], cwd: string): void => {
 
 const ORIGINAL = ['one', 'two', 'three', 'four', 'five'].map((n) => `const ${n} = 1`).join('\n')
 
+/**
+ * Long enough that where a mark sits is a measurement rather than a guess.
+ *
+ * Five lines all land in the top few pixels of any track, so a ruler that put
+ * every band at the top would pass against ORIGINAL. Two hundred lines with the
+ * edit at 150 puts the answer three quarters of the way down, which only
+ * proportional placement can produce.
+ */
+const LONG_LINES = 200
+const LONG = Array.from({ length: LONG_LINES }, (_, i) => `const n${i + 1} = 1`).join('\n') + '\n'
+
 async function open(file: string): Promise<void> {
   await page.locator('.tree-row--file', { hasText: file }).click()
   await expect(page.locator('.cm-content')).toBeVisible({ timeout: 15_000 })
@@ -47,6 +58,31 @@ async function markedLines(): Promise<string[]> {
   })
 }
 
+/** Change line 150 of the long fixture, three quarters of the way down it. */
+function editLong150(): void {
+  const edited = LONG.split('\n')
+  edited[149] = 'const n150 = 999'
+  writeFileSync(join(vault, 'long.ts'), edited.join('\n'))
+}
+
+/** Every band on the scrollbar ruler, as a fraction of the track it sits on. */
+async function rulerBands(): Promise<{ centre: number; height: number }[]> {
+  return page.evaluate(() => {
+    const ruler = document.querySelector('.cm-or-ruler')
+    if (!ruler) return []
+    const track = ruler.getBoundingClientRect()
+    return Array.from(ruler.querySelectorAll('.cm-or-ruler-change'))
+      .filter((el) => (el as HTMLElement).style.display !== 'none')
+      .map((el) => {
+        const box = el.getBoundingClientRect()
+        return {
+          centre: (box.top + box.height / 2 - track.top) / track.height,
+          height: box.height
+        }
+      })
+  })
+}
+
 test.beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), 'orrery-git-'))
   writeFileSync(join(vault, 'Note.md'), '# Note\n\nProse.\n')
@@ -54,11 +90,12 @@ test.beforeAll(async () => {
   writeFileSync(join(vault, 'loose.ts'), 'const loose = 1\n')
   writeFileSync(join(vault, 'anchor.ts'), ORIGINAL + '\n')
   writeFileSync(join(vault, 'reloaded.ts'), ORIGINAL + '\n')
+  writeFileSync(join(vault, 'long.ts'), LONG)
 
   git(['init'], vault)
   git(['config', 'user.email', 'test@example.com'], vault)
   git(['config', 'user.name', 'Test'], vault)
-  git(['add', 'committed.ts', 'anchor.ts', 'reloaded.ts', 'Note.md'], vault)
+  git(['add', 'committed.ts', 'anchor.ts', 'reloaded.ts', 'long.ts', 'Note.md'], vault)
   git(['commit', '-m', 'base'], vault)
   // Committed clean, then changed on disk before the app ever opens it, so the
   // tab starts with exactly one bar.
@@ -199,4 +236,126 @@ test('marks survive the file changing on disk underneath an open tab', async () 
   await expect
     .poll(async () => (await marks()).join(','), { timeout: 10_000 })
     .toBe('modified,modified')
+})
+
+/**
+ * The ruler is the answer to "where in this file are my edits", which the
+ * gutter cannot give: the gutter only speaks for the lines on screen, and the
+ * minimap only for the part of the file it is scrolled near.
+ */
+test('the ruler sits over the scroll track, at its full height', async () => {
+  writeFileSync(join(vault, 'long.ts'), LONG)
+  await open('long.ts')
+  const box = await page.evaluate(() => {
+    const editor = document.querySelector('.cm-editor')!.getBoundingClientRect()
+    const ruler = document.querySelector('.cm-or-ruler')?.getBoundingClientRect()
+    if (!ruler) return null
+    return {
+      width: Math.round(ruler.width),
+      // Distance from each edge of the editor, which is where the native
+      // scrollbar's gutter is. Anything else and the bands mark thin air.
+      fromRight: Math.round(editor.right - ruler.right),
+      fromTop: Math.round(ruler.top - editor.top),
+      fromBottom: Math.round(editor.bottom - ruler.bottom)
+    }
+  })
+  expect(box).toEqual({ width: 12, fromRight: 0, fromTop: 0, fromBottom: 0 })
+
+  // And the track underneath is widened to match. The app's scrollbars are 6px
+  // everywhere else; a 3px band in a 6px track is a smudge with no room either
+  // side of it. The width is carried by the ruler's own CodeMirror theme, so it
+  // reaches exactly the editors that have a ruler and nothing else.
+  const track = await page
+    .locator('.cm-scroller')
+    .first()
+    .evaluate((el) => el.offsetWidth - el.clientWidth)
+  expect(track).toBe(12)
+
+  // A note is not a code file: it has no ruler, and keeps the app's own width.
+  await open('Note.md')
+  const prose = await page
+    .locator('.cm-scroller')
+    .first()
+    .evaluate((el) => el.offsetWidth - el.clientWidth)
+  expect(prose).toBeLessThan(12)
+})
+
+test('a file matching HEAD has a ruler but no bands', async () => {
+  writeFileSync(join(vault, 'long.ts'), LONG)
+  await open('Note.md')
+  await open('long.ts')
+  await expect(page.locator('.cm-or-ruler')).toHaveCount(1)
+  await expect.poll(async () => (await rulerBands()).length, { timeout: 10_000 }).toBe(0)
+})
+
+test('a band sits where in the whole file the change is, not where the view is', async () => {
+  await editLong150()
+  await open('Note.md')
+  await open('long.ts')
+
+  await expect.poll(async () => (await rulerBands()).length, { timeout: 10_000 }).toBe(1)
+  const [band] = await rulerBands()
+  // Line 150 of 200 is three quarters of the way down. The tolerance covers the
+  // band being grown to its 3px floor, which on an 800px track is a fraction of
+  // a percent, and nothing like the difference between 0.75 and the 0 a ruler
+  // that ignored the line number would produce.
+  expect(band!.centre).toBeGreaterThan(0.73)
+  expect(band!.centre).toBeLessThan(0.77)
+
+  // Scrolling must not move it: the ruler stands for the file, not the viewport.
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('Control+End')
+  await expect
+    .poll(async () => (await rulerBands())[0]?.centre, { timeout: 5_000 })
+    .toBeGreaterThan(0.73)
+  expect((await rulerBands())[0]!.centre).toBeLessThan(0.77)
+})
+
+test('a one-line change is grown to something you can see', async () => {
+  await editLong150()
+  await open('Note.md')
+  await open('long.ts')
+  await expect.poll(async () => (await rulerBands()).length, { timeout: 10_000 }).toBe(1)
+  // One line of 200 on an ~800px track is 4px, already over the floor; the
+  // point is that it is never the sub-pixel a naive scaling gives on a file of
+  // a few thousand lines.
+  expect((await rulerBands())[0]!.height).toBeGreaterThanOrEqual(3)
+})
+
+test('the ruler stays when the minimap is switched off', async () => {
+  // The case that started this: turning the minimap off used to take every view
+  // of where the edits are with it, leaving only a gutter that speaks for the
+  // twenty lines on screen.
+  // Its own edit rather than the previous test's: a spec whose tests only pass
+  // in order is a spec nobody can run one test of.
+  await editLong150()
+  await open('Note.md')
+  await open('long.ts')
+  await expect(page.locator('.cm-minimap-gutter')).toBeVisible()
+  await expect.poll(async () => (await rulerBands()).length, { timeout: 10_000 }).toBe(1)
+
+  const minimapToggle = async (): Promise<void> => {
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command', {
+        commandId: 'app.openSettings'
+      })
+    })
+    // The dialog opens on General, and the toggle is two sections along.
+    await page.locator('.settings__nav-item', { hasText: 'Editor' }).click()
+    await page.getByRole('switch', { name: 'Minimap' }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.settings')).toHaveCount(0)
+  }
+
+  await minimapToggle()
+  await expect(page.locator('.cm-minimap-gutter')).toHaveCount(0)
+  await expect(page.locator('.cm-or-ruler')).toHaveCount(1)
+  await expect.poll(async () => (await rulerBands()).length, { timeout: 10_000 }).toBe(1)
+  const [band] = await rulerBands()
+  expect(band!.centre).toBeGreaterThan(0.73)
+  expect(band!.centre).toBeLessThan(0.77)
+
+  // Put back: the setting is global and this is not the last spec to run.
+  await minimapToggle()
+  await expect(page.locator('.cm-minimap-gutter')).toBeVisible()
 })
