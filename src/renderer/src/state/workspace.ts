@@ -73,6 +73,14 @@ export interface WorkspaceSlice {
   setTreeClipboard(mode: ClipboardMode, paths: string[]): void
   /** Paste what the tree clipboard holds into this folder. */
   pasteInto(dir: string): Promise<void>
+  /**
+   * Move or copy these paths into this folder, for a drag dropped on it. The
+   * same work as a paste, without going through the clipboard: a drag is its
+   * own gesture, and it should not throw away what was cut earlier.
+   *
+   * Answers whether anything moved, which is what makes a cut used up.
+   */
+  transferInto(mode: ClipboardMode, paths: readonly string[], dir: string): Promise<boolean>
 }
 
 /**
@@ -336,18 +344,24 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
   async pasteInto(dir) {
     const clip = get().treeClipboard
     if (!clip) return
+    const moved = await get().transferInto(clip.mode, clip.paths, dir)
+    // A cut is used up by pasting it; a copy can be pasted again.
+    if (clip.mode === 'cut' && moved) set({ treeClipboard: null })
+  },
+
+  async transferInto(mode, paths, dir) {
     let taken: Set<string>
     try {
       taken = new Set(
         (await invoke('fs:readDir', { path: dir, showHidden: true })).map((n) => n.name)
       )
     } catch (err) {
-      get().showToast(`Could not paste: ${parseIpcError(err).message}`, 'error')
-      return
+      get().showToast(`Could not read that folder: ${parseIpcError(err).message}`, 'error')
+      return false
     }
     let moved = false
-    for (const from of clip.paths) {
-      const plan = planPaste(clip.mode, from, dir, taken)
+    for (const from of paths) {
+      const plan = planPaste(mode, from, dir, taken)
       if (plan.kind === 'nothing') continue
       if (plan.kind === 'refused') {
         get().showToast(
@@ -360,22 +374,23 @@ export const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice
       }
       const to = `${dir.replace(/[\\/]+$/, '')}/${plan.name}`
       try {
-        const made = await invoke(clip.mode === 'cut' ? 'fs:move' : 'fs:copy', { from, to })
+        const made = await invoke(mode === 'cut' ? 'fs:move' : 'fs:copy', { from, to })
         taken.add(plan.name)
-        if (clip.mode === 'cut') {
+        if (mode === 'cut') {
           // Open tabs follow the file, as they do after a rename.
           get().updatePathsAfterRename(from, made)
           moved = true
         }
       } catch (err) {
         get().showToast(
-          `Could not paste "${basename(from)}": ${parseIpcError(err).message}`,
+          `Could not ${mode === 'cut' ? 'move' : 'copy'} "${basename(from)}": ${
+            parseIpcError(err).message
+          }`,
           'error'
         )
       }
     }
-    // A cut is used up by pasting it; a copy can be pasted again.
-    if (clip.mode === 'cut' && moved) set({ treeClipboard: null })
     void get().refreshTree()
+    return moved
   }
 })

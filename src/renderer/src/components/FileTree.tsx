@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import type { FileNode } from '@shared/types'
 import { dirname, isMarkdownFile } from '@core/paths'
+import { canDropInto, dropDir, TREE_DRAG_TYPE, type ClipboardMode } from '@core/tree-actions'
 import {
   clickSelect,
   findRow,
@@ -72,6 +73,44 @@ function drawnRows(): string[] {
 /** An element id for a row, for `aria-activedescendant`. */
 const rowId = (path: string): string => `tree-row-${encodeURIComponent(path)}`
 
+/** Ctrl or Cmd held during a drag copies instead of moving, as VS Code does. */
+const dragMode = (e: React.DragEvent): ClipboardMode => (e.ctrlKey || e.metaKey ? 'copy' : 'cut')
+
+/**
+ * Take a drag over this folder, or refuse it.
+ *
+ * The browser drops nothing unless the dragover is prevented, so refusing is
+ * simply not preventing it: the pointer keeps the "no" cursor and the folder
+ * is not lit up.
+ */
+function dragOverDir(e: React.DragEvent, into: string): void {
+  const state = useStore.getState()
+  const drag = state.treeDrag
+  if (!drag) return
+  // The row decides, not the tree behind it, whose target is the vault root.
+  e.stopPropagation()
+  if (!canDropInto(drag.paths, into, dragMode(e))) {
+    if (drag.into !== null) state.setTreeDrag({ ...drag, into: null })
+    return
+  }
+  e.preventDefault()
+  e.dataTransfer.dropEffect = dragMode(e) === 'copy' ? 'copy' : 'move'
+  if (drag.into !== into) state.setTreeDrag({ ...drag, into })
+}
+
+/** Move or copy what is being dragged into this folder. */
+function dropIntoDir(e: React.DragEvent, into: string): void {
+  const state = useStore.getState()
+  const drag = state.treeDrag
+  state.setTreeDrag(null)
+  if (!drag) return
+  e.preventDefault()
+  e.stopPropagation()
+  const mode = dragMode(e)
+  if (!canDropInto(drag.paths, into, mode)) return
+  void state.transferInto(mode, drag.paths, into)
+}
+
 const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX.Element {
   const expandedDirs = useStore((s) => s.expandedDirs)
   const isExpanded = !!expandedDirs[node.path]
@@ -86,6 +125,9 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
   })
   const selected = useStore((s) => s.treeSelection.paths.includes(node.path))
   const focused = useStore((s) => s.treeSelection.focus === node.path)
+  // Only a folder lights up: a drop on a file means the folder it is in, and
+  // lighting every file in that folder would say the wrong thing.
+  const dropping = useStore((s) => node.kind === 'directory' && s.treeDrag?.into === node.path)
   const rowRef = useRef<HTMLDivElement>(null)
 
   // Keep the keyboard's row in sight as the arrows move it.
@@ -119,7 +161,37 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
     openContextMenu(e, buildTreeMenu(node))
   }
 
-  const rowState = `${selected ? ' tree-row--selected' : ''}${focused ? ' tree-row--focused' : ''}`
+  const rowState =
+    `${selected ? ' tree-row--selected' : ''}${focused ? ' tree-row--focused' : ''}` +
+    `${dropping ? ' tree-row--drop' : ''}`
+
+  /**
+   * Start a drag of this row. Dragging a row inside the selection takes the
+   * whole selection, as VS Code does; dragging one outside it makes it the
+   * selection first, so what will move is what is lit up.
+   */
+  const onDragStart = (e: React.DragEvent): void => {
+    const state = useStore.getState()
+    const chosen = state.treeSelection.paths
+    const paths = chosen.includes(node.path) ? topmostSelected(chosen, drawnRows()) : [node.path]
+    if (!chosen.includes(node.path)) {
+      state.setTreeSelection({ paths: [node.path], anchor: node.path, focus: node.path })
+    }
+    state.setTreeDrag({ paths, into: null })
+    e.dataTransfer.effectAllowed = 'copyMove'
+    // The editor opens these rather than writing their paths into the note.
+    e.dataTransfer.setData(TREE_DRAG_TYPE, paths.join('\n'))
+    // Dropped outside the app, a path is the useful thing to hand over.
+    e.dataTransfer.setData('text/plain', paths.join('\n'))
+  }
+
+  const dragProps = {
+    draggable: true,
+    onDragStart,
+    onDragEnd: () => useStore.getState().setTreeDrag(null),
+    onDragOver: (e: React.DragEvent) => dragOverDir(e, dropDir(node)),
+    onDrop: (e: React.DragEvent) => dropIntoDir(e, dropDir(node))
+  }
 
   // Renaming this node replaces its row with an input.
   if (treeEdit?.type === 'rename' && treeEdit.path === node.path) {
@@ -142,6 +214,7 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
           aria-selected={selected}
           className={`tree-row tree-row--dir${creatingHere ? ' tree-row--creating' : ''}${rowState}`}
           style={{ paddingLeft: DIR_PAD_PX }}
+          {...dragProps}
           onClick={(e) => {
             if (!select(e)) toggleDir(node.path)
           }}
@@ -200,6 +273,7 @@ const TreeNode = memo(function TreeNode({ node }: { node: FileNode }): React.JSX
       }${rowState}`}
       style={{ paddingLeft: FILE_PAD_PX }}
       title={node.path}
+      {...dragProps}
       onClick={(e) => {
         if (!select(e)) void openPaths([node.path])
       }}
@@ -304,6 +378,8 @@ export function FileTree(): React.JSX.Element | null {
   const treeEdit = useStore((s) => s.treeEdit)
   const filter = useStore((s) => s.fileTreeFilter)
   const focus = useStore((s) => s.treeSelection.focus)
+  // A drop on the space around the rows means the top of the vault.
+  const droppingAtRoot = useStore((s) => !!s.tree && s.treeDrag?.into === s.tree.path)
 
   const filteredTree = useMemo(() => {
     if (!tree || !filter.trim()) return tree
@@ -326,7 +402,7 @@ export function FileTree(): React.JSX.Element | null {
 
   return (
     <div
-      className="file-tree"
+      className={`file-tree${droppingAtRoot ? ' file-tree--drop' : ''}`}
       role="tree"
       aria-label="Files"
       aria-multiselectable="true"
@@ -334,6 +410,16 @@ export function FileTree(): React.JSX.Element | null {
       // Focusable itself, so a click on any row gives the tree the keyboard.
       tabIndex={0}
       onKeyDown={onTreeKey}
+      // Rows stop their own drag events, so these are the space around them.
+      onDragOver={(e) => tree && dragOverDir(e, tree.path)}
+      onDrop={(e) => tree && dropIntoDir(e, tree.path)}
+      onDragLeave={(e) => {
+        // Only when the pointer has left the tree itself, not on the way from
+        // one row to the next.
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        const drag = useStore.getState().treeDrag
+        if (drag?.into) useStore.getState().setTreeDrag({ ...drag, into: null })
+      }}
       // Rows stop their own right-clicks, so this is only the space around them.
       onContextMenu={(e) => {
         if (!tree) return

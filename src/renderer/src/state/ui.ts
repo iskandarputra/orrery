@@ -107,6 +107,12 @@ export interface UiSlice {
   /** Which rows of the file tree are selected, and which the keyboard is on. */
   treeSelection: TreeSelection
   /**
+   * A drag in the file tree: what is being dragged, and the folder it would
+   * land in. Here rather than in a ref, because the row under the pointer is a
+   * different component from the one the drag started on.
+   */
+  treeDrag: { paths: string[]; into: string | null } | null
+  /**
    * A PDF somebody asked to see a particular page of.
    *
    * A search hit and a `[[paper.pdf#page=12]]` link both mean "open this there",
@@ -214,6 +220,7 @@ export interface UiSlice {
   toggleDir(path: string): void
   collapseAllDirs(): void
   setTreeSelection(selection: TreeSelection): void
+  setTreeDrag(drag: { paths: string[]; into: string | null } | null): void
   toggleFormattingToolbar(): void
   showToast(
     message: string,
@@ -284,6 +291,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   paletteMode: null,
   expandedDirs: {},
   treeSelection: EMPTY_SELECTION,
+  treeDrag: null,
   pdfTarget: null,
   treeEdit: null,
   showFormattingToolbar: false,
@@ -456,6 +464,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
 
   setTreeSelection(selection) {
     set({ treeSelection: selection })
+  },
+
+  setTreeDrag(drag) {
+    set({ treeDrag: drag })
   },
 
   toggleFormattingToolbar() {

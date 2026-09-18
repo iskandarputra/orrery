@@ -1287,6 +1287,23 @@ textarea {
   box-shadow: inset 0 0 0 1px var(--or-accent);
 }
 
+/* The folder a drag would land in: an accent tint and an outline, so it reads
+   as a target rather than as another selected row.
+
+   Two classes, because the pointer is by definition on this row and
+   `.tree-row:hover` would otherwise win on specificity and paint its own grey
+   over the tint. */
+.tree-row.tree-row--drop {
+  background: var(--or-accent-soft);
+  color: var(--or-accent-text);
+  box-shadow: inset 0 0 0 1px var(--or-accent);
+}
+
+/* The same for the space around the rows, which means the top of the vault. */
+.file-tree--drop {
+  box-shadow: inset 0 0 0 1px var(--or-accent);
+}
+
 .tree-row--active {
   background: var(--or-accent-soft);
   color: var(--or-accent-text);

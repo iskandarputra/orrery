@@ -1214,6 +1214,32 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    // A drag held over a folder: the row says it would take the drop, and that
+    // is a tint and an outline, both of which a theme can lose. The drag is let
+    // go of with Escape rather than dropped, so no file in the audit's vault
+    // moves and the surfaces after this one still find their rows.
+    name: 'file tree drop target',
+    root: '.file-tree',
+    open: async () => {
+      await showFiles()
+      const file = (await page.locator('.file-tree .tree-row--file').first().boundingBox())!
+      const folder = (await page.locator('.file-tree .tree-row--dir').first().boundingBox())!
+      await page.mouse.move(file.x + file.width / 2, file.y + file.height / 2)
+      await page.mouse.down()
+      const x = folder.x + folder.width / 2
+      const y = folder.y + folder.height / 2
+      // The first move starts the drag, the second is the one the row sees.
+      await page.mouse.move(x, y)
+      await page.mouse.move(x, y + 1)
+      await expect(page.locator('.tree-row--drop')).toBeVisible()
+    },
+    close: async () => {
+      await page.keyboard.press('Escape')
+      await page.mouse.up()
+      await expect(page.locator('.tree-row--drop')).toHaveCount(0)
+    }
+  },
+  {
     // The file tree's context menu on a folder, the longest it gets. Something
     // is copied first, so Paste is measured as the live item it is when it can
     // be used rather than the dimmed one it is otherwise.
