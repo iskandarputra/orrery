@@ -332,6 +332,8 @@ export function MediaViewerModal(): React.JSX.Element | null {
           <div
             ref={stageRef}
             className={`media-viewer__stage${panning ? ' media-viewer__stage--panning' : ''}`}
+            // Every wheel here is this viewer's, modified or not.
+            data-owns-zoom=""
             onWheel={onWheel}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

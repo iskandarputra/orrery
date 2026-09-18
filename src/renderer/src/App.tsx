@@ -1,5 +1,7 @@
 import { injectThemeCss } from '@/themes/themes'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { PAGE_ZOOM_COMMANDS, zoomForWheel } from '@core/zoom-keys'
+import { getRegistry } from '@/bootstrap'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
 import { ContextMenu } from '@/components/context-menu/ContextMenu'
@@ -68,6 +70,54 @@ function useThemeSync(): void {
   }, [highContrastCode])
 }
 
+/**
+ * Ctrl and the wheel, the two zooms the keys already offer.
+ *
+ * It has to be done here rather than in main. `before-input-event` is keyboard
+ * only, and Chromium's own ctrl-wheel zoom belongs to browser chrome that an
+ * Electron window does not have, so without this the gesture every other app on
+ * the machine has simply does nothing.
+ *
+ * Capture phase, and it asks the target rather than reading `defaultPrevented`.
+ * React registers `wheel` on its root as a passive listener, so `preventDefault`
+ * inside an `onWheel` handler is a no-op and the flag those surfaces think they
+ * are setting never gets set. `data-owns-zoom` is the surfaces saying so
+ * themselves, which is a claim that survives whatever React does with the event.
+ */
+function useZoomWheel(): void {
+  const carried = useRef(0)
+  useEffect(() => {
+    const onWheel = (e: WheelEvent): void => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest?.('[data-owns-zoom]')) return
+
+      const zoom = zoomForWheel(
+        { deltaY: e.deltaY, control: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey },
+        carried.current
+      )
+      if (!zoom.zooming) {
+        carried.current = 0
+        return
+      }
+      // Taken from the page as soon as the gesture is recognised, not when a
+      // step lands: a pinch spends several events below the threshold, and
+      // letting those through scrolls the document out from under the zoom.
+      e.preventDefault()
+      carried.current = zoom.rest
+      if (!zoom.action) return
+
+      if (zoom.action === 'window-in') void invoke('window:setZoom', { by: 1 })
+      else if (zoom.action === 'window-out') void invoke('window:setZoom', { by: -1 })
+      else if (zoom.action !== 'window-reset') {
+        getRegistry()?.execute(PAGE_ZOOM_COMMANDS[zoom.action])
+      }
+    }
+    // Not passive: the whole point is to stop the scroll the wheel asked for.
+    window.addEventListener('wheel', onWheel, { capture: true, passive: false })
+    return () => window.removeEventListener('wheel', onWheel, { capture: true })
+  }, [])
+}
+
 function useWindowTitleSync(): void {
   const active = useStore((s) => (s.activeId ? s.buffers[s.activeId] : null))
   useEffect(() => {
@@ -83,6 +133,7 @@ export function App(): React.JSX.Element {
 
   useThemeSync()
   useWindowTitleSync()
+  useZoomWheel()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {

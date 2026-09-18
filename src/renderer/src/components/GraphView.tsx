@@ -810,7 +810,8 @@ export function GraphView(): React.JSX.Element | null {
 
         {rootPath ? (
           <div className="graph__body">
-            <canvas ref={canvasRef} className="graph__canvas" />
+            {/* The graph zooms on its own wheel, so the app's does not fire. */}
+            <canvas ref={canvasRef} className="graph__canvas" data-owns-zoom="" />
 
             {/* Hover Tooltip Card */}
             {hoverNode && (

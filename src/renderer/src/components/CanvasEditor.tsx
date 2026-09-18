@@ -358,6 +358,9 @@ export function CanvasEditor({ bufferId }: { bufferId: string }): React.JSX.Elem
       <div
         ref={surfaceRef}
         className={`canvas__surface${gesture?.kind === 'pan' ? ' canvas__surface--panning' : ''}`}
+        // The board pans on a plain wheel and zooms on ctrl-wheel; neither is
+        // the app's to take.
+        data-owns-zoom=""
         onWheel={onWheel}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

@@ -104,6 +104,8 @@ export function ImageViewer({ bufferId }: { bufferId: string }): React.JSX.Eleme
       <div
         className="imgv__stage"
         ref={hostRef}
+        // Ctrl-wheel is this viewer's own zoom, not the app's.
+        data-owns-zoom=""
         onWheel={(event) => {
           // Ctrl with the wheel is how every picture is zoomed, everywhere, and
           // without it the only way in is the toolbar. Plain scrolling is left

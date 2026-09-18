@@ -14,10 +14,16 @@ import { closeCleanly, launchApp, openVault } from './helpers'
  * is the right answer for prose set a little tight. Holding Shift is what picks
  * between them, and the point of this file is that each leaves the other alone.
  *
- * Driven through the command channel rather than by pressing keys: the chords
- * are caught in the main process by `before-input-event`, which nothing in a
- * test can make fire. Which spelling of the key maps to which zoom is a pure
- * function with unit tests of its own — see `core/zoom-keys`.
+ * The key chords are driven through the command channel rather than by pressing
+ * keys: they are caught in the main process by `before-input-event`, which
+ * nothing in a test can make fire. Which spelling of the key maps to which zoom
+ * is a pure function with unit tests of its own, in `core/zoom-keys`.
+ *
+ * The wheel is the exception, and is pressed for real. It is handled in the
+ * renderer rather than in main, so a test can dispatch it, and what it has to
+ * prove is not the mapping (also unit tested) but that the listener is reached
+ * at all: it competes with CodeMirror's own scrolling and with four surfaces
+ * that zoom themselves on the same gesture.
  */
 
 let app: ElectronApplication
@@ -272,4 +278,93 @@ test('a database table follows it too', async () => {
   await run('view.pageZoomReset')
   expect(await sizeOf('.db__grid')).toBeCloseTo(cells, 1)
   expect(await sizeOf('.db__sort')).toBeCloseTo(heads, 1)
+})
+
+/**
+ * Ctrl and the wheel, which is the gesture every other app on the machine has.
+ *
+ * Chromium's own ctrl-wheel zoom belongs to browser chrome an Electron window
+ * does not have, so nothing here happens by default: what these check is that
+ * the renderer's listener sees the event and that the page does not scroll out
+ * from under it.
+ */
+const spin = async (deltaY: number, modifiers: string[]): Promise<void> => {
+  for (const key of modifiers) await page.keyboard.down(key)
+  await page.mouse.move(600, 400)
+  await page.mouse.wheel(0, deltaY)
+  for (const key of modifiers) await page.keyboard.up(key)
+  await page.waitForTimeout(400)
+}
+
+test('ctrl and the wheel zoom the window, not the document', async () => {
+  const before = await documentSize()
+  await spin(-120, ['Control'])
+  expect(await windowZoom()).toBe(1)
+  expect(await documentSize()).toBe(before)
+
+  // Back out through zero to the far side. These two spins happen while the
+  // window is already zoomed, which is the case that caught the threshold out:
+  // Chromium hands the renderer a delta divided by the zoom factor, so the 120
+  // asked for here arrives as 99.999996. Do not collapse them into one spin.
+  await spin(120, ['Control'])
+  await spin(120, ['Control'])
+  expect(await windowZoom()).toBe(-1)
+  expect(await documentSize()).toBe(before)
+
+  await run('view.zoomReset')
+})
+
+test('ctrl-shift and the wheel zoom the document, not the window', async () => {
+  const before = await documentSize()
+  await spin(-120, ['Control', 'Shift'])
+  expect(await documentSize()).toBe(before + 1)
+  expect(await windowZoom()).toBe(0)
+
+  await spin(120, ['Control', 'Shift'])
+  expect(await documentSize()).toBe(before)
+  expect(await windowZoom()).toBe(0)
+})
+
+test('a plain wheel scrolls and zooms nothing', async () => {
+  const before = await documentSize()
+  await spin(-120, [])
+  expect(await windowZoom()).toBe(0)
+  expect(await documentSize()).toBe(before)
+})
+
+test('the gesture does not scroll the document it is zooming', async () => {
+  // Without preventDefault the wheel does both: the window scales and the file
+  // jumps a screen, which is the version of this that is worse than nothing.
+  await page.locator('.tree-row--file', { hasText: 'Note.md' }).click()
+  await expect(page.locator('.cm-content')).toContainText('Some prose', { timeout: 15_000 })
+  const scrollTop = (): Promise<number> =>
+    page
+      .locator('.cm-scroller')
+      .first()
+      .evaluate((el) => el.scrollTop)
+
+  const before = await scrollTop()
+  await spin(240, ['Control'])
+  expect(await scrollTop()).toBe(before)
+  await run('view.zoomReset')
+})
+
+test('a surface with a zoom of its own keeps the gesture', async () => {
+  // The graph zooms itself on ctrl-wheel. A global listener that took the
+  // gesture anyway would scale the whole interface while the user was trying to
+  // scale the graph, which is why those surfaces mark themselves.
+  await run('view.toggleGraph')
+  await expect(page.locator('.graph__canvas')).toBeVisible({ timeout: 20_000 })
+
+  const box = await page.locator('.graph__canvas').boundingBox()
+  await page.keyboard.down('Control')
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.wheel(0, -120)
+  await page.keyboard.up('Control')
+  await page.waitForTimeout(400)
+
+  expect(await windowZoom()).toBe(0)
+
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.graph__canvas')).toBeHidden()
 })
