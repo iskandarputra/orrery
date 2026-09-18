@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { matchesAnyGlob, parsePatternList } from './glob'
-import { copyName, folderInclude, isSameOrInside, planPaste, relativeToRoot } from './tree-actions'
+import {
+  canDropInto,
+  copyName,
+  dropDir,
+  folderInclude,
+  isSameOrInside,
+  planPaste,
+  relativeToRoot
+} from './tree-actions'
 
 const names = (...list: string[]): ReadonlySet<string> => new Set(list)
 
@@ -117,5 +125,36 @@ describe('folderInclude', () => {
     expect(include).toHaveLength(1)
     expect(matchesAnyGlob('a,b/x.md', include)).toBe(true)
     expect(matchesAnyGlob('b/x.md', include)).toBe(false)
+  })
+})
+
+describe('dropDir', () => {
+  it('is the folder dropped on, or the folder a file sits in', () => {
+    expect(dropDir({ path: '/v/notes', kind: 'directory' })).toBe('/v/notes')
+    expect(dropDir({ path: '/v/notes/a.md', kind: 'file' })).toBe('/v/notes')
+  })
+})
+
+describe('canDropInto', () => {
+  it('takes files into another folder', () => {
+    expect(canDropInto(['/v/a.md', '/v/b.md'], '/v/notes', 'cut')).toBe(true)
+  })
+
+  it('refuses a folder into itself or anything inside it', () => {
+    expect(canDropInto(['/v/notes'], '/v/notes', 'cut')).toBe(false)
+    expect(canDropInto(['/v/notes'], '/v/notes/deep', 'cut')).toBe(false)
+    expect(canDropInto(['/v/notes'], '/v/notes-archive', 'cut')).toBe(true)
+  })
+
+  it('refuses a move that would leave everything where it is', () => {
+    expect(canDropInto(['/v/a.md', '/v/b.md'], '/v', 'cut')).toBe(false)
+    // One of them does move, so the drag is worth taking.
+    expect(canDropInto(['/v/a.md', '/v/notes/c.md'], '/v', 'cut')).toBe(true)
+    // A copy into the same folder duplicates it, which is not nothing.
+    expect(canDropInto(['/v/a.md'], '/v', 'copy')).toBe(true)
+  })
+
+  it('refuses a drag of nothing', () => {
+    expect(canDropInto([], '/v/notes', 'cut')).toBe(false)
   })
 })

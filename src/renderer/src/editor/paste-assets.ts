@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
+import { TREE_DRAG_TYPE } from '@core/tree-actions'
 import { appState } from '@/state/app-state-access'
 import { invoke, parseIpcError } from '@/services/client'
 import { assetFileName, assetMarkdown } from './assets'
@@ -57,6 +58,12 @@ async function handleFiles(view: EditorView, files: File[]): Promise<void> {
   }
 }
 
+/** The vault paths a tree drag is carrying, if that is what this drag is. */
+function draggedRows(event: DragEvent): string[] {
+  if (!event.dataTransfer?.types.includes(TREE_DRAG_TYPE)) return []
+  return event.dataTransfer.getData(TREE_DRAG_TYPE).split('\n').filter(Boolean)
+}
+
 /**
  * Paste or drop an image into a note: the file is copied into the vault's asset
  * folder and an embed is written at the cursor. Without this, a screenshot in
@@ -64,7 +71,11 @@ async function handleFiles(view: EditorView, files: File[]): Promise<void> {
  * pictures.
  *
  * Markdown files that are dropped are opened as tabs instead; dropping a note
- * onto the editor means "open this", not "paste a copy of it".
+ * onto the editor means "open this", not "paste a copy of it". A row dragged
+ * out of the file tree means the same thing. It carries its paths under
+ * `TREE_DRAG_TYPE` rather than as text, so the editor opens them: dropped as
+ * text the note would be refused the drop entirely, and the gesture would do
+ * nothing at all.
  */
 export function pasteAssets(): Extension {
   return EditorView.domEventHandlers({
@@ -76,6 +87,11 @@ export function pasteAssets(): Extension {
       return true
     },
     dragover(event) {
+      if (event.dataTransfer?.types.includes(TREE_DRAG_TYPE)) {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        return true
+      }
       if (!event.dataTransfer?.types.includes('Files')) return false
       // Without this the OS shows "no drop allowed" over the editor.
       event.preventDefault()
@@ -83,6 +99,12 @@ export function pasteAssets(): Extension {
       return true
     },
     drop(event, view) {
+      const rows = draggedRows(event)
+      if (rows.length > 0) {
+        event.preventDefault()
+        void appState().openPaths(rows)
+        return true
+      }
       const files = [...(event.dataTransfer?.files ?? [])]
       if (files.length === 0) return false
       event.preventDefault()

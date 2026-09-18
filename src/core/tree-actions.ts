@@ -10,6 +10,12 @@ import { basename, dirname, extname } from './paths'
 
 export type ClipboardMode = 'cut' | 'copy'
 
+/**
+ * What a drag out of the file tree carries its paths under, so a drop
+ * somewhere else in the app can tell one of its rows from any other text.
+ */
+export const TREE_DRAG_TYPE = 'application/x-orrery-paths'
+
 export type PastePlan =
   /** Write it to this name inside the target folder. */
   | { kind: 'paste'; name: string }
@@ -90,4 +96,34 @@ export function folderInclude(relativeDir: string): string {
   const dir = normal(relativeDir).replace(/^\/+/, '')
   if (!dir) return ''
   return `${dir.replace(/,/g, '?')}/**`
+}
+
+/**
+ * The folder a drop on a row means: the folder itself, or the one a file sits
+ * in. Dropping onto a file is common by accident, and landing the drop beside
+ * that file is what anyone aiming at it meant.
+ */
+export function dropDir(row: { path: string; kind: 'file' | 'directory' }): string {
+  return row.kind === 'directory' ? row.path : dirname(row.path)
+}
+
+/**
+ * Whether a drag of `dragged` may be dropped into `into`.
+ *
+ * Refused for a folder dropped into itself or into something it contains, and
+ * for a move that would not move anything, so the row under the pointer says
+ * so before the mouse is released. The per-file decisions, names in use
+ * included, are still `planPaste`'s.
+ */
+export function canDropInto(
+  dragged: readonly string[],
+  into: string,
+  mode: ClipboardMode
+): boolean {
+  if (dragged.length === 0) return false
+  if (dragged.some((p) => isSameOrInside(into, p))) return false
+  // A copy into the same folder is a duplicate, which is worth doing; a move
+  // there is not.
+  if (mode === 'cut' && dragged.every((p) => normal(dirname(p)) === normal(into))) return false
+  return true
 }
