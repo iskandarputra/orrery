@@ -34,6 +34,7 @@ import { languageCompartment } from './code-language'
 import { gitGutter } from './git-gutter'
 import { indentGuides } from './indent-guides'
 import { vimMode } from './vim-mode'
+import { changeRuler } from './change-ruler'
 import { minimap } from './minimap'
 import { tableAutoFormat } from './table-format'
 import { changeDocument } from './lsp-session'
@@ -79,6 +80,11 @@ function codeExtensions(settings: Settings): Extension {
     highlightActiveLineGutter(),
     gitGutter(),
     minimap(e.minimap),
+    // Beside the minimap rather than instead of it: the minimap says what the
+    // shape of the file is, the ruler says where in the whole of it the edits
+    // are, and the minimap only ever draws the part of the file it is scrolled
+    // near. Reads the same gitGutter field, so the two cannot disagree.
+    changeRuler(),
     indentGuides(e.indentGuides),
     // Draws whatever a language server reports; harmless when none is installed.
     lintGutter(),

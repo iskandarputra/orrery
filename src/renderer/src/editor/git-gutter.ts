@@ -53,10 +53,17 @@ export const gitMarks = StateField.define<RangeSet<GutterMarker>>({
   }
 })
 
-/** Line numbers currently carrying a change bar — the field, read back. */
-export function markedLines(state: EditorState): { line: number; kind: string }[] {
-  const out: { line: number; kind: string }[] = []
-  const iter = state.field(gitMarks).iter()
+/**
+ * Line numbers currently carrying a change bar: the field, read back.
+ *
+ * Tolerates the field being absent, because the scrollbar ruler reads this from
+ * the diff panes too and those install no gutter.
+ */
+export function markedLines(state: EditorState): { line: number; kind: ChangeKind }[] {
+  const marks = state.field(gitMarks, false)
+  if (!marks) return []
+  const out: { line: number; kind: ChangeKind }[] = []
+  const iter = marks.iter()
   while (iter.value) {
     out.push({
       line: state.doc.lineAt(iter.from).number,

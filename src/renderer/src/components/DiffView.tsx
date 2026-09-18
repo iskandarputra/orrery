@@ -10,6 +10,7 @@ import { resizePanes, toColumns } from '@core/pane-sizes'
 import { EMPTY_DIFF, type FileDiff } from '@core/unified-diff'
 import { languageCompartment, findLanguage } from '@/editor/code-language'
 import { diffMarks, setDiffMarks } from '@/editor/diff-decorations'
+import { changeRuler } from '@/editor/change-ruler'
 import { minimap } from '@/editor/minimap'
 import { markdownHighlight, orreryEditorTheme } from '@/editor/theme'
 import { documentTypography } from '@/editor/typography'
@@ -167,6 +168,11 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
       const rows = alignFile(parsed, lineCount(contents.old), lineCount(contents.new))
       const pads = padding(rows, lineCount(contents.old), lineCount(contents.new))
       const changed = changedLines(rows)
+      // One record, read by both the minimap bands and the scrollbar ruler, so
+      // the two marks of the same hunk cannot drift apart.
+      const rulerChanges = Object.fromEntries(
+        changeMarks(rows).map((mark) => [mark.line, MARK_COLOURS[mark.kind]])
+      )
 
       leftView.current?.destroy()
       rightView.current?.destroy()
@@ -188,14 +194,12 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
             // of the edit is visible without scrolling the file — deletions
             // included, marked on the line that replaced them, since this side
             // has no line of their own to mark.
-            paneExtensions(
-              editable,
-              minimap(showMinimap, {
-                changes: Object.fromEntries(
-                  changeMarks(rows).map((mark) => [mark.line, MARK_COLOURS[mark.kind]])
-                )
-              })
-            ),
+            paneExtensions(editable, [
+              minimap(showMinimap, { changes: rulerChanges }),
+              // The ruler follows the minimap onto the working-tree side, and
+              // unlike the minimap it is there whether or not the minimap is.
+              changeRuler({ changes: rulerChanges })
+            ]),
             // Ahead of the default keymap so Mod-s is a save and never a browser
             // save dialog or an insertion.
             Prec.high(

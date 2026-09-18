@@ -1,6 +1,7 @@
 import type { Extension } from '@codemirror/state'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import { showMinimap } from '@replit/codemirror-minimap'
+import { mergeRuns, type ChangeRun as Run } from '@core/change-bands'
 
 /**
  * The scaled-down preview of the whole file beside the scrollbar.
@@ -39,29 +40,6 @@ export function minimap(enabled: boolean, options: MinimapOptions = {}): Extensi
     runs.length > 0 ? changeBands(runs) : [],
     minimapTheme
   ]
-}
-
-interface Run {
-  from: number
-  to: number
-  colour: string
-}
-
-/** Consecutive lines of one colour are one band, so a hunk reads as a block. */
-function mergeRuns(changes: Record<number, string>): Run[] {
-  const lines = Object.keys(changes)
-    .map(Number)
-    .filter((line) => Number.isInteger(line) && line > 0)
-    .sort((a, b) => a - b)
-
-  const runs: Run[] = []
-  for (const line of lines) {
-    const colour = changes[line]!
-    const last = runs[runs.length - 1]
-    if (last && last.to === line - 1 && last.colour === colour) last.to = line
-    else runs.push({ from: line, to: line, colour })
-  }
-  return runs
 }
 
 /**
