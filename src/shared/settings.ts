@@ -136,6 +136,16 @@ export const settingsSchema = z.object({
        * which is read by its headings and has the outline panel for that.
        */
       minimap: z.boolean().default(true),
+      /**
+       * The minimap, shrunk to the change ruler alone.
+       *
+       * A second switch rather than turning `minimap` into three values,
+       * because the two are decided in different places: `minimap` is a
+       * preference set once in Settings, this is what the status bar changes
+       * about the file in front of you. `core/minimap-mode.ts` folds them
+       * into the one state the editor is built from, and off beats collapsed.
+       */
+      minimapCollapsed: z.boolean().default(false),
       /** Vertical lines marking indentation depth, in code files. */
       indentGuides: z.boolean().default(true),
       /** Vim keybindings, in prose as well as code. */

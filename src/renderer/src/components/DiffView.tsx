@@ -5,9 +5,11 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap } from '@codemirror/search'
-import { alignFile, changedLines, changeMarks, padding } from '@core/diff-align'
+import { alignFile, changedLines, changeMarks, padding, type ChangeMark } from '@core/diff-align'
+import { splitColour } from '@core/change-bands'
 import { resizePanes, toColumns } from '@core/pane-sizes'
 import { EMPTY_DIFF, type FileDiff } from '@core/unified-diff'
+import { minimapMode, rulerWidth } from '@core/minimap-mode'
 import { languageCompartment, findLanguage } from '@/editor/code-language'
 import { diffMarks, setDiffMarks } from '@/editor/diff-decorations'
 import { changeRuler } from '@/editor/change-ruler'
@@ -22,7 +24,18 @@ import { Icon } from './Icon'
  * The minimap's bands. The same tokens the changed lines are tinted with, so
  * the preview and the text agree, and a theme change carries both.
  */
-const MARK_COLOURS = { added: 'var(--or-diff-add)', removed: 'var(--or-diff-del)' } as const
+/**
+ * What a mark is painted with.
+ *
+ * A replacement gets both colours in one band, weighted by how much went
+ * against how much arrived: the new file has lines only for the addition, so
+ * that band is the only place the removal can be shown at all.
+ */
+function markColour(mark: ChangeMark): string {
+  if (mark.kind === 'added') return 'var(--or-diff-add)'
+  if (mark.kind === 'removed') return 'var(--or-diff-del)'
+  return splitColour('var(--or-diff-del)', 'var(--or-diff-add)', mark.removedShare ?? 0.5)
+}
 
 /** The divider's own grid track, matching the one between editor panes. */
 const DIVIDER = '5px'
@@ -72,7 +85,11 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
   const setDirty = useStore((s) => s.setDirty)
   const rootPath = useStore((s) => s.rootPath)
   const editorSettings = useStore((s) => s.settings.editor)
-  const showMinimap = editorSettings.minimap
+  // The same state the code editor is built from. Collapsing from the status
+  // bar has to reach here too: a 120px preview left standing in the diff, of
+  // all places, while the editor behind it shows a strip is the switch not
+  // meaning what it says.
+  const mode = minimapMode(editorSettings)
   const split = useStore((s) => s.settings.diff.split)
   const setDiffSplit = useStore((s) => s.setDiffSplit)
   const close = (): void => void closeTab(bufferId)
@@ -171,7 +188,7 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
       // One record, read by both the minimap bands and the scrollbar ruler, so
       // the two marks of the same hunk cannot drift apart.
       const rulerChanges = Object.fromEntries(
-        changeMarks(rows).map((mark) => [mark.line, MARK_COLOURS[mark.kind]])
+        changeMarks(rows).map((mark) => [mark.line, markColour(mark)])
       )
 
       leftView.current?.destroy()
@@ -195,10 +212,11 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
             // included, marked on the line that replaced them, since this side
             // has no line of their own to mark.
             paneExtensions(editable, [
-              minimap(showMinimap, { changes: rulerChanges }),
+              minimap(mode === 'full', { changes: rulerChanges }),
               // The ruler follows the minimap onto the working-tree side, and
-              // unlike the minimap it is there whether or not the minimap is.
-              changeRuler({ changes: rulerChanges })
+              // unlike the minimap it is there whether or not the minimap is:
+              // collapsed, it widens and is the only thing left.
+              changeRuler({ changes: rulerChanges, width: rulerWidth(mode) })
             ]),
             // Ahead of the default keymap so Mod-s is a save and never a browser
             // save dialog or an insertion.
@@ -254,7 +272,7 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
       leftView.current = null
       rightView.current = null
     }
-  }, [target, rootPath, reloadToken, editable, bufferId, setDirty, showMinimap])
+  }, [target, rootPath, reloadToken, editable, bufferId, setDirty, mode])
 
   if (!target) return null
 

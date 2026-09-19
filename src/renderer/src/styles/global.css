@@ -1681,6 +1681,17 @@ textarea {
   color: var(--or-fg);
 }
 
+/*
+ * A toggle has to say which way it is set, and the tooltip cannot: it is not
+ * on screen. The full foreground against the muted one is the same difference
+ * the rail's active tab uses, so on and off read at a glance without a second
+ * colour being introduced for it.
+ */
+.status-bar__btn--on {
+  color: var(--or-fg);
+  background: var(--or-hover-bg);
+}
+
 .status-bar__theme-label {
   text-transform: capitalize;
 }

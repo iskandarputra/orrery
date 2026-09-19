@@ -269,6 +269,14 @@ export const builtinCommands: Command[] = [
     }
   },
   {
+    id: 'view.toggleMinimap',
+    title: 'Collapse or Expand the Minimap',
+    run: ({ store }) => {
+      const e = store().settings.editor
+      store().updateSettings({ editor: { ...e, minimapCollapsed: !e.minimapCollapsed } })
+    }
+  },
+  {
     id: 'view.toggleFocusMode',
     title: 'Toggle Focus Mode',
     run: ({ store }) => {

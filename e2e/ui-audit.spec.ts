@@ -1264,6 +1264,38 @@ const SURFACES: Surface[] = [
     }
   },
   {
+    // The status bar over a code file, which is the only thing that carries
+    // the minimap switch: the counters and the language name are measured by
+    // the workspace surface, but they sit over a note, and a note has no
+    // minimap so it has no switch either.
+    //
+    // Expanded only, which is the tinted state and the one that can lose its
+    // contrast. Collapsing it here was tried and taken out again: the flat
+    // state is the same rule the theme pill beside it already wears, the two
+    // clicks bought nothing, and this loop runs once per theme so anything
+    // bought nothing is paid for 28 times.
+    name: 'status bar on code',
+    root: '.status-bar',
+    open: async () => {
+      // `lexer.ts` rather than `helper.ts`, of which this vault has two: the
+      // second one is there to give a wikilink something to be ambiguous
+      // about, and a locator that matches both is a strict-mode failure the
+      // moment anything expands that folder.
+      await page.locator('.tree-row--file', { hasText: 'lexer.ts' }).click()
+      await expect(page.locator('.status-bar__btn', { hasText: 'Minimap' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+        { timeout: 15_000 }
+      )
+    },
+    close: async () => {
+      // The tab goes, as the backlinks surface does it: every tab left open
+      // narrows the ones beside it for every surface after this one.
+      await page.getByRole('button', { name: 'Close lexer.ts' }).click()
+      await expect(page.locator('.tab', { hasText: 'lexer.ts' })).toHaveCount(0)
+    }
+  },
+  {
     name: 'bookmarks',
     root: '.rpanel',
     open: async () => {
