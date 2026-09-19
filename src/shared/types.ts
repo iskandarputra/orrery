@@ -352,3 +352,12 @@ export interface DbQueryResult {
   /** More rows existed than the viewer will show. */
   truncated: boolean
 }
+
+/**
+ * What the operating system asked the app to open, sorted into the two things
+ * it can do with a path. A folder becomes the vault; the files become tabs.
+ */
+export interface OpenRequest {
+  files: string[]
+  folders: string[]
+}

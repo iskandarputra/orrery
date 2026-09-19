@@ -57,6 +57,14 @@ linux:
       Comment: Markdown editor and knowledge base
       Categories: Office;TextEditor;Utility;
       Keywords: markdown;notes;editor;knowledge;
+      # What "Open With" offers Orrery for. Without this the app is absent
+      # from the menu and has to be hunted down under "Other Application",
+      # which is where the desktop puts programs that claim nothing.
+      #
+      # This declares availability, not the default: which app actually opens
+      # a .md stays whatever mimeapps.list says. `inode/directory` is here
+      # because opening a folder as the vault is the other half of the feature.
+      MimeType: text/markdown;text/x-markdown;text/plain;text/csv;application/json;inode/directory;
 deb:
   depends:
     - libgtk-3-0

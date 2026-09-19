@@ -17,7 +17,8 @@ import type {
   McpHostStatus,
   McpAuditEntry,
   McpServerStatus,
-  McpToolResult
+  McpToolResult,
+  OpenRequest
 } from './types'
 import type { Settings } from './settings'
 import type { LineChange } from '@core/git-diff'
@@ -606,6 +607,17 @@ export interface IpcInvokeContract {
   'app:addRecentFile': { req: { path: string }; res: void }
   /** Forget everything recently opened, files and folders alike. */
   'app:clearRecent': { req: void; res: void }
+  /**
+   * What the launch was asked to open: a double-click, "Open With", or a path
+   * typed after the command. Taken once, at the end of the renderer's restore.
+   *
+   * A pull, where everything else main initiates is a push, for two reasons.
+   * On a cold start the renderer has not subscribed to `app:openPath` yet, so
+   * a push is sent to nobody. And `openPaths` shows the last file it opens, so
+   * a file delivered before the session restore ends up behind the tab that
+   * was open when the app was last quit.
+   */
+  'app:takeOpenPaths': { req: void; res: OpenRequest }
 
   /** Renderer signals the unsaved-changes flow is resolved; main may destroy the window. */
   'window:readyToClose': { req: void; res: void }

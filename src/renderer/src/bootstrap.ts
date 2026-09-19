@@ -123,7 +123,26 @@ export function bootstrap(): CommandRegistry {
       // restored — and it is added after the remembered tabs so those keep the
       // positions they were left in.
       await useStore.getState().restoreUntitled()
+      await openWhatTheLaunchAskedFor()
     })
 
   return registry
+}
+
+/**
+ * The file a double-click or "Open With" launched the app for.
+ *
+ * After the restore above, not before it, and pulled rather than pushed. Main
+ * has been holding this since before this renderer existed, because a push
+ * would arrive before the subscriptions above are in place; and `openPaths`
+ * shows the last file it opens, so a file delivered first would end up behind
+ * whichever tab the session restore then reopened. It is the last thing that
+ * happens, so it is the thing on screen.
+ */
+async function openWhatTheLaunchAskedFor(): Promise<void> {
+  const { files, folders } = await invoke('app:takeOpenPaths', undefined)
+  // A folder is a vault, and only the last one asked for can be the vault.
+  const folder = folders.at(-1)
+  if (folder) await useStore.getState().openFolder(folder)
+  if (files.length > 0) await useStore.getState().openPaths(files)
 }
