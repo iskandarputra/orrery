@@ -35,6 +35,7 @@ import type { PdfHistory } from '../services/pdf-history'
 import type { PdfDrafts } from '../services/pdf-drafts'
 import type { DraftNotes } from '../services/draft-notes'
 import type { PdfTextService } from '../services/pdf-text'
+import type { OpenRequests } from '../services/open-requests'
 import type { SettingsStore } from '../services/settings-store'
 import type { WatcherService } from '../services/watcher'
 import type { GitWatchService } from '../services/git-watch'
@@ -67,6 +68,7 @@ export interface HandlerDeps {
   draftNotes: DraftNotes
   mcpAudit: McpAudit
   askUser: AskUser
+  openRequests: OpenRequests
 }
 
 const pathReq = z.object({ path: z.string().min(1) })
@@ -100,7 +102,8 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     pdfText,
     pdfHistory,
     pdfDrafts,
-    draftNotes
+    draftNotes,
+    openRequests
   } = deps
 
   /**
@@ -906,6 +909,10 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
     app.addRecentDocument(req.path)
     buildAppMenu(next.keybindings, { files: next.recentFiles, folders: next.recentFolders })
   })
+
+  // Taken once, at the end of the renderer's restore. See the contract for why
+  // this is a pull when everything else main starts is a push.
+  handle('app:takeOpenPaths', null, () => openRequests.take())
 
   handle('app:getRecentFolders', null, () => settings.get().recentFolders)
   handle('app:clearRecent', null, () => {

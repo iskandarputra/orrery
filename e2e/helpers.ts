@@ -6,9 +6,22 @@ import type { ElectronApplication, Page } from '@playwright/test'
 
 const userDataDirs: string[] = []
 
-// Each worker cleans up after the specs it ran.
+/**
+ * Each worker cleans up after the specs it ran, and after the directory main
+ * actually used.
+ *
+ * `--user-data-dir` is not where the app ends up: an unpacked run appends
+ * `-dev` to it, deliberately, so a dev instance cannot share the installed
+ * app's settings. Only the un-suffixed path was being removed, so every
+ * launch in the suite left a couple of megabytes behind, and on a machine
+ * where /tmp is a tmpfs that is a couple of megabytes of RAM. A day of runs
+ * left 19 of them.
+ */
 process.on('exit', () => {
-  for (const dir of userDataDirs) rmSync(dir, { recursive: true, force: true })
+  for (const dir of userDataDirs) {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(`${dir}-dev`, { recursive: true, force: true })
+  }
 })
 
 /**
@@ -67,14 +80,23 @@ export const LAUNCH_ARGS = ['--no-sandbox', '--ozone-platform=x11']
  * which is both a source of order-dependent failures and a way for a test run
  * to overwrite the settings of the machine it runs on.
  */
-export async function launchApp(options: { userData?: string } = {}): Promise<ElectronApplication> {
+export async function launchApp(
+  options: { userData?: string; args?: string[] } = {}
+): Promise<ElectronApplication> {
   // A caller may bring its own, for a spec that has to stop the app and start
   // it again on the same data — which is the only way to test what survives a
   // quit. It cleans up after itself; the ones made here are cleaned up above.
   const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'orrery-userdata-'))
   if (!options.userData) userDataDirs.push(userData)
   return electron.launch({
-    args: ['./out/main/index.js', ...LAUNCH_ARGS, `--user-data-dir=${userData}`],
+    // `args` last, because a file to open comes after the switches on a real
+    // command line and the spec that passes one is testing exactly that.
+    args: [
+      './out/main/index.js',
+      ...LAUNCH_ARGS,
+      `--user-data-dir=${userData}`,
+      ...(options.args ?? [])
+    ],
     env: launchEnv()
   })
 }

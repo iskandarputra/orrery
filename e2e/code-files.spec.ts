@@ -84,6 +84,9 @@ test('a source file outlines by its declarations', async () => {
   // It used to explain that markdown headings were absent, which is true and no
   // help at all. A code file has structure; the outline now reads it.
   await open('script.ts')
+  // The panel starts closed on a first run, so the spec opens it.
+  await page.locator('.rpanel__tab[aria-label="Outline"]').click()
+  await expect(page.locator('.rpanel')).toBeVisible()
   await expect(page.locator('.outline__item')).toHaveCount(1)
   await expect(page.locator('.outline__item').first()).toContainText('add')
   await expect(page.locator('.outline-count-bar')).toContainText('symbols')

@@ -358,6 +358,15 @@ const PATHS = {
       <path d="M8 1.9 1.9 5.25 8 8.6l6.1-3.35z" />
       <path d="M2.4 8.35 8 11.4l5.6-3.05M2.4 11.1 8 14.15l5.6-3.05" />
     </>
+  ),
+  // The minimap: a document reduced to the shape of its lines, which is what
+  // the thing itself shows. Drawn as ragged rules rather than a page of text,
+  // because at 12px a page of text is a grey smudge.
+  minimap: (
+    <>
+      <path d="M2.75 2.25h10.5a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" />
+      <path d="M4.25 5.25h7.5M4.25 8h4.5M4.25 10.75h6" />
+    </>
   )
 } satisfies Record<string, React.JSX.Element>
 

@@ -1,6 +1,7 @@
 import type { Extension } from '@codemirror/state'
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { mergeRuns, rulerBands, type ChangeRun } from '@core/change-bands'
+import { RULER_WIDTH } from '@core/minimap-mode'
 import type { ChangeKind } from '@core/git-diff'
 import { gitMarks, markedLines } from './git-gutter'
 
@@ -18,15 +19,6 @@ import { gitMarks, markedLines } from './git-gutter'
  * background for the whole track and has no notion of a position within it, so
  * a wider scrollbar is all CSS alone can give.
  */
-
-/**
- * The width of both the ruler and the track it lies on, which must be the same
- * number: a band inset into a 12px strip over a 6px scrollbar hangs off it.
- *
- * 12 leaves the band 8 after a 2px inset each side, and leaves the thumb the
- * full 12 to be grabbed by.
- */
-const RULER_WIDTH = 12
 
 /** A single changed line in a long file is a fraction of a pixel, which is nothing. */
 const MIN_BAND = 3
@@ -56,11 +48,19 @@ export interface ChangeRulerOptions {
    * stale until the next save.
    */
   changes?: Record<number, string>
+  /**
+   * The width of the ruler, and of the track it lies on, which must be one
+   * number: a band inset into a 12px strip over a 6px scrollbar hangs off it.
+   *
+   * Wider when the minimap is collapsed, because then this is the minimap:
+   * `rulerWidth` in `core/minimap-mode.ts` decides, and nothing else should.
+   */
+  width?: number
 }
 
 export function changeRuler(options: ChangeRulerOptions = {}): Extension {
   const fixed = options.changes ? mergeRuns(options.changes) : null
-  return [ViewPlugin.fromClass(rulerPlugin(fixed)), rulerTheme]
+  return [ViewPlugin.fromClass(rulerPlugin(fixed)), rulerTheme(options.width ?? RULER_WIDTH)]
 }
 
 function rulerPlugin(fixed: ChangeRun[] | null) {
@@ -134,60 +134,89 @@ function rulerPlugin(fixed: ChangeRun[] | null) {
   }
 }
 
-const rulerTheme = EditorView.theme({
-  /*
-   * The track the ruler marks, widened to be worth marking.
-   *
-   * Here rather than in editor.css because a theme's rules are already scoped
-   * to the editors that carry it, which is exactly the set with a ruler. The
-   * alternative was a class the plugin put on the editor and took off again,
-   * and that is a race: a compartment reconfigure builds the replacement plugin
-   * before retiring the old one, so the outgoing `destroy` removes a class the
-   * incoming constructor has just added, and the scrollbar silently goes back
-   * to 6px with the ruler still on it.
-   *
-   * The app's other scrollers stay at 6px. Nothing else gained a reason to grow.
-   */
-  '& .cm-scroller::-webkit-scrollbar': {
-    width: `${RULER_WIDTH}px`
-  },
-  // The thumb slides over the bands, so it cannot be opaque. background-clip
-  // keeps the fill inside a transparent border, which is how a webkit thumb is
-  // made narrower than its track without taking width away from the pointer.
-  '& .cm-scroller::-webkit-scrollbar-thumb': {
-    background: 'color-mix(in srgb, var(--or-fg-muted) 45%, transparent)',
-    backgroundClip: 'padding-box',
-    border: '3px solid transparent',
-    borderRadius: 'var(--or-radius-full)'
-  },
-  '& .cm-scroller::-webkit-scrollbar-thumb:hover': {
-    background: 'color-mix(in srgb, var(--or-fg-muted) 70%, transparent)',
-    backgroundClip: 'padding-box'
-  },
-  // Over the scrollbar's own gutter: an absolute child of .cm-editor is placed
-  // against its border box, while a child of the scroller would be placed
-  // against the padding box and land to the left of the scrollbar instead.
-  '& .cm-or-ruler': {
-    position: 'absolute',
-    top: '0',
-    right: '0',
-    bottom: '0',
-    width: `${RULER_WIDTH}px`,
-    // The thumb has to stay draggable, and it is on the far side of this.
-    pointerEvents: 'none',
-    overflow: 'hidden'
-  },
-  '& .cm-or-ruler-change': {
-    position: 'absolute',
-    // Inset rather than edge to edge, so a band reads as a mark on the track
-    // rather than as the track having changed colour.
-    left: '2px',
-    right: '2px',
-    borderRadius: '1px',
-    // The overlay paints above the native scrollbar, so where the thumb passes
-    // a hunk the band is on top of it. Solid would blank the thumb out; 0.75
-    // reads at a glance and still shows the thumb through it. Measured against
-    // the track on every sampled palette by the ui audit, which wants 3:1.
-    opacity: '0.75'
-  }
-})
+/**
+ * Cached per width, and not rebuilt per call.
+ *
+ * `EditorView.theme` mints a fresh StyleModule every time, and this is called
+ * from a compartment reconfigure, which happens on every settings change:
+ * building one each time would leave a stylesheet behind per keystroke in the
+ * Settings dialog. There are two widths in practice.
+ */
+const THEMES = new Map<number, Extension>()
+
+function rulerTheme(width: number): Extension {
+  const cached = THEMES.get(width)
+  if (cached) return cached
+  const theme = buildRulerTheme(width)
+  THEMES.set(width, theme)
+  return theme
+}
+
+function buildRulerTheme(width: number): Extension {
+  // The thumb is inset inside the track and a band inside that, both in
+  // proportion, so a collapsed 24px strip reads as a wider version of the
+  // ordinary one rather than as the same marks adrift on a wider track.
+  const thumbInset = Math.round(width / 4)
+  const bandInset = Math.round(width / 6)
+  return EditorView.theme({
+    /*
+     * The track the ruler marks, widened to be worth marking.
+     *
+     * Here rather than in editor.css because a theme's rules are already
+     * scoped to the editors that carry it, which is exactly the set with a
+     * ruler. The alternative was a class the plugin put on the editor and took
+     * off again, and that is a race: a compartment reconfigure builds the
+     * replacement plugin before retiring the old one, so the outgoing
+     * `destroy` removes a class the incoming constructor has just added, and
+     * the scrollbar silently goes back to 6px with the ruler still on it.
+     *
+     * The app's other scrollers stay at 6px. Nothing else gained a reason to
+     * grow.
+     */
+    '& .cm-scroller::-webkit-scrollbar': {
+      width: `${width}px`
+    },
+    // The thumb slides over the bands, so it cannot be opaque. background-clip
+    // keeps the fill inside a transparent border, which is how a webkit thumb
+    // is made narrower than its track without taking width away from the
+    // pointer.
+    '& .cm-scroller::-webkit-scrollbar-thumb': {
+      background: 'color-mix(in srgb, var(--or-fg-muted) 45%, transparent)',
+      backgroundClip: 'padding-box',
+      border: `${thumbInset}px solid transparent`,
+      borderRadius: 'var(--or-radius-full)'
+    },
+    '& .cm-scroller::-webkit-scrollbar-thumb:hover': {
+      background: 'color-mix(in srgb, var(--or-fg-muted) 70%, transparent)',
+      backgroundClip: 'padding-box'
+    },
+    // Over the scrollbar's own gutter: an absolute child of .cm-editor is
+    // placed against its border box, while a child of the scroller would be
+    // placed against the padding box and land to the left of the scrollbar
+    // instead.
+    '& .cm-or-ruler': {
+      position: 'absolute',
+      top: '0',
+      right: '0',
+      bottom: '0',
+      width: `${width}px`,
+      // The thumb has to stay draggable, and it is on the far side of this.
+      pointerEvents: 'none',
+      overflow: 'hidden'
+    },
+    '& .cm-or-ruler-change': {
+      position: 'absolute',
+      // Inset rather than edge to edge, so a band reads as a mark on the track
+      // rather than as the track having changed colour.
+      left: `${bandInset}px`,
+      right: `${bandInset}px`,
+      borderRadius: '1px',
+      // The overlay paints above the native scrollbar, so where the thumb
+      // passes a hunk the band is on top of it. Solid would blank the thumb
+      // out; 0.75 reads at a glance and still shows the thumb through it.
+      // Measured against the track on every sampled palette by the ui audit,
+      // which wants 3:1.
+      opacity: '0.75'
+    }
+  })
+}

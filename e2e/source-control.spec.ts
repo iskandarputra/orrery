@@ -375,7 +375,14 @@ test('the preview bands the changes across its width, in green and red', async (
   await expect(page.locator('.diff__pane--new .cm-minimap-gutter')).toBeVisible({ timeout: 10_000 })
 
   const measure = async (): Promise<{
-    bands: { top: number; height: number; width: number; red: number; green: number }[]
+    bands: {
+      top: number
+      height: number
+      width: number
+      red: number
+      green: number
+      image: string
+    }[]
     gutterWidth: number
     lineTop: number
   } | null> =>
@@ -394,10 +401,19 @@ test('the preview bands the changes across its width, in green and red', async (
         .filter((el) => getComputedStyle(el).display !== 'none')
         .map((el) => {
           const box = el.getBoundingClientRect()
-          const [red = 0, green = 0] = (
-            getComputedStyle(el).backgroundColor.match(/\d+/g) ?? []
-          ).map(Number)
-          return { top: box.top - innerTop, height: box.height, width: box.width, red, green }
+          const style = getComputedStyle(el)
+          // A band is either one colour or two. A replacement carries both in
+          // a gradient, and a gradient leaves `backgroundColor` transparent,
+          // so reading only that scores a split band as no colour at all.
+          const [red = 0, green = 0] = (style.backgroundColor.match(/\d+/g) ?? []).map(Number)
+          return {
+            top: box.top - innerTop,
+            height: box.height,
+            width: box.width,
+            red,
+            green,
+            image: style.backgroundImage
+          }
         })
       return {
         bands,
@@ -412,12 +428,31 @@ test('the preview bands the changes across its width, in green and red', async (
   await expect.poll(async () => (await measure())?.bands.length ?? 0).toBeGreaterThanOrEqual(2)
   const seen = (await measure())!
 
-  // Both kinds are marked: the rewritten line, and the hole three deleted lines
-  // left behind — which the working tree has no line of its own for.
-  const added = seen.bands.filter((band) => band.green > band.red)
-  const removed = seen.bands.filter((band) => band.red > band.green)
-  expect(added.length).toBeGreaterThanOrEqual(1)
-  expect(removed.length).toBeGreaterThanOrEqual(1)
+  // Both kinds are marked, and they are different kinds.
+  //
+  // The rewritten line is a *replacement*: one line out, one in. It used to be
+  // painted plain green, which made it indistinguishable from a line that was
+  // simply added, so it now carries red over green in one band. The three
+  // deleted lines are a removal with nothing in their place, and stay solid
+  // red on the line the working tree does have.
+  const replaced = seen.bands.filter((band) => band.image.includes('gradient'))
+  const removed = seen.bands.filter((band) => band.image === 'none' && band.red > band.green)
+  expect(replaced.length, 'the rewritten line is a split band').toBeGreaterThanOrEqual(1)
+  expect(removed.length, 'the deleted lines are a solid red band').toBeGreaterThanOrEqual(1)
+
+  // And the split really is both colours, red first: what went, then what
+  // arrived. Chromium resolves the tokens, so these are painted values, and it
+  // expands a hard stop written as `red 0 50%, green 50% 100%` into four
+  // stops — red, red, green, green — so it is the ends that are compared and
+  // not the first two.
+  const stops = (replaced[0]!.image.match(/rgba?\([^)]*\)/g) ?? []).map((stop) =>
+    (stop.match(/\d+/g) ?? []).map(Number)
+  )
+  expect(stops.length, 'the gradient has stops to read').toBeGreaterThanOrEqual(2)
+  const top = stops[0]!
+  const bottom = stops[stops.length - 1]!
+  expect(top[0]!, 'the band starts red, for what was removed').toBeGreaterThan(top[1]!)
+  expect(bottom[1]!, 'and ends green, for what was added').toBeGreaterThan(bottom[0]!)
 
   // The whole width of the preview, not a strip down one edge of it. The
   // package's own gutter draws four canvas pixels, which is two here.
@@ -431,7 +466,7 @@ test('the preview bands the changes across its width, in green and red', async (
   // on a canvas of twice the pixels, so the text's own geometry says where the
   // band belongs — worked out from the editor rather than from the same
   // arithmetic the bands are placed with.
-  const first = added.sort((a, b) => a.top - b.top)[0]!
+  const first = replaced.sort((a, b) => a.top - b.top)[0]!
   expect(first.top).toBeGreaterThan(seen.lineTop / 8 - 4)
   expect(first.top).toBeLessThan(seen.lineTop / 8 + 4)
 

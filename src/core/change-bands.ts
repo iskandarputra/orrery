@@ -10,6 +10,29 @@
  * of them: the two were about to disagree on what counts as one hunk.
  */
 
+/**
+ * Two colours in one band, split where the edit splits.
+ *
+ * A replacement is a removal and an addition in the same place, and the new
+ * file has lines only for the addition. The band over those lines is therefore
+ * the only room there is to say that something was taken away as well, which
+ * is why it carries both: red for what went, green for what arrived.
+ *
+ * A gradient with a hard stop rather than two elements, because both strips
+ * already set `background` from this one string. Nothing that draws a band had
+ * to learn about a second one.
+ *
+ * The share is clamped away from the ends. A hunk that dropped ten lines and
+ * wrote one back is 91% removal, and on a band floored to 3px that leaves the
+ * addition a quarter of a pixel: it paints as nothing and reads as a plain red
+ * mark, which is the one thing this is here to stop.
+ */
+export function splitColour(top: string, bottom: string, topShare: number): string {
+  const share = Math.min(0.75, Math.max(0.25, topShare))
+  const at = `${Math.round(share * 100)}%`
+  return `linear-gradient(to bottom, ${top} 0 ${at}, ${bottom} ${at} 100%)`
+}
+
 /** A block of consecutive lines sharing a colour. */
 export interface ChangeRun {
   from: number

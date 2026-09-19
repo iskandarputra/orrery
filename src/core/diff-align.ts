@@ -146,7 +146,15 @@ export function changedLines(rows: DiffRow[]): { removed: number[]; added: numbe
 export interface ChangeMark {
   /** A line in the new file, 1-based. */
   line: number
-  kind: 'added' | 'removed'
+  kind: 'added' | 'removed' | 'replaced'
+  /**
+   * For `replaced` only: how much of the band stands for the removal, 0 to 1.
+   *
+   * The count of lines that went over the count that went and came, so a hunk
+   * that swapped two for two is half and half, and one that dropped six to
+   * write one back is mostly red.
+   */
+  removedShare?: number
 }
 
 /**
@@ -154,27 +162,66 @@ export interface ChangeMark {
  *
  * The working tree is the side with the minimap, and it has no line for a
  * deleted one — so a removal is marked where it happened: on the line that took
- * its place, or on the last line when the file ends with the deletion. A line
- * that was rewritten counts as added rather than removed, because that is the
- * line somebody would go and look at.
+ * its place, or on the last line when the file ends with the deletion.
+ *
+ * A rewritten line used to count as plain `added`, on the reasoning that it is
+ * the line somebody would go and look at. That is true of where to put the
+ * cursor and wrong about what to paint: the left pane was showing red, the
+ * right pane green, and the strip between them showed green alone, so the
+ * commonest edit there is — replacing a line — looked exactly like writing a
+ * new one. It is its own kind now, and it carries both colours.
  */
 export function changeMarks(rows: DiffRow[]): ChangeMark[] {
-  const kinds = new Map<number, 'added' | 'removed'>()
-  let removals = false
+  const marks = new Map<number, ChangeMark>()
+  /** Removals with no line of their own yet; the next line takes them. */
+  let pending = 0
   let lastNew = 0
+  let i = 0
 
-  for (const row of rows) {
-    if (row.left?.kind === 'removed') removals = true
-    const line = row.right?.newLine
-    if (line == null) continue
+  const changed = (row: DiffRow): boolean =>
+    row.left?.kind === 'removed' || row.right?.kind === 'added'
 
-    lastNew = line
-    if (row.right?.kind === 'added') kinds.set(line, 'added')
-    else if (removals && !kinds.has(line)) kinds.set(line, 'removed')
-    removals = false
+  while (i < rows.length) {
+    const row = rows[i]!
+    if (!changed(row)) {
+      const line = row.right?.newLine
+      if (line != null) {
+        lastNew = line
+        if (pending > 0 && !marks.has(line)) marks.set(line, { line, kind: 'removed' })
+        pending = 0
+      }
+      i++
+      continue
+    }
+
+    // One block: `alignHunk` gathers a run of removals and the additions that
+    // follow it into consecutive rows, which is exactly the shape of a
+    // replacement. Counting the block rather than the row is what lets the two
+    // halves be weighed against each other.
+    let removed = 0
+    const added: number[] = []
+    while (i < rows.length && changed(rows[i]!)) {
+      const r = rows[i]!
+      if (r.left?.kind === 'removed') removed++
+      if (r.right?.kind === 'added' && r.right.newLine != null) added.push(r.right.newLine)
+      i++
+    }
+    if (added.length > 0) lastNew = added[added.length - 1]!
+
+    if (added.length === 0) {
+      // Nothing took its place, so it hangs on whatever line comes next.
+      pending += removed
+    } else if (removed === 0) {
+      for (const line of added) marks.set(line, { line, kind: 'added' })
+    } else {
+      const removedShare = removed / (removed + added.length)
+      for (const line of added) marks.set(line, { line, kind: 'replaced', removedShare })
+    }
   }
   // Deletions at the end of the file have no following line to hang from.
-  if (removals && lastNew > 0 && !kinds.has(lastNew)) kinds.set(lastNew, 'removed')
+  if (pending > 0 && lastNew > 0 && !marks.has(lastNew)) {
+    marks.set(lastNew, { line: lastNew, kind: 'removed' })
+  }
 
-  return [...kinds].sort((a, b) => a[0] - b[0]).map(([line, kind]) => ({ line, kind }))
+  return [...marks.values()].sort((a, b) => a.line - b.line)
 }
