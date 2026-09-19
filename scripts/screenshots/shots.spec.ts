@@ -333,6 +333,11 @@ test.beforeAll(async () => {
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Orbital mechanics.md')
   await setTheme(page)
+  // The outline, open. It is closed on a first run now, and three shots below
+  // reach for `view.toggleOutline` to get it out of the way of something that
+  // is not a note: a toggle only means "hide" if the thing is showing.
+  await command('view.toggleOutline')
+  await expect(page.locator('.outline-filter__input')).toBeVisible({ timeout: 15_000 })
 })
 
 test.afterAll(async () => {

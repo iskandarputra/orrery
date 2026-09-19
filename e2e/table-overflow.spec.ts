@@ -15,9 +15,21 @@ import { closeCleanly, launchApp, openVault } from './helpers'
  * min-content width to whatever is sizing it.
  */
 
+/**
+ * Twenty-four columns, not fourteen.
+ *
+ * A table only overflows if it cannot fit, and a table that can fit will wrap
+ * its cells to do it. Fourteen columns overflowed the pane the right-hand
+ * panel left behind and stopped overflowing the moment that panel started
+ * closed, so the spec passed on the geometry of the day rather than on the
+ * containment it is about. The `tableWider` assertion below is what caught
+ * that, and is why it is there.
+ */
+const COLUMNS = 24
+
 const WIDE = (() => {
-  const cols = Array.from({ length: 14 }, (_, i) => `Column heading number ${i + 1}`)
-  const row = Array.from({ length: 14 }, (_, i) => `a fairly long cell value ${i + 1}`)
+  const cols = Array.from({ length: COLUMNS }, (_, i) => `Column heading number ${i + 1}`)
+  const row = Array.from({ length: COLUMNS }, (_, i) => `a fairly long cell value ${i + 1}`)
   return [
     '# Wide table',
     '',

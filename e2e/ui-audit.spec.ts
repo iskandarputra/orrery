@@ -760,6 +760,9 @@ const SURFACES: Surface[] = [
     name: 'workspace',
     root: '.app',
     open: async () => {
+      // The right-hand panel starts closed on a first run, and this is the
+      // first surface each theme measures, so nothing has opened it yet.
+      await showOutline()
       // With both filters in use: a filter's clear button only exists once
       // something has been typed into it, so an idle workspace never shows one.
       await page.locator('.sidebar__filter-input').fill('Index')

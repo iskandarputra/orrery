@@ -322,16 +322,22 @@ export const settingsSchema = z.object({
       width: z.number().min(220).max(720).default(300),
       /**
        * Which side panel is open, or null for none. Remembered so closing it
-       * sticks; the outline is the default because a note's own structure is
-       * the most useful thing to see beside it on a first run.
-       */
-      /**
+       * sticks.
+       *
+       * Closed on a first run. The outline was the default, on the reasoning
+       * that a note's own structure is the most useful thing to see beside it,
+       * and that is true of a note you have already written: a first run has
+       * an empty vault, so what it actually showed was three hundred pixels of
+       * empty panel taking a quarter of the window before anyone had typed
+       * anything. The rail is still there and every panel is one click from
+       * it, which is the part that makes closing it cheap.
+       *
        * `.catch(null)` because this field is a name that has been retired
        * before: `'git'` was one of these until source control moved to the left
        * sidebar. A whole document must not fail over a panel name, so an
        * unknown one reads as "no panel open".
        */
-      panel: sidePanelSchema.nullable().default('outline').catch(null)
+      panel: sidePanelSchema.nullable().default(null).catch(null)
     })
     .prefault({}),
   /** Source control: how the panel presents the files a change touches. */
