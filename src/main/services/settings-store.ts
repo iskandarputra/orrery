@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { mkdirSync, promises as fs, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { defaultSettings, settingsSchema, type Settings } from '@shared/settings'
 
@@ -24,6 +24,8 @@ export class SettingsStore {
    */
   private saving: Promise<void> = Promise.resolve()
   private tmpCounter = 0
+  /** Set by `flushSync`: the file on disk is final, and no later save may replace it. */
+  private closed = false
 
   constructor(userDataDir: string) {
     this.filePath = path.join(userDataDir, 'settings.json')
@@ -62,6 +64,38 @@ export class SettingsStore {
     await this.save()
   }
 
+  /**
+   * Persist now, before returning, and refuse every write after this one.
+   * For quitting, and only for quitting.
+   *
+   * Quitting used to call `flush()` without waiting for it, and nothing could
+   * wait: the process exits once the quit handlers return, whatever is still
+   * queued on the thread pool. A change made in the last moments before quit
+   * was lost when the exit won. The tabs that were open are exactly that kind
+   * of change, so on a slow machine a restart came back to the folder, saved
+   * long before, without its tabs. Writing a few kilobytes synchronously costs
+   * a millisecond.
+   *
+   * An async save already in flight serialised the settings when it started,
+   * so if its rename landed after this write it would put older settings back.
+   * `closed` stops it at the rename.
+   */
+  flushSync(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      this.saveTimer = null
+    }
+    this.closed = true
+    try {
+      mkdirSync(path.dirname(this.filePath), { recursive: true })
+      const tmp = `${this.filePath}.${process.pid}.${(this.tmpCounter += 1)}.tmp`
+      writeFileSync(tmp, JSON.stringify(this.settings, null, 2), 'utf-8')
+      renameSync(tmp, this.filePath)
+    } catch (err) {
+      console.error('Failed to save settings:', err)
+    }
+  }
+
   private scheduleSave(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer)
     this.saveTimer = setTimeout(() => {
@@ -84,6 +118,10 @@ export class SettingsStore {
       // same directory would otherwise collide on the temp file too.
       const tmp = `${this.filePath}.${process.pid}.${(this.tmpCounter += 1)}.tmp`
       await fs.writeFile(tmp, JSON.stringify(this.settings, null, 2), 'utf-8')
+      if (this.closed) {
+        await fs.rm(tmp, { force: true })
+        return
+      }
       await fs.rename(tmp, this.filePath)
     } catch (err) {
       console.error('Failed to save settings:', err)
