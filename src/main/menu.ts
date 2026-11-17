@@ -195,6 +195,11 @@ export function buildAppMenu(
         { label: 'Typewriter Mode', click: dispatch('view.toggleTypewriter') },
         { label: 'Focus Mode', click: dispatch('view.toggleFocusMode') },
         { label: 'Reflow Paragraphs', click: dispatch('view.toggleReflow') },
+        // The status bar carries this too, but only over a code file, which is
+        // the only place it does anything. Here as well so it can be found by
+        // somebody reading the menus rather than the bar. Whether there is a
+        // minimap at all stays in Settings; this is how big it is.
+        { label: 'Collapse Minimap', click: dispatch('view.toggleMinimap') },
         { type: 'separator' },
         {
           label: 'Toggle Backlinks',

@@ -16,6 +16,8 @@ export function StatusBar(): React.JSX.Element {
   const lightTheme = useStore((s) => s.settings.lightTheme)
   const setThemeMode = useStore((s) => s.setThemeMode)
   const setDocStatsOpen = useStore((s) => s.setDocStatsOpen)
+  const editor = useStore((s) => s.settings.editor)
+  const updateSettings = useStore((s) => s.updateSettings)
 
   // A word count on a source file is noise, and "Markdown" on a .py file is
   // simply wrong. Both said exactly that before code became its own kind.
@@ -29,6 +31,21 @@ export function StatusBar(): React.JSX.Element {
   const language = isCode
     ? languageLabel(active.fileName)
     : (surface?.label ?? (active?.kind === 'canvas' ? 'Canvas' : 'Markdown'))
+
+  /**
+   * Which tabs carry the minimap switch.
+   *
+   * A diff as well as a code file, and the diff whatever kind of file it is
+   * of: it puts a minimap on its working-tree side unconditionally, so a
+   * markdown diff has one where a markdown note does not. Leaving it out here
+   * meant the one view where a map of the changes is most worth having was
+   * the one view you could only collapse from the palette.
+   */
+  const hasMinimap = (isCode || active?.kind === 'diff') && editor.minimap
+
+  // "Pressed" is the minimap at full size. Collapsed is still a minimap, so
+  // it is the unpressed state rather than an absence.
+  const expanded = !editor.minimapCollapsed
 
   const activeThemeId = mode === 'dark' ? darkTheme : lightTheme
   const activeThemeName = getTheme(activeThemeId).name
@@ -100,6 +117,33 @@ export function StatusBar(): React.JSX.Element {
             <span className="status-bar__item" title="Language mode">
               {language}
             </span>
+
+            {/* Collapse rather than hide. The preview goes, because at 120px
+                the code is a grey smudge, but where the edits are stays: the
+                change ruler widens to a fifth of the minimap and what is left
+                is a strip of green and red you can still scroll against.
+
+                Absent on a note, which has no minimap to collapse, and absent
+                when Settings has the minimap off, which has nothing either. */}
+            {hasMinimap && (
+              <>
+                <span className="status-bar__sep">·</span>
+
+                <button
+                  className={`status-bar__btn${expanded ? ' status-bar__btn--on' : ''}`}
+                  aria-pressed={expanded}
+                  title={expanded ? 'Collapse the minimap to its changes' : 'Expand the minimap'}
+                  onClick={() =>
+                    updateSettings({
+                      editor: { ...editor, minimapCollapsed: expanded }
+                    })
+                  }
+                >
+                  <Icon name="minimap" size={12} />
+                  <span>Minimap</span>
+                </button>
+              </>
+            )}
           </>
         )}
 

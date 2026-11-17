@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { app } from 'electron'
+import { openArguments } from '@core/open-arguments'
 import { handleAssetProtocol, registerAssetScheme } from './asset-protocol'
 import {
   handlePageAssetProtocol,
@@ -30,6 +31,7 @@ import { ExportService } from './services/exporter'
 import { FileSystemService } from './services/file-system'
 import { LinkScanner } from './services/link-scanner'
 import { SettingsStore } from './services/settings-store'
+import { OpenRequests } from './services/open-requests'
 import { WatcherService } from './services/watcher'
 import { GitWatchService } from './services/git-watch'
 import { WindowManager } from './windows'
@@ -66,6 +68,39 @@ if (!gotLock) {
     getSettings: () => settings.get(),
     saveWindowBounds: (bounds) => settings.set({ window: { ...settings.get().window, ...bounds } }),
     saveZoomLevel: (zoomLevel) => settings.set({ zoomLevel })
+  })
+
+  /**
+   * Files the desktop asked for: a double-click, "Open With", a path after the
+   * command. Nothing read argv at all before this, so every one of those
+   * launched the app and then dropped what it was launched for on the floor.
+   */
+  const openRequests = new OpenRequests((request) => {
+    const win = windows.window
+    if (!win) return false
+    // The folder first: it is the vault the files are most likely to be in,
+    // and `openFolder` does not disturb the tabs that follow it.
+    for (const path of request.folders) send(win, 'app:openFolder', { path })
+    for (const path of request.files) send(win, 'app:openPath', { path })
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    return true
+  })
+
+  // Unpacked, this process and any second one are both started as
+  // "electron <bundle> …", and that bundle is not a document to open.
+  const appArgument = app.isPackaged ? undefined : process.argv[1]
+  void openRequests.request(openArguments(process.argv, { cwd: process.cwd(), appArgument }))
+
+  /**
+   * macOS never puts the file on the command line: Finder sends this instead,
+   * and it can arrive before `ready`, which is why the listener is attached
+   * here rather than inside `whenReady`.
+   */
+  app.on('open-file', (event, path) => {
+    event.preventDefault()
+    if (app.isReady() && !windows.window) windows.createMainWindow()
+    void openRequests.request([path])
   })
 
   const watcher = new WatcherService((watchId, events) => {
@@ -184,12 +219,27 @@ if (!gotLock) {
     terminal.shutdown()
   })
 
-  app.on('second-instance', () => {
+  /**
+   * Another launch, refused the lock, handing over what it was asked to open.
+   *
+   * Focusing the window was all this did, which is why "Open With" did nothing
+   * at all whenever Orrery was already running: the second process carried the
+   * path in its argv and then quit with it. `cwd` is the second process's, not
+   * ours, so a relative path resolves against the shell it was typed in.
+   */
+  app.on('second-instance', (_event, argv, cwd) => {
     const win = windows.window
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
+    } else if (app.isReady()) {
+      // Every window closed, but the app is still up: macOS, or a second
+      // launch that arrived between `ready` and the first window.
+      windows.createMainWindow()
     }
+    // Not conditional on any of that. With no window the paths queue, and the
+    // renderer takes them at the end of its boot.
+    void openRequests.request(openArguments(argv, { cwd, appArgument }))
   })
 
   app.whenReady().then(async () => {
@@ -219,7 +269,8 @@ if (!gotLock) {
       pdfText,
       pdfHistory,
       pdfDrafts,
-      draftNotes
+      draftNotes,
+      openRequests
     })
     buildAppMenu(settings.get().keybindings, {
       files: settings.get().recentFiles,

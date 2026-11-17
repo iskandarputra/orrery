@@ -42,7 +42,18 @@ test.afterAll(async () => {
   rmSync(vault, { recursive: true, force: true })
 })
 
-test('a first run opens on the outline', async () => {
+test('a first run starts with the panel closed', async () => {
+  // It used to open on the outline. A first run has an empty vault, so what
+  // that showed was three hundred pixels of nothing taking a quarter of the
+  // window before anything had been written.
+  await expect(page.locator('.rpanel')).toBeHidden()
+  // The rail stays, which is what makes starting closed cheap: every view is
+  // still one click away.
+  await expect(page.locator('.rpanel-rail')).toBeVisible()
+})
+
+test('the rail opens the outline on the note', async () => {
+  await page.locator('.rpanel__tab[aria-label="Outline"]').click()
   await expect(page.locator('.rpanel')).toBeVisible()
   await expect(page.locator('.rpanel__tab--active')).toHaveAttribute('aria-label', 'Outline')
   // Showing the panel is not the same as showing the note's structure in it:
@@ -57,7 +68,7 @@ test('closing the panel is remembered across a restart', async () => {
   await page.reload()
   await page.waitForSelector('.app', { timeout: 30_000 })
   await page.waitForTimeout(600)
-  // The default only applies to a first run; a deliberate close has to stick.
+  // A deliberate close has to stick, the same way a deliberate open does.
   await expect(page.locator('.rpanel')).toBeHidden()
 })
 

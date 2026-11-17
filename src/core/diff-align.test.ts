@@ -135,9 +135,37 @@ describe('changeMarks', () => {
     expect(changeMarks(alignFile(d, 4, 3))).toEqual([{ line: 2, kind: 'removed' }])
   })
 
-  it('counts a rewritten line as added rather than as a hole beside it', () => {
+  it('gives a rewritten line both colours, not just the green one', () => {
+    // It used to come back plain `added`. The left pane showed red, the right
+    // pane green, and the strip between them showed green alone, so replacing
+    // a line looked exactly like writing a new one.
     const d = diffOf('@@ -2,1 +2,1 @@\n-old\n+new\n')
-    expect(changeMarks(alignFile(d, 3, 3))).toEqual([{ line: 2, kind: 'added' }])
+    expect(changeMarks(alignFile(d, 3, 3))).toEqual([
+      { line: 2, kind: 'replaced', removedShare: 0.5 }
+    ])
+  })
+
+  it('weighs the two halves by how many lines went and came', () => {
+    // Three out, one in: mostly a removal, and the band should say so.
+    const d = diffOf('@@ -2,3 +2,1 @@\n-one\n-two\n-three\n+only\n')
+    expect(changeMarks(alignFile(d, 5, 3))).toEqual([
+      { line: 2, kind: 'replaced', removedShare: 0.75 }
+    ])
+
+    // One out, three in: mostly an addition.
+    const e = diffOf('@@ -2,1 +2,3 @@\n-only\n+one\n+two\n+three\n')
+    expect(changeMarks(alignFile(e, 3, 5))).toEqual([
+      { line: 2, kind: 'replaced', removedShare: 0.25 },
+      { line: 3, kind: 'replaced', removedShare: 0.25 },
+      { line: 4, kind: 'replaced', removedShare: 0.25 }
+    ])
+  })
+
+  it('keeps a pure addition and a pure deletion to one colour each', () => {
+    // The split is for a replacement. An addition with nothing removed beside
+    // it must not pick up a red half it has no reason to carry.
+    const d = diffOf('@@ -2,0 +3,1 @@\n+fresh\n')
+    expect(changeMarks(alignFile(d, 4, 5))).toEqual([{ line: 3, kind: 'added' }])
   })
 
   it('hangs a deletion at the end of the file on its last line', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRuns, rulerBands } from './change-bands'
+import { mergeRuns, rulerBands, splitColour } from './change-bands'
 
 describe('mergeRuns', () => {
   it('joins consecutive lines of one colour into a single run', () => {
@@ -77,5 +77,40 @@ describe('rulerBands', () => {
   it('draws nothing before the track has been measured', () => {
     expect(rulerBands([{ from: 1, to: 1, colour: 'red' }], 100, 0, 3)).toEqual([])
     expect(rulerBands([{ from: 1, to: 1, colour: 'red' }], 0, 300, 3)).toEqual([])
+  })
+})
+
+describe('splitColour', () => {
+  it('puts the removal on top and the addition below it', () => {
+    expect(splitColour('red', 'green', 0.5)).toBe(
+      'linear-gradient(to bottom, red 0 50%, green 50% 100%)'
+    )
+  })
+
+  it('weighs the stop by the share it is given', () => {
+    expect(splitColour('red', 'green', 0.25)).toContain('red 0 25%')
+    expect(splitColour('red', 'green', 0.25)).toContain('green 25% 100%')
+  })
+
+  it('never lets either colour vanish', () => {
+    // A hunk that dropped ten lines to write one back is 91% removal, and on a
+    // band floored to 3px that leaves the addition a quarter of a pixel.
+    expect(splitColour('red', 'green', 10 / 11)).toContain('75%')
+    expect(splitColour('red', 'green', 0)).toContain('25%')
+    expect(splitColour('red', 'green', 1)).toContain('75%')
+  })
+
+  it('carries tokens through, since a theme is what supplies the colours', () => {
+    expect(splitColour('var(--or-diff-del)', 'var(--or-diff-add)', 0.5)).toBe(
+      'linear-gradient(to bottom, var(--or-diff-del) 0 50%, var(--or-diff-add) 50% 100%)'
+    )
+  })
+
+  it('merges into one band per hunk, so a replacement is one mark', () => {
+    // Every line of a replaced block carries the same string, which is what
+    // makes `mergeRuns` fold them into a single split band rather than a
+    // stack of tiny ones.
+    const colour = splitColour('var(--or-diff-del)', 'var(--or-diff-add)', 0.5)
+    expect(mergeRuns({ 4: colour, 5: colour, 6: colour })).toEqual([{ from: 4, to: 6, colour }])
   })
 })

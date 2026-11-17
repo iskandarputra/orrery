@@ -58,6 +58,9 @@ test.beforeAll(async () => {
   await page.setViewportSize({ width: 1300, height: 860 })
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Note.md')
+  // The panel starts closed now, so the spec opens it the way a person does.
+  await page.locator('.rpanel__tab[aria-label="Outline"]').click()
+  await expect(page.locator('.rpanel')).toBeVisible()
 })
 
 test.afterAll(async () => {

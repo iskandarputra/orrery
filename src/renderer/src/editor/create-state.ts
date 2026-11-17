@@ -36,6 +36,7 @@ import { indentGuides } from './indent-guides'
 import { vimMode } from './vim-mode'
 import { changeRuler } from './change-ruler'
 import { minimap } from './minimap'
+import { minimapMode, rulerWidth } from '@core/minimap-mode'
 import { tableAutoFormat } from './table-format'
 import { changeDocument } from './lsp-session'
 import { goToDefinition } from './lsp-definition'
@@ -71,6 +72,7 @@ export const settingsCompartment = new Compartment()
  */
 function codeExtensions(settings: Settings): Extension {
   const e = settings.editor
+  const mode = minimapMode(e)
   return [
     // Code has its own wrap setting, off by default. It used to follow the
     // prose one, which defaults on, so every code file wrapped and the column
@@ -79,12 +81,16 @@ function codeExtensions(settings: Settings): Extension {
     lineNumbers(),
     highlightActiveLineGutter(),
     gitGutter(),
-    minimap(e.minimap),
+    minimap(mode === 'full'),
     // Beside the minimap rather than instead of it: the minimap says what the
     // shape of the file is, the ruler says where in the whole of it the edits
     // are, and the minimap only ever draws the part of the file it is scrolled
     // near. Reads the same gitGutter field, so the two cannot disagree.
-    changeRuler(),
+    //
+    // Collapsed, the ruler is not beside the minimap, it *is* the minimap: the
+    // canvas goes and this widens to take its place, which is why the width
+    // comes from the mode rather than being fixed.
+    changeRuler({ width: rulerWidth(mode) }),
     indentGuides(e.indentGuides),
     // Draws whatever a language server reports; harmless when none is installed.
     lintGutter(),

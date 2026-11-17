@@ -254,6 +254,9 @@ test('the outline says what a table is, rather than asking for headings', async 
   // Telling someone to add "# Headings" to a spreadsheet is advice that would
   // corrupt it.
   await open('people.csv')
+  // The panel starts closed on a first run, so the spec opens it.
+  await page.locator('.rpanel__tab[aria-label="Outline"]').click()
+  await expect(page.locator('.rpanel')).toBeVisible()
   await expect(page.locator('.rpanel-empty')).toContainText('this is a CSV')
   await expect(page.locator('.rpanel-empty')).not.toContainText('# Headings')
 })
