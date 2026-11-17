@@ -1,5 +1,5 @@
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorState, Extension } from '@codemirror/state'
+import { Decoration, WidgetType } from '@codemirror/view'
 import type { EditorView as EditorViewType } from '@codemirror/view'
 import { resolveAssetUrl } from '@core/asset'
 import { resolveFile, resolveNote } from '@core/notes'
@@ -10,6 +10,7 @@ import { appState } from '@/state/app-state-access'
 import { invoke } from '@/services/client'
 import { docPathFacet } from '../doc-context'
 import { revealSource } from './reveal-source'
+import { revealField, type Revealable } from './reveal-field'
 
 /** Longest embedded excerpt shown before it is cut off. */
 const MAX_EMBED_CHARS = 1200
@@ -167,7 +168,7 @@ class EmbedWidget extends WidgetType {
     )
   }
 
-  override toDOM(view: EditorView): HTMLElement {
+  override toDOM(view: EditorViewType): HTMLElement {
     const el = document.createElement('div')
     el.className = 'cm-or-embed'
     el.textContent = `Loading ${this.target}…`
@@ -198,28 +199,26 @@ class EmbedWidget extends WidgetType {
   }
 }
 
-function build(state: EditorState, reveal: boolean): DecorationSet {
-  const decos: Range<Decoration>[] = []
-  const touches = (a: number, b: number): boolean =>
-    reveal && state.selection.ranges.some((r) => r.from <= b && r.to >= a)
-
+function scan(state: EditorState, reveal: boolean): Revealable[] {
+  const items: Revealable[] = []
   for (let n = 1; n <= state.doc.lines; n++) {
     const line = state.doc.line(n)
+    // Cheap test first: this runs over every line on every edit, and almost no
+    // line holds an embed.
+    if (!line.text.includes('![[')) continue
     for (const link of findWikilinks(line.text, line.from)) {
       if (!link.embed) continue
-      if (touches(link.from, link.to)) continue
       // Only an embed that owns its whole line becomes a card; one sitting in
       // a sentence would tear the paragraph in half.
       if (link.from !== line.from || link.to !== line.to) continue
-      decos.push(
-        Decoration.replace({
-          widget: new EmbedWidget(link.target, link.heading, reveal),
-          block: true
-        }).range(link.from, link.to)
-      )
+      const deco = Decoration.replace({
+        widget: new EmbedWidget(link.target, link.heading, reveal),
+        block: true
+      })
+      items.push({ from: link.from, to: link.to, shown: [deco.range(link.from, link.to)] })
     }
   }
-  return Decoration.set(decos, true)
+  return items
 }
 
 /** Forget cached bodies for a note — its file changed underneath the embeds. */
@@ -235,12 +234,5 @@ export function invalidateEmbed(path: string): void {
  * many places as you like.
  */
 export function embedRendering(reveal = true): Extension {
-  return StateField.define<DecorationSet>({
-    create: (state) => build(state, reveal),
-    update(value, tr) {
-      if (tr.docChanged || (reveal && tr.selection)) return build(tr.state, reveal)
-      return value.map(tr.changes)
-    },
-    provide: (f) => EditorView.decorations.from(f)
-  })
+  return revealField((state) => scan(state, reveal), reveal)
 }
