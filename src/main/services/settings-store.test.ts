@@ -113,6 +113,36 @@ describe('SettingsStore', () => {
     expect(read()['theme']).toBe('light')
   })
 
+  describe('telling the window', () => {
+    it('reports a change main made, with the settings after it', async () => {
+      const store = new SettingsStore(dir)
+      await store.load()
+      const seen: string[] = []
+      store.onChange((settings) => seen.push(settings.theme))
+      store.set({ theme: 'dark' })
+      expect(seen).toEqual(['dark'])
+    })
+
+    it('does not echo a change the window asked for', async () => {
+      // The window already has it, and its reply carries the result.
+      const store = new SettingsStore(dir)
+      await store.load()
+      const seen: string[] = []
+      store.onChange((settings) => seen.push(settings.theme))
+      store.set({ theme: 'dark' }, { fromRenderer: true })
+      expect(seen).toEqual([])
+    })
+
+    it('reports nothing for a patch that does not validate', async () => {
+      const store = new SettingsStore(dir)
+      await store.load()
+      const seen: string[] = []
+      store.onChange((settings) => seen.push(settings.theme))
+      store.set({ zoomLevel: 'big' as unknown as number })
+      expect(seen).toEqual([])
+    })
+  })
+
   describe('on quit', () => {
     it('has written by the time flushSync returns', async () => {
       // Quit handlers cannot wait, so the write has to be done when the call

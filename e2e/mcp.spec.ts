@@ -192,6 +192,17 @@ test('"always allow" is remembered, and shows up in settings', async () => {
     return settings.mcp.permissions.remembered
   })
   expect(remembered).toMatchObject({ 'fixture/add': 'allow' })
+
+  // And in the settings pane, reached the way a person reaches it. This used
+  // to stop at the IPC check above, which is how the pane went unreachable
+  // without a test noticing: it was never in the settings menu at all.
+  await runCommand('app.openSettings')
+  await page.locator('.settings__nav-item', { hasText: 'MCP' }).click()
+  await expect(page.locator('.settings h2')).toHaveText('MCP')
+  await expect(page.locator('.settings').getByText('fixture/add')).toBeVisible()
+  await expect(page.locator('.settings').getByText('Allowed without asking')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.settings')).toHaveCount(0)
 })
 
 test('a server can ask the user for something, and gets what was typed', async () => {

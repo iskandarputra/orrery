@@ -75,7 +75,7 @@ export function SidebarRail(): React.JSX.Element {
       run: () => openPalette('files')
     },
     { id: 'graph', label: 'Graph view (Ctrl+Shift+G)', icon: 'diagram', run: toggleGraph },
-    { id: 'settings', label: 'Preferences (Ctrl+,)', icon: 'gear', run: openSettings }
+    { id: 'settings', label: 'Preferences (Ctrl+,)', icon: 'gear', run: () => openSettings() }
   ]
 
   return (

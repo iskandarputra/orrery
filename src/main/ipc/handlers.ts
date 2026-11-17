@@ -883,7 +883,7 @@ export function registerIpcHandlers(deps: HandlerDeps): void {
   handle('settings:set', null, (_e, patch) => {
     const before = settings.get().lastOpenedFolder
     const beforeRecent = settings.get().recentFolders
-    const next = settings.set(patch)
+    const next = settings.set(patch, { fromRenderer: true })
     // The Open Recent submenu is built from settings, so it is rebuilt when
     // they change. A native menu cannot read state; it is state, copied.
     if (

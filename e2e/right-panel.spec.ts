@@ -178,3 +178,25 @@ test('the rail outlives the panel and reopens it', async () => {
   await page.locator('.rpanel__tab[aria-label="Outline"]').click()
   await expect(page.locator('.rpanel')).toBeVisible()
 })
+
+/**
+ * A button that names where it sends you has to arrive there.
+ *
+ * Both of these opened settings on whatever page was last shown, and the MCP
+ * page was not in the settings menu at all, so "Settings → MCP" led nowhere.
+ * Clicked through the rail rather than driven over IPC, which is how the gap
+ * went unnoticed by every MCP test.
+ */
+for (const { tab, button, page: heading } of [
+  { tab: 'Tools', button: 'Settings → MCP', page: 'MCP' },
+  { tab: 'AI', button: 'Configure AI Provider', page: 'AI Assistant' }
+]) {
+  test(`the empty ${tab} panel opens settings on ${heading}`, async () => {
+    const view = page.locator(`.rpanel__tab[aria-label="${tab}"]`)
+    if ((await view.getAttribute('aria-selected')) !== 'true') await view.click()
+    await page.getByRole('button', { name: button }).click()
+    await expect(page.locator('.settings h2')).toHaveText(heading)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.settings')).toHaveCount(0)
+  })
+}

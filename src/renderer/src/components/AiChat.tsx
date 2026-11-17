@@ -178,7 +178,7 @@ export function AiChatBody(): React.JSX.Element {
         </div>
         <h3>AI Vault Assistant</h3>
         <p>Chat with your vault — answers grounded in your notes with cited sources.</p>
-        <button className="btn btn--primary" onClick={openSettings}>
+        <button className="btn btn--primary" onClick={() => openSettings('ai')}>
           <Icon name="gear" size={14} />
           Configure AI Provider
         </button>
