@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync, unlinkSync, utimesSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  writeFileSync,
+  rmSync,
+  unlinkSync,
+  utimesSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -74,6 +82,37 @@ describe('graph caching', () => {
     } finally {
       rmSync(other, { recursive: true, force: true })
     }
+  })
+})
+
+describe('graph walk order', () => {
+  /** The order a one-file-at-a-time walk visits notes in: readdir order, depth first. */
+  function serialOrder(dir: string): string[] {
+    const out: string[] = []
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) out.push(...serialOrder(full))
+      else if (entry.name.endsWith('.md')) out.push(full)
+    }
+    return out
+  }
+
+  it('keeps the order of a serial walk, however the reads finish', async () => {
+    // Node order is what pivots and tie-breaks in the analysis go by, so a walk
+    // that collected files as their stats came back would recolour the map on
+    // every scan. Big files in shallow folders and small ones deep down make
+    // completion order and walk order disagree if anything is left to chance.
+    for (let d = 0; d < 6; d++) {
+      const deep = path.join(vault, `d${d}`, 'x', 'y')
+      mkdirSync(deep, { recursive: true })
+      for (let i = 0; i < 8; i++) {
+        writeFileSync(path.join(vault, `d${d}`, `big${i}.md`), `[[A]] ${'word '.repeat(40000)}`)
+        writeFileSync(path.join(deep, `n${d}-${i}.md`), `[[B]]`)
+      }
+    }
+    const analysis = await scanner.graph(vault, false)
+    const files = analysis.nodes.filter((n) => n.exists).map((n) => n.id)
+    expect(files).toEqual(serialOrder(vault))
   })
 })
 

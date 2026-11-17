@@ -25,6 +25,25 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024
 /** A document with pages, read by the PDF reader rather than as text. */
 const isPdf = (name: string): boolean => /\.pdf$/i.test(name)
 const MAX_HITS = 200
+const READ_CONCURRENCY = 32
+
+/** `items.map(fn)`, with at most `limit` calls in flight, results in input order. */
+async function mapLimited<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await fn(items[index]!)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
 
 /**
  * Reads the vault: backlinks and full-text search, plus the cached graph both
@@ -150,39 +169,46 @@ export class LinkScanner {
     return resolution.status === 'resolved' ? resolution.to : null
   }
 
-  /** Every markdown file's stats, without reading any of them. */
+  /**
+   * Every markdown file's stats, without reading any of them.
+   *
+   * Every directory's entries at once rather than one `stat` after another.
+   * This walk runs on every backlinks lookup, which is every note switch with
+   * that panel open, and serially it was one round trip to the thread pool per
+   * file. The result keeps the order a serial walk produced, because node order
+   * is what pivots and tie-breaks in `analyzeGraph` go by, and a map whose
+   * colours depended on which `stat` returned first would reshuffle per scan.
+   */
   private async stamps(rootPath: string, withCode = false): Promise<FileStamp[]> {
-    const found: FileStamp[] = []
-    const visit = async (dir: string): Promise<void> => {
+    const visit = async (dir: string): Promise<FileStamp[]> => {
       let entries
       try {
         entries = await fs.readdir(dir, { withFileTypes: true })
       } catch {
-        return
+        return []
       }
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue
-        if (withCode && BUILD_DIRS.has(entry.name)) continue
-        const full = path.join(dir, entry.name)
-        if (entry.isDirectory()) {
-          await visit(full)
-          continue
-        }
-        if (!entry.isFile()) continue
-        // Notes always; source files when the graph is asked to include them.
-        const markdown = /\.(md|markdown|mdown|mkd)$/i.test(entry.name)
-        if (!markdown && !(withCode && importsFamily(entry.name))) continue
-        try {
-          const stat = await fs.stat(full)
-          if (stat.size > MAX_FILE_BYTES) continue
-          found.push({ path: full, mtimeMs: stat.mtimeMs, size: stat.size })
-        } catch {
-          // skip unreadable
-        }
-      }
+      const found = await Promise.all(
+        entries.map(async (entry): Promise<FileStamp[]> => {
+          if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) return []
+          if (withCode && BUILD_DIRS.has(entry.name)) return []
+          const full = path.join(dir, entry.name)
+          if (entry.isDirectory()) return visit(full)
+          if (!entry.isFile()) return []
+          // Notes always; source files when the graph is asked to include them.
+          const markdown = /\.(md|markdown|mdown|mkd)$/i.test(entry.name)
+          if (!markdown && !(withCode && importsFamily(entry.name))) return []
+          try {
+            const stat = await fs.stat(full)
+            if (stat.size > MAX_FILE_BYTES) return []
+            return [{ path: full, mtimeMs: stat.mtimeMs, size: stat.size }]
+          } catch {
+            return [] // unreadable
+          }
+        })
+      )
+      return found.flat()
     }
-    await visit(rootPath)
-    return found
+    return visit(rootPath)
   }
 
   /**
@@ -205,19 +231,26 @@ export class LinkScanner {
     const cached = this.cache.get(rootPath)
     if (cached?.fingerprint === fingerprint) return cached.analysis
 
-    const files: GraphFile[] = []
-    for (const stamp of stamps) {
-      try {
-        files.push({
-          path: stamp.path,
-          stem: path.basename(stamp.path).replace(/\.[^.]+$/, ''),
-          content: await fs.readFile(stamp.path, 'utf-8'),
-          mtimeMs: stamp.mtimeMs
-        })
-      } catch {
-        // vanished between the walk and the read
+    // Read several at a time, in walk order. One at a time left the thread pool
+    // idle between files; all at once opens a descriptor per file and a vault
+    // of 20,000 notes runs out of them.
+    const read = await mapLimited(
+      stamps,
+      READ_CONCURRENCY,
+      async (stamp): Promise<GraphFile | null> => {
+        try {
+          return {
+            path: stamp.path,
+            stem: path.basename(stamp.path).replace(/\.[^.]+$/, ''),
+            content: await fs.readFile(stamp.path, 'utf-8'),
+            mtimeMs: stamp.mtimeMs
+          }
+        } catch {
+          return null // vanished between the walk and the read
+        }
       }
-    }
+    )
+    const files = read.filter((file): file is GraphFile => file !== null)
 
     // One pass over the vault feeds both the graph and its analysis, so every
     // surface (graph, analytics view, note panel) reads the same numbers.
