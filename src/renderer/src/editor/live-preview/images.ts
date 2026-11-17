@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorState, Extension } from '@codemirror/state'
+import { Decoration, type EditorView, WidgetType } from '@codemirror/view'
+import { revealField, type Revealable } from './reveal-field'
 import { resolveAssetUrl } from '@core/asset'
 import { docPathFacet } from '../doc-context'
 import { expandButton } from './expand-button'
@@ -49,18 +50,15 @@ class ImageWidget extends WidgetType {
   }
 }
 
-function build(state: EditorState, reveal: boolean): DecorationSet {
+function scan(state: EditorState, reveal: boolean): Revealable[] {
   const docPath = state.facet(docPathFacet)
-  const decos: Range<Decoration>[] = []
-  const touches = (a: number, b: number): boolean =>
-    reveal && state.selection.ranges.some((r) => r.from <= b && r.to >= a)
+  const items: Revealable[] = []
 
   syntaxTree(state).iterate({
     enter: (node) => {
       if (node.name !== 'Image') return
       const from = node.from
       const to = node.to
-      if (touches(from, to)) return
       const urlNode = node.node.getChild('URL')
       if (!urlNode) return
       const rawSrc = state.doc.sliceString(urlNode.from, urlNode.to)
@@ -69,27 +67,14 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
       // Alt text sits between "![" and "]".
       const marks = node.node.getChildren('LinkMark')
       const alt = marks[0] && marks[1] ? state.doc.sliceString(marks[0].to, marks[1].from) : ''
-      decos.push(Decoration.replace({ widget: new ImageWidget(url, alt, reveal) }).range(from, to))
+      const deco = Decoration.replace({ widget: new ImageWidget(url, alt, reveal) })
+      items.push({ from, to, shown: [deco.range(from, to)] })
     }
   })
-  return Decoration.set(decos, true)
+  return items
 }
 
 /** Render ![alt](src) as inline images; source returns when the cursor enters. */
 export function imageRendering(reveal = true): Extension {
-  return StateField.define<DecorationSet>({
-    create: (state) => build(state, reveal),
-    update(value, tr) {
-      // Also rebuild as background parsing completes (Image node may be absent
-      // on a freshly opened, not-yet-fully-parsed document).
-      if (
-        tr.docChanged ||
-        (reveal && tr.selection) ||
-        syntaxTree(tr.startState) !== syntaxTree(tr.state)
-      )
-        return build(tr.state, reveal)
-      return value.map(tr.changes)
-    },
-    provide: (f) => EditorView.decorations.from(f)
-  })
+  return revealField((state) => scan(state, reveal), reveal, { followParse: true })
 }

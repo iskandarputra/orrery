@@ -197,17 +197,43 @@ test('heading rhythm actually applies', async () => {
  * CodeMirror renders only the viewport, so a block below the fold is absent
  * from the DOM entirely — waiting on its selector would wait forever, and any
  * measurement of it is a measurement of nothing.
+ *
+ * The walk starts at the top every time and goes down. It used to start
+ * wherever the previous test left the scroller, so the list test, which runs
+ * after one that scrolls to the last equation, found its lists only while the
+ * viewport margin still happened to hold them. Under load it did not, and the
+ * walk went down from the bottom of the note. Each step waits for the block
+ * rather than pausing and counting, because a scroll's new lines arrive some
+ * frames later and a fixed pause loses that race on a busy machine.
  */
 async function showBlock(selector: string): Promise<void> {
   const scroller = page.locator('.cm-scroller')
+  await scroller.evaluate((el) => el.scrollTo(0, 0))
   for (let step = 0; step < 40; step++) {
-    if (await page.locator(selector).count()) {
-      await page.locator(selector).first().scrollIntoViewIfNeeded()
+    const drawn = await page
+      .locator(selector)
+      .first()
+      .waitFor({ state: 'attached', timeout: 1000 })
+      .then(
+        () => true,
+        () => false
+      )
+    if (drawn) {
+      // In the page, in one step: the node found above can be replaced by the
+      // next viewport update before a locator action reaches it.
+      await page.evaluate(
+        (sel) => document.querySelector(sel)?.scrollIntoView({ block: 'nearest' }),
+        selector
+      )
       await page.waitForTimeout(120)
       return
     }
-    await scroller.evaluate((el) => el.scrollBy(0, el.clientHeight * 0.75))
-    await page.waitForTimeout(90)
+    const atEnd = await scroller.evaluate((el) => {
+      const end = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+      el.scrollBy(0, el.clientHeight * 0.75)
+      return end
+    })
+    if (atEnd) break
   }
   throw new Error(`never rendered: ${selector}`)
 }
@@ -236,6 +262,10 @@ test('block containers all start at the text column', async () => {
 
 test('every list marker shares one grid', async () => {
   await showBlock('.cm-or-li')
+  // Scrolling to the first item asks CodeMirror for a new viewport, and the
+  // rest of the list arrives a few frames later. Counting straight away saw
+  // two rows on a loaded machine.
+  await expect.poll(() => page.locator('.cm-or-li').count()).toBeGreaterThan(6)
 
   const rows = await page.evaluate(() => {
     const lineLeft = document.querySelector('.cm-line')!.getBoundingClientRect().left

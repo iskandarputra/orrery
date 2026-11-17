@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorState, Extension } from '@codemirror/state'
+import { Decoration, WidgetType } from '@codemirror/view'
+import { revealField, type Revealable } from './reveal-field'
 import { renderSafeHtml } from '../html-render'
 
 /**
@@ -55,45 +56,28 @@ class HtmlBlockWidget extends WidgetType {
   }
 }
 
-function build(state: EditorState, reveal: boolean): DecorationSet {
-  const decos: Range<Decoration>[] = []
-  const revealed = (from: number, to: number): boolean =>
-    reveal && state.selection.ranges.some((r) => r.from <= to && r.to >= from)
+function scan(state: EditorState): Revealable[] {
+  const items: Revealable[] = []
 
   syntaxTree(state).iterate({
     enter: (node) => {
       if (node.name !== 'HTMLBlock') return
       const from = state.doc.lineAt(node.from).from
       const to = state.doc.lineAt(Math.min(node.to, state.doc.length)).to
-      if (revealed(from, to)) return false
 
       const html = state.doc.sliceString(node.from, node.to)
       // An HTML comment is a block too, and has a feature of its own that
       // knows to hide it rather than render it.
       if (/^\s*<!--/.test(html)) return false
 
-      decos.push(
-        Decoration.replace({ widget: new HtmlBlockWidget(html, from), block: true }).range(from, to)
-      )
+      const deco = Decoration.replace({ widget: new HtmlBlockWidget(html, from), block: true })
+      items.push({ from, to, shown: [deco.range(from, to)] })
       return false
     }
   })
-  return Decoration.set(decos, true)
+  return items
 }
 
 export function htmlBlockRendering(reveal = true): Extension {
-  return StateField.define<DecorationSet>({
-    create: (state) => build(state, reveal),
-    update(value, tr) {
-      if (
-        tr.docChanged ||
-        (reveal && tr.selection) ||
-        syntaxTree(tr.startState) !== syntaxTree(tr.state)
-      ) {
-        return build(tr.state, reveal)
-      }
-      return value.map(tr.changes)
-    },
-    provide: (f) => EditorView.decorations.from(f)
-  })
+  return revealField(scan, reveal, { followParse: true })
 }

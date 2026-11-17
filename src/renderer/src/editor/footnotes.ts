@@ -1,4 +1,4 @@
-import type { Extension, Range } from '@codemirror/state'
+import type { Extension, Range, Text } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
@@ -7,7 +7,7 @@ import {
   type DecorationSet,
   type ViewUpdate
 } from '@codemirror/view'
-import { definitionFor, findFootnotes, numbering } from '@core/footnotes'
+import { definitionFor, findFootnotes, numbering, type Footnotes } from '@core/footnotes'
 
 /**
  * Footnotes rendered where they are written.
@@ -68,6 +68,14 @@ export function footnoteRendering(reveal = true): Extension {
   const plugin = ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none
+      /**
+       * The whole document's footnotes, and the text they were found in.
+       *
+       * Scrolling and moving the cursor rebuild the marks, and they used to
+       * rescan the whole document each time, though only an edit can change
+       * what is in it.
+       */
+      private found: { doc: Text; all: Footnotes; numbers: Map<string, number> } | null = null
 
       constructor(view: EditorView) {
         this.build(view)
@@ -83,8 +91,11 @@ export function footnoteRendering(reveal = true): Extension {
         const { state } = view
         // Numbered over the whole document, not the viewport: a marker must not
         // change number when the reference above it scrolls out of sight.
-        const all = findFootnotes(state.doc.toString())
-        const numbers = numbering(all)
+        if (this.found?.doc !== state.doc) {
+          const all = findFootnotes(state.doc.toString())
+          this.found = { doc: state.doc, all, numbers: numbering(all) }
+        }
+        const { all, numbers } = this.found
         const marks: Range<Decoration>[] = []
 
         for (const ref of all.refs) {

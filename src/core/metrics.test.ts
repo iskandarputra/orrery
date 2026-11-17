@@ -127,6 +127,67 @@ describe('betweenness', () => {
     )
     expect(a.insights.connectors[0]?.id).toBe('BRIDGE')
   })
+
+  // Exact values, worked by hand. A score that is merely above zero in the
+  // right place survives most ways of getting the arithmetic wrong.
+  it('counts every pair a note sits between, on a path', () => {
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'C', 'D', 'E'],
+        [
+          ['A', 'B'],
+          ['B', 'C'],
+          ['C', 'D'],
+          ['D', 'E']
+        ]
+      )
+    )
+    // Six pairs not involving a given node. B lies between A and C, D, E: 3/6.
+    // C lies between A or B and D or E: 4/6.
+    expect(a.nodes.map((n) => n.betweenness)).toEqual([0, 0.5, 4 / 6, 0.5, 0])
+  })
+
+  it('splits the credit between two equally short routes', () => {
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'C', 'D'],
+        [
+          ['A', 'B'],
+          ['A', 'C'],
+          ['B', 'D'],
+          ['C', 'D']
+        ]
+      )
+    )
+    // Each node gets half of the one pair it can sit between, out of three.
+    for (const n of a.nodes) expect(n.betweenness).toBeCloseTo(1 / 6, 12)
+  })
+
+  it('counts a pair of notes linked both ways as one route', () => {
+    const a = analyzeGraph(
+      graph(
+        ['A', 'B', 'C'],
+        [
+          ['A', 'B'],
+          ['B', 'A'],
+          ['B', 'C']
+        ]
+      )
+    )
+    expect(of(a, 'B').betweenness).toBe(1)
+  })
+
+  it('estimates from pivots past the exact limit, scaled to the same range', () => {
+    // A path of 600: the exact score of node i is i * (599 - i) / pairs.
+    const ids = Array.from({ length: 600 }, (_, i) => `n${i}`)
+    const links = ids.slice(1).map((id, i): [string, string] => [ids[i]!, id])
+    const a = analyzeGraph(graph(ids, links))
+    const pairs = (599 * 598) / 2
+    const middle = a.nodes[300]!.betweenness
+    expect(middle).toBeGreaterThan(((300 * 299) / pairs) * 0.9)
+    expect(middle).toBeLessThan(((300 * 299) / pairs) * 1.1)
+    expect(a.nodes[0]!.betweenness).toBe(0)
+  })
 })
 
 describe('components and communities', () => {

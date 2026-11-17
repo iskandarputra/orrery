@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorState, Extension } from '@codemirror/state'
+import { Decoration, type EditorView, WidgetType } from '@codemirror/view'
+import { revealField, type Revealable } from './reveal-field'
 import { expandButton } from './expand-button'
 import { revealSource } from './reveal-source'
 
@@ -147,10 +148,8 @@ class MermaidWidget extends WidgetType {
   }
 }
 
-function build(state: EditorState, reveal: boolean): DecorationSet {
-  const decos: Range<Decoration>[] = []
-  const touches = (a: number, b: number): boolean =>
-    reveal && state.selection.ranges.some((r) => r.from <= b && r.to >= a)
+function scan(state: EditorState, reveal: boolean): Revealable[] {
+  const items: Revealable[] = []
 
   syntaxTree(state).iterate({
     enter: (node) => {
@@ -160,39 +159,20 @@ function build(state: EditorState, reveal: boolean): DecorationSet {
       const from = node.from
       const to = Math.min(node.to, state.doc.lineAt(node.to).to)
       const wholeLines = state.doc.lineAt(from).from === from && state.doc.lineAt(to).to === to
-      if (touches(from, to) || !wholeLines) return false
+      if (!wholeLines) return false
       const body = node.node.getChild('CodeText')
       const code = body ? state.doc.sliceString(body.from, body.to) : ''
       if (code.trim()) {
-        decos.push(
-          Decoration.replace({ widget: new MermaidWidget(code, reveal), block: true }).range(
-            from,
-            to
-          )
-        )
+        const deco = Decoration.replace({ widget: new MermaidWidget(code, reveal), block: true })
+        items.push({ from, to, shown: [deco.range(from, to)] })
       }
       return false
     }
   })
-  return Decoration.set(decos, true)
+  return items
 }
 
 /** ```mermaid fences render as diagrams; click or arrow in to edit source. */
 export function mermaidRendering(reveal = true): Extension {
-  return StateField.define<DecorationSet>({
-    create: (state) => build(state, reveal),
-    update(value, tr) {
-      // Rebuild as parsing completes so the fenced-code node is picked up on a
-      // freshly opened document (otherwise the diagram renders only after a
-      // tab switch forces a rebuild).
-      if (
-        tr.docChanged ||
-        (reveal && tr.selection) ||
-        syntaxTree(tr.startState) !== syntaxTree(tr.state)
-      )
-        return build(tr.state, reveal)
-      return value.map(tr.changes)
-    },
-    provide: (f) => EditorView.decorations.from(f)
-  })
+  return revealField((state) => scan(state, reveal), reveal, { followParse: true })
 }

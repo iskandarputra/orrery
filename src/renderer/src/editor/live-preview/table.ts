@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorState, Extension, Range } from '@codemirror/state'
+import { Decoration, type EditorView, WidgetType } from '@codemirror/view'
+import { revealField, type Revealable } from './reveal-field'
 import { parseTable } from '@core/markdown-table'
 import { revealSource } from './reveal-source'
 
@@ -202,41 +203,39 @@ class TableWidget extends WidgetType {
 
 const tableSrcLine = Decoration.line({ class: 'cm-or-table-src' })
 
-function buildTableDecorations(state: EditorState, reveal: boolean): DecorationSet {
-  const decorations: Range<Decoration>[] = []
-  const touches = (from: number, to: number): boolean =>
-    reveal && state.selection.ranges.some((r) => r.from <= to && r.to >= from)
-
+function scanTables(state: EditorState, reveal: boolean): Revealable[] {
+  const items: Revealable[] = []
   syntaxTree(state).iterate({
     enter: (node) => {
       if (node.name === 'Table') {
         // Trailing newline is outside the node; trim to full lines.
         const from = node.from
         const to = Math.min(node.to, state.doc.lineAt(node.to).to)
+        // Editing: keep source but align it with monospace rows.
+        const first = state.doc.lineAt(from)
+        const last = state.doc.lineAt(to)
+        const source: Range<Decoration>[] = []
+        for (let n = first.number; n <= last.number; n++) {
+          source.push(tableSrcLine.range(state.doc.line(n).from))
+        }
         // Block widgets must span whole lines — tables nested in blockquotes
         // (prefixed lines) stay as styled source.
-        const wholeLines = state.doc.lineAt(from).from === from && state.doc.lineAt(to).to === to
-        if (touches(from, to) || !wholeLines) {
-          // Editing: keep source but align it with monospace rows.
-          const first = state.doc.lineAt(from)
-          const last = state.doc.lineAt(to)
-          for (let n = first.number; n <= last.number; n++) {
-            decorations.push(tableSrcLine.range(state.doc.line(n).from))
-          }
-        } else {
-          decorations.push(
-            Decoration.replace({
-              widget: new TableWidget(state.doc.sliceString(from, to), reveal),
-              block: true
-            }).range(from, to)
-          )
-        }
+        const wholeLines = first.from === from && last.to === to
+        const shown = wholeLines
+          ? [
+              Decoration.replace({
+                widget: new TableWidget(state.doc.sliceString(from, to), reveal),
+                block: true
+              }).range(from, to)
+            ]
+          : source
+        items.push({ from, to, shown, revealed: source })
         return false
       }
       return TABLE_PARENTS.has(node.name)
     }
   })
-  return Decoration.set(decorations, true)
+  return items
 }
 
 /**
@@ -246,22 +245,7 @@ function buildTableDecorations(state: EditorState, reveal: boolean): DecorationS
  * StateField, not a ViewPlugin.
  */
 export function tableRendering(reveal = true): Extension {
-  const field = StateField.define<DecorationSet>({
-    create: (state) => buildTableDecorations(state, reveal),
-    update(value, tr) {
-      // Rebuild on edits, selection moves (only when reveal is on), AND when
-      // background parsing advances (a freshly opened doc isn't fully parsed, so
-      // the Table node may be absent on the first build — the "table didn't
-      // render until I switched tabs" race).
-      if (
-        tr.docChanged ||
-        (reveal && tr.selection) ||
-        syntaxTree(tr.startState) !== syntaxTree(tr.state)
-      )
-        return buildTableDecorations(tr.state, reveal)
-      return value.map(tr.changes)
-    },
-    provide: (f) => EditorView.decorations.from(f)
-  })
-  return field
+  // Rebuilt as background parsing advances too: a freshly opened document is
+  // not fully parsed, and the Table node may be absent on the first build.
+  return revealField((state) => scanTables(state, reveal), reveal, { followParse: true })
 }

@@ -1,8 +1,9 @@
 import { renderMath } from '../katex-lazy'
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import type { EditorState, Extension } from '@codemirror/state'
+import { Decoration, type EditorView, WidgetType } from '@codemirror/view'
 import { expandButton } from './expand-button'
 import { revealSource } from './reveal-source'
+import { revealField, type Revealable } from './reveal-field'
 
 class MathWidget extends WidgetType {
   constructor(
@@ -69,51 +70,59 @@ function fencedRanges(state: EditorState): [number, number][] {
   return ranges
 }
 
-function build(state: EditorState, reveal: boolean): DecorationSet {
+/**
+ * Every equation in the document.
+ *
+ * Each inline match is checked against the blocks and fences with a cursor that
+ * only moves forward, since all three arrive in document order. It used to test
+ * every inline match against every block and fence seen so far, which on a long
+ * note with thousands of equations was most of the cost of a keystroke.
+ */
+function scan(state: EditorState, reveal: boolean): Revealable[] {
   const text = state.doc.toString()
-  const decos: Range<Decoration>[] = []
   const fences = fencedRanges(state)
-  const inFence = (a: number, b: number): boolean => fences.some(([f, t]) => a < t && b > f)
-  const touches = (a: number, b: number): boolean =>
-    reveal && state.selection.ranges.some((r) => r.from <= b && r.to >= a)
-  const covered: [number, number][] = []
+  let fence = 0
+  const inFence = (a: number, b: number): boolean => {
+    while (fence < fences.length && fences[fence]![1] <= a) fence++
+    return fence < fences.length && fences[fence]![0] < b
+  }
 
+  const blocks: Revealable[] = []
+  const covered: [number, number][] = []
   let m: RegExpExecArray | null
   BLOCK.lastIndex = 0
   while ((m = BLOCK.exec(text)) !== null) {
     const from = m.index
     const to = m.index + m[0].length
     covered.push([from, to])
-    if (touches(from, to) || inFence(from, to) || !m[1]!.trim()) continue
+    if (inFence(from, to) || !m[1]!.trim()) continue
     const wholeLines = state.doc.lineAt(from).from === from && state.doc.lineAt(to).to === to
-    decos.push(
-      Decoration.replace({
-        widget: new MathWidget(m[1]!.trim(), true, reveal),
-        ...(wholeLines && m[0].includes('\n') ? { block: true } : {})
-      }).range(from, to)
-    )
+    const deco = Decoration.replace({
+      widget: new MathWidget(m[1]!.trim(), true, reveal),
+      ...(wholeLines && m[0].includes('\n') ? { block: true } : {})
+    }).range(from, to)
+    blocks.push({ from, to, shown: [deco] })
   }
+
+  const spans: Revealable[] = [...blocks]
+  let near = 0
+  fence = 0
   INLINE.lastIndex = 0
   while ((m = INLINE.exec(text)) !== null) {
     const from = m.index
     const to = m.index + m[0].length
-    if (covered.some(([a, b]) => from < b && to > a)) continue
-    if (touches(from, to) || inFence(from, to)) continue
+    while (near < covered.length && covered[near]![1] <= from) near++
+    if (near < covered.length && covered[near]![0] < to) continue
+    if (inFence(from, to)) continue
     const expr = m[1]!
     if (/^\s|\s$/.test(expr) || /^\d+$/.test(expr)) continue // avoid $5 and $10 prices
-    decos.push(Decoration.replace({ widget: new MathWidget(expr, false, reveal) }).range(from, to))
+    const deco = Decoration.replace({ widget: new MathWidget(expr, false, reveal) }).range(from, to)
+    spans.push({ from, to, shown: [deco] })
   }
-  return Decoration.set(decos, true)
+  return spans
 }
 
 /** $inline$ and $$block$$ KaTeX rendering; source reappears at the cursor. */
 export function mathRendering(reveal = true): Extension {
-  return StateField.define<DecorationSet>({
-    create: (state) => build(state, reveal),
-    update(value, tr) {
-      if (tr.docChanged || (reveal && tr.selection)) return build(tr.state, reveal)
-      return value.map(tr.changes)
-    },
-    provide: (f) => EditorView.decorations.from(f)
-  })
+  return revealField((state) => scan(state, reveal), reveal)
 }
