@@ -206,6 +206,9 @@ if (!gotLock) {
   })
 
   app.on('will-quit', () => {
+    // First, and synchronously: the process exits when these handlers return,
+    // and an awaited write would be cut off by it. See `flushSync`.
+    settings.flushSync()
     lsp.shutdown()
     // Somebody else's programs, started by us: none may outlive the window,
     // and anything still waiting on a dialog is refused rather than left.
@@ -294,7 +297,6 @@ if (!gotLock) {
   })
 
   app.on('before-quit', () => {
-    void settings.flush()
     void watcher.dispose()
     void gitWatch.dispose()
   })

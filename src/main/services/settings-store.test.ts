@@ -1,4 +1,11 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdtempSync,
+  promises as fsPromises,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,6 +111,58 @@ describe('SettingsStore', () => {
     const second = store.flush()
     await Promise.all([first, second])
     expect(read()['theme']).toBe('light')
+  })
+
+  describe('on quit', () => {
+    it('has written by the time flushSync returns', async () => {
+      // Quit handlers cannot wait, so the write has to be done when the call
+      // is. Read without awaiting anything in between.
+      const store = new SettingsStore(dir)
+      await store.load()
+      store.set({ theme: 'dark' })
+      store.flushSync()
+      expect(read()['theme']).toBe('dark')
+    })
+
+    it('writes nothing after it', async () => {
+      const store = new SettingsStore(dir)
+      await store.load()
+      store.set({ theme: 'dark' })
+      store.flushSync()
+      store.set({ theme: 'light' })
+      await store.flush()
+      expect(read()['theme']).toBe('dark')
+    })
+
+    it('is not overwritten by a slower save that serialised older settings', async () => {
+      const store = new SettingsStore(dir)
+      await store.load()
+      // Hold the async save after it has serialised, before it renames.
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      const original = fsPromises.writeFile
+      const writes = vi
+        .spyOn(fsPromises, 'writeFile')
+        .mockImplementation(async (...args: Parameters<typeof original>) => {
+          await gate
+          return original(...args)
+        })
+      try {
+        store.set({ theme: 'dark' })
+        const slow = store.flush()
+        await vi.waitFor(() => expect(writes).toHaveBeenCalled())
+
+        store.set({ theme: 'light' })
+        store.flushSync()
+        release()
+        await slow
+
+        expect(read()['theme']).toBe('light')
+        expect(readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([])
+      } finally {
+        writes.mockRestore()
+      }
+    })
   })
 
   it('falls back to defaults when the file on disk is corrupt', async () => {
