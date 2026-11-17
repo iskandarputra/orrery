@@ -18,6 +18,7 @@ import { markdownHighlight, orreryEditorTheme } from '@/editor/theme'
 import { documentTypography } from '@/editor/typography'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
+import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { Icon } from './Icon'
 
 /**
@@ -81,6 +82,7 @@ function paneExtensions(editable: boolean, mini: Extension = []): Extension {
  */
 export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element | null {
   const target = useStore((s) => s.buffers[bufferId]?.diff ?? null)
+  const saveKey = useShortcut('file.save')
   const closeTab = useStore((s) => s.closeTab)
   const setDirty = useStore((s) => s.setDirty)
   const rootPath = useStore((s) => s.rootPath)
@@ -368,7 +370,7 @@ export function DiffView({ bufferId }: { bufferId: string }): React.JSX.Element 
           {editable && (
             <button
               className="diff__edit"
-              title="Save changes (Ctrl+S)"
+              title={withShortcut('Save changes', saveKey)}
               disabled={!dirty}
               onClick={() => void saveRef.current()}
             >

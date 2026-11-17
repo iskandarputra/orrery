@@ -7,6 +7,7 @@ import { formatAndUnwrapNote } from '@/editor/format-helpers'
 import { invoke } from '@/services/client'
 import { useEditorStats } from '@/state/editor-stats'
 import { useStore } from '@/state/store'
+import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { Icon } from './Icon'
 import { copyText } from '@/services/clipboard'
 
@@ -30,6 +31,14 @@ export function HeaderBar(): React.JSX.Element | null {
   const showToast = useStore((s) => s.showToast)
   const setDocStatsOpen = useStore((s) => s.setDocStatsOpen)
   const stats = useEditorStats()
+  const openPalette = useStore((s) => s.openPalette)
+  const keys = {
+    sidebar: useShortcut('view.toggleSidebar'),
+    palette: useShortcut('app.commandPalette'),
+    graph: useShortcut('view.toggleGraph'),
+    outline: useShortcut('view.toggleOutline'),
+    ai: useShortcut('ai.openChat')
+  }
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
@@ -107,13 +116,6 @@ export function HeaderBar(): React.JSX.Element | null {
     showToast('Markdown copied to clipboard', 'success')
   }
 
-  const handleFind = (): void => {
-    const view = getActiveView()
-    if (view) {
-      void useStore.getState().openPalette('commands')
-    }
-  }
-
   return (
     <header className="header-bar">
       {/* Left: Sidebar toggle + Breadcrumbs */}
@@ -121,7 +123,7 @@ export function HeaderBar(): React.JSX.Element | null {
         {!sidebarVisible && (
           <button
             className="icon-btn header-bar__toggle-sidebar"
-            title="Show sidebar (Ctrl+B)"
+            title={withShortcut('Show sidebar', keys.sidebar)}
             onClick={toggleSidebar}
           >
             <Icon name="columns" size={15} />
@@ -173,11 +175,12 @@ export function HeaderBar(): React.JSX.Element | null {
 
       {/* Right: Quick actions toolbar */}
       <div className="header-bar__right">
-        {/* Find in note / command palette */}
+        {/* Command palette. It said Ctrl+P, which is quick open, and did nothing
+            unless an editor had focus. */}
         <button
           className="icon-btn header-btn"
-          title="Search note or commands (Ctrl+P)"
-          onClick={handleFind}
+          title={withShortcut('Command palette', keys.palette)}
+          onClick={() => openPalette('commands')}
         >
           <Icon name="search" size={14} />
         </button>
@@ -185,7 +188,7 @@ export function HeaderBar(): React.JSX.Element | null {
         {/* Beautify / Unwrap Paragraphs */}
         <button
           className="icon-btn header-btn"
-          title="Beautify & Unwrap Paragraphs (Ctrl+Shift+P > Unwrap)"
+          title="Beautify & Unwrap Paragraphs"
           onClick={formatAndUnwrapNote}
         >
           <Icon name="sparkle" size={14} />
@@ -294,7 +297,7 @@ export function HeaderBar(): React.JSX.Element | null {
         {/* Graph view */}
         <button
           className="icon-btn header-btn"
-          title="Open knowledge graph (Ctrl+Shift+G)"
+          title={withShortcut('Open knowledge graph', keys.graph)}
           onClick={toggleGraph}
         >
           <Icon name="diagram" size={15} />
@@ -303,7 +306,7 @@ export function HeaderBar(): React.JSX.Element | null {
         {/* Outline panel */}
         <button
           className={`icon-btn header-btn${sidePanel === 'outline' ? ' header-btn--active' : ''}`}
-          title="Toggle Table of Contents / Outline (Ctrl+Shift+U)"
+          title={withShortcut('Toggle Table of Contents / Outline', keys.outline)}
           onClick={() => toggleSidePanel('outline')}
         >
           <Icon name="list" size={15} />
@@ -312,7 +315,7 @@ export function HeaderBar(): React.JSX.Element | null {
         {/* AI Assistant */}
         <button
           className={`icon-btn header-btn${sidePanel === 'ai' ? ' header-btn--active' : ''}`}
-          title="AI Assistant (Ctrl+Shift+A)"
+          title={withShortcut('AI Assistant', keys.ai)}
           onClick={() => toggleSidePanel('ai')}
         >
           <Icon name="sparkle" size={15} />

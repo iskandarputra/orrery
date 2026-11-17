@@ -56,3 +56,5 @@ export function toggleInlineMark(marker: string) {
 }
 
 export const toggleHighlight = toggleInlineMark('==')
+export const toggleBold = toggleInlineMark('**')
+export const toggleItalic = toggleInlineMark('*')

@@ -69,6 +69,10 @@ if (!gotLock) {
     saveWindowBounds: (bounds) => settings.set({ window: { ...settings.get().window, ...bounds } }),
     saveZoomLevel: (zoomLevel) => settings.set({ zoomLevel })
   })
+  settings.onChange((next) => {
+    const win = windows.window
+    if (win) send(win, 'settings:changed', next)
+  })
 
   /**
    * Files the desktop asked for: a double-click, "Open With", a path after the

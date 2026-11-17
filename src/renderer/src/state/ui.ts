@@ -23,6 +23,19 @@ export interface ToastMessage {
   type: 'info' | 'success' | 'warning' | 'error'
 }
 
+/** A page of the settings dialog. */
+export type SettingsSection =
+  | 'general'
+  | 'editor'
+  | 'markdown'
+  | 'notes'
+  | 'appearance'
+  | 'ai'
+  | 'mcp'
+  | 'lsp'
+  | 'keybindings'
+  | 'about'
+
 /** What the palette is listing. */
 /**
  * `line` and `symbol` are the same box seeded with a prefix, not separate
@@ -92,6 +105,8 @@ export interface UiSlice {
   settingsLoaded: boolean
   /** Settings dialog visibility (transient, not persisted). */
   settingsOpen: boolean
+  /** The settings page on screen, kept between openings. */
+  settingsSection: SettingsSection
   /** Right side panel: outline (TOC), backlinks, search, AI, stats or analysis. */
   sidePanel: SidePanel | null
   /** Full-screen vault graph overlay. */
@@ -181,9 +196,13 @@ export interface UiSlice {
   loadSettings(): Promise<void>
   /** Optimistic local update, persisted through main. */
   updateSettings(patch: Partial<Settings>): void
+  /** Take settings main changed on its own, so the next patch is not built from a stale copy. */
+  adoptSettings(settings: Settings): void
   /** Pin a file, or unpin it if it is already pinned. */
   toggleBookmark(path: string): void
-  openSettings(): void
+  /** Open settings, on `section` when given and on the last page shown otherwise. */
+  openSettings(section?: SettingsSection): void
+  showSettingsSection(section: SettingsSection): void
   closeSettings(): void
   toggleSidePanel(panel: SidePanel): void
   /** Show a panel (or none) and remember the choice across restarts. */
@@ -284,6 +303,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   settings: defaultSettings,
   settingsLoaded: false,
   settingsOpen: false,
+  settingsSection: 'general',
   sidePanel: null,
   graphOpen: false,
   analyticsOpen: false,
@@ -328,6 +348,10 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     void invoke('settings:set', patch).then((confirmed) => set({ settings: confirmed }))
   },
 
+  adoptSettings(settings) {
+    set({ settings })
+  },
+
   toggleBookmark(path) {
     const current = get().settings.bookmarks
     // Newest first, so the list reads as "what I pinned recently" rather than
@@ -336,8 +360,12 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     get().updateSettings({ bookmarks: next })
   },
 
-  openSettings() {
-    set({ settingsOpen: true })
+  openSettings(section) {
+    set(section ? { settingsOpen: true, settingsSection: section } : { settingsOpen: true })
+  },
+
+  showSettingsSection(section) {
+    set({ settingsSection: section })
   },
 
   closeSettings() {

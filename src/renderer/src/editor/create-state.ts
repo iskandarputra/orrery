@@ -43,7 +43,7 @@ import { goToDefinition } from './lsp-definition'
 import { lspHover } from './lsp-hover'
 import { lspCompletion } from './lsp-completion'
 import { docPathFacet } from './doc-context'
-import { toggleHighlight } from './inline-format'
+import { toggleBold, toggleHighlight, toggleItalic } from './inline-format'
 import { HighlightExtension } from './markdown/highlight-extension'
 import { blockHandles } from './block-handles'
 import { blockMoveKeymap } from './block-move'
@@ -247,9 +247,19 @@ export function createDocumentState(options: CreateDocumentStateOptions): Editor
       keymap.of([
         ...(isCode
           ? []
-          : // List continuation, block moves and the highlight shortcut are all
-            // markdown editing gestures.
-            [{ key: 'Mod-Shift-h', run: toggleHighlight }, ...blockMoveKeymap, ...markdownKeymap]),
+          : // List continuation, block moves and the emphasis shortcuts are all
+            // markdown editing gestures. Bold and italic are bound here as well
+            // as in the menu, because the page sees a key before the menu does
+            // and defaultKeymap below has Mod-i as "select parent syntax": with
+            // the menu alone, Ctrl+I in a note selected instead of italicising.
+            // Ahead of defaultKeymap, so a note takes the key and code keeps it.
+            [
+              { key: 'Mod-b', run: toggleBold },
+              { key: 'Mod-i', run: toggleItalic },
+              { key: 'Mod-Shift-h', run: toggleHighlight },
+              ...blockMoveKeymap,
+              ...markdownKeymap
+            ]),
         ...defaultKeymap,
         ...historyKeymap,
         ...searchKeymap,

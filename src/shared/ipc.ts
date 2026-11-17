@@ -631,6 +631,12 @@ export interface IpcInvokeContract {
 
 /** Main -> renderer push events. */
 export interface IpcEventContract {
+  /**
+   * Main changed the settings itself, so the window's copy is out of date.
+   * Not sent for a change the window asked for; the reply to `settings:set`
+   * carries that one.
+   */
+  'settings:changed': Settings
   'fs:changed': FsChangedPayload
   /** A repository's state moved: a commit, a stage, a checkout, from anywhere. */
   'git:changed': { rootPath: string }

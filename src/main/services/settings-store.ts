@@ -26,6 +26,7 @@ export class SettingsStore {
   private tmpCounter = 0
   /** Set by `flushSync`: the file on disk is final, and no later save may replace it. */
   private closed = false
+  private listeners: ((settings: Settings) => void)[] = []
 
   constructor(userDataDir: string) {
     this.filePath = path.join(userDataDir, 'settings.json')
@@ -46,13 +47,33 @@ export class SettingsStore {
     return this.settings
   }
 
-  set(patch: Partial<Settings>): Settings {
+  /**
+   * Merge a patch in. `fromRenderer` marks a change the window asked for: it
+   * already holds that change and is told the result in the reply, so
+   * listeners are not called for it.
+   */
+  set(patch: Partial<Settings>, options: { fromRenderer?: boolean } = {}): Settings {
     const merged = settingsSchema.safeParse({ ...this.settings, ...patch })
     if (merged.success) {
       this.settings = merged.data
       this.scheduleSave()
+      if (!options.fromRenderer) for (const listener of this.listeners) listener(this.settings)
     }
     return this.settings
+  }
+
+  /**
+   * Called when main changes settings on its own: a remembered MCP answer, the
+   * host's token, the window's size, the zoom.
+   *
+   * The window keeps a copy of the settings and patches whole top-level keys
+   * built from it, so a copy that missed a change made here writes the old
+   * value back over it. "Always allow" was recorded in main, never reached the
+   * settings page, and the next edit on that page sent the stale `mcp` back,
+   * erasing every answer remembered since launch, refusals included.
+   */
+  onChange(listener: (settings: Settings) => void): void {
+    this.listeners.push(listener)
   }
 
   /** Persist immediately (used on quit), after any in-flight save. */

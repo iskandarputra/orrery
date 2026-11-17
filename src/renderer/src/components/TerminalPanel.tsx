@@ -5,6 +5,7 @@ import { commandSettle } from '@core/command-settle'
 import { basename } from '@core/paths'
 import { invoke, on } from '@/services/client'
 import { useStore } from '@/state/store'
+import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { getTheme, resolveTheme } from '@/themes/themes'
 import { Icon } from './Icon'
 
@@ -62,6 +63,7 @@ const COMMAND_QUIET_MS = 700
 
 export function TerminalPanel(): React.JSX.Element | null {
   const open = useStore((s) => s.terminalOpen)
+  const terminalKey = useShortcut('view.toggleTerminal')
   const close = useStore((s) => s.closeTerminal)
   const rootPath = useStore((s) => s.rootPath)
   const request = useStore((s) => s.terminalRequest)
@@ -250,7 +252,7 @@ export function TerminalPanel(): React.JSX.Element | null {
         <button
           className="icon-btn"
           aria-label="Close terminal"
-          title="Close terminal (Ctrl+`)"
+          title={withShortcut('Close terminal', terminalKey)}
           onClick={close}
         >
           <Icon name="x" size={15} />

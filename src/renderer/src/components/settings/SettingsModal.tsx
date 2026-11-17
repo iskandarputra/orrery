@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '@/state/store'
+import type { SettingsSection } from '@/state/ui'
 import { Icon, type IconName } from '../Icon'
 import {
   AboutSection,
@@ -14,62 +15,99 @@ import {
   NotesSection
 } from './sections'
 
-type SectionId =
-  | 'general'
-  | 'editor'
-  | 'markdown'
-  | 'notes'
-  | 'appearance'
-  | 'ai'
-  | 'mcp'
-  | 'lsp'
-  | 'keybindings'
-  | 'about'
+type SectionId = SettingsSection
 
-const SECTIONS: { id: SectionId; label: string; icon: IconName; desc: string }[] = [
-  { id: 'general', label: 'General', icon: 'sliders', desc: 'Autosave, startup behavior' },
-  { id: 'editor', label: 'Editor', icon: 'type', desc: 'Typography, line numbers, word wrap' },
-  { id: 'markdown', label: 'Markdown', icon: 'markdown', desc: 'Live preview, tasklists, images' },
-  { id: 'notes', label: 'Notes', icon: 'clock', desc: 'Daily notes and templates' },
+/**
+ * Every page of the dialog, in menu order, with what it renders.
+ *
+ * One list rather than a menu list and a separate table of pages. With two,
+ * the MCP page went into the table and not the menu, so it rendered for
+ * nobody, while the Tools panel and docs/mcp.md both sent people to it.
+ */
+const SECTIONS: {
+  id: SectionId
+  label: string
+  icon: IconName
+  desc: string
+  Body: () => React.JSX.Element
+}[] = [
+  {
+    id: 'general',
+    label: 'General',
+    icon: 'sliders',
+    desc: 'Autosave, startup behavior',
+    Body: GeneralSection
+  },
+  {
+    id: 'editor',
+    label: 'Editor',
+    icon: 'type',
+    desc: 'Typography, line numbers, word wrap',
+    Body: EditorSection
+  },
+  {
+    id: 'markdown',
+    label: 'Markdown',
+    icon: 'markdown',
+    desc: 'Live preview, tasklists, images',
+    Body: MarkdownSection
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    icon: 'clock',
+    desc: 'Daily notes and templates',
+    Body: NotesSection
+  },
   {
     id: 'appearance',
     label: 'Appearance',
     icon: 'palette',
-    desc: 'Themes, dark mode, accent colors'
+    desc: 'Themes, dark mode, accent colors',
+    Body: AppearanceSection
   },
   {
     id: 'ai',
     label: 'AI Assistant',
     icon: 'sparkle',
-    desc: 'Claude, Ollama, DeepSeek & compatible APIs'
+    desc: 'Claude, Ollama, DeepSeek & compatible APIs',
+    Body: AiSection
   },
-  { id: 'lsp', label: 'Language Servers', icon: 'code', desc: 'Diagnostics for code files' },
+  {
+    id: 'mcp',
+    label: 'MCP',
+    icon: 'zap',
+    desc: 'Servers, their tools, and what they may run',
+    Body: McpSection
+  },
+  {
+    id: 'lsp',
+    label: 'Language Servers',
+    icon: 'code',
+    desc: 'Diagnostics for code files',
+    Body: LanguageServersSection
+  },
   {
     id: 'keybindings',
     label: 'Keybindings',
     icon: 'keyboard',
-    desc: 'Keyboard shortcuts customization'
+    desc: 'Keyboard shortcuts customization',
+    Body: KeybindingsSection
   },
-  { id: 'about', label: 'About', icon: 'info', desc: 'Version and system information' }
+  {
+    id: 'about',
+    label: 'About',
+    icon: 'info',
+    desc: 'Version and system information',
+    Body: AboutSection
+  }
 ]
-
-const CONTENT: Record<SectionId, () => React.JSX.Element> = {
-  general: GeneralSection,
-  editor: EditorSection,
-  markdown: MarkdownSection,
-  notes: NotesSection,
-  appearance: AppearanceSection,
-  ai: AiSection,
-  mcp: McpSection,
-  lsp: LanguageServersSection,
-  keybindings: KeybindingsSection,
-  about: AboutSection
-}
 
 export function SettingsModal(): React.JSX.Element | null {
   const open = useStore((s) => s.settingsOpen)
   const close = useStore((s) => s.closeSettings)
-  const [section, setSection] = useState<SectionId>('general')
+  const section = useStore((s) => s.settingsSection)
+  const setSection = useStore((s) => s.showSettingsSection)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -90,7 +128,7 @@ export function SettingsModal(): React.JSX.Element | null {
   }, [search])
 
   if (!open) return null
-  const Body = CONTENT[section]
+  const Body = (SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]!).Body
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>

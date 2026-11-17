@@ -40,7 +40,7 @@ export function McpBody(): React.JSX.Element {
     return (
       <EmptyState icon="zap">
         No MCP servers yet. Add one in{' '}
-        <button className="link-btn" onClick={openSettings}>
+        <button className="link-btn" onClick={() => openSettings('mcp')}>
           Settings → MCP
         </button>
         , or paste the config you already use elsewhere.
