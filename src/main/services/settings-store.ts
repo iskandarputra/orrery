@@ -26,7 +26,7 @@ export class SettingsStore {
   private tmpCounter = 0
   /** Set by `flushSync`: the file on disk is final, and no later save may replace it. */
   private closed = false
-  private listeners: ((settings: Settings) => void)[] = []
+  private listeners: ((changed: Partial<Settings>) => void)[] = []
 
   constructor(userDataDir: string) {
     this.filePath = path.join(userDataDir, 'settings.json')
@@ -57,22 +57,36 @@ export class SettingsStore {
     if (merged.success) {
       this.settings = merged.data
       this.scheduleSave()
-      if (!options.fromRenderer) for (const listener of this.listeners) listener(this.settings)
+      if (!options.fromRenderer && this.listeners.length > 0) {
+        const changed = Object.fromEntries(
+          Object.keys(patch).map((key) => [key, this.settings[key as keyof Settings]])
+        ) as Partial<Settings>
+        for (const listener of this.listeners) listener(changed)
+      }
     }
     return this.settings
   }
 
   /**
    * Called when main changes settings on its own: a remembered MCP answer, the
-   * host's token, the window's size, the zoom.
+   * host's token, the window's size, the zoom, the recent files. The listener
+   * gets those keys only, with their values after the change.
    *
    * The window keeps a copy of the settings and patches whole top-level keys
    * built from it, so a copy that missed a change made here writes the old
    * value back over it. "Always allow" was recorded in main, never reached the
    * settings page, and the next edit on that page sent the stale `mcp` back,
    * erasing every answer remembered since launch, refusals included.
+   *
+   * Only the changed keys, not the whole settings. A push and the reply to the
+   * window's own `settings:set` travel separately and can arrive in either
+   * order, so a whole snapshot taken before the window's change could land
+   * after it and undo it in the window's copy: the sidebar, a workspace, an
+   * editor setting, and from there back into main on the next edit of that
+   * key. Main changes keys the window does not edit while it does, so sending
+   * just those cannot take anything back.
    */
-  onChange(listener: (settings: Settings) => void): void {
+  onChange(listener: (changed: Partial<Settings>) => void): void {
     this.listeners.push(listener)
   }
 

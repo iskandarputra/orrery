@@ -68,7 +68,7 @@ export function bootstrap(): CommandRegistry {
   on('menu:command', ({ commandId }) => registry.execute(commandId))
   on('window:closeRequested', () => void useStore.getState().handleWindowCloseRequest())
   on('fs:changed', ({ events }) => useStore.getState().onFsChanged(events))
-  on('settings:changed', (settings) => useStore.getState().adoptSettings(settings))
+  on('settings:changed', (changed) => useStore.getState().adoptSettings(changed))
   // Only the vault on screen: a change reported for the folder that was open a
   // moment ago is about a repository nobody is looking at now.
   on('git:changed', ({ rootPath }) => {

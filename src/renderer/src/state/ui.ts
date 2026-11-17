@@ -196,8 +196,12 @@ export interface UiSlice {
   loadSettings(): Promise<void>
   /** Optimistic local update, persisted through main. */
   updateSettings(patch: Partial<Settings>): void
-  /** Take settings main changed on its own, so the next patch is not built from a stale copy. */
-  adoptSettings(settings: Settings): void
+  /**
+   * Merge in keys main changed on its own, so the next patch is not built from
+   * a stale copy. Merged, not replaced: every other key keeps its value and its
+   * identity, so nothing the window changed meanwhile is taken back.
+   */
+  adoptSettings(changed: Partial<Settings>): void
   /** Pin a file, or unpin it if it is already pinned. */
   toggleBookmark(path: string): void
   /** Open settings, on `section` when given and on the last page shown otherwise. */
@@ -348,8 +352,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
     void invoke('settings:set', patch).then((confirmed) => set({ settings: confirmed }))
   },
 
-  adoptSettings(settings) {
-    set({ settings })
+  adoptSettings(changed) {
+    set({ settings: { ...get().settings, ...changed } })
   },
 
   toggleBookmark(path) {
