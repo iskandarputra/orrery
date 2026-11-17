@@ -12,6 +12,7 @@ import { invoke } from '@/services/client'
 import { Icon } from '@/components/Icon'
 import { EmptyState } from '@/components/PanelBits'
 import { useStore } from '@/state/store'
+import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { loadPdfjs } from './pdfjs-lazy'
 import { readPage, startReader } from './ocr'
 import { registerCloser, registerSaver, registerUndo } from './saving'
@@ -80,6 +81,9 @@ const lastSeen = new Map<string, { page: number; scale: string; rotation: number
 
 export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element {
   const path = useStore((s) => s.buffers[bufferId]?.filePath ?? '')
+  const saveKey = useShortcut('file.save')
+  /** How to keep a change, by the key that does it, or by name with no key bound. */
+  const toSave = saveKey ? `${saveKey} to save` : 'save to keep it'
   /** Bumped when the document has changed and must be read again. */
   const [reloadToken, setReload] = useState(0)
   /**
@@ -667,7 +671,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     try {
       await invoke('pdf:pages', { path, plan })
       changed()
-      useStore.getState().showToast('The pages were rearranged — Ctrl+S to save', 'success')
+      useStore.getState().showToast(`The pages were rearranged: ${toSave}`, 'success')
     } catch {
       useStore.getState().showToast('Those pages could not be rearranged', 'error')
     }
@@ -684,7 +688,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
     try {
       await invoke('pdf:pages', { path, plan, also: [other] })
       changed()
-      useStore.getState().showToast('Those pages were added — Ctrl+S to save', 'success')
+      useStore.getState().showToast(`Those pages were added: ${toSave}`, 'success')
     } catch {
       useStore.getState().showToast('Those pages could not be added', 'error')
     }
@@ -836,7 +840,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
       setPickedAt(changed())
       useStore
         .getState()
-        .showToast('The picture was added — drag it where you want it, then Ctrl+S', 'success')
+        .showToast(`The picture was added. Drag it where you want it, then ${toSave}`, 'success')
     } catch {
       useStore.getState().showToast('That picture could not be added', 'error')
     }
@@ -1076,7 +1080,7 @@ export function PdfViewer({ bufferId }: { bufferId: string }): React.JSX.Element
         <button
           className="pdfv__action"
           aria-label="Save this document"
-          title="Write the changes back into the file (Ctrl+S)"
+          title={withShortcut('Write the changes back into the file', saveKey)}
           disabled={!dirty || saving}
           onClick={() => void save()}
         >

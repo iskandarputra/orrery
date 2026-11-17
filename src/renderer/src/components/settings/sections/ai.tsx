@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { invoke, parseIpcError } from '@/services/client'
 import { useStore } from '@/state/store'
+import { useShortcut } from '@/commands/shortcuts'
 import { SegmentedControl, SettingRow, TextField, Toggle } from '../controls'
 
 export function AiSection(): React.JSX.Element {
   const settings = useStore((s) => s.settings)
   const update = useStore((s) => s.updateSettings)
+  const chatKey = useShortcut('ai.openChat')
   const a = settings.ai
 
   return (
@@ -120,8 +122,8 @@ export function AiSection(): React.JSX.Element {
         </>
       )}
       <p className="set-note">
-        Open the chat with Ctrl+Shift+A. Answers are grounded in your active note and matching vault
-        snippets, with [file:line] citations.
+        Open the chat with {chatKey || 'the AI Assistant button'}. Answers are grounded in your
+        active note and matching vault snippets, with [file:line] citations.
       </p>
     </>
   )

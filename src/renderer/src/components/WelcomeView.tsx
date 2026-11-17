@@ -2,40 +2,42 @@ import { useEffect, useState } from 'react'
 import { basename } from '@core/paths'
 import { invoke } from '@/services/client'
 import { useStore } from '@/state/store'
+import { shortcutText } from '@/commands/shortcuts'
 import { Icon, type IconName } from './Icon'
 import { Logo } from './Logo'
 
 const ACTIONS: {
   label: string
-  hint: string
+  /** The command whose key the card shows, read from the one table of keys. */
+  command: string
   icon: IconName
   desc: string
   run: (s: ReturnType<typeof useStore.getState>) => void
 }[] = [
   {
     label: 'New Note',
-    hint: 'Ctrl N',
+    command: 'file.new',
     icon: 'file-plus',
     desc: 'Create an untitled note in the editor',
     run: (s) => s.newUntitled()
   },
   {
     label: 'Open File',
-    hint: 'Ctrl O',
+    command: 'file.open',
     icon: 'file-text',
     desc: 'Open a markdown file from disk',
     run: (s) => void s.openFileDialog()
   },
   {
     label: 'Open Vault Folder',
-    hint: 'Ctrl ⇧ O',
+    command: 'workspace.openFolder',
     icon: 'folder-open',
     desc: 'Open a folder as your knowledge base',
     run: (s) => void s.openFolder()
   },
   {
     label: 'Command Palette',
-    hint: 'Ctrl ⇧ P',
+    command: 'app.commandPalette',
     icon: 'keyboard',
     desc: 'Search all commands and shortcuts',
     run: (s) => s.openPalette('commands')
@@ -57,6 +59,7 @@ export function WelcomeView(): React.JSX.Element {
   const openPaths = useStore((s) => s.openPaths)
   const openFolder = useStore((s) => s.openFolder)
   const recentFolders = useStore((s) => s.settings.recentFolders)
+  const keybindings = useStore((s) => s.settings.keybindings)
   const [recentFiles, setRecentFiles] = useState<string[]>([])
   const [showCheatSheet, setShowCheatSheet] = useState(false)
 
@@ -87,7 +90,7 @@ export function WelcomeView(): React.JSX.Element {
               <span className="welcome__action-icon">
                 <Icon name={a.icon} size={18} />
               </span>
-              <kbd className="welcome__action-kbd">{a.hint}</kbd>
+              <kbd className="welcome__action-kbd">{shortcutText(a.command, keybindings)}</kbd>
             </div>
             <span className="welcome__action-label">{a.label}</span>
             <span className="welcome__action-desc">{a.desc}</span>

@@ -53,7 +53,7 @@ export function buildEditorMenu(
     items.push(
       { separator: true },
       { label: 'Bold', icon: 'bold', onSelect: () => actions.format('**') },
-      { label: 'Italic', icon: 'italic', onSelect: () => actions.format('_') },
+      { label: 'Italic', icon: 'italic', onSelect: () => actions.format('*') },
       { label: 'Highlight', icon: 'pencil', onSelect: () => actions.format('==') },
       { label: 'Inline code', icon: 'code', onSelect: () => actions.format('`') },
       { label: 'Link', icon: 'link', onSelect: actions.insertLink }

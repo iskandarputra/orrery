@@ -13,10 +13,13 @@ import {
   insertTableTemplate
 } from '@/editor/format-helpers'
 import { useStore } from '@/state/store'
+import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { Icon } from './Icon'
 
 export function Toolbar(): React.JSX.Element | null {
   const visible = useStore((s) => s.showFormattingToolbar)
+  const boldKey = useShortcut('format.bold')
+  const italicKey = useShortcut('format.italic')
   const activeId = useStore((s) => s.activeId)
   const [headingMenuOpen, setHeadingMenuOpen] = useState(false)
   const [calloutMenuOpen, setCalloutMenuOpen] = useState(false)
@@ -126,14 +129,14 @@ export function Toolbar(): React.JSX.Element | null {
       <div className="toolbar__group">
         <button
           className="toolbar__btn"
-          title="Bold (Ctrl+B)"
+          title={withShortcut('Bold', boldKey)}
           onClick={() => applyInlineFormat('**')}
         >
           <Icon name="bold" size={14} />
         </button>
         <button
           className="toolbar__btn"
-          title="Italic (Ctrl+I)"
+          title={withShortcut('Italic', italicKey)}
           onClick={() => applyInlineFormat('*')}
         >
           <Icon name="italic" size={14} />
@@ -312,7 +315,7 @@ export function Toolbar(): React.JSX.Element | null {
       <div className="toolbar__group">
         <button
           className="toolbar__btn"
-          title="Beautify & Unwrap Paragraphs (Ctrl+Shift+P > Unwrap)"
+          title="Beautify & Unwrap Paragraphs"
           onClick={formatAndUnwrapNote}
         >
           <Icon name="sparkle" size={14} />

@@ -58,9 +58,10 @@ Both rail icons route through it, the folder icon included, which today calls
 toggles visibility would hide the sidebar when someone on source control was
 asking for the file tree.
 
-`Ctrl+B` keeps toggling visibility alone and does not change the view. It is the
-"get this out of my way" key, and which view it was showing is not part of the
-question.
+Toggle Sidebar keeps toggling visibility alone and does not change the view. It
+is the "get this out of my way" key, and which view it was showing is not part
+of the question. (It was `Ctrl+B` when this was written; it is now
+`Ctrl+Shift+E`, since `Ctrl+B` is bold in a note. See `src/shared/keybindings.ts`.)
 
 A second command, **Files** (`view.toggleFiles`), joins **Source Control**. This
 was not in the design and should have been: the sidebar has two views, and

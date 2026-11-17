@@ -14,13 +14,28 @@ import { openDailyNote } from '@/notes/daily'
 import { isHtmlFile } from '@core/html-document'
 import { stem } from '@core/paths'
 import { nextViewMode, shownViewMode, type ViewMode } from '@core/view-mode'
-import { toggleHighlight } from '@/editor/inline-format'
+import { toggleBold, toggleHighlight, toggleItalic } from '@/editor/inline-format'
+import { docPathFacet } from '@/editor/doc-context'
+import { documentKind } from '@core/document-kind'
+import { selectParentSyntax } from '@codemirror/commands'
+import type { EditorView } from '@codemirror/view'
 import { mediaAtCursor } from '@/editor/live-preview/media-at-cursor'
 import { goToDefinition } from '@/editor/lsp-definition'
 import { invoke } from '@/services/client'
 import { THEMES } from '@/themes/themes'
 import type { AppState } from '@/state/store'
 import type { Command } from './registry'
+
+/**
+ * The view, when it holds a note. Emphasis markers typed into source code are
+ * corruption rather than formatting, so bold and italic act on notes only. A
+ * buffer with no path is an untitled note.
+ */
+function noteView(view: EditorView | null): EditorView | null {
+  if (!view) return null
+  const path = view.state.facet(docPathFacet)
+  return !path || documentKind(path) === 'markdown' ? view : null
+}
 
 /**
  * The active buffer, when it is an HTML file the reader can render.
@@ -619,6 +634,29 @@ export const builtinCommands: Command[] = [
       } catch (err) {
         window.alert(`Could not extract note: ${err instanceof Error ? err.message : err}`)
       }
+    }
+  },
+  {
+    id: 'format.bold',
+    title: 'Bold',
+    run: ({ view }) => {
+      const v = noteView(view())
+      if (v) toggleBold(v)
+      v?.focus()
+    }
+  },
+  {
+    id: 'format.italic',
+    title: 'Italic',
+    run: ({ view }) => {
+      const v = view()
+      if (!v) return
+      // Ctrl+I is CodeMirror's "select the enclosing syntax" in code, and the
+      // menu accelerator now takes the key before the editor sees it. Code
+      // keeps what the key did there; only a note gets emphasis.
+      if (noteView(v)) toggleItalic(v)
+      else selectParentSyntax(v)
+      v.focus()
     }
   },
   {
