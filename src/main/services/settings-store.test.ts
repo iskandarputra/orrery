@@ -9,6 +9,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Settings } from '@shared/settings'
 import { SettingsStore } from './settings-store'
 
 let dir: string
@@ -114,21 +115,40 @@ describe('SettingsStore', () => {
   })
 
   describe('telling the window', () => {
-    it('reports a change main made, with the settings after it', async () => {
+    it('reports a change main made: the keys it touched, with their new values', async () => {
       const store = new SettingsStore(dir)
       await store.load()
-      const seen: string[] = []
-      store.onChange((settings) => seen.push(settings.theme))
-      store.set({ theme: 'dark' })
-      expect(seen).toEqual(['dark'])
+      const seen: Partial<Settings>[] = []
+      store.onChange((changed) => seen.push(changed))
+      store.set({ theme: 'dark', zoomLevel: 2 })
+      expect(seen).toEqual([{ theme: 'dark', zoomLevel: 2 }])
+    })
+
+    it('sends nothing else, so a late push cannot take back what the window changed', async () => {
+      const store = new SettingsStore(dir)
+      await store.load()
+      const seen: Partial<Settings>[] = []
+      store.onChange((changed) => seen.push(changed))
+      store.set({ recentFiles: ['/vault/a.md'] })
+      expect(Object.keys(seen[0]!)).toEqual(['recentFiles'])
+    })
+
+    it('reports the value as stored, after validation', async () => {
+      const store = new SettingsStore(dir)
+      await store.load()
+      const seen: Partial<Settings>[] = []
+      store.onChange((changed) => seen.push(changed))
+      // The schema fills defaults in, and that is what the window should hold.
+      store.set({ sidebar: { visible: false } as Settings['sidebar'] })
+      expect(seen[0]!.sidebar).toEqual(store.get().sidebar)
     })
 
     it('does not echo a change the window asked for', async () => {
       // The window already has it, and its reply carries the result.
       const store = new SettingsStore(dir)
       await store.load()
-      const seen: string[] = []
-      store.onChange((settings) => seen.push(settings.theme))
+      const seen: Partial<Settings>[] = []
+      store.onChange((changed) => seen.push(changed))
       store.set({ theme: 'dark' }, { fromRenderer: true })
       expect(seen).toEqual([])
     })
@@ -136,8 +156,8 @@ describe('SettingsStore', () => {
     it('reports nothing for a patch that does not validate', async () => {
       const store = new SettingsStore(dir)
       await store.load()
-      const seen: string[] = []
-      store.onChange((settings) => seen.push(settings.theme))
+      const seen: Partial<Settings>[] = []
+      store.onChange((changed) => seen.push(changed))
       store.set({ zoomLevel: 'big' as unknown as number })
       expect(seen).toEqual([])
     })

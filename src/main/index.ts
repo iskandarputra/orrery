@@ -69,9 +69,9 @@ if (!gotLock) {
     saveWindowBounds: (bounds) => settings.set({ window: { ...settings.get().window, ...bounds } }),
     saveZoomLevel: (zoomLevel) => settings.set({ zoomLevel })
   })
-  settings.onChange((next) => {
+  settings.onChange((changed) => {
     const win = windows.window
-    if (win) send(win, 'settings:changed', next)
+    if (win) send(win, 'settings:changed', changed)
   })
 
   /**
