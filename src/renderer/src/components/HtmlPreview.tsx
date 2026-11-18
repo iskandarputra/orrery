@@ -9,7 +9,6 @@ import { invoke } from '@/services/client'
 import { viewForBuffer } from '@/editor/active-view'
 import { useDocVersion } from '@/state/doc-version'
 import { useStore } from '@/state/store'
-import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { Icon } from './Icon'
 import { EmptyState } from './PanelBits'
 
@@ -45,7 +44,6 @@ const WATCH_DELAY = 500
 export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Element {
   const version = useDocVersion((v) => v[bufferId] ?? 0)
   const filePath = useStore((s) => s.buffers[bufferId]?.filePath ?? null)
-  const sourceKey = useShortcut('view.toggleHtmlPreview')
   const vaultRoot = useStore((s) => s.rootPath)
   const allowRemote = useStore((s) => !!s.htmlRemote[bufferId])
   const allowHtmlRemote = useStore((s) => s.allowHtmlRemote)
@@ -458,7 +456,7 @@ export function HtmlPreview({ bufferId }: { bufferId: string }): React.JSX.Eleme
         <button
           className={`htmlv__action${filePath ? '' : ' htmlv__action--end'}`}
           onClick={() => setHtmlReading(bufferId, false)}
-          title={withShortcut('Back to the source', sourceKey)}
+          title="Back to the source (Ctrl+Shift+V)"
         >
           <Icon name="pencil" size={12} />
           Edit

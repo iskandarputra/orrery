@@ -1,5 +1,4 @@
 import { useStore } from '@/state/store'
-import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { openContextMenu } from './context-menu/context-menu'
 import { Icon } from './Icon'
 import { buildTabMenu } from './menus'
@@ -7,7 +6,6 @@ import { FileTypeIcon } from './FileIcon'
 
 export function TabBar(): React.JSX.Element | null {
   const tabOrder = useStore((s) => s.tabOrder)
-  const newNoteKey = useShortcut('file.new')
   const buffers = useStore((s) => s.buffers)
   const activeId = useStore((s) => s.activeId)
   const setActive = useStore((s) => s.setActive)
@@ -61,11 +59,7 @@ export function TabBar(): React.JSX.Element | null {
           )
         })}
       </div>
-      <button
-        className="tab-bar__new-btn"
-        title={withShortcut('New note', newNoteKey)}
-        onClick={() => newUntitled()}
-      >
+      <button className="tab-bar__new-btn" title="New note (Ctrl+N)" onClick={() => newUntitled()}>
         <Icon name="plus" size={13} />
       </button>
     </div>

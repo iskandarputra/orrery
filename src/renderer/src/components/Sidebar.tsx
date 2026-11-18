@@ -1,7 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { basename } from '@core/paths'
 import { useStore } from '@/state/store'
-import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { FileTree } from './FileTree'
 import { Icon } from './Icon'
 import { SourceControlPanel } from './SourceControlPanel'
@@ -56,7 +55,6 @@ const MAX_WIDTH = 600
 function FilesView(): React.JSX.Element {
   const rootPath = useStore((s) => s.rootPath)
   const openFolder = useStore((s) => s.openFolder)
-  const newNoteKey = useShortcut('file.new')
   const collapseAllDirs = useStore((s) => s.collapseAllDirs)
   const setTreeEdit = useStore((s) => s.setTreeEdit)
   const noteIndex = useStore((s) => s.noteIndex)
@@ -91,7 +89,7 @@ function FilesView(): React.JSX.Element {
               <>
                 <button
                   className="icon-btn"
-                  title={withShortcut('New note', newNoteKey)}
+                  title="New note (Ctrl+N)"
                   onClick={() => setTreeEdit({ type: 'create-file', dirPath: rootPath })}
                 >
                   <Icon name="file-plus" size={14} />
