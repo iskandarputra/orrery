@@ -6,7 +6,6 @@ import {
   type BaseWindow,
   type MenuItemConstructorOptions
 } from 'electron'
-import { shortcutFor } from '@shared/keybindings'
 import { send } from './ipc/registry'
 
 /**
@@ -34,8 +33,8 @@ export function buildAppMenu(
   recent: RecentPaths = { files: [], folders: [] }
 ): void {
   const isMac = process.platform === 'darwin'
-  /** User override or the shipped default, from the one table of defaults. */
-  const acc = (commandId: string): string | undefined => shortcutFor(commandId, bindings)
+  /** User override or the shipped default accelerator. */
+  const acc = (commandId: string, dflt?: string): string | undefined => bindings[commandId] || dflt
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [{ role: 'appMenu' as const }] : []),
@@ -44,43 +43,43 @@ export function buildAppMenu(
       submenu: [
         {
           label: 'New File',
-          accelerator: acc('file.new'),
+          accelerator: acc('file.new', 'CmdOrCtrl+N'),
           click: dispatch('file.new')
         },
         {
           label: 'Quick Open…',
-          accelerator: acc('app.quickOpen'),
+          accelerator: acc('app.quickOpen', 'CmdOrCtrl+P'),
           click: dispatch('app.quickOpen')
         },
         {
           label: 'Command Palette…',
-          accelerator: acc('app.commandPalette'),
+          accelerator: acc('app.commandPalette', 'CmdOrCtrl+Shift+P'),
           click: dispatch('app.commandPalette')
         },
         { type: 'separator' },
         {
           label: 'Open File…',
-          accelerator: acc('file.open'),
+          accelerator: acc('file.open', 'CmdOrCtrl+O'),
           click: dispatch('file.open')
         },
         {
           label: 'Open Folder…',
-          accelerator: acc('workspace.openFolder'),
+          accelerator: acc('workspace.openFolder', 'CmdOrCtrl+Shift+O'),
           click: dispatch('workspace.openFolder')
         },
         {
           label: 'Open Recent',
-          submenu: recentSubmenu(recent, acc('file.openRecent'))
+          submenu: recentSubmenu(recent, acc('file.openRecent', 'CmdOrCtrl+Shift+R'))
         },
         { type: 'separator' },
         {
           label: 'Save',
-          accelerator: acc('file.save'),
+          accelerator: acc('file.save', 'CmdOrCtrl+S'),
           click: dispatch('file.save')
         },
         {
           label: 'Save As…',
-          accelerator: acc('file.saveAs'),
+          accelerator: acc('file.saveAs', 'CmdOrCtrl+Shift+S'),
           click: dispatch('file.saveAs')
         },
         { type: 'separator' },
@@ -97,13 +96,13 @@ export function buildAppMenu(
         { type: 'separator' },
         {
           label: 'Preferences…',
-          accelerator: acc('app.openSettings'),
+          accelerator: acc('app.openSettings', 'CmdOrCtrl+,'),
           click: dispatch('app.openSettings')
         },
         { type: 'separator' },
         {
           label: 'Close Tab',
-          accelerator: acc('tab.close'),
+          accelerator: acc('tab.close', 'CmdOrCtrl+W'),
           click: dispatch('tab.close')
         },
         ...(isMac ? [] : [{ type: 'separator' as const }, { role: 'quit' as const }])
@@ -121,35 +120,25 @@ export function buildAppMenu(
         { role: 'selectAll' },
         { type: 'separator' },
         {
-          label: 'Bold',
-          accelerator: acc('format.bold'),
-          click: dispatch('format.bold')
-        },
-        {
-          label: 'Italic',
-          accelerator: acc('format.italic'),
-          click: dispatch('format.italic')
-        },
-        {
           label: 'Highlight Selection',
-          accelerator: acc('format.highlight'),
+          accelerator: acc('format.highlight', 'CmdOrCtrl+Shift+H'),
           click: dispatch('format.highlight')
         },
         { label: 'Unwrap Hard-Wrapped Paragraphs', click: dispatch('format.unwrapParagraphs') },
         {
           label: 'Extract Selection to Note',
-          accelerator: acc('note.extractSelection'),
+          accelerator: acc('note.extractSelection', 'CmdOrCtrl+Alt+N'),
           click: dispatch('note.extractSelection')
         },
         { type: 'separator' },
         {
           label: 'Find',
-          accelerator: acc('find.open'),
+          accelerator: acc('find.open', 'CmdOrCtrl+F'),
           click: dispatch('find.open')
         },
         {
           label: 'Replace',
-          accelerator: acc('find.replace'),
+          accelerator: acc('find.replace', 'CmdOrCtrl+H'),
           click: dispatch('find.replace')
         }
       ]
@@ -159,13 +148,13 @@ export function buildAppMenu(
       submenu: [
         {
           label: 'Toggle Sidebar',
-          accelerator: acc('view.toggleSidebar'),
+          accelerator: acc('view.toggleSidebar', 'CmdOrCtrl+B'),
           click: dispatch('view.toggleSidebar')
         },
         {
           label: 'Toggle Terminal',
           // The shortcut every editor uses for this, so muscle memory works.
-          accelerator: acc('view.toggleTerminal'),
+          accelerator: acc('view.toggleTerminal', 'CmdOrCtrl+`'),
           click: dispatch('view.toggleTerminal')
         },
         {
@@ -173,23 +162,23 @@ export function buildAppMenu(
           submenu: [
             {
               label: 'Edit (source)',
-              accelerator: acc('view.modeEdit'),
+              accelerator: acc('view.modeEdit', 'CmdOrCtrl+Shift+1'),
               click: dispatch('view.modeEdit')
             },
             {
               label: 'Hybrid (live preview)',
-              accelerator: acc('view.modeHybrid'),
+              accelerator: acc('view.modeHybrid', 'CmdOrCtrl+Shift+2'),
               click: dispatch('view.modeHybrid')
             },
             {
               label: 'Reading (view only)',
-              accelerator: acc('view.modeReading'),
+              accelerator: acc('view.modeReading', 'CmdOrCtrl+Shift+3'),
               click: dispatch('view.modeReading')
             },
             { type: 'separator' },
             {
               label: 'Cycle View Mode',
-              accelerator: acc('view.cycleViewMode'),
+              accelerator: acc('view.cycleViewMode', 'CmdOrCtrl+/'),
               click: dispatch('view.cycleViewMode')
             },
             { type: 'separator' },
@@ -198,7 +187,7 @@ export function buildAppMenu(
               // file, which has a source and a rendered page of its own — the
               // shortcut editors use for exactly this.
               label: 'Toggle HTML Preview',
-              accelerator: acc('view.toggleHtmlPreview'),
+              accelerator: acc('view.toggleHtmlPreview', 'CmdOrCtrl+Shift+V'),
               click: dispatch('view.toggleHtmlPreview')
             }
           ]
@@ -214,27 +203,27 @@ export function buildAppMenu(
         { type: 'separator' },
         {
           label: 'Toggle Backlinks',
-          accelerator: acc('view.toggleBacklinks'),
+          accelerator: acc('view.toggleBacklinks', 'CmdOrCtrl+Shift+B'),
           click: dispatch('view.toggleBacklinks')
         },
         {
           label: 'Toggle Outline',
-          accelerator: acc('view.toggleOutline'),
+          accelerator: acc('view.toggleOutline', 'CmdOrCtrl+Shift+U'),
           click: dispatch('view.toggleOutline')
         },
         {
           label: 'Search in Workspace',
-          accelerator: acc('view.toggleSearch'),
+          accelerator: acc('view.toggleSearch', 'CmdOrCtrl+Shift+F'),
           click: dispatch('view.toggleSearch')
         },
         {
           label: 'AI Chat',
-          accelerator: acc('ai.openChat'),
+          accelerator: acc('ai.openChat', 'CmdOrCtrl+Shift+A'),
           click: dispatch('ai.openChat')
         },
         {
           label: 'Graph View',
-          accelerator: acc('view.toggleGraph'),
+          accelerator: acc('view.toggleGraph', 'CmdOrCtrl+Shift+G'),
           click: dispatch('view.toggleGraph')
         },
         { type: 'separator' },
@@ -249,12 +238,12 @@ export function buildAppMenu(
         { type: 'separator' },
         {
           label: 'Split Editor',
-          accelerator: acc('view.toggleSplit'),
+          accelerator: acc('view.toggleSplit', 'CmdOrCtrl+\\'),
           click: dispatch('view.toggleSplit')
         },
         {
           label: 'Split Right',
-          accelerator: acc('view.splitRight'),
+          accelerator: acc('view.splitRight', 'CmdOrCtrl+Shift+\\'),
           click: dispatch('view.splitRight')
         },
         {
@@ -263,12 +252,12 @@ export function buildAppMenu(
         },
         {
           label: 'Widen Pane',
-          accelerator: acc('view.widenPane'),
+          accelerator: acc('view.widenPane', 'CmdOrCtrl+Alt+Right'),
           click: dispatch('view.widenPane')
         },
         {
           label: 'Narrow Pane',
-          accelerator: acc('view.narrowPane'),
+          accelerator: acc('view.narrowPane', 'CmdOrCtrl+Alt+Left'),
           click: dispatch('view.narrowPane')
         },
         {
@@ -277,13 +266,13 @@ export function buildAppMenu(
         },
         {
           label: 'Focus Next Pane',
-          accelerator: acc('view.focusNextPane'),
+          accelerator: acc('view.focusNextPane', 'CmdOrCtrl+Alt+\\'),
           click: dispatch('view.focusNextPane')
         },
         { type: 'separator' },
         {
           label: 'Workspaces…',
-          accelerator: acc('view.workspaces'),
+          accelerator: acc('view.workspaces', 'CmdOrCtrl+Alt+W'),
           click: dispatch('view.workspaces')
         },
         {
@@ -296,17 +285,17 @@ export function buildAppMenu(
         // keyboard offers. `before-input-event` in windows.ts catches the rest.
         {
           label: 'Zoom In',
-          accelerator: acc('view.zoomIn'),
+          accelerator: acc('view.zoomIn', 'CmdOrCtrl+Plus'),
           click: dispatch('view.zoomIn')
         },
         {
           label: 'Zoom Out',
-          accelerator: acc('view.zoomOut'),
+          accelerator: acc('view.zoomOut', 'CmdOrCtrl+-'),
           click: dispatch('view.zoomOut')
         },
         {
           label: 'Reset Zoom',
-          accelerator: acc('view.zoomReset'),
+          accelerator: acc('view.zoomReset', 'CmdOrCtrl+0'),
           click: dispatch('view.zoomReset')
         },
         { type: 'separator' },
@@ -316,17 +305,17 @@ export function buildAppMenu(
         // `Ctrl Shift =` from the `Ctrl +` it is also a spelling of.
         {
           label: 'Zoom In (page only)',
-          accelerator: acc('view.pageZoomIn'),
+          accelerator: acc('view.pageZoomIn', 'CmdOrCtrl+Shift+Plus'),
           click: dispatch('view.pageZoomIn')
         },
         {
           label: 'Zoom Out (page only)',
-          accelerator: acc('view.pageZoomOut'),
+          accelerator: acc('view.pageZoomOut', 'CmdOrCtrl+Shift+-'),
           click: dispatch('view.pageZoomOut')
         },
         {
           label: 'Reset Page Zoom',
-          accelerator: acc('view.pageZoomReset'),
+          accelerator: acc('view.pageZoomReset', 'CmdOrCtrl+Shift+0'),
           click: dispatch('view.pageZoomReset')
         },
         { type: 'separator' },

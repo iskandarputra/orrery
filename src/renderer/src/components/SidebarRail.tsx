@@ -1,6 +1,5 @@
 import { changedFileCount } from '@core/change-totals'
 import { useStore } from '@/state/store'
-import { useShortcut, withShortcut } from '@/commands/shortcuts'
 import { Icon, type IconName } from './Icon'
 
 /**
@@ -35,14 +34,6 @@ export function SidebarRail(): React.JSX.Element {
   const openSettings = useStore((s) => s.openSettings)
   const setSidePanel = useStore((s) => s.setSidePanel)
 
-  const keys = {
-    sidebar: useShortcut('view.toggleSidebar'),
-    search: useShortcut('view.toggleSearch'),
-    quickOpen: useShortcut('app.quickOpen'),
-    graph: useShortcut('view.toggleGraph'),
-    settings: useShortcut('app.openSettings')
-  }
-
   const showingFiles = visible && view === 'files'
   const showingGit = visible && view === 'git'
   // For the vault on screen only: a count read for the last vault is not
@@ -57,7 +48,7 @@ export function SidebarRail(): React.JSX.Element {
   const items: RailItem[] = [
     {
       id: 'files',
-      label: withShortcut(showingFiles ? 'Hide files' : 'Show files', keys.sidebar),
+      label: showingFiles ? 'Hide files (Ctrl+B)' : 'Show files (Ctrl+B)',
       icon: 'folder',
       active: showingFiles,
       run: () => showSidebarView('files')
@@ -73,28 +64,18 @@ export function SidebarRail(): React.JSX.Element {
     },
     {
       id: 'search',
-      label: withShortcut('Search the vault', keys.search),
+      label: 'Search the vault (Ctrl+Shift+F)',
       icon: 'search',
       run: () => setSidePanel('search')
     },
     {
       id: 'quick-open',
-      label: withShortcut('Open a file by name', keys.quickOpen),
+      label: 'Open a file by name (Ctrl+P)',
       icon: 'file-text',
       run: () => openPalette('files')
     },
-    {
-      id: 'graph',
-      label: withShortcut('Graph view', keys.graph),
-      icon: 'diagram',
-      run: toggleGraph
-    },
-    {
-      id: 'settings',
-      label: withShortcut('Preferences', keys.settings),
-      icon: 'gear',
-      run: () => openSettings()
-    }
+    { id: 'graph', label: 'Graph view (Ctrl+Shift+G)', icon: 'diagram', run: toggleGraph },
+    { id: 'settings', label: 'Preferences (Ctrl+,)', icon: 'gear', run: () => openSettings() }
   ]
 
   return (

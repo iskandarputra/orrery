@@ -9,7 +9,6 @@ import { insertTemplate } from '@/notes/daily'
 import { invoke } from '@/services/client'
 import { getRegistry } from '@/bootstrap'
 import { useStore } from '@/state/store'
-import { shortcutText } from '@/commands/shortcuts'
 import type { PaletteMode } from '@/state/ui'
 import { Icon, type IconName } from './Icon'
 import { FileTypeIcon } from './FileIcon'
@@ -220,9 +219,7 @@ function PaletteInner({ initialMode }: { initialMode: PaletteMode }): React.JSX.
           label: c.title,
           detail: c.id,
           icon: 'keyboard',
-          // The key that runs it, default or the user's own. Showing only keys
-          // somebody had set meant a fresh install showed none at all.
-          badge: shortcutText(c.id, kb) || undefined,
+          badge: kb[c.id],
           run: () => registry?.execute(c.id)
         })
       })
