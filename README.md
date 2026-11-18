@@ -13,6 +13,7 @@
   <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F.svg">
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6.svg">
   <a href="https://github.com/iskandarputra/orrery/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/iskandarputra/orrery/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/iskandarputra/orrery/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/iskandarputra/orrery"></a>
 </p>
 
 Point Orrery at a folder. Your notes stay ordinary markdown files on disk,
@@ -22,18 +23,25 @@ have built becomes something you can see, search and walk through.
 That folder usually holds code as well as notes. So Orrery edits code properly,
 shows you git diffs, and gives you a shell in the same window.
 
-![The editor: live preview of headings, wikilinks, a table, a highlight and KaTeX maths](docs/screenshots/editor.png)
+![The editor: live preview of headings, wikilinks, a table, a highlight and KaTeX maths, with the outline beside it](docs/screenshots/editor.png)
 
 **Why you might want it.** Note apps tend to stop at notes. Code editors tend
 to treat links between documents as text. Orrery does both jobs, because in
 practice a folder of notes and a folder of code are the same folder.
 
-**Why you might not.** It is two weeks old: version 0.1.0, one developer,
-Linux packages only. The parts that could lose your work are covered by atomic
-writes, conflict detection on save, and 1,495 unit and 434 end-to-end tests.
-Everything else is early software that has been used in anger by exactly one
-person. Keep your vault in git, which you should be doing anyway, and which
-Orrery will now help you with.
+**Why you might not.** It is version 0.1.0, by one developer, with Linux
+packages only. The parts that could lose your work are covered by atomic
+writes, conflict detection on save, and 1,767 unit and about 530 end-to-end
+tests. Everything else is early software that has been used in anger by
+exactly one person. Keep your vault in git, which you should be doing anyway,
+and which Orrery will help you with.
+
+**In one window:** live-preview markdown · wikilinks, backlinks and embeds · a
+link graph and vault analytics · canvases · full-text search with operators ·
+up to four panes and saved workspaces · a code editor with language servers ·
+git staging, diffs and history · a terminal · PDFs you can read and edit ·
+CSV, SQLite and HTML viewers · an optional AI assistant · MCP in both
+directions · 28 themes.
 
 ## Writing
 
@@ -43,19 +51,26 @@ reappear exactly where the cursor lands. Nothing is converted to and from a
 rich-text model, so the file on disk is what you typed.
 
 Three modes on `Ctrl+Shift+1/2/3`: **Edit** (raw source), **Hybrid** (the
-default), **Reading** (fully rendered, read-only).
+default), **Reading** (fully rendered, read-only). `Ctrl+/` cycles them.
 
 Tables render as tables, and tidy themselves: edit one and the pipes line up
 when you leave it, keeping whatever alignment the columns declared. A table you
 only read is left exactly as it was. Drag the line between two columns in the
 rendered table to set their widths, and double-click it to give the widths back
 to the content. Markdown has nowhere to store a width, so that is a way of
-looking at the table rather than a change to the file. `$inline$` and `$$block$$` maths through KaTeX.
-` ```mermaid ` fences become diagrams. `==Highlights==` get a marker pen. Images
-and diagrams open full screen. A long code fence scrolls inside its own card,
-leaving the rest of the document where it was.
+looking at the table rather than a change to the file.
+
+`$inline$` and `$$block$$` maths through KaTeX. ` ```mermaid ` fences become
+diagrams. `==Highlights==` get a marker pen. `> [!NOTE]`, `> [!TIP]` and
+`> [!WARNING]` become callouts, each in its own colour. Images and diagrams
+open full screen. A long code fence scrolls inside its own card, leaving the
+rest of the document where it was.
 
 ![Reading mode: a displayed equation, a mermaid flowchart and a TypeScript code card, with the outline panel listing the note's headings](docs/screenshots/reading.png)
+
+**Embeds.** `![[Note]]` on a line of its own shows that note in place, and
+`![[Note#Heading]]` shows one section of it. One source of truth, shown
+wherever you need it, and still a plain line of markdown in the file.
 
 **Raw HTML renders too**, which markdown files are full of: the centred title,
 the row of badges and the `<details>` fold that every README opens with. It goes
@@ -71,12 +86,27 @@ rest of your file.
 **Footnotes** render as small raised markers. Click one and the cursor lands on
 its definition.
 
+**Daily notes and templates.** One command opens today's note, creating it
+from your template if it does not exist yet; another inserts any template at
+the cursor. The folders and the date format are in **Settings → Notes**.
+
+**Version history.** Every save keeps a snapshot, outside your vault so it
+never clutters the folder. **Version History** lists them with a preview of
+each, and restoring one is an ordinary edit: `Ctrl+Z` takes it back, and nothing
+changes on disk until you save.
+
+**Room to think.** **Zen mode** clears away everything but the text. **Focus
+mode** dims every line but the one you are on, and **typewriter mode** keeps
+that line in the middle of the screen. **Beautify** tidies a note and joins
+hard-wrapped paragraphs back into one line each.
+
 **Vim keys**, if you want them: one toggle in **Settings → Editor**, applying to
 prose and code alike.
 
-**28 themes**, 17 dark and 11 light. Each is a six-line palette from which the
-full token set is derived. A test checks every one of them for WCAG AA contrast
-and pointer target size on every change, so an unreadable theme fails the build.
+**28 themes**, 17 dark and 11 light, each derived from a six-colour palette.
+Every theme's text colours are unit-tested against WCAG AA contrast, and the
+rendered interface is measured for contrast and 24px pointer targets in the
+seven themes with the least headroom on every change.
 
 ## Finding your way around a vault
 
@@ -84,26 +114,27 @@ and pointer target size on every change, so an unreadable theme fails the build.
 `[[Note|alias]]`. Typing `[[` completes from the vault index and `Ctrl+click`
 follows a link. Follow one to a note you have never written and Orrery creates
 it. Links inside code fences stay as text, since a snippet showing the syntax is
-documentation rather than a reference.
+documentation rather than a reference. Hovering a wikilink shows the note it
+points at, rendered, without leaving the one you are reading.
 
-**Backlinks** (`Ctrl+Shift+B`) list every note pointing at this one, and every
+The panel on the right gathers what is known about the note in front of you.
+**Links** (`Ctrl+Shift+B`) lists every note pointing at this one, and every
 importing source file too when the include-code graph setting is on, with the
-line each mention sits on. **Outgoing links** does the reverse, and names the
-links that lead nowhere yet, which is usually where the next note comes from.
-**Bookmarks** keeps the files you return to. **Tags**, an **outline** and
-per-note **analysis** each get a panel of their own.
+line each mention sits on. **Outgoing** does the reverse, and names the links
+that lead nowhere yet, which is usually where the next note comes from.
+**Outline** (`Ctrl+Shift+U`), **Tags**, **Bookmarks**, word **Stats** and a
+per-note **Analysis** each have a tab. The panel starts closed and the rail
+beside it keeps every view one click away.
 
-Hovering a wikilink shows the note it points at, rendered, without leaving the
-one you are reading.
+**Search** (`Ctrl+Shift+F`) covers every text file in the vault, code included,
+and the text inside PDFs. Match case, whole word, regular expressions, and
+comma-separated globs for which files to include and exclude: `*.md`, `src/**`,
+`**/*.test.ts`. Operators do the same work from the search box: `path:src/` and
+`file:*.ts` narrow it, `tag:draft` looks for a tag, and a leading `-` excludes.
+Orrery decides a file is binary by looking inside it, so an unfamiliar
+extension still gets searched.
 
-**Search** covers every text file in the vault, code included. Match case,
-whole word, regular expressions, and comma-separated globs for which files to
-include and exclude: `*.md`, `src/**`, `**/*.test.ts`. Operators do the same
-work from the search box: `path:src/` and `file:*.ts` narrow it, `tag:draft`
-looks for a tag, and a leading `-` excludes. Orrery decides a file is binary by
-looking inside it, so an unfamiliar extension still gets searched.
-
-![The knowledge graph: 28 notes in four clusters, joined by 71 links](docs/screenshots/graph.png)
+![The knowledge graph: 28 notes and 2 code files in four clusters, joined by 72 links](docs/screenshots/graph.png)
 
 The **graph** (`Ctrl+Shift+G`) draws the whole vault as a map you can drag and
 zoom. Hover a note to spotlight what it connects to, click to open it. Size the
@@ -121,13 +152,40 @@ to files inside the vault: a dependency on `react` is real but it is not part of
 this folder. Colour by "Notes or code" to tell them apart, or switch code off in
 the graph's own settings.
 
+![Vault analytics: counts of notes, links and words, notes needing attention, and the most connected notes ranked by influence and by how much they hold the vault together](docs/screenshots/analytics.png)
+
+**Vault analytics** reads the same graph as numbers. How many notes, links and
+words; how many you touched this week; how much of the vault hangs together in
+one piece. Which notes are orphans, which are dead ends, which links point at
+nothing. Which notes are hubs, ranked by influence, and which are bridges, the
+ones that would split the vault in two if they went.
+
+![A canvas laid out from a cluster of notes: ten cards, each showing its note, joined by the links between them](docs/screenshots/canvas.png)
+
+**Canvases** are boards of cards: notes, text and links between them, on a
+surface you can pan and zoom. They are saved as [JSON Canvas](https://jsoncanvas.org),
+the same `.canvas` format Obsidian uses, so a board moves between the two
+without conversion. **Canvas from This Note's Cluster** starts one from the
+graph: it finds the notes that belong with the one you are reading and lays
+them out with their links already drawn. **Map of Content** does the same as a
+note, a list of the cluster you can keep editing.
+
 `Ctrl+P` opens any note by fuzzy name, `Ctrl+Shift+R` reopens something you had
-open before, and `Ctrl+Shift+P` runs any of 75 commands. In the same box, `:`
+open before, and `Ctrl+Shift+P` runs any of 106 commands. In the same box, `:`
 jumps to a line and `@` jumps to a heading or a declaration inside the file you
 are looking at. Prompts from connected MCP servers are in there too, since a
 prompt is a command someone else wrote. Two of those commands are for when you
 do not know what to open: one picks a note at random, the other makes a new one
 named after the minute you thought of it.
+
+**The file tree** works the way a file manager does. Shift and Ctrl select
+several rows, the arrow keys move through them, and a right-click offers what
+a file manager would: new file or folder, rename, cut, copy and paste, copy the
+path, reveal it in your file manager, open a terminal there, find in that
+folder, delete. Drag rows onto a folder to move them, hold
+`Ctrl` to copy, and drop a file on the editor to open it.
+
+![Three notes side by side in a light theme: Orbital mechanics, Mechanics and Two-body problem](docs/screenshots/panes.png)
 
 **Up to four panes** side by side. `Ctrl+\` splits, `Ctrl+Shift+\` sends the
 tab you are on into a pane of its own, `Ctrl+Alt+\` moves between them, and no
@@ -139,25 +197,34 @@ to set their widths, double-click it to even them out, or use
 
 A layout worth keeping becomes a **workspace**: `Ctrl+Alt+W`, give it a name,
 and the tabs, panes, column widths and side panel come back that way whenever
-you ask for it.
+you ask for it. The tabs you had open come back on their own when you restart.
 
-`Ctrl +` and `Ctrl -` zoom the whole interface in Chromium's 1.2x steps, `Ctrl
-0` puts it back, and the level is remembered across a restart. Add `Shift` and
-only the document scales, leaving the sidebar and tabs where they are. The
-editor, a diff, a table, a database and a rendered page all follow it.
+`Ctrl +` and `Ctrl -` zoom the whole interface, and so does `Ctrl` with the
+wheel or a pinch; `Ctrl 0` puts it back, and the level is remembered across a
+restart. Add `Shift` and only the document scales, leaving the sidebar and tabs
+where they are. The editor, a diff, a table, a database and a rendered page all
+follow it.
+
+**Open With works.** Orrery registers for markdown, text, CSV and JSON files
+and for folders, so a double-click or **Open With** in your file manager opens
+the file in Orrery. A folder opens as the vault. If Orrery is already running,
+the file goes to the window you have, in front of whatever was open.
 
 ## Code, git and a terminal
 
-![A side-by-side diff with a minimap, the source control panel, and the terminal running git](docs/screenshots/diff-terminal.png)
+![A side-by-side diff with a minimap, the source control panel listing the changed file, and the terminal running git](docs/screenshots/diff-terminal.png)
 
-**Git is built in.** Status, stage, unstage, discard, commit, and change bars in
-the editor gutter. A diff opens as a tab holding two real editors side by side,
-with syntax highlighting, undo and selection across lines. The working-tree side
-is editable and saves with `Ctrl+S`. Drag the line between the two columns to
-give one of them more room, and double-click it to even them up again. The
-minimap marks what changed as bands across its whole width rather than a sliver
-down one edge, so a small edit in a long file is visible from the other side of
-the room.
+**Git is built in.** Source Control lists **Staged Changes** and **Changes** as
+sections of their own, with how many lines each file adds and removes, and the
+total on the section header. Stage, unstage, discard, commit. The icon on the
+rail counts the changed files, so you know there is something to commit
+without opening anything. A command you run in the terminal tells Source
+Control when it finishes, so a `git commit` there shows up here straight away.
+
+A diff opens as a tab holding two real editors side by side, with syntax
+highlighting, undo and selection across lines. The working-tree side is
+editable and saves with `Ctrl+S`. Drag the line between the two columns to give
+one of them more room, and double-click it to even them up again.
 
 **The commit graph** draws every branch. Hover a commit for its full message,
 author and hash. Click it to see which files it touched, and click a file to
@@ -167,12 +234,19 @@ cherry-pick it onto the branch you are on.
 
 **A terminal** on ``Ctrl+` ``, running your own shell in the vault directory.
 
-![A TypeScript file with syntax highlighting, a minimap, folding and git change bars](docs/screenshots/code.png)
+![A TypeScript file with syntax highlighting, folding, git change bars in the gutter, the change ruler on the scroll track, a minimap and the symbol outline](docs/screenshots/code.png)
 
 **Code files are treated as code.** Highlighting for 143 languages, folding,
-bracket matching, multiple cursors, column selection and a minimap. Markdown's
-machinery stays well away from them: read `[1, 2, 3]` in a JSON file as a link
-and you have silently changed what the file appears to say.
+bracket matching, multiple cursors, column selection, an outline of
+declarations, and a minimap. Markdown's machinery stays well away from them:
+read `[1, 2, 3]` in a JSON file as a link and you have silently changed what the
+file appears to say.
+
+**Where you changed things is always in view.** Change bars sit in the gutter
+beside the lines, and the scroll track carries a ruler of every change in the
+file, so an edit three thousand lines down is visible from the top. The
+**Minimap** button in the status bar collapses the minimap to that ruler for the
+file in front of you, and gives the text back the width.
 
 **Language servers** are used where you already have them installed: hover
 types, completion, diagnostics in the gutter, go-to-definition on `F12`. Orrery
@@ -191,13 +265,17 @@ as text, because it is also a file you edit.
 Excalidraw canvas and save in Excalidraw's own format, so a board made here
 opens on excalidraw.com and one made there opens here.
 
-**Web pages, read or edited.** A `.html` file opens as source, highlighted, and
-the **Read** switch in the header renders it, with `Ctrl+Shift+V` or **View →
-View Mode → Toggle HTML Preview**. It renders what is in the buffer rather
-than what is on disk, so an edit shows without a save, and switching back finds the same
-document with its cursor and undo history intact. Reading is remembered per
-file: turning it on for one page does not change how the next one opens, and it
-does not touch the view mode notes use.
+### Web pages, read or edited
+
+A `.html` file opens as source, highlighted, and the **Read** switch in the
+header renders it, with `Ctrl+Shift+V` or **View → View Mode → Toggle HTML
+Preview**. It renders what is in the buffer rather than what is on disk, so an
+edit shows without a save, and switching back finds the same document with its
+cursor and undo history intact. Reading is remembered per file: turning it on
+for one page does not change how the next one opens, and it does not touch the
+view mode notes use.
+
+![An HTML file being read: the bar says one diagram drawn and two equations typeset, and offers to run the page's scripts or load its one remote item](docs/screenshots/html.png)
 
 The page is somebody else's document, so it is treated as one. It renders in a
 sandboxed frame under a policy that starts by refusing everything, and each
@@ -231,29 +309,21 @@ It is not a browser and does not pretend to be, so there is a **Browser**
 button that hands the file to yours. What you lose on the way there is listed
 in [SECURITY.md](SECURITY.md).
 
-![An HTML file being read: the bar says one diagram drawn and two equations typeset, and offers to run the page's scripts or load its one remote item](docs/screenshots/html.png)
+### Tables and databases
 
-**Tables and databases.** A `.csv` opens as a grid you can sort, filter, resize
-and rearrange by dragging, edited in place. Sorting and filtering never touch
-the file: they choose an order to draw in, and an edit goes back to the row it
-really came from.
+A `.csv` opens as a grid you can sort, filter, resize and rearrange by
+dragging, edited in place. Sorting and filtering never touch the file: they
+choose an order to draw in, and an edit goes back to the row it really came
+from.
 
 ![A CSV open as a grid of ten rows and five columns, with a filter box and buttons to add a row or a column](docs/screenshots/csv.png)
-A `.db` or `.sqlite` opens as its tables, with row counts, a
-page at a time, sortable, and a box for a query.
+
+A `.db` or `.sqlite` opens as its tables, with row counts, a page at a time,
+sortable, and a box for a query. It is strictly read-only, twice over: the file
+is opened read-only and anything that is not a question is refused before it
+reaches the database.
 
 ![A SQLite file open as its tables: two of them listed with row counts, one shown as a grid, marked read-only](docs/screenshots/database.png)
-It is strictly read-only, twice
-over: the file is opened read-only and anything that is not a question is
-refused before it reaches the database.
-
-## AI, if you want it
-
-Off until you configure it. Point it at the Claude API or a local Ollama model
-in **Settings → AI**. Answers are grounded in the note you have open plus
-matching passages from the vault, each cited as `[file:line]`. Semantic search
-runs over embeddings computed on your own machine. API keys stay in the main
-process and never reach the renderer.
 
 ## PDFs, read and edited
 
@@ -266,15 +336,24 @@ paper with a link back. Scanned pages can be recognised on your machine.
 
 You can also change one. Highlight, draw, type, sign and fill a form; rearrange,
 remove, turn and extract pages; put a picture on a page; or edit the page
-itself: click a line and retype it in the document's own font, drag it somewhere else,
-resize it, turn it about its own middle, write a new line where there was none,
-or take something out of the file rather than covering it. `Ctrl+Z` takes back anything on that list,
-including a rearrangement.
+itself: click a line and retype it in the document's own font, drag it somewhere
+else, resize it, turn it about its own middle, write a new line where there was
+none, or take something out of the file rather than covering it. `Ctrl+Z` takes
+back anything on that list, including a rearrangement.
 
 Two limits are stated plainly rather than discovered: there is no paragraph
 reflow, and a font that never contained a character probably cannot draw it.
 The editor says so before you commit, and takes a second `Enter` as your answer.
 Full details in [docs/pdf.md](docs/pdf.md).
+
+## AI, if you want it
+
+Off until you configure it. Point it at the Claude API, a local Ollama model,
+DeepSeek or any OpenAI-compatible API in **Settings → AI Assistant**. Answers
+are grounded in the note you have open plus matching passages from the vault,
+each cited as `[file:line]`. Semantic search runs over embeddings computed on
+your own machine. API keys stay in the main process and never reach the
+renderer.
 
 ## MCP, both ways
 
@@ -282,16 +361,17 @@ Orrery speaks the Model Context Protocol in both directions. Full details in
 [docs/mcp.md](docs/mcp.md).
 
 **It connects to your MCP servers.** Paste the `mcpServers` block you already
-use in Claude Desktop, Claude Code or VS Code, and their tools, resources and
-prompts appear in the Tools panel, in the command palette, and to the
-assistant. Any tool can be filled in and run by hand, which is how you find out
-what one does before letting a model call it.
+use in Claude Desktop, Claude Code or VS Code into **Settings → MCP**, and
+their tools, resources and prompts appear in the Tools panel, in the command
+palette, and to the assistant. Any tool can be filled in and run by hand, which
+is how you find out what one does before letting a model call it.
 
 Every tool asks the first time, showing the server, the tool and the exact
 arguments. The answer is remembered per tool, except for two things that always
 ask: anything the server marks destructive, and anything that writes to your
 vault. Refusing once refuses that call; refusing for good is its own button.
-Every call is logged, including the refused ones.
+What you have allowed or refused is listed in **Settings → MCP**, where any
+answer can be revoked. Every call is logged, including the refused ones.
 
 Servers can ask Orrery for things too, and it answers: **sampling** runs through
 your own configured model after showing you the prompt, **elicitation** draws a
@@ -308,10 +388,16 @@ and shows what it is about to write.
 
 ## Install
 
-Linux packages (`.deb`, AppImage) are on the
-[releases page](https://github.com/iskandarputra/orrery/releases). The build
-config has macOS and Windows targets, but they have to be built on those
-platforms and so far nobody has.
+Linux packages are on the
+[releases page](https://github.com/iskandarputra/orrery/releases), for x86-64:
+
+- **Debian, Ubuntu and derivatives:** download the `.deb` and run
+  `sudo apt install ./orrery_0.1.0_amd64.deb`.
+- **Any other distribution:** download the AppImage,
+  `chmod +x Orrery-0.1.0.AppImage`, and run it.
+
+The build config has macOS and Windows targets, but they have to be built on
+those platforms and so far nobody has.
 
 ### From source
 
@@ -329,6 +415,7 @@ cd orrery
 ./orrery.sh check     # lint, typecheck, unit tests
 ./orrery.sh e2e       # the built app, driven by Playwright
 ./orrery.sh package   # .deb and AppImage into ./dist
+./orrery.sh shots     # regenerate the screenshots in this README
 ```
 
 Electron opens real windows, so the end-to-end suite runs on a virtual display
@@ -343,11 +430,11 @@ and never takes your focus. Set `ORRERY_HEADED=1` when watching it is the point.
 Vault-wide search has a second implementation in Rust, in `native/`, spoken to
 over the same framed JSON-RPC the app uses for language servers. On a 3,000-note
 vault it answers in about 34 ms against roughly 543 ms for the TypeScript path.
+The packaged builds include it, and `ORRERY_RUST_SEARCH=1` switches it on.
 
-It is optional and off by default. Missing toolchain, missing binary, or a
-crash mid-query: the TypeScript search runs and nothing else changes. A
-differential test holds the two implementations to each other, so they cannot
-drift apart unnoticed.
+It is optional and off by default. Missing toolchain, missing binary, or a crash mid-query: the
+TypeScript search runs and nothing else changes. A differential test holds the
+two implementations to each other, so they cannot drift apart unnoticed.
 
 ```bash
 ./orrery.sh native                 # build it
@@ -386,7 +473,7 @@ Trusted local code, in the Obsidian sense.
 Electron · React 19 · TypeScript (strict) · CodeMirror 6 · Zustand · zod.
 
 ```
-src/core/      pure logic. No Electron, no DOM, no editor. 61 modules, 61 tested
+src/core/      pure logic. No Electron, no DOM, no editor. 82 modules, each with tests
 src/shared/    the IPC contract both processes compile against
 src/main/      files, git, language servers, terminal, embeddings
 src/preload/   the one bridge
@@ -402,6 +489,15 @@ write cannot silently discard a change made outside the editor. A note you have
 written but not yet given a file is kept in the application's data folder and
 comes back with the app, so quitting is never a decision about it. The question
 is asked when you close the note, not when you close Orrery.
+
+**Speed is measured, not assumed.** A 365,000-file folder opens at once,
+because a directory is read when you open it in the tree, and the index behind
+quick open walks the whole folder in 2.4 seconds rather than 8.
+Moving the cursor through a 159,000-character note costs about 0.2ms of
+decoration work, because rendered tables, equations and diagrams are found when
+the text changes rather than on every keypress. The graph of a 20,000-note vault
+builds in about 1.3 seconds, and when nothing has changed it is answered from a
+cache without reading a single note.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the longer version: what the layers are,
 where new code goes, and which rules a test will hold you to.

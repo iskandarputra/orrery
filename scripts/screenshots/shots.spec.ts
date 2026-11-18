@@ -333,6 +333,9 @@ test.beforeAll(async () => {
   await page.waitForSelector('.app', { timeout: 30_000 })
   await openVault(page, vault, 'Orbital mechanics.md')
   await setTheme(page)
+  // A note first: the outline's filter box only exists once there is a note
+  // to outline, and `openVault` waits for the file without opening it.
+  await page.locator('.tree-row--file', { hasText: 'Orbital mechanics' }).click()
   // The outline, open. It is closed on a first run now, and three shots below
   // reach for `view.toggleOutline` to get it out of the way of something that
   // is not a note: a toggle only means "hide" if the thing is showing.
@@ -505,4 +508,62 @@ test('an html page, read', async () => {
   await expect(page.locator('.htmlv__frame')).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(2500)
   await page.screenshot({ path: `${OUT}/html.png` })
+})
+
+/** The tree row for exactly this file name, not one that merely contains it. */
+const treeFile = (name: string): ReturnType<Page['locator']> =>
+  page.locator('.tree-row--file').filter({ has: page.getByText(name, { exact: true }) })
+
+test('a canvas laid out from a cluster', async () => {
+  // Built by the app from the link graph rather than drawn for the picture:
+  // the board is what "Canvas from This Note's Cluster" makes of Mechanics.
+  await treeFile('Mechanics.md').click()
+  await expect(page.locator('.tab--active')).toContainText('Mechanics.md', { timeout: 15_000 })
+  await command('canvas.fromCluster')
+  await expect(page.locator('.canvas')).toBeVisible({ timeout: 20_000 })
+  // Off the tree, whose tooltip names the temporary folder this vault is in.
+  await page.mouse.move(900, 860)
+  // Long enough for the toast that announces it to have gone.
+  await page.waitForTimeout(4500)
+  await page.screenshot({ path: `${OUT}/canvas.png` })
+})
+
+test('vault analytics', async () => {
+  await command('view.toggleAnalytics')
+  await expect(page.locator('.analytics__tiles')).toBeVisible({ timeout: 20_000 })
+  await page.waitForTimeout(1500)
+  await page.screenshot({ path: `${OUT}/analytics.png` })
+  await command('view.toggleAnalytics')
+  await expect(page.locator('.analytics__tiles')).toHaveCount(0)
+})
+
+test('three panes, in a light theme', async () => {
+  // Last, because it changes the theme. Every other picture is dark, and a
+  // reader deciding whether to install wants to see the other half too.
+  await page.evaluate(async () => {
+    const current = await window.orrery.invoke('settings:get', undefined)
+    await window.orrery.invoke('settings:set', {
+      ...current,
+      theme: 'light',
+      lightTheme: 'zinc-light'
+    })
+  })
+  // From nothing, so the panes hold the three notes chosen here and not
+  // whichever tabs the shots above happened to leave open.
+  await page.locator('.tab--active').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close All' }).click()
+  await expect(page.locator('.tab')).toHaveCount(0)
+
+  await treeFile('Orbital mechanics.md').click()
+  await expect(page.locator('.tab--active')).toContainText('Orbital mechanics.md')
+  for (const name of ['Mechanics.md', 'Two-body problem.md']) {
+    await treeFile(name).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Open to the Side' }).click()
+  }
+  await expect(page.locator('.editor-pane-host')).toHaveCount(3, { timeout: 15_000 })
+  // Three columns need the width the file tree takes.
+  await command('view.toggleSidebar')
+  await page.mouse.move(720, 890)
+  await page.waitForTimeout(2500)
+  await page.screenshot({ path: `${OUT}/panes.png` })
 })
